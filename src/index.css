@@ -1,0 +1,6 @@
+:root { --paper: #f4efe3; --paper-deep: #eae1d2; --ink: #22201c; --muted: #756f65; --line: rgba(34,32,28,.17); --vermillion: #c44730; --serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Baskerville, serif; --sans: 'Avenir Next', Avenir, 'Gill Sans', sans-serif; font-family: var(--sans); color: var(--ink); background: var(--paper); font-synthesis: none; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+* { box-sizing: border-box; }
+html { min-width: 320px; min-height: 100%; scroll-behavior: smooth; }
+body { min-width: 320px; min-height: 100svh; margin: 0; background: radial-gradient(circle at 78% 8%, rgba(196,71,48,.07), transparent 25rem), repeating-linear-gradient(90deg, transparent 0, transparent 79px, rgba(40,32,22,.018) 80px), var(--paper); }
+button, input, textarea, select { font: inherit; }
+button { -webkit-tap-highlight-color: transparent; }
