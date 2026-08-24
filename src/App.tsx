@@ -12,6 +12,7 @@ import {
   BookPlus,
   BookOpen,
   Check,
+  ChevronDown,
   ChevronRight,
   CirclePlus,
   Clock3,
@@ -179,10 +180,7 @@ function Sheet({
       >
         <div className="sheet-handle" aria-hidden="true" />
         <header className="sheet-header">
-          <div>
-            <span className="sheet-kicker">BookManager</span>
-            <h2>{title}</h2>
-          </div>
+          <h2>{title}</h2>
           <button className="icon-button" type="button" onClick={onClose} aria-label="Close">
             <X aria-hidden="true" />
           </button>
@@ -406,6 +404,7 @@ function SearchSheet({
 function ShelfSection({
   shelf,
   books,
+  isFiltering,
   onAdd,
   onDetails,
   onProgress,
@@ -416,6 +415,7 @@ function ShelfSection({
 }: {
   shelf: ShelfId
   books: LibraryBook[]
+  isFiltering: boolean
   onAdd: (shelf: ShelfId) => void
   onDetails: (id: string) => void
   onProgress: (id: string) => void
@@ -425,16 +425,24 @@ function ShelfSection({
   onRate: (id: string, rating: number) => void
 }) {
   const meta = shelfCopy[shelf]
+  const [collapsed, setCollapsed] = useState(false)
+  const isCollapsed = collapsed && !isFiltering
 
   return (
     <section className={`shelf shelf--${shelf}`} id={`shelf-${shelf}`} data-shelf={shelf}>
       <header className="shelf-header">
-        <div>
-          <span>{meta.eyebrow}</span>
+        <button
+          type="button"
+          className="shelf-toggle"
+          onClick={() => setCollapsed((value) => !value)}
+          aria-expanded={!isCollapsed}
+          aria-controls={`shelf-books-${shelf}`}
+        >
           <h2>
             {meta.label} <i>·</i> {books.length}
           </h2>
-        </div>
+          <ChevronDown className={isCollapsed ? 'is-collapsed' : ''} aria-hidden="true" />
+        </button>
         <button
           type="button"
           className="shelf-add"
@@ -445,15 +453,25 @@ function ShelfSection({
         </button>
       </header>
 
-      <div className="shelf-books">
+      <div className="shelf-books" id={`shelf-books-${shelf}`} hidden={isCollapsed}>
         {books.length === 0 ? (
-          <button className="empty-shelf" type="button" onClick={() => onAdd(shelf)}>
-            <CirclePlus aria-hidden="true" />
-            <span>
-              <strong>{meta.empty}</strong>
-              <small>Search by title, author, or ISBN</small>
-            </span>
-          </button>
+          isFiltering ? (
+            <div className="empty-shelf empty-shelf--filter">
+              <Search aria-hidden="true" />
+              <span>
+                <strong>No matches on this shelf</strong>
+                <small>Try another title or author</small>
+              </span>
+            </div>
+          ) : (
+            <button className="empty-shelf" type="button" onClick={() => onAdd(shelf)}>
+              <CirclePlus aria-hidden="true" />
+              <span>
+                <strong>{meta.empty}</strong>
+                <small>Add a title to this shelf</small>
+              </span>
+            </button>
+          )
         ) : (
           books.map((book) => (
             <article className="book-row" key={book.id}>
@@ -798,14 +816,12 @@ function SettingsPage({
 
 function BottomNavigation({
   view,
-  activeShelf,
   onLibrary,
   onShelf,
   onAdd,
   onSettings,
 }: {
   view: AppView
-  activeShelf: ShelfId
   onLibrary: () => void
   onShelf: (shelf: ShelfId) => void
   onAdd: () => void
@@ -814,18 +830,16 @@ function BottomNavigation({
   return (
     <nav className="bottom-nav" aria-label="App shortcuts">
       <button
-        className={view === 'library' && activeShelf === 'tbr' ? 'is-active' : ''}
+        className={view === 'library' ? 'is-active' : ''}
         type="button"
         onClick={onLibrary}
-        aria-current={view === 'library' && activeShelf === 'tbr' ? 'page' : undefined}
+        aria-current={view === 'library' ? 'page' : undefined}
       >
         <Library aria-hidden="true" /><span>My Books</span>
       </button>
       <button
-        className={view === 'library' && activeShelf === 'reading' ? 'is-active' : ''}
         type="button"
         onClick={() => onShelf('reading')}
-        aria-current={view === 'library' && activeShelf === 'reading' ? 'page' : undefined}
       >
         <BookOpen aria-hidden="true" /><span>Reading</span>
       </button>
@@ -833,10 +847,8 @@ function BottomNavigation({
         <Plus aria-hidden="true" /><span>Add Book</span>
       </button>
       <button
-        className={view === 'library' && activeShelf === 'finished' ? 'is-active' : ''}
         type="button"
         onClick={() => onShelf('finished')}
-        aria-current={view === 'library' && activeShelf === 'finished' ? 'page' : undefined}
       >
         <BookCheck aria-hidden="true" /><span>Finished</span>
       </button>
@@ -865,12 +877,24 @@ function App() {
   } = useLibrary()
   const [sheet, setSheet] = useState<SheetState>(null)
   const [view, setView] = useState<AppView>('library')
-  const [activeShelf, setActiveShelf] = useState<ShelfId>('tbr')
+  const [librarySearchOpen, setLibrarySearchOpen] = useState(false)
+  const [libraryQuery, setLibraryQuery] = useState('')
   const [toast, setToast] = useState('')
 
+  const normalizedLibraryQuery = libraryQuery.trim().toLocaleLowerCase()
+  const visibleBooks = useMemo(() => {
+    if (!normalizedLibraryQuery) return books
+
+    return books.filter((book) =>
+      [book.title, ...book.authors].some((value) =>
+        value.toLocaleLowerCase().includes(normalizedLibraryQuery),
+      ),
+    )
+  }, [books, normalizedLibraryQuery])
+
   const booksByShelf = useMemo(
-    () => Object.fromEntries(SHELVES.map(({ id }) => [id, books.filter((book) => book.shelf === id)])) as Record<ShelfId, LibraryBook[]>,
-    [books],
+    () => Object.fromEntries(SHELVES.map(({ id }) => [id, visibleBooks.filter((book) => book.shelf === id)])) as Record<ShelfId, LibraryBook[]>,
+    [visibleBooks],
   )
 
   const selectedBook = sheet && 'bookId' in sheet
@@ -883,25 +907,7 @@ function App() {
     return () => window.clearTimeout(timer)
   }, [toast])
 
-  useEffect(() => {
-    if (view !== 'library') return
-    const sections = SHELVES.map(({ id }) => document.getElementById(`shelf-${id}`)).filter(Boolean)
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0]
-        const shelf = visible?.target.getAttribute('data-shelf') as ShelfId | null
-        if (shelf) setActiveShelf(shelf)
-      },
-      { rootMargin: '-22% 0px -58% 0px', threshold: [0, 0.25, 0.6] },
-    )
-    sections.forEach((section) => observer.observe(section as Element))
-    return () => observer.disconnect()
-  }, [view])
-
   const scrollToShelf = (shelf: ShelfId) => {
-    setActiveShelf(shelf)
     document.getElementById(`shelf-${shelf}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
@@ -949,30 +955,49 @@ function App() {
         {view === 'library' ? (
           <>
             <header className="app-header" id="top">
-              <div className="app-header__meta">
-                <span>Private library</span>
-                <i aria-hidden="true" />
-                <span>Stored on this device</span>
-              </div>
               <div className="title-row">
-                <div>
-                  <p>{books.length} books, no noise</p>
-                  <h1>My Books</h1>
-                </div>
+                <h1>My Books</h1>
                 <button
-                  className="header-search"
+                  className={`header-search${librarySearchOpen ? ' is-open' : ''}`}
                   type="button"
-                  onClick={() => setSheet({ kind: 'search', shelf: 'tbr' })}
-                  aria-label="Search and add a book"
+                  onClick={() => {
+                    setLibrarySearchOpen((value) => !value)
+                    if (librarySearchOpen) setLibraryQuery('')
+                  }}
+                  aria-label={librarySearchOpen ? 'Close library search' : 'Search my library'}
+                  aria-expanded={librarySearchOpen}
                 >
-                  <Search aria-hidden="true" />
+                  {librarySearchOpen ? <X aria-hidden="true" /> : <Search aria-hidden="true" />}
                 </button>
               </div>
+
+              {librarySearchOpen && (
+                <div className="library-search">
+                  <Search aria-hidden="true" />
+                  <input
+                    autoFocus
+                    type="search"
+                    value={libraryQuery}
+                    onChange={(event) => setLibraryQuery(event.target.value)}
+                    placeholder="Search your books"
+                    aria-label="Search your books by title or author"
+                    autoCapitalize="none"
+                    enterKeyHint="search"
+                  />
+                  <small aria-live="polite">
+                    {normalizedLibraryQuery ? `${visibleBooks.length} found` : 'On this device'}
+                  </small>
+                  {libraryQuery && (
+                    <button type="button" onClick={() => setLibraryQuery('')} aria-label="Clear library search">
+                      <X aria-hidden="true" />
+                    </button>
+                  )}
+                </div>
+              )}
 
               <nav className="shelf-tabs" aria-label="Jump to a shelf">
                 {SHELVES.map((shelf) => (
                   <button
-                    className={activeShelf === shelf.id ? 'is-active' : ''}
                     type="button"
                     key={shelf.id}
                     onClick={() => scrollToShelf(shelf.id)}
@@ -985,26 +1010,34 @@ function App() {
             </header>
 
             <main className="shelf-stack">
-              {SHELVES.map((shelf) => (
-                <ShelfSection
-                  key={shelf.id}
-                  shelf={shelf.id}
-                  books={booksByShelf[shelf.id]}
-                  onAdd={(targetShelf) => setSheet({ kind: 'search', shelf: targetShelf })}
-                  onDetails={(bookId) => setSheet({ kind: 'detail', bookId })}
-                  onProgress={(bookId) => setSheet({ kind: 'progress', bookId })}
-                  onNext={handleNext}
-                  onStart={handleStart}
-                  onFinish={handleFinish}
-                  onRate={(id, rating) => updateBook(id, { rating })}
-                />
-              ))}
+              {normalizedLibraryQuery && visibleBooks.length === 0 ? (
+                <div className="library-no-results">
+                  <Search aria-hidden="true" />
+                  <div>
+                    <strong>No books found</strong>
+                    <span>Try another title or author.</span>
+                  </div>
+                </div>
+              ) : (
+                SHELVES.filter(
+                  (shelf) => !normalizedLibraryQuery || booksByShelf[shelf.id].length > 0,
+                ).map((shelf) => (
+                  <ShelfSection
+                    key={shelf.id}
+                    shelf={shelf.id}
+                    books={booksByShelf[shelf.id]}
+                    isFiltering={Boolean(normalizedLibraryQuery)}
+                    onAdd={(targetShelf) => setSheet({ kind: 'search', shelf: targetShelf })}
+                    onDetails={(bookId) => setSheet({ kind: 'detail', bookId })}
+                    onProgress={(bookId) => setSheet({ kind: 'progress', bookId })}
+                    onNext={handleNext}
+                    onStart={handleStart}
+                    onFinish={handleFinish}
+                    onRate={(id, rating) => updateBook(id, { rating })}
+                  />
+                ))
+              )}
             </main>
-
-            <footer className="local-note">
-              <Library aria-hidden="true" />
-              <p><strong>Yours alone.</strong> Your shelves, progress, ratings, and notes stay on this device.</p>
-            </footer>
           </>
         ) : (
           <SettingsPage
@@ -1016,7 +1049,6 @@ function App() {
 
         <BottomNavigation
           view={view}
-          activeShelf={activeShelf}
           onLibrary={showLibrary}
           onShelf={showShelf}
           onAdd={() => setSheet({ kind: 'search', shelf: 'tbr' })}
