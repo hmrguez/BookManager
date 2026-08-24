@@ -1,6 +1,77 @@
-:root { --paper: #f4efe3; --paper-deep: #eae1d2; --ink: #22201c; --muted: #756f65; --line: rgba(34,32,28,.17); --vermillion: #c44730; --serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Baskerville, serif; --sans: 'Avenir Next', Avenir, 'Gill Sans', sans-serif; font-family: var(--sans); color: var(--ink); background: var(--paper); font-synthesis: none; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
-* { box-sizing: border-box; }
-html { min-width: 320px; min-height: 100%; scroll-behavior: smooth; }
-body { min-width: 320px; min-height: 100svh; margin: 0; background: radial-gradient(circle at 78% 8%, rgba(196,71,48,.07), transparent 25rem), repeating-linear-gradient(90deg, transparent 0, transparent 79px, rgba(40,32,22,.018) 80px), var(--paper); }
-button, input, textarea, select { font: inherit; }
-button { -webkit-tap-highlight-color: transparent; }
+@import './design-system/tokens.css';
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  min-height: 100%;
+  scroll-behavior: smooth;
+  scroll-padding-top: 88px;
+}
+
+html::after {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: var(--text-primary);
+  content: '';
+  opacity: 0;
+  pointer-events: none;
+}
+
+html.eink-refresh::after {
+  animation: eink-refresh 300ms steps(2, jump-none) both;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100svh;
+  margin: 0;
+  background: var(--surface-page);
+  color: var(--text-primary);
+  font-family: var(--font-interface);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color var(--duration-page) linear, color var(--duration-page) linear;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+a {
+  color: inherit;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--action-accent) 26%, transparent);
+}
+
+@keyframes eink-refresh {
+  0% { opacity: 0; }
+  35% { opacity: 0.11; }
+  65% { opacity: 0.045; }
+  100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  html.eink-refresh::after {
+    animation: none;
+  }
+}

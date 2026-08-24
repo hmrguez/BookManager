@@ -1,6 +1,30 @@
 # BookManager
 
-A React + Capacitor starter for web, iOS, and Android, managed with Bun.
+A private, local-first book tracker built with React and Capacitor for web, iOS, and Android.
+It keeps a deliberately small workflow: **To Be Read**, **Up Next**, **Reading**, and **Finished**.
+
+## What it does
+
+- Finds books by title, author, or ISBN through the Google Books API.
+- Can force-add local-only book metadata in development when Google has no result.
+- Adds a result directly to any of the four built-in shelves.
+- Advances TBR books to Up Next, starts Up Next books, and finishes active books in one tap.
+- Tracks reading percentage or current page, ratings, and private notes.
+- Persists the whole library in the Capacitor WebView's local storage; there is no account,
+  backend, community layer, or cloud sync.
+
+The first launch includes a small starter library so every interaction is immediately visible.
+Each starter title can be moved or removed like any other book.
+
+## Google Books
+
+Google Books search works without authentication under Google's public quota. For dependable
+development and release builds, copy `.env.example` to `.env.local` and add a Google Books API
+key. Because Vite includes this value in the client bundle, restrict the key to the Books API and
+to the app's allowed origins/application identifiers in Google Cloud.
+
+Manual entry is available automatically under `bun run dev`. To include it in a local Capacitor
+build, set `VITE_ENABLE_MANUAL_BOOKS=true`; leave the flag disabled for release builds.
 
 ## Stack
 
