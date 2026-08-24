@@ -10,6 +10,7 @@
     "lint": "oxlint",
     "test": "bun test",
     "preview": "vite preview",
+    "assets:generate": "uv run --no-project --with-requirements scripts/brand-assets-requirements.txt scripts/generate-brand-assets.py --source-png ../../branding/source/wovenleaf-mark-color-2048px.png --source-svg ../../branding/source/wovenleaf-mark-color.svg --local-output ../../branding/final/platform",
     "cap:sync": "bun run build && cap sync",
     "cap:doctor": "cap doctor",
     "android:open": "bun run cap:sync && cap open android",

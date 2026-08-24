@@ -1,0 +1,5 @@
+fonttools[woff]==4.59.0
+numpy==2.3.5
+Pillow==12.3.0
+pypdf==6.10.0
+reportlab==4.4.9

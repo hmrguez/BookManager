@@ -65,6 +65,21 @@ Release credentials remain local and are not committed:
 
 `make android-release` intentionally produces an unsigned APK until local signing is configured.
 
+### Regenerate identity assets
+
+The approved QUI-6 masters are versioned under `branding/source/`. Regenerate
+every iOS, Android, splash, favicon, and PWA asset from those masters with one command:
+
+```bash
+make brand-assets
+```
+
+The generator uses `uv`, updates the Git-tracked assets that ship with the app, validates required
+pixel dimensions and Android's adaptive safe zone, and writes store sources, mask/appearance previews,
+hashes, and QA evidence to `branding/final/platform/` (gitignored). To use masters stored elsewhere,
+override `BRAND_SOURCE_PNG`, `BRAND_SOURCE_SVG`, and optionally `BRAND_LOCAL_OUTPUT` on the command.
+Do not hand-edit generated PNG files; change the approved master or generator and rerun it.
+
 ## First run
 
 ```bash

@@ -7,8 +7,11 @@ IOS_SDK ?=
 ANDROID_TARGET ?=
 ANDROID_SDK ?= $(if $(ANDROID_HOME),$(ANDROID_HOME),$(if $(ANDROID_SDK_ROOT),$(ANDROID_SDK_ROOT),$(HOME)/Library/Android/sdk))
 ADB := $(if $(wildcard $(ANDROID_SDK)/platform-tools/adb),$(ANDROID_SDK)/platform-tools/adb,adb)
+BRAND_SOURCE_PNG ?= branding/source/wovenleaf-mark-color-2048px.png
+BRAND_SOURCE_SVG ?= branding/source/wovenleaf-mark-color.svg
+BRAND_LOCAL_OUTPUT ?= branding/final/platform
 
-.PHONY: help install dev preview lint test build check clean doctor versions sync cap-doctor \
+.PHONY: help install dev preview lint test build check clean doctor versions brand-assets sync cap-doctor \
 	native-add ios-add android-add ios-open android-open ios-list android-list \
 	ios-build android-build android-release ios-simulator android-run \
 	android-device android-live android-install android-devices
@@ -47,6 +50,13 @@ versions: ## Print the core tool versions
 	@printf 'Vite:       '; cd $(MOBILE_DIR) && bunx vite --version
 	@printf 'TypeScript: '; cd $(MOBILE_DIR) && bunx tsc --version
 	@printf 'Capacitor:  '; cd $(MOBILE_DIR) && bunx cap --version
+
+brand-assets: ## Regenerate and validate iOS, Android, web, splash, and store artwork
+	uv run --no-project --with-requirements $(MOBILE_DIR)/scripts/brand-assets-requirements.txt \
+		$(MOBILE_DIR)/scripts/generate-brand-assets.py \
+		--source-png $(BRAND_SOURCE_PNG) \
+		--source-svg $(BRAND_SOURCE_SVG) \
+		--local-output $(BRAND_LOCAL_OUTPUT)
 
 sync: build ## Copy the web build and plugins into both native projects
 	cd $(MOBILE_DIR) && bunx cap sync

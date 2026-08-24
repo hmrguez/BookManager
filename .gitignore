@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+__pycache__/
+*.py[cod]
+
+# Local branding exports, review packages, and design intermediates
+/branding/.work/
+/branding/final/
+/branding/*.zip
+/branding/wovenleaf-logo-concept.png
