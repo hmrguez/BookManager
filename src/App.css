@@ -54,7 +54,7 @@ textarea:focus {
   width: min(720px, 100%);
   min-height: 100svh;
   margin: 0 auto;
-  padding: max(20px, env(safe-area-inset-top)) clamp(14px, 3.5vw, 28px)
+  padding: calc(20px + env(safe-area-inset-top, 0px)) clamp(14px, 3.5vw, 28px)
     calc(72px + env(safe-area-inset-bottom));
 }
 
@@ -1570,7 +1570,7 @@ textarea:focus {
 
 @media (min-width: 760px) {
   .library-app {
-    padding-top: 30px;
+    padding-top: calc(30px + env(safe-area-inset-top, 0px));
   }
 
   .settings-ledger {
@@ -1584,7 +1584,8 @@ textarea:focus {
 
 @media (max-width: 560px) {
   .library-app {
-    padding: max(17px, env(safe-area-inset-top)) 12px calc(67px + env(safe-area-inset-bottom));
+    padding: calc(17px + env(safe-area-inset-top, 0px)) 12px
+      calc(67px + env(safe-area-inset-bottom));
   }
 
   .app-header,
