@@ -1,5 +1,23 @@
+:root {
+  --page-backdrop:
+    radial-gradient(circle at 12% 0%, rgb(255 255 255 / 72%), transparent 28rem),
+    radial-gradient(circle at 90% 96%, rgb(127 106 72 / 8%), transparent 34rem),
+    var(--surface-page);
+}
+
 #root {
   min-height: 100svh;
+}
+
+#root::before {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 40;
+  height: env(safe-area-inset-top, 0px);
+  background: var(--page-backdrop);
+  background-size: 100vw 100svh;
+  content: '';
+  pointer-events: none;
 }
 
 body::before,
@@ -12,10 +30,8 @@ body::after {
 
 body::before {
   z-index: -1;
-  background:
-    radial-gradient(circle at 12% 0%, rgb(255 255 255 / 72%), transparent 28rem),
-    radial-gradient(circle at 90% 96%, rgb(127 106 72 / 8%), transparent 34rem),
-    var(--surface-page);
+  background: var(--page-backdrop);
+  background-size: 100vw 100svh;
 }
 
 body::after {
@@ -54,7 +70,7 @@ textarea:focus {
   width: min(720px, 100%);
   min-height: 100svh;
   margin: 0 auto;
-  padding: calc(20px + env(safe-area-inset-top, 0px)) clamp(14px, 3.5vw, 28px)
+  padding: max(20px, env(safe-area-inset-top, 0px)) clamp(14px, 3.5vw, 28px)
     calc(72px + env(safe-area-inset-bottom));
 }
 
@@ -205,7 +221,7 @@ textarea:focus {
   border-radius: 12px;
   align-items: center;
   gap: 10px;
-  background: color-mix(in srgb, var(--surface-raised) 52%, transparent);
+  background: transparent;
 }
 
 .library-no-results > svg {
@@ -233,7 +249,7 @@ textarea:focus {
   scroll-margin-top: 12px;
   border: 1px solid var(--border-subtle);
   border-radius: 12px;
-  background: color-mix(in srgb, var(--surface-raised) 52%, transparent);
+  background: transparent;
   animation: paper-in 300ms var(--ease-page) both;
 }
 
@@ -1570,7 +1586,7 @@ textarea:focus {
 
 @media (min-width: 760px) {
   .library-app {
-    padding-top: calc(30px + env(safe-area-inset-top, 0px));
+    padding-top: max(30px, env(safe-area-inset-top, 0px));
   }
 
   .settings-ledger {
@@ -1584,7 +1600,7 @@ textarea:focus {
 
 @media (max-width: 560px) {
   .library-app {
-    padding: calc(17px + env(safe-area-inset-top, 0px)) 12px
+    padding: max(17px, env(safe-area-inset-top, 0px)) 12px
       calc(67px + env(safe-area-inset-bottom));
   }
 
