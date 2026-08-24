@@ -1,7 +1,8 @@
-# BookManager
+# Wovenleaf
 
-A private, local-first book tracker built with React and Capacitor for web, iOS, and Android.
-It keeps a deliberately small workflow: **To Be Read**, **Up Next**, **Reading**, and **Finished**.
+All your reading. One quiet place. Wovenleaf is a private, local-first book tracker built with
+React and Capacitor for web, iOS, and Android. It keeps a deliberately small workflow:
+**To Be Read**, **Up Next**, **Reading**, and **Finished**.
 
 ## What it does
 
@@ -19,9 +20,9 @@ Each starter title can be moved or removed like any other book.
 ## Google Books
 
 Google Books search works without authentication under Google's public quota. For dependable
-development and release builds, copy `.env.example` to `.env.local` and add a Google Books API
-key. Because Vite includes this value in the client bundle, restrict the key to the Books API and
-to the app's allowed origins/application identifiers in Google Cloud.
+development and release builds, copy `apps/mobile/.env.example` to `apps/mobile/.env.local` and
+add a Google Books API key. Because Vite includes this value in the client bundle, restrict the
+key to the Books API and to the app's allowed origins/application identifiers in Google Cloud.
 
 Manual entry is available automatically under `bun run dev`. To include it in a local Capacitor
 build, set `VITE_ENABLE_MANUAL_BOOKS=true`; leave the flag disabled for release builds.
@@ -36,7 +37,33 @@ build, set `VITE_ENABLE_MANUAL_BOOKS=true`; leave the flag disabled for release 
 - Android API 36 (minimum API 24)
 - iOS through Capacitor's Swift Package Manager integration
 
-The package versions are exact and reproducible through `bun.lock`. Before publishing, change the placeholder application ID `com.example.bookmanager` in `capacitor.config.ts`, then recreate or update the native identifiers in Xcode and Android Studio.
+The mobile app lives in `apps/mobile`. Its package versions are exact and reproducible through
+`apps/mobile/bun.lock`.
+
+## App identity and release setup
+
+Wovenleaf uses the same production identifier on iOS and Android:
+`com.hmrguez.wovenleaf`. Its custom deep-link scheme is `wovenleaf://`. Keep these identifiers
+stable after a store release: changing either native application ID makes the operating system
+treat the result as a different app with a separate data container.
+
+The internal Capacitor WebView schemes remain at their defaults. On first launch, Wovenleaf
+migrates a valid library from the legacy `bookmanager.library.v1` local-storage key to
+`wovenleaf.library.v1`, then removes the legacy key only after the new value is written. This
+preserves browser development data and native data for upgrades that retain the same app
+container. A development build already installed under the former native application ID has a
+different OS container and cannot be read by the renamed app; preserve that installation until
+any needed data has been copied.
+
+Release credentials remain local and are not committed:
+
+- In Xcode, select the Apple Developer team, register `com.hmrguez.wovenleaf`, and configure
+  automatic or manual distribution signing before creating an archive.
+- For Google Play, create and securely back up an upload keystore, configure the release signing
+  values outside Git, and let Play App Signing manage the distribution key.
+- Restrict the Google Books API key to the production identifiers/origins and the Books API.
+
+`make android-release` intentionally produces an unsigned APK until local signing is configured.
 
 ## First run
 
@@ -72,7 +99,8 @@ If Xcode has two runtimes with the same device name, also specify the runtime:
 make ios-simulator IOS_SIMULATOR='iPhone 17 Pro' IOS_SDK='26.5'
 ```
 
-`make ios-open` opens Xcode and `make android-open` opens Android Studio. Native release signing and App Store/Play Store archives should be configured in those IDEs; `make android-release` intentionally produces an unsigned release build.
+`make ios-open` opens Xcode and `make android-open` opens Android Studio. Native archives and
+store uploads should be created with the locally configured credentials described above.
 
 ## Run on a Google Pixel over USB
 
@@ -122,12 +150,14 @@ The pairing port and debugging port can be different; copy each from the corresp
 - `unauthorized`: unlock the phone, accept the RSA prompt, or use **Developer options → Revoke USB debugging authorizations**, reconnect, and accept again.
 - No device appears: confirm the cable supports data, switch USB mode to file transfer, then run `adb kill-server && adb start-server` using the full SDK path above.
 - `adb: command not found`: use `make android-devices`, which automatically checks `$ANDROID_HOME`, `$ANDROID_SDK_ROOT`, and `~/Library/Android/sdk`.
-- Gradle cannot find the SDK: open `android/` once in Android Studio, or export `ANDROID_HOME="$HOME/Library/Android/sdk"` in your shell profile.
+- Gradle cannot find the SDK: open `apps/mobile/android/` once in Android Studio, or export `ANDROID_HOME="$HOME/Library/Android/sdk"` in your shell profile.
 - The phone cannot load a live-reload page: reconnect USB and rerun `make android-live`; its port-forwarding only exists while ADB is connected.
 
 ## Native development loop
 
-Capacitor packages the `dist/` web build inside each native project. After changing React code for a normal native build, run `make sync`; the build targets already do this for you. After installing a Capacitor plugin with `bun add`, run `make sync` again.
+Capacitor packages the `apps/mobile/dist/` web build inside each native project. After changing
+React code for a normal native build, run `make sync`; the build targets already do this for you.
+After installing a Capacitor plugin with `cd apps/mobile && bun add PACKAGE`, run `make sync` again.
 
 The native projects are committed intentionally. Changes made in Xcode or Android Studio—permissions, signing, icons, entitlements, Gradle settings—remain normal Git-tracked project changes.
 

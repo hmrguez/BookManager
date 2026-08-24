@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Wovenleaf</string>
+    <string name="title_activity_main">Wovenleaf</string>
+    <string name="package_name">com.hmrguez.wovenleaf</string>
+    <string name="custom_url_scheme">wovenleaf</string>
+</resources>
