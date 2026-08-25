@@ -10,6 +10,7 @@ import {
 } from 'react'
 import {
   AlertTriangle,
+  Archive,
   ArrowRight,
   BookCheck,
   BookPlus,
@@ -21,6 +22,7 @@ import {
   Clock3,
   Download,
   FileUp,
+  FileText,
   FolderInput,
   History,
   Library,
@@ -30,6 +32,7 @@ import {
   Search,
   Settings as SettingsIcon,
   ShieldCheck,
+  Table2,
   Trash2,
   Wrench,
   X,
@@ -73,6 +76,7 @@ type SheetState =
 
 type AppView = 'library' | 'settings' | 'import'
 type ToastState = { message: string; undo?: () => void; family?: 'undo' } | null
+type ExportFormat = 'archive' | 'csv' | 'markdown'
 
 const MANUAL_ENTRY_ENABLED =
   import.meta.env.DEV || import.meta.env.VITE_ENABLE_MANUAL_BOOKS === 'true'
@@ -133,6 +137,18 @@ function formatUpdated(value: string) {
   const today = new Date()
   const isToday = date.toDateString() === today.toDateString()
   return `${isToday ? 'Today' : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} at ${date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
+}
+
+function downloadTextFile(contents: string, filename: string, mediaType: string) {
+  const url = URL.createObjectURL(new Blob([contents], { type: mediaType }))
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  anchor.hidden = true
+  document.body.append(anchor)
+  anchor.click()
+  anchor.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
 function Sheet({
@@ -766,23 +782,30 @@ function SettingsPage({
   importHistory,
   importBusy,
   importError,
+  exportBusy,
+  exportError,
   onBack,
   onAppearanceChange,
   onManualAdd,
   onImportFile,
   onUndoImport,
+  onExport,
 }: {
   books: LibraryBook[]
   appearance: AppearancePreferences
   importHistory: readonly ImportBatchSummary[]
   importBusy: boolean
   importError?: string
+  exportBusy: boolean
+  exportError?: string
   onBack: () => void
   onAppearanceChange: (preferences: AppearancePreferences) => void
   onManualAdd: () => void
   onImportFile: (file: File) => void
   onUndoImport: (batchId: string) => void
+  onExport: (format: ExportFormat, includeAnnotations: boolean) => void
 }) {
+  const [includeExportAnnotations, setIncludeExportAnnotations] = useState(true)
   const ratedBooks = books.filter((book) => book.rating > 0).length
   const notedBooks = books.filter((book) => book.notes.trim()).length
 
@@ -916,6 +939,77 @@ function SettingsPage({
             <div><dt>Rated</dt><dd>{ratedBooks}</dd></div>
             <div><dt>With notes</dt><dd>{notedBooks}</dd></div>
           </dl>
+        </section>
+
+        <section className="settings-card settings-card--export">
+          <div className="settings-card__icon"><Archive aria-hidden="true" /></div>
+          <div className="settings-card__heading">
+            <span>Portable export · Contract v1</span>
+            <h2>Your library, with a way home.</h2>
+            <p>Built entirely on this device. Review the manifest below before saving or sharing anything.</p>
+          </div>
+
+          <div className="export-manifest" aria-label="Portable export contents">
+            <div>
+              <strong>Inside the archive</strong>
+              <span>Catalog records and relationships</span>
+              <span>Shelves, progress, dates, and ratings</span>
+              <span>Checksums plus readable CSV and Markdown views</span>
+            </div>
+            <div>
+              <strong>Always left behind</strong>
+              <span>Passwords, API keys, and secure credentials</span>
+              <span>Database cache and import staging</span>
+              <span>Cover, ebook, and audiobook files</span>
+            </div>
+          </div>
+
+          <button
+            className="export-annotation-toggle"
+            type="button"
+            aria-pressed={includeExportAnnotations}
+            onClick={() => setIncludeExportAnnotations((value) => !value)}
+          >
+            <span>
+              <strong>Private notes and ratings</strong>
+              <small>{includeExportAnnotations ? 'Included in canonical and readable files' : 'Redacted from every exported file'}</small>
+            </span>
+            <i aria-hidden="true" />
+          </button>
+
+          <div className="export-actions">
+            <button
+              className="export-action export-action--primary"
+              type="button"
+              disabled={exportBusy}
+              onClick={() => onExport('archive', includeExportAnnotations)}
+            >
+              <Archive aria-hidden="true" />
+              <span><strong>{exportBusy ? 'Building locally…' : 'Portable JSON archive'}</strong><small>Lossless structure · verified restore</small></span>
+              <Download aria-hidden="true" />
+            </button>
+            <button
+              className="export-action"
+              type="button"
+              disabled={exportBusy}
+              onClick={() => onExport('csv', includeExportAnnotations)}
+            >
+              <Table2 aria-hidden="true" />
+              <span><strong>Readable CSV</strong><small>Lossy table · not restorable</small></span>
+              <Download aria-hidden="true" />
+            </button>
+            <button
+              className="export-action"
+              type="button"
+              disabled={exportBusy}
+              onClick={() => onExport('markdown', includeExportAnnotations)}
+            >
+              <FileText aria-hidden="true" />
+              <span><strong>Reading journal</strong><small>Lossy Markdown · not restorable</small></span>
+              <Download aria-hidden="true" />
+            </button>
+          </div>
+          {exportError && <p className="settings-hint settings-hint--error export-error" role="alert">{exportError}</p>}
         </section>
 
         <section className="settings-card settings-card--import">
@@ -1077,6 +1171,8 @@ function App() {
   const [importHistory, setImportHistory] = useState<ImportBatchSummary[]>([])
   const [importBusy, setImportBusy] = useState(false)
   const [importError, setImportError] = useState<string>()
+  const [exportBusy, setExportBusy] = useState(false)
+  const [exportError, setExportError] = useState<string>()
   const sheetTriggerRef = useRef<HTMLElement | null>(null)
 
   const normalizedLibraryQuery = libraryQuery.trim().toLocaleLowerCase()
@@ -1164,6 +1260,36 @@ function App() {
       setImportError(error instanceof Error ? error.message : String(error))
     } finally {
       setImportBusy(false)
+    }
+  }
+
+  const handleExport = async (format: ExportFormat, includeAnnotations: boolean) => {
+    setExportBusy(true)
+    setExportError(undefined)
+    try {
+      await reload()
+      const bundle = await (await getStorageRuntime()).portableArchives.create({
+        includeAnnotations,
+        includeSourcePayloads: false,
+      })
+      if (format === 'archive') {
+        downloadTextFile(bundle.archive, `${bundle.filenameStem}.wovenleaf.json`, 'application/json')
+      } else if (format === 'csv') {
+        downloadTextFile(bundle.csv, `${bundle.filenameStem}.csv`, 'text/csv;charset=utf-8')
+      } else {
+        downloadTextFile(bundle.markdown, `${bundle.filenameStem}.md`, 'text/markdown;charset=utf-8')
+      }
+      setToast({
+        message: format === 'archive'
+          ? 'Portable archive verified and ready'
+          : `${format === 'csv' ? 'CSV' : 'Reading journal'} saved as a readable, lossy view`,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      setExportError(message)
+      setToast({ message })
+    } finally {
+      setExportBusy(false)
     }
   }
 
@@ -1404,11 +1530,14 @@ function App() {
             importHistory={importHistory}
             importBusy={importBusy}
             importError={importError}
+            exportBusy={exportBusy}
+            exportError={exportError}
             onBack={showLibrary}
             onAppearanceChange={setAppearance}
             onManualAdd={() => openSheet({ kind: 'search', shelf: 'tbr', manual: true })}
             onImportFile={(file) => { void handleImportFile(file) }}
             onUndoImport={(batchId) => { void undoImportBatch(batchId) }}
+            onExport={(format, includeAnnotations) => { void handleExport(format, includeAnnotations) }}
           />
         )}
 

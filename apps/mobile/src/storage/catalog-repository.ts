@@ -103,11 +103,15 @@ export class CatalogRepository {
   async replace(catalog: Catalog): Promise<void> {
     const validated = catalogSchema.parse(catalog)
     await this.#database.transaction(async (database) => {
-      for (const table of CATALOG_TABLES_IN_DELETE_ORDER) {
-        await database.run(`DELETE FROM ${table}`)
-      }
+      await deleteCatalogRecords(database)
       await insertCatalog(database, validated)
     })
+  }
+}
+
+export async function deleteCatalogRecords(database: SqlDatabase): Promise<void> {
+  for (const table of CATALOG_TABLES_IN_DELETE_ORDER) {
+    await database.run(`DELETE FROM ${table}`)
   }
 }
 

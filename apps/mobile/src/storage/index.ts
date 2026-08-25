@@ -7,6 +7,25 @@ export { ImportRepository } from './import-repository'
 export type { ImportRepositoryOptions } from './import-repository'
 export { LibraryRepository } from './library-repository'
 export {
+  createLibraryCsv,
+  createLibraryMarkdown,
+  createPortableArchive,
+  inspectPortableArchive,
+  PORTABLE_ARCHIVE_FORMAT,
+  PORTABLE_ARCHIVE_FORMAT_VERSION,
+  PORTABLE_ARCHIVE_SCHEMA_VERSION,
+  PortableArchiveCompatibilityError,
+  PortableArchiveIntegrityError,
+  PortableArchiveService,
+} from './portable-archive'
+export type {
+  PortableArchiveBundle,
+  PortableArchiveInspection,
+  PortableArchiveManifest,
+  PortableArchiveOptions,
+  PortableAssetContent,
+} from './portable-archive'
+export {
   createLegacyLibraryRecoveryFile,
   LEGACY_LIBRARY_MIGRATION_KEY,
   LEGACY_LIBRARY_STORAGE_KEYS,

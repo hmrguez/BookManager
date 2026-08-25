@@ -1801,6 +1801,200 @@ textarea:focus-visible {
   align-content: start;
 }
 
+.settings-card--export {
+  overflow: hidden;
+  grid-column: 1 / -1;
+  background:
+    linear-gradient(90deg, transparent 0 42px, var(--border-subtle) 42px 43px, transparent 43px),
+    var(--surface-card);
+}
+
+.export-manifest {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  background: color-mix(in srgb, var(--surface-sunken) 72%, transparent);
+}
+
+.export-manifest > div {
+  display: grid;
+  min-width: 0;
+  padding: 11px 12px;
+  align-content: start;
+  gap: 5px;
+}
+
+.export-manifest > div + div {
+  border-left: 1px dashed var(--border-strong);
+}
+
+.export-manifest strong {
+  margin-bottom: 3px;
+  font: 650 0.57rem/1 var(--font-interface);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.export-manifest span {
+  position: relative;
+  padding-left: 13px;
+  color: var(--text-secondary);
+  font: 450 0.62rem/1.35 var(--font-interface);
+}
+
+.export-manifest span::before {
+  position: absolute;
+  top: 0.48em;
+  left: 1px;
+  width: 5px;
+  border-top: 1px solid currentColor;
+  content: '';
+}
+
+.export-annotation-toggle {
+  display: grid;
+  min-height: 44px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  background: transparent;
+  text-align: left;
+}
+
+.export-annotation-toggle span {
+  display: grid;
+  gap: 3px;
+}
+
+.export-annotation-toggle strong {
+  font: 520 0.72rem/1.2 var(--font-reading);
+}
+
+.export-annotation-toggle small {
+  color: var(--text-secondary);
+  font: 450 0.59rem/1.25 var(--font-interface);
+}
+
+.export-annotation-toggle > i {
+  position: relative;
+  width: 31px;
+  height: 18px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+}
+
+.export-annotation-toggle > i::after {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  content: '';
+  transition: transform var(--duration-quick) var(--ease-page);
+}
+
+.export-annotation-toggle[aria-pressed='true'] > i {
+  border-color: var(--state-selected-border);
+  background: var(--state-selected-surface);
+}
+
+.export-annotation-toggle[aria-pressed='true'] > i::after {
+  background: var(--state-selected-text);
+  transform: translateX(13px);
+}
+
+.export-actions {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: 1.25fr 1fr 1fr;
+  gap: 7px;
+}
+
+.export-action {
+  display: grid;
+  min-width: 0;
+  min-height: 52px;
+  padding: 8px 9px;
+  border: 1px solid var(--border-subtle);
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  text-align: left;
+}
+
+.export-action:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+}
+
+.export-action:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.export-action--primary {
+  border-color: var(--state-selected-border);
+  background: var(--surface-inverse);
+  color: var(--text-on-inverse);
+}
+
+.export-action--primary:hover:not(:disabled) {
+  background: var(--surface-inverse);
+}
+
+.export-action > svg:first-child {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.4;
+}
+
+.export-action > svg:last-child {
+  width: 13px;
+  height: 13px;
+  stroke-width: 1.5;
+  opacity: 0.72;
+}
+
+.export-action span {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.export-action strong,
+.export-action small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.export-action strong {
+  font: 580 0.64rem/1.15 var(--font-interface);
+}
+
+.export-action small {
+  color: var(--text-secondary);
+  font: 450 0.53rem/1.15 var(--font-interface);
+}
+
+.export-action--primary small {
+  color: color-mix(in srgb, var(--text-on-inverse) 72%, transparent);
+}
+
+.export-error {
+  grid-column: 1 / -1;
+}
+
 .import-file-picker {
   position: relative;
   overflow: hidden;
@@ -2139,5 +2333,17 @@ textarea:focus-visible {
 
   .bottom-nav button span {
     font-size: 0.5rem;
+  }
+}
+
+@media (max-width: 560px) {
+  .export-manifest,
+  .export-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .export-manifest > div + div {
+    border-top: 1px dashed var(--border-strong);
+    border-left: 0;
   }
 }

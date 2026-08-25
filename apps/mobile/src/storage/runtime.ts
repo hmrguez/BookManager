@@ -14,6 +14,7 @@ import {
 import { LibraryRepository } from './library-repository'
 import { createMigrationBackupStore } from './migration-backup'
 import { migrateStorage } from './migrations'
+import { PortableArchiveService } from './portable-archive'
 import { CatalogQueryService } from './query-services'
 
 export type StorageRuntime = {
@@ -22,6 +23,7 @@ export type StorageRuntime = {
   readonly readingLedger: ReadingLedgerRepository
   readonly library: LibraryRepository
   readonly imports: ImportRepository
+  readonly portableArchives: PortableArchiveService
   readonly queries: CatalogQueryService
   readonly legacyMigration: LegacyLibraryMigrationResult
   exportLegacyLibraryRecovery(): Promise<LegacyLibraryRecoveryFile | undefined>
@@ -54,6 +56,7 @@ async function initializeStorageRuntime(): Promise<StorageRuntime> {
     readingLedger: new ReadingLedgerRepository(database),
     library,
     imports: new ImportRepository(database),
+    portableArchives: new PortableArchiveService(database),
     queries,
     legacyMigration,
     exportLegacyLibraryRecovery: () =>

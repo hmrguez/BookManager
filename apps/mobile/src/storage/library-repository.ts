@@ -40,6 +40,13 @@ export class LibraryRepository {
     await this.#database.run('DELETE FROM library_books WHERE id = ?', [id])
     await this.#database.persist()
   }
+
+  async replace(books: readonly LibraryBook[]): Promise<void> {
+    const validated = books.map((book) => libraryBookSchema.parse(book))
+    await this.#database.transaction(async (database) => {
+      await replaceLibraryBooks(database, validated)
+    })
+  }
 }
 
 export async function readLibraryBooks(database: SqlDatabase): Promise<LibraryBook[]> {
@@ -72,4 +79,13 @@ export async function writeLibraryBook(database: SqlDatabase, book: LibraryBook)
       JSON.stringify(validated),
     ],
   )
+}
+
+export async function replaceLibraryBooks(
+  database: SqlDatabase,
+  books: readonly LibraryBook[],
+): Promise<void> {
+  const validated = books.map((book) => libraryBookSchema.parse(book))
+  await database.run('DELETE FROM library_books')
+  for (const book of validated) await writeLibraryBook(database, book)
 }
