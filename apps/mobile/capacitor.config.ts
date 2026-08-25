@@ -4,6 +4,11 @@ const config: CapacitorConfig = {
   appId: 'com.hmrguez.wovenleaf',
   appName: 'Wovenleaf',
   webDir: 'dist',
+  plugins: {
+    CapacitorSQLite: {
+      iosDatabaseLocation: 'Library/CapacitorDatabase',
+    },
+  },
 }
 
 export default config

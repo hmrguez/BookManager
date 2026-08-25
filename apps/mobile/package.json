@@ -15,6 +15,7 @@
     "typecheck": "tsc -b --pretty false",
     "check": "bun run lint && bun run typecheck",
     "test": "bun test ./tests/*.test.ts",
+    "storage:inspect": "bun scripts/inspect-storage.ts",
     "preview": "vite preview",
     "assets:generate": "uv run --no-project --with-requirements scripts/brand-assets-requirements.txt scripts/generate-brand-assets.py --source-png ../../branding/source/wovenleaf-mark-color-2048px.png --source-svg ../../branding/source/wovenleaf-mark-color.svg --local-output ../../branding/final/platform",
     "cap:sync": "bun run build && cap sync",
@@ -26,12 +27,16 @@
   },
   "dependencies": {
     "@aparajita/capacitor-secure-storage": "8.0.0",
+    "@capacitor-community/sqlite": "8.1.1",
     "@capacitor/core": "8.5.0",
+    "@capacitor/filesystem": "8.1.0",
     "@fontsource-variable/ibm-plex-sans": "^5.3.0",
     "@fontsource-variable/literata": "^5.3.0",
+    "jeep-sqlite": "2.8.0",
     "lucide-react": "^1.33.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "sql.js": "1.11.0",
     "zod": "4.4.3"
   },
   "devDependencies": {
@@ -46,5 +51,8 @@
     "oxlint": "1.79.0",
     "typescript": "7.0.2",
     "vite": "8.2.2"
+  },
+  "overrides": {
+    "sql.js": "1.11.0"
   }
 }

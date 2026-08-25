@@ -1,28 +1,14 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  createStarterLibrary,
+  type BookSearchResult,
+  type LibraryBook,
+  type ShelfId,
+} from './library-model'
+import type { LibraryRepository } from './storage/library-repository'
+import { getStorageRuntime } from './storage/runtime'
 
-export type ShelfId = 'tbr' | 'next' | 'reading' | 'finished'
-
-export type LibraryBook = {
-  id: string
-  title: string
-  authors: string[]
-  thumbnail?: string
-  pageCount: number
-  shelf: ShelfId
-  progress: number
-  currentPage: number
-  rating: number
-  notes: string
-  addedAt: string
-  startedAt?: string
-  finishedAt?: string
-  lastUpdatedAt: string
-}
-
-export type BookSearchResult = Pick<
-  LibraryBook,
-  'id' | 'title' | 'authors' | 'thumbnail' | 'pageCount'
->
+export type { BookSearchResult, LibraryBook, ShelfId } from './library-model'
 
 export const SHELVES: Array<{ id: ShelfId; label: string; shortLabel: string }> = [
   { id: 'tbr', label: 'To Be Read', shortLabel: 'TBR' },
@@ -31,227 +17,108 @@ export const SHELVES: Array<{ id: ShelfId; label: string; shortLabel: string }> 
   { id: 'finished', label: 'Finished', shortLabel: 'Done' },
 ]
 
-export const LIBRARY_STORAGE_KEY = 'wovenleaf.library.v1'
-export const LEGACY_LIBRARY_STORAGE_KEYS = ['bookmanager.library.v1'] as const
-
-export type LibraryStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
-
-const now = new Date().toISOString()
-
-const starterLibrary: LibraryBook[] = [
-  {
-    id: 'starter-will-of-the-many',
-    title: 'The Will of the Many',
-    authors: ['James Islington'],
-    pageCount: 639,
-    shelf: 'tbr',
-    progress: 0,
-    currentPage: 0,
-    rating: 0,
-    notes: '',
-    addedAt: now,
-    lastUpdatedAt: now,
-  },
-  {
-    id: 'starter-mistborn',
-    title: 'Mistborn',
-    authors: ['Brandon Sanderson'],
-    pageCount: 541,
-    shelf: 'tbr',
-    progress: 0,
-    currentPage: 0,
-    rating: 0,
-    notes: '',
-    addedAt: now,
-    lastUpdatedAt: now,
-  },
-  {
-    id: 'starter-assassins-apprentice',
-    title: "Assassin's Apprentice",
-    authors: ['Robin Hobb'],
-    pageCount: 448,
-    shelf: 'next',
-    progress: 0,
-    currentPage: 0,
-    rating: 0,
-    notes: '',
-    addedAt: now,
-    lastUpdatedAt: now,
-  },
-  {
-    id: 'starter-vita-nostra',
-    title: 'Vita Nostra',
-    authors: ['Marina & Sergey Dyachenko'],
-    pageCount: 416,
-    shelf: 'next',
-    progress: 0,
-    currentPage: 0,
-    rating: 0,
-    notes: '',
-    addedAt: now,
-    lastUpdatedAt: now,
-  },
-  {
-    id: 'starter-tainted-cup',
-    title: 'The Tainted Cup',
-    authors: ['Robert Jackson Bennett'],
-    pageCount: 400,
-    shelf: 'reading',
-    progress: 67,
-    currentPage: 268,
-    rating: 0,
-    notes: 'Loving the atmosphere and the layered world-building.',
-    addedAt: now,
-    startedAt: now,
-    lastUpdatedAt: now,
-  },
-  {
-    id: 'starter-blade-itself',
-    title: 'The Blade Itself',
-    authors: ['Joe Abercrombie'],
-    pageCount: 515,
-    shelf: 'reading',
-    progress: 31,
-    currentPage: 160,
-    rating: 0,
-    notes: '',
-    addedAt: now,
-    startedAt: now,
-    lastUpdatedAt: now,
-  },
-  {
-    id: 'starter-jonathan-strange',
-    title: 'Jonathan Strange & Mr Norrell',
-    authors: ['Susanna Clarke'],
-    pageCount: 1006,
-    shelf: 'finished',
-    progress: 100,
-    currentPage: 1006,
-    rating: 5,
-    notes: '',
-    addedAt: now,
-    finishedAt: now,
-    lastUpdatedAt: now,
-  },
-  {
-    id: 'starter-piranesi',
-    title: 'Piranesi',
-    authors: ['Susanna Clarke'],
-    pageCount: 272,
-    shelf: 'finished',
-    progress: 100,
-    currentPage: 272,
-    rating: 4,
-    notes: '',
-    addedAt: now,
-    finishedAt: now,
-    lastUpdatedAt: now,
-  },
-]
-
-function parseLibrary(value: string | null) {
-  if (value === null) return undefined
-
-  try {
-    const parsed = JSON.parse(value) as unknown
-    return Array.isArray(parsed) ? (parsed as LibraryBook[]) : undefined
-  } catch {
-    return undefined
-  }
-}
-
-export function readLibrary(storage: LibraryStorage = window.localStorage): LibraryBook[] {
-  try {
-    const currentLibrary = parseLibrary(storage.getItem(LIBRARY_STORAGE_KEY))
-    if (currentLibrary) return currentLibrary
-  } catch {
-    // Fall through to the legacy keys and starter library when storage is unavailable.
-  }
-
-  for (const legacyKey of LEGACY_LIBRARY_STORAGE_KEYS) {
-    try {
-      const legacyLibrary = parseLibrary(storage.getItem(legacyKey))
-      if (!legacyLibrary) continue
-
-      try {
-        storage.setItem(LIBRARY_STORAGE_KEY, JSON.stringify(legacyLibrary))
-        storage.removeItem(legacyKey)
-      } catch {
-        // Keep the legacy value as the recovery copy when migration cannot be persisted.
-      }
-
-      return legacyLibrary
-    } catch {
-      // Try the next legacy key if this one cannot be read.
-    }
-  }
-
-  return starterLibrary
-}
-
 export function useLibrary() {
-  const [books, setBooks] = useState<LibraryBook[]>(readLibrary)
+  const [books, setBooks] = useState<LibraryBook[]>(createStarterLibrary)
+  const [storageError, setStorageError] = useState<string>()
+  const booksRef = useRef(books)
+  const hasMutatedRef = useRef(false)
+  const persistenceTailRef = useRef(Promise.resolve())
 
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(LIBRARY_STORAGE_KEY, JSON.stringify(books))
-    } catch {
-      // Keep the in-memory library usable when browser storage is unavailable.
-    }
-  }, [books])
-
-  const updateBook = useCallback((id: string, changes: Partial<LibraryBook>) => {
-    setBooks((current) =>
-      current.map((book) =>
-        book.id === id
-          ? { ...book, ...changes, lastUpdatedAt: new Date().toISOString() }
-          : book,
-      ),
-    )
+  const showBooks = useCallback((next: LibraryBook[]) => {
+    booksRef.current = next
+    setBooks(next)
   }, [])
 
-  const addBook = useCallback((result: BookSearchResult, shelf: ShelfId) => {
-    let wasExisting = false
-    setBooks((current) => {
+  const enqueuePersistence = useCallback(
+    (operation: (repository: LibraryRepository) => Promise<void>) => {
+      persistenceTailRef.current = persistenceTailRef.current
+        .then(async () => operation((await getStorageRuntime()).library))
+        .catch((error: unknown) => {
+          setStorageError(error instanceof Error ? error.message : String(error))
+        })
+    },
+    [],
+  )
+
+  useEffect(() => {
+    let active = true
+    void getStorageRuntime()
+      .then(({ library }) => library.list())
+      .then((persistedBooks) => {
+        if (active && !hasMutatedRef.current) showBooks(persistedBooks)
+      })
+      .catch((error: unknown) => {
+        if (active) setStorageError(error instanceof Error ? error.message : String(error))
+      })
+    return () => {
+      active = false
+    }
+  }, [showBooks])
+
+  const saveChangedBook = useCallback(
+    (id: string, update: (book: LibraryBook) => LibraryBook) => {
+      const current = booksRef.current
+      const index = current.findIndex((book) => book.id === id)
+      if (index === -1) return
+      const changed = update(current[index])
+      const next = [...current]
+      next[index] = changed
+      hasMutatedRef.current = true
+      showBooks(next)
+      enqueuePersistence((repository) => repository.save(changed))
+    },
+    [enqueuePersistence, showBooks],
+  )
+
+  const updateBook = useCallback(
+    (id: string, changes: Partial<LibraryBook>) => {
+      saveChangedBook(id, (book) => ({
+        ...book,
+        ...changes,
+        lastUpdatedAt: new Date().toISOString(),
+      }))
+    },
+    [saveChangedBook],
+  )
+
+  const addBook = useCallback(
+    (result: BookSearchResult, shelf: ShelfId) => {
+      const current = booksRef.current
       const existing = current.find((book) => book.id === result.id)
       if (existing) {
-        wasExisting = true
-        return current.map((book) =>
-          book.id === result.id
-            ? {
-                ...book,
-                shelf,
-                startedAt: shelf === 'reading' ? book.startedAt ?? new Date().toISOString() : book.startedAt,
-                lastUpdatedAt: new Date().toISOString(),
-              }
-            : book,
-        )
+        saveChangedBook(result.id, (book) => ({
+          ...book,
+          shelf,
+          startedAt: shelf === 'reading' ? book.startedAt ?? new Date().toISOString() : book.startedAt,
+          lastUpdatedAt: new Date().toISOString(),
+        }))
+        return true
       }
 
       const timestamp = new Date().toISOString()
-      return [
-        ...current,
-        {
-          ...result,
-          shelf,
-          progress: shelf === 'finished' ? 100 : 0,
-          currentPage: shelf === 'finished' ? result.pageCount : 0,
-          rating: 0,
-          notes: '',
-          addedAt: timestamp,
-          startedAt: shelf === 'reading' ? timestamp : undefined,
-          finishedAt: shelf === 'finished' ? timestamp : undefined,
-          lastUpdatedAt: timestamp,
-        },
-      ]
-    })
-    return wasExisting
-  }, [])
+      const added: LibraryBook = {
+        ...result,
+        shelf,
+        progress: shelf === 'finished' ? 100 : 0,
+        currentPage: shelf === 'finished' ? result.pageCount : 0,
+        rating: 0,
+        notes: '',
+        addedAt: timestamp,
+        startedAt: shelf === 'reading' ? timestamp : undefined,
+        finishedAt: shelf === 'finished' ? timestamp : undefined,
+        lastUpdatedAt: timestamp,
+      }
+      hasMutatedRef.current = true
+      showBooks([...current, added])
+      enqueuePersistence((repository) => repository.save(added))
+      return false
+    },
+    [enqueuePersistence, saveChangedBook, showBooks],
+  )
 
-  const moveBook = useCallback((id: string, shelf: ShelfId) => {
-    setBooks((current) =>
-      current.map((book) => {
-        if (book.id !== id) return book
+  const moveBook = useCallback(
+    (id: string, shelf: ShelfId) => {
+      saveChangedBook(id, (book) => {
         const timestamp = new Date().toISOString()
         return {
           ...book,
@@ -262,14 +129,14 @@ export function useLibrary() {
           finishedAt: shelf === 'finished' ? timestamp : undefined,
           lastUpdatedAt: timestamp,
         }
-      }),
-    )
-  }, [])
+      })
+    },
+    [saveChangedBook],
+  )
 
-  const setProgress = useCallback((id: string, progress: number) => {
-    setBooks((current) =>
-      current.map((book) => {
-        if (book.id !== id) return book
+  const setProgress = useCallback(
+    (id: string, progress: number) => {
+      saveChangedBook(id, (book) => {
         const boundedProgress = Math.max(0, Math.min(99, Math.round(progress)))
         return {
           ...book,
@@ -279,14 +146,15 @@ export function useLibrary() {
             : book.currentPage,
           lastUpdatedAt: new Date().toISOString(),
         }
-      }),
-    )
-  }, [])
+      })
+    },
+    [saveChangedBook],
+  )
 
-  const setCurrentPage = useCallback((id: string, page: number) => {
-    setBooks((current) =>
-      current.map((book) => {
-        if (book.id !== id || !book.pageCount) return book
+  const setCurrentPage = useCallback(
+    (id: string, page: number) => {
+      saveChangedBook(id, (book) => {
+        if (!book.pageCount) return book
         const boundedPage = Math.max(0, Math.min(book.pageCount, Math.round(page)))
         return {
           ...book,
@@ -294,18 +162,27 @@ export function useLibrary() {
           progress: Math.min(99, Math.round((boundedPage / book.pageCount) * 100)),
           lastUpdatedAt: new Date().toISOString(),
         }
-      }),
-    )
-  }, [])
+      })
+    },
+    [saveChangedBook],
+  )
 
   const finishBook = useCallback((id: string) => moveBook(id, 'finished'), [moveBook])
 
-  const removeBook = useCallback((id: string) => {
-    setBooks((current) => current.filter((book) => book.id !== id))
-  }, [])
+  const removeBook = useCallback(
+    (id: string) => {
+      const next = booksRef.current.filter((book) => book.id !== id)
+      if (next.length === booksRef.current.length) return
+      hasMutatedRef.current = true
+      showBooks(next)
+      enqueuePersistence((repository) => repository.remove(id))
+    },
+    [enqueuePersistence, showBooks],
+  )
 
   return {
     books,
+    storageError,
     addBook,
     updateBook,
     moveBook,
