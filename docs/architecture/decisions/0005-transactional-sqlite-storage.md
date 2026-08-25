@@ -5,6 +5,9 @@
 - **Issue:** QUI-17
 - **Depends on:** [ADR 0001: Canonical catalog and access boundaries](0001-canonical-catalog-boundaries.md), [ADR 0003: Reading ledger](0003-reading-ledger.md)
 
+For day-to-day schema changes, see the
+[SQLite development guide](../../guides/sqlite-development.md).
+
 ## Context
 
 The development UI stored its flat library as one `localStorage` JSON value. That cannot make a
