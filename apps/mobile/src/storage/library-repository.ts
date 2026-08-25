@@ -37,8 +37,17 @@ export class LibraryRepository {
   }
 
   async remove(id: string): Promise<void> {
-    await this.#database.run('DELETE FROM library_books WHERE id = ?', [id])
-    await this.#database.persist()
+    await this.#database.transaction(async (database) => {
+      await database.run('DELETE FROM custom_shelf_entries WHERE book_id = ?', [id])
+      await database.run('DELETE FROM library_book_tags WHERE book_id = ?', [id])
+      await database.run('DELETE FROM library_books WHERE id = ?', [id])
+      await database.run(
+        `DELETE FROM organization_tags
+         WHERE NOT EXISTS (
+           SELECT 1 FROM library_book_tags WHERE library_book_tags.tag_id = organization_tags.id
+         )`,
+      )
+    })
   }
 
   async replace(books: readonly LibraryBook[]): Promise<void> {

@@ -350,7 +350,76 @@ export const STORAGE_MIGRATIONS: readonly StorageMigration[] = [
       await database.execute(importPipelineSchemaSql())
     },
   },
+  {
+    version: 4,
+    name: 'custom shelves tags and ordered membership',
+    kind: 'additive',
+    signature: libraryOrganizationSchemaSql(),
+    async up(database) {
+      await database.execute(libraryOrganizationSchemaSql())
+    },
+  },
 ]
+
+function libraryOrganizationSchemaSql(): string {
+  return `
+CREATE TABLE custom_shelves (
+  id TEXT PRIMARY KEY NOT NULL,
+  name TEXT NOT NULL,
+  pinned INTEGER NOT NULL CHECK (pinned IN (0, 1)),
+  archived INTEGER NOT NULL CHECK (archived IN (0, 1)),
+  position INTEGER NOT NULL CHECK (position >= 0),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  payload_json TEXT NOT NULL CHECK (json_valid(payload_json))
+);
+
+CREATE INDEX idx_custom_shelves_visible
+  ON custom_shelves(archived, pinned DESC, position, id);
+
+CREATE TABLE custom_shelf_entries (
+  id TEXT PRIMARY KEY NOT NULL,
+  shelf_id TEXT NOT NULL,
+  book_id TEXT NOT NULL,
+  position INTEGER NOT NULL CHECK (position >= 0),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  payload_json TEXT NOT NULL CHECK (json_valid(payload_json)),
+  FOREIGN KEY (shelf_id) REFERENCES custom_shelves(id) ON DELETE RESTRICT,
+  UNIQUE(shelf_id, book_id),
+  UNIQUE(shelf_id, position)
+);
+
+CREATE INDEX idx_custom_shelf_entries_order
+  ON custom_shelf_entries(shelf_id, position, id);
+CREATE INDEX idx_custom_shelf_entries_book
+  ON custom_shelf_entries(book_id, shelf_id, id);
+
+CREATE TABLE organization_tags (
+  id TEXT PRIMARY KEY NOT NULL,
+  name TEXT NOT NULL,
+  normalized_name TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  payload_json TEXT NOT NULL CHECK (json_valid(payload_json))
+);
+
+CREATE INDEX idx_organization_tags_name
+  ON organization_tags(normalized_name, id);
+
+CREATE TABLE library_book_tags (
+  tag_id TEXT NOT NULL,
+  book_id TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  payload_json TEXT NOT NULL CHECK (json_valid(payload_json)),
+  PRIMARY KEY (tag_id, book_id),
+  FOREIGN KEY (tag_id) REFERENCES organization_tags(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX idx_library_book_tags_book
+  ON library_book_tags(book_id, tag_id);
+`
+}
 
 function importPipelineSchemaSql(): string {
   return `

@@ -6,6 +6,14 @@ export const libraryBookSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
   authors: z.array(z.string().min(1)),
+  alternateTitles: z.array(z.string().min(1)).optional(),
+  series: z.array(z.string().min(1)).optional(),
+  identifiers: z.array(z.string().min(1)).optional(),
+  tags: z.array(z.string().min(1)).optional(),
+  listNames: z.array(z.string().min(1)).optional(),
+  sourceNames: z.array(z.string().min(1)).optional(),
+  editionTitle: z.string().min(1).optional(),
+  format: z.string().min(1).optional(),
   thumbnail: z.url().optional(),
   pageCount: z.number().int().nonnegative(),
   shelf: shelfIdSchema,
@@ -24,7 +32,13 @@ export type LibraryBook = z.infer<typeof libraryBookSchema>
 
 export type BookSearchResult = Pick<
   LibraryBook,
-  'id' | 'title' | 'authors' | 'thumbnail' | 'pageCount'
+  | 'id'
+  | 'title'
+  | 'authors'
+  | 'identifiers'
+  | 'sourceNames'
+  | 'thumbnail'
+  | 'pageCount'
 >
 
 export const STARTER_LIBRARY_BOOK_IDS = [

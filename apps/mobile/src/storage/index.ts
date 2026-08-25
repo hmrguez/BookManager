@@ -6,6 +6,8 @@ export type { StorageInspection } from './inspection'
 export { ImportRepository } from './import-repository'
 export type { ImportRepositoryOptions } from './import-repository'
 export { LibraryRepository } from './library-repository'
+export { OrganizationRepository } from './organization-repository'
+export { readLibraryOrganization, replaceOrganization } from './organization-repository'
 export {
   createLibraryCsv,
   createLibraryMarkdown,

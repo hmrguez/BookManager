@@ -6,6 +6,10 @@ type GoogleVolume = {
     title?: string
     authors?: string[]
     pageCount?: number
+    industryIdentifiers?: Array<{
+      type?: string
+      identifier?: string
+    }>
     imageLinks?: {
       smallThumbnail?: string
       thumbnail?: string
@@ -47,6 +51,10 @@ export async function searchGoogleBooks(query: string, signal?: AbortSignal) {
       id: item.id,
       title: item.volumeInfo?.title ?? 'Untitled',
       authors: item.volumeInfo?.authors?.length ? item.volumeInfo.authors : ['Unknown author'],
+      identifiers: item.volumeInfo?.industryIdentifiers
+        ?.map(({ identifier }) => identifier)
+        .filter((identifier): identifier is string => Boolean(identifier)),
+      sourceNames: ['Google Books'],
       pageCount: item.volumeInfo?.pageCount ?? 0,
       thumbnail: secureImage(
         item.volumeInfo?.imageLinks?.thumbnail ?? item.volumeInfo?.imageLinks?.smallThumbnail,
