@@ -15,3 +15,14 @@ export {
   type TextureMode,
   type TypeScale,
 } from './appearance'
+
+export {
+  MOTION_FRAME_BUDGET,
+  MOTION_GRAMMAR,
+  MOTION_MODES,
+  motionScrollBehavior,
+  shouldReduceMotion,
+  type MotionFamily,
+  type MotionMode,
+  type MotionRule,
+} from './motion'

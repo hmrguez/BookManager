@@ -1,4 +1,5 @@
 @import './design-system/tokens.css';
+@import './design-system/motion.css';
 
 * {
   box-sizing: border-box;
@@ -68,11 +69,11 @@ a {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
-
   html.eink-refresh::after {
     animation: none;
   }
+}
+
+html.eink-refresh[data-motion='reduced']::after {
+  animation: none;
 }

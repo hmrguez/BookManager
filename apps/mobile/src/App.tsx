@@ -2,6 +2,7 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
   type FormEvent,
@@ -40,10 +41,12 @@ import {
 } from './library'
 import {
   CONTRAST_MODES,
+  MOTION_MODES,
   PAPER_MODES,
   TYPE_SCALES,
   applyAppearance,
   getAppearanceStorage,
+  motionScrollBehavior,
   readAppearance,
   writeAppearance,
   type AppearancePreferences,
@@ -59,6 +62,7 @@ type SheetState =
 
 type CoverData = Pick<LibraryBook, 'id' | 'title' | 'authors' | 'thumbnail'>
 type AppView = 'library' | 'settings'
+type ToastState = { message: string; undo?: () => void; family?: 'undo' } | null
 
 const MANUAL_ENTRY_ENABLED =
   import.meta.env.DEV || import.meta.env.VITE_ENABLE_MANUAL_BOOKS === 'true'
@@ -80,6 +84,10 @@ const appearanceLabels = {
     standard: '100%',
     large: '113%',
     'x-large': '125%',
+  },
+  motion: {
+    system: 'System',
+    reduced: 'Reduced',
   },
 } as const
 
@@ -187,27 +195,64 @@ function Sheet({
   children: ReactNode
   tall?: boolean
 }) {
+  const dialogRef = useRef<HTMLElement>(null)
+  const onCloseRef = useRef(onClose)
+
+  useLayoutEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
+
   useEffect(() => {
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape') onCloseRef.current()
     }
     window.addEventListener('keydown', closeOnEscape)
     return () => {
       document.body.style.overflow = previousOverflow
       window.removeEventListener('keydown', closeOnEscape)
     }
-  }, [onClose])
+  }, [])
+
+  useLayoutEffect(() => {
+    const dialog = dialogRef.current
+    if (!dialog || dialog.contains(document.activeElement)) return
+
+    const target = dialog.querySelector<HTMLElement>('[autofocus], button, input, textarea, select')
+    target?.focus({ preventScroll: true })
+  }, [])
+
+  const containFocus = (event: React.KeyboardEvent<HTMLElement>) => {
+    if (event.key !== 'Tab') return
+
+    const focusable = [...(dialogRef.current?.querySelectorAll<HTMLElement>(
+      'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex="-1"])',
+    ) ?? [])].filter((element) => !element.hidden)
+    if (!focusable.length) return
+
+    const first = focusable[0]
+    const last = focusable.at(-1)
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault()
+      last?.focus()
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault()
+      first.focus()
+    }
+  }
 
   return (
-    <div className="sheet-layer" role="presentation" onMouseDown={onClose}>
+    <div className="sheet-layer" data-motion-event="reveal" role="presentation" onMouseDown={onClose}>
       <section
+        ref={dialogRef}
         className={`bottom-sheet${tall ? ' bottom-sheet--tall' : ''}`}
+        data-motion-event="reveal"
         role="dialog"
         aria-modal="true"
         aria-label={title}
         onMouseDown={(event) => event.stopPropagation()}
+        onKeyDown={containFocus}
       >
         <div className="sheet-handle" aria-hidden="true" />
         <header className="sheet-header">
@@ -443,6 +488,7 @@ function ShelfSection({
   onStart,
   onFinish,
   onRate,
+  movingBookId,
 }: {
   shelf: ShelfId
   books: LibraryBook[]
@@ -454,6 +500,7 @@ function ShelfSection({
   onStart: (id: string) => void
   onFinish: (id: string) => void
   onRate: (id: string, rating: number) => void
+  movingBookId?: string
 }) {
   const meta = shelfCopy[shelf]
   const [collapsed, setCollapsed] = useState(false)
@@ -505,7 +552,11 @@ function ShelfSection({
           )
         ) : (
           books.map((book) => (
-            <article className="book-row" key={book.id}>
+            <article
+              className="book-row"
+              key={book.id}
+              data-motion-event={movingBookId === book.id ? 'move-shelf' : undefined}
+            >
               <button className="book-identity" type="button" onClick={() => onDetails(book.id)}>
                 <Cover book={book} />
                 <span className="book-copy">
@@ -578,7 +629,12 @@ function ProgressSheet({
         <button type="button" onClick={() => onProgress(book.progress - 5)} aria-label="Decrease by 5 percent">
           <Minus aria-hidden="true" />
         </button>
-        <output>{book.progress}<span>%</span></output>
+        <div className="progress-editor__value">
+          <output>{book.progress}<span>%</span></output>
+          <i className="progress-editor__meter" aria-hidden="true">
+            <b style={{ width: `${book.progress}%` }} />
+          </i>
+        </div>
         <button type="button" onClick={() => onProgress(book.progress + 5)} aria-label="Increase by 5 percent">
           <Plus aria-hidden="true" />
         </button>
@@ -636,7 +692,7 @@ function FinishedSheet({
 }) {
   return (
     <Sheet title="Finished" onClose={onClose}>
-      <div className="finish-celebration">
+      <div className="finish-celebration" data-motion-event="complete">
         <Cover book={book} large />
         <div>
           <span className="finish-mark"><Check aria-hidden="true" /></span>
@@ -719,7 +775,7 @@ function DetailSheet({
           <ChevronRight className={showShelves ? 'is-rotated' : ''} aria-hidden="true" />
         </button>
         {showShelves && (
-          <div className="move-choices">
+          <div className="move-choices" data-motion-event="reveal">
             {SHELVES.map((shelf) => (
               <button
                 type="button"
@@ -772,7 +828,7 @@ function SettingsPage({
   const notedBooks = books.filter((book) => book.notes.trim()).length
 
   return (
-    <main className="settings-page">
+    <main className="settings-page" data-motion-event="navigate">
       <header className="settings-header">
         <div className="app-header__meta">
           <span>Wovenleaf</span>
@@ -782,7 +838,7 @@ function SettingsPage({
         <div className="title-row">
           <div>
             <p>Quiet controls for a private library</p>
-            <h1>Settings</h1>
+            <h1 tabIndex={-1}>Settings</h1>
           </div>
           <button className="header-search" type="button" onClick={onBack} aria-label="Back to my books">
             <Library aria-hidden="true" />
@@ -833,6 +889,26 @@ function SettingsPage({
                 </button>
               ))}
             </div>
+          </fieldset>
+
+          <fieldset className="appearance-field">
+            <legend>Motion</legend>
+            <div className="appearance-options appearance-options--motion">
+              {MOTION_MODES.map((motion) => (
+                <button
+                  className="appearance-option"
+                  type="button"
+                  key={motion}
+                  aria-pressed={appearance.motion === motion}
+                  onClick={() => onAppearanceChange({ ...appearance, motion })}
+                >
+                  {appearanceLabels.motion[motion]}
+                </button>
+              ))}
+            </div>
+            <small className="appearance-field__hint">
+              Reduced is a global test mode: hierarchy, status, focus, and feedback stay intact.
+            </small>
           </fieldset>
 
           <fieldset className="appearance-field">
@@ -992,8 +1068,10 @@ function App() {
   const [view, setView] = useState<AppView>('library')
   const [librarySearchOpen, setLibrarySearchOpen] = useState(false)
   const [libraryQuery, setLibraryQuery] = useState('')
-  const [toast, setToast] = useState('')
+  const [toast, setToast] = useState<ToastState>(null)
+  const [movingBookId, setMovingBookId] = useState<string>()
   const [appearance, setAppearance] = useState(() => readAppearance(getAppearanceStorage()))
+  const sheetTriggerRef = useRef<HTMLElement | null>(null)
 
   const normalizedLibraryQuery = libraryQuery.trim().toLocaleLowerCase()
   const visibleBooks = useMemo(() => {
@@ -1017,9 +1095,15 @@ function App() {
 
   useEffect(() => {
     if (!toast) return
-    const timer = window.setTimeout(() => setToast(''), 2400)
+    const timer = window.setTimeout(() => setToast(null), toast.undo ? 5000 : 2400)
     return () => window.clearTimeout(timer)
   }, [toast])
+
+  useEffect(() => {
+    if (!movingBookId) return
+    const timer = window.setTimeout(() => setMovingBookId(undefined), 300)
+    return () => window.clearTimeout(timer)
+  }, [movingBookId])
 
   useLayoutEffect(() => {
     applyAppearance(document.documentElement, appearance)
@@ -1028,12 +1112,18 @@ function App() {
   }, [appearance])
 
   const scrollToShelf = (shelf: ShelfId) => {
-    document.getElementById(`shelf-${shelf}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    document.getElementById(`shelf-${shelf}`)?.scrollIntoView({
+      behavior: motionScrollBehavior(appearance.motion),
+      block: 'start',
+    })
   }
 
   const showLibrary = () => {
     setView('library')
-    window.setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 0)
+    window.setTimeout(() => window.scrollTo({
+      top: 0,
+      behavior: motionScrollBehavior(appearance.motion),
+    }), 0)
   }
 
   const showShelf = (shelf: ShelfId) => {
@@ -1043,40 +1133,86 @@ function App() {
 
   const showSettings = () => {
     setView('settings')
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    window.scrollTo({ top: 0, behavior: motionScrollBehavior(appearance.motion) })
+  }
+
+  const openSheet = (nextSheet: Exclude<SheetState, null>) => {
+    if (!sheet && document.activeElement instanceof HTMLElement) {
+      sheetTriggerRef.current = document.activeElement
+    }
+    setSheet(nextSheet)
+  }
+
+  const closeSheet = () => {
+    setSheet(null)
+    window.requestAnimationFrame(() => {
+      const trigger = sheetTriggerRef.current
+      const fallback = document.querySelector<HTMLElement>('.app-content h1')
+      const target = trigger?.isConnected ? trigger : fallback
+      target?.focus({ preventScroll: true })
+      sheetTriggerRef.current = null
+    })
+  }
+
+  const moveWithUndo = (id: string, shelf: ShelfId, message: string) => {
+    const book = books.find((item) => item.id === id)
+    if (!book || book.shelf === shelf) return
+
+    const previousShelf = book.shelf
+    moveBook(id, shelf)
+    setMovingBookId(id)
+    setToast({
+      message,
+      undo: () => {
+        moveBook(id, previousShelf)
+        setMovingBookId(id)
+        if (shelf === 'finished') closeSheet()
+        setToast({
+          message: `${book.title} returned to ${shelfCopy[previousShelf].label}`,
+          family: 'undo',
+        })
+      },
+    })
   }
 
   const handleAdd = (result: BookSearchResult, shelf: ShelfId) => {
     const previous = books.find((book) => book.id === result.id)
+    if (previous && previous.shelf !== shelf) {
+      addBook(result, shelf)
+      setMovingBookId(previous.id)
+      setToast({ message: `Moved to ${shelfCopy[shelf].label}` })
+      return
+    }
+
     addBook(result, shelf)
-    setToast(previous ? `Moved to ${shelfCopy[shelf].label}` : `Added to ${shelfCopy[shelf].label}`)
+    setMovingBookId(result.id)
+    setToast({ message: previous ? `Already in ${shelfCopy[shelf].label}` : `Added to ${shelfCopy[shelf].label}` })
   }
 
   const handleStart = (id: string) => {
     const book = books.find((item) => item.id === id)
-    moveBook(id, 'reading')
-    setToast(`${book?.title ?? 'Book'} is now being read`)
+    moveWithUndo(id, 'reading', `${book?.title ?? 'Book'} is now being read`)
   }
 
   const handleNext = (id: string) => {
     const book = books.find((item) => item.id === id)
-    moveBook(id, 'next')
-    setToast(`${book?.title ?? 'Book'} moved to Up Next`)
+    moveWithUndo(id, 'next', `${book?.title ?? 'Book'} moved to Up Next`)
   }
 
   const handleFinish = (id: string) => {
     finishBook(id)
-    setSheet({ kind: 'finished', bookId: id })
+    setMovingBookId(id)
+    openSheet({ kind: 'finished', bookId: id })
   }
 
   return (
     <div className="library-app">
       <div className="app-content" inert={sheet ? true : undefined} aria-hidden={sheet ? true : undefined}>
         {view === 'library' ? (
-          <>
+          <div className="library-page" data-motion-event="navigate">
             <header className="app-header" id="top">
               <div className="title-row">
-                <h1>My Books</h1>
+                <h1 tabIndex={-1}>My Books</h1>
                 <button
                   className={`header-search${librarySearchOpen ? ' is-open' : ''}`}
                   type="button"
@@ -1092,7 +1228,7 @@ function App() {
               </div>
 
               {librarySearchOpen && (
-                <div className="library-search">
+                <div className="library-search" data-motion-event="reveal">
                   <Search aria-hidden="true" />
                   <input
                     autoFocus
@@ -1147,9 +1283,10 @@ function App() {
                     shelf={shelf.id}
                     books={booksByShelf[shelf.id]}
                     isFiltering={Boolean(normalizedLibraryQuery)}
-                    onAdd={(targetShelf) => setSheet({ kind: 'search', shelf: targetShelf })}
-                    onDetails={(bookId) => setSheet({ kind: 'detail', bookId })}
-                    onProgress={(bookId) => setSheet({ kind: 'progress', bookId })}
+                    movingBookId={movingBookId}
+                    onAdd={(targetShelf) => openSheet({ kind: 'search', shelf: targetShelf })}
+                    onDetails={(bookId) => openSheet({ kind: 'detail', bookId })}
+                    onProgress={(bookId) => openSheet({ kind: 'progress', bookId })}
                     onNext={handleNext}
                     onStart={handleStart}
                     onFinish={handleFinish}
@@ -1158,14 +1295,14 @@ function App() {
                 ))
               )}
             </main>
-          </>
+          </div>
         ) : (
           <SettingsPage
             books={books}
             appearance={appearance}
             onBack={showLibrary}
             onAppearanceChange={setAppearance}
-            onManualAdd={() => setSheet({ kind: 'search', shelf: 'tbr', manual: true })}
+            onManualAdd={() => openSheet({ kind: 'search', shelf: 'tbr', manual: true })}
           />
         )}
 
@@ -1173,13 +1310,22 @@ function App() {
           view={view}
           onLibrary={showLibrary}
           onShelf={showShelf}
-          onAdd={() => setSheet({ kind: 'search', shelf: 'tbr' })}
+          onAdd={() => openSheet({ kind: 'search', shelf: 'tbr' })}
           onSettings={showSettings}
         />
       </div>
 
-      <div className={`toast${toast ? ' is-visible' : ''}`} role="status" aria-live="polite">
-        <Check aria-hidden="true" /> {toast}
+      <div
+        className={`toast${toast ? ' is-visible' : ''}`}
+        data-motion-event={toast?.family}
+        role="status"
+        aria-live="polite"
+      >
+        <Check aria-hidden="true" />
+        <span>{toast?.message}</span>
+        {toast?.undo && (
+          <button type="button" onClick={toast.undo}>Undo</button>
+        )}
       </div>
 
       {sheet?.kind === 'search' && (
@@ -1187,7 +1333,7 @@ function App() {
           shelf={sheet.shelf}
           books={books}
           onAdd={handleAdd}
-          onClose={() => setSheet(null)}
+          onClose={closeSheet}
           initialManual={sheet.manual}
         />
       )}
@@ -1195,7 +1341,7 @@ function App() {
       {sheet?.kind === 'progress' && selectedBook && (
         <ProgressSheet
           book={selectedBook}
-          onClose={() => setSheet(null)}
+          onClose={closeSheet}
           onProgress={(progress) => setProgress(selectedBook.id, progress)}
           onPage={(page) => setCurrentPage(selectedBook.id, page)}
           onFinish={() => handleFinish(selectedBook.id)}
@@ -1205,7 +1351,7 @@ function App() {
       {sheet?.kind === 'finished' && selectedBook && (
         <FinishedSheet
           book={selectedBook}
-          onClose={() => setSheet(null)}
+          onClose={closeSheet}
           onRate={(rating) => updateBook(selectedBook.id, { rating })}
         />
       )}
@@ -1213,20 +1359,24 @@ function App() {
       {sheet?.kind === 'detail' && selectedBook && (
         <DetailSheet
           book={selectedBook}
-          onClose={() => setSheet(null)}
+          onClose={closeSheet}
           onMove={(shelf) => {
-            moveBook(selectedBook.id, shelf)
-            setToast(`Moved to ${shelfCopy[shelf].label}`)
-            if (shelf === 'finished') setSheet({ kind: 'finished', bookId: selectedBook.id })
+            if (shelf === 'finished') {
+              handleFinish(selectedBook.id)
+            } else {
+              moveBook(selectedBook.id, shelf)
+              setMovingBookId(selectedBook.id)
+              setToast({ message: `Moved to ${shelfCopy[shelf].label}` })
+            }
           }}
-          onProgress={() => setSheet({ kind: 'progress', bookId: selectedBook.id })}
+          onProgress={() => openSheet({ kind: 'progress', bookId: selectedBook.id })}
           onFinish={() => handleFinish(selectedBook.id)}
           onRate={(rating) => updateBook(selectedBook.id, { rating })}
           onNotes={(notes) => updateBook(selectedBook.id, { notes })}
           onRemove={() => {
             removeBook(selectedBook.id)
-            setSheet(null)
-            setToast('Removed from your library')
+            closeSheet()
+            setToast({ message: 'Removed from your library' })
           }}
         />
       )}

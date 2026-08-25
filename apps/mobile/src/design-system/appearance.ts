@@ -1,3 +1,5 @@
+import { MOTION_MODES, type MotionMode } from './motion'
+
 export const PAPER_MODES = ['warm', 'cool', 'print', 'night'] as const
 export const CONTRAST_MODES = ['system', 'standard', 'high'] as const
 export const TYPE_SCALES = ['standard', 'large', 'x-large'] as const
@@ -13,6 +15,7 @@ export interface AppearancePreferences {
   contrast: ContrastMode
   typeScale: TypeScale
   texture: TextureMode
+  motion: MotionMode
 }
 
 interface AppearanceStorage {
@@ -27,6 +30,7 @@ export const DEFAULT_APPEARANCE: AppearancePreferences = {
   contrast: 'system',
   typeScale: 'standard',
   texture: 'quiet',
+  motion: 'system',
 }
 
 export function getAppearanceStorage(): AppearanceStorage | undefined {
@@ -67,6 +71,9 @@ export function readAppearance(storage?: AppearanceStorage): AppearancePreferenc
       texture: isOneOf(TEXTURE_MODES, saved.texture)
         ? saved.texture
         : DEFAULT_APPEARANCE.texture,
+      motion: isOneOf(MOTION_MODES, saved.motion)
+        ? saved.motion
+        : DEFAULT_APPEARANCE.motion,
     }
   } catch {
     return DEFAULT_APPEARANCE
@@ -91,6 +98,12 @@ export function applyAppearance(
   root.dataset.paperMode = preferences.paperMode
   root.dataset.typeScale = preferences.typeScale
   root.dataset.texture = preferences.texture
+
+  if (preferences.motion === 'system') {
+    delete root.dataset.motion
+  } else {
+    root.dataset.motion = preferences.motion
+  }
 
   if (preferences.contrast === 'system') {
     delete root.dataset.contrast

@@ -4,9 +4,9 @@ Pulp is Wovenleaf's visual foundation. It should feel like a lived-in reading ro
 for long attention, tactile enough to feel personal, and clear enough that content and state are
 never mistaken for decoration.
 
-This document is the review record for QUI-8. The token contract is enforced by
-`tests/design-tokens.test.ts`; the app's Settings screen is the live mode and dynamic-type
-specimen.
+This document is the review record for QUI-8's surfaces and QUI-9's motion grammar. The token
+contract is enforced by `tests/design-tokens.test.ts` and `tests/motion.test.ts`; the app's
+Settings screen is the live appearance, dynamic-type, and reduced-motion specimen.
 
 ## Audit and files
 
@@ -15,9 +15,14 @@ specimen.
 | `fonts.css` | Bundled, offline Latin subsets for Literata Variable normal/italic and IBM Plex Sans Variable |
 | `tokens.css` | Identity palette, paper stocks, semantic colors, type, spacing, edge, elevation, texture, focus, selection, state, and platform fallbacks |
 | `appearance.ts` | Validated, persisted appearance preferences and root selector application |
+| `components.tsx` | Reusable UI primitives registered in the development gallery |
+| `GALLERY.md` | Component-story contract, deterministic baselines, and visual review gate |
+| `motion.ts` | Semantic motion rules, reduced equivalents, gesture/interruption policy, and frame budget |
+| `motion.css` | Composited implementations and global OS/explicit reduced-motion enforcement |
 | `index.ts` | Public TypeScript contract |
 | `../../tests/design-tokens.test.ts` | Literal-color boundary, contrast measurements, required-token checks, and texture budget |
 | `../../tests/appearance.test.ts` | Preference validation, persistence, and system-contrast behavior |
+| `../../tests/gallery-contract.test.ts` | Gallery registration, state coverage, deterministic fixtures, and route gate |
 
 The font audit keeps the intended pairing and removes network variability:
 
@@ -101,8 +106,8 @@ the original density. Reading copy uses `--leading-reading` and `--measure-readi
 copy uses `--leading-interface`.
 
 Forced Colors maps the contract to system colors. Print produces black ink on white paper with
-no texture or shadow. Reduced motion shortens theme transitions to 1 ms. Reduced transparency
-makes navigation/cards opaque and removes fiber.
+no texture or shadow. Reduced motion shortens every animation, transition, and scripted scroll to
+1 ms/instant. Reduced transparency makes navigation/cards opaque and removes fiber.
 
 ## Measured contrast
 
@@ -138,6 +143,64 @@ Paper craft must not become scrolling or battery debt.
   floating feedback gets `--depth-floating`; only a modal sheet gets `--depth-modal`.
 - Book rows retain `content-visibility: auto` so the paper system does not force off-screen row
   paint.
+
+## Paper motion grammar
+
+Motion explains a change in place, hierarchy, or state. It never runs merely because the screen is
+idle, and no paper texture, cover, icon, or empty state loops for decoration. The executable source
+of truth is `motion.ts`; components opt into it with `data-motion-event` rather than inventing
+durations locally.
+
+| Family | Purpose and trigger | Duration / easing / origin | Interruption and reduced equivalent |
+| --- | --- | --- | --- |
+| Navigate | Preserve place when primary navigation changes view or jumps to a shelf | 240 ms, enter, inline-end center | New navigation replaces the in-flight view. Reduced swaps immediately, updates `aria-current`, restores focus, and uses instant scrolling. |
+| Reveal | Expose requested search, disclosure, or modal detail | 180 ms, enter, top center; sheet origin is bottom center | Content is interactive on frame one and dismissal commits immediately. Reduced keeps the same heading, boundary, state, and focus order with a 1 ms reveal. |
+| Reorder | Keep a book identifiable when its sort position changes | 180 ms, move, center | A new order retargets current positions; it never queues. Reduced commits and announces the final position. |
+| Move shelf | Connect a row with its new shelf after Move, Next, or Start | 180 ms, move, inline-start center | A second move retargets immediately. Reduced places the row at once and retains shelf text plus the undoable status message. |
+| Progress | Connect percent/page input to proportional progress | 140 ms, linear, inline-start center | Repeated input retargets the bar from its rendered width. Reduced updates number, page count, and bar together without interpolation. |
+| Complete | Confirm Finished once, without spectacle | 300 ms, enter, inline-start center | Rating and Done work immediately. Reduced shows the check, Finished heading, book identity, and rating controls at once. |
+| Undo | Confirm that a reversible shelf move was rolled back | 140 ms, exit, bottom center | Undo commits synchronously and replaces the prior message. Reduced restores the shelf and says “Move undone” immediately. |
+| Sync | Distinguish bounded active/success/failure states when remote sync exists | 140 ms state change, linear, center | Cancel/retry/result replaces active state. Reduced uses static icon plus explicit `Syncing`, `Synced`, or error text. The current local-only idle state does not animate. |
+
+Enter uses `cubic-bezier(0.22, 1, 0.36, 1)`, exit uses
+`cubic-bezier(0.4, 0, 1, 1)`, and spatial movement uses
+`cubic-bezier(0.2, 0.8, 0.2, 1)`. Only opacity and transform are used for structural keyframes;
+progress interpolates one bounded meter fill while its numeric value updates synchronously.
+
+At most one structural event and one feedback event may animate together. A sheet's surface and
+scrim count as the two parts of one reveal; list rows are not staggered as a group. A new event
+replaces an in-flight event rather than joining a queue. Controls are never disabled to wait for a
+transition. Sheets trap focus while open, Escape and scrim dismissal stay live during entry, and
+dismissal restores the exact triggering control (or the active view heading if that control was
+removed).
+
+Future direct-manipulation gestures must remain 1:1 with the pointer. Page navigation settles from
+release velocity; a sheet dismisses only beyond 35% travel or the agreed velocity threshold; a book
+moves shelves only over a valid drop target. Motion must not be used to manufacture momentum after
+the finger stops.
+
+### Reduced-motion parity
+
+Settings → Motion → Reduced applies `data-motion="reduced"` globally so QA does not need to change
+the operating system. System mode honors `prefers-reduced-motion`. Both paths set distances to zero,
+shorten animations/transitions to 1 ms, stop smooth JavaScript scrolling, and cap any semantic loop
+at one iteration. They do not use `display: none`, hidden visibility, opacity-only state, or remove
+live-region feedback. Selection, destination, percent, page count, shelf membership, completion,
+undo, and future sync state all remain available as text or semantics.
+
+### Frame budget and review
+
+The device floor is the Capacitor WebView at 60 Hz under 4× CPU slowdown. The budget is 16.7 ms per
+frame, with no animation frame over 25 ms in the representative Navigate, Reveal, Move shelf,
+Progress, and Complete flows; review uses the 95th-percentile frame time. This is deliberately more
+strict than judging the animation by eye.
+
+Record a Performance trace with Rendering → FPS meter enabled, 4× CPU slowdown, and no network
+throttle. Exercise each flow once after warm-up. The implementation keeps the structural paths to
+opacity/transform, limits concurrency to two elements, uses no layout reads inside animation loops,
+and retains `content-visibility: auto` for off-screen rows. `tests/motion.test.ts` guards those
+constraints and the agreed device-floor budget; any trace that exceeds the thresholds blocks the
+review even when the static contract passes.
 
 ## Quiet-retreat rubric
 

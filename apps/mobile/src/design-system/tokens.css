@@ -127,10 +127,23 @@
     repeating-linear-gradient(0deg, transparent 0 6px, color-mix(in srgb, var(--fiber-ink) 2.2%, transparent) 7px),
     repeating-linear-gradient(90deg, transparent 0 11px, color-mix(in srgb, var(--fiber-ink) 1.7%, transparent) 12px);
 
-  /* Motion mirrors the deliberate pace of an e-reader. */
-  --ease-page: cubic-bezier(0.22, 1, 0.36, 1);
-  --duration-quick: 140ms;
-  --duration-page: 360ms;
+  /* Motion is semantic, bounded, and composited. See motion.ts for the complete grammar. */
+  --motion-ease-enter: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --motion-ease-move: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --motion-duration-feedback: 140ms;
+  --motion-duration-progress: 140ms;
+  --motion-duration-reveal: 180ms;
+  --motion-duration-move: 180ms;
+  --motion-duration-navigate: 240ms;
+  --motion-duration-complete: 300ms;
+  --motion-distance-lift: 4px;
+  --motion-distance-page: 8px;
+  --motion-distance-sheet: 14px;
+  /* Compatibility aliases for component state transitions. */
+  --ease-page: var(--motion-ease-enter);
+  --duration-quick: var(--motion-duration-feedback);
+  --duration-page: var(--motion-duration-navigate);
 }
 
 :root[data-paper-mode='warm'] {

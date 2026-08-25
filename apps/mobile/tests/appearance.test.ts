@@ -25,6 +25,7 @@ const nightReading: AppearancePreferences = {
   contrast: 'high',
   typeScale: 'large',
   texture: 'off',
+  motion: 'reduced',
 }
 
 describe('appearance preferences', () => {
@@ -43,6 +44,7 @@ describe('appearance preferences', () => {
       contrast: 'high',
       typeScale: 200,
       texture: 'quiet',
+      motion: 'sideways',
     }))
 
     expect(readAppearance(storage)).toEqual({
@@ -55,12 +57,20 @@ describe('appearance preferences', () => {
   test('applies the semantic selectors and lets system contrast stay authoritative', () => {
     const root = { dataset: { contrast: 'standard' } as DOMStringMap }
 
-    applyAppearance(root, { ...nightReading, contrast: 'system' })
+    applyAppearance(root, { ...nightReading, contrast: 'system', motion: 'system' })
 
     expect(root.dataset).toEqual({
       paperMode: 'night',
       typeScale: 'large',
       texture: 'off',
     })
+  })
+
+  test('applies an explicit global reduced-motion test mode', () => {
+    const root = { dataset: {} as DOMStringMap }
+
+    applyAppearance(root, nightReading)
+
+    expect(root.dataset.motion).toBe('reduced')
   })
 })
