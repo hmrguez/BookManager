@@ -40,6 +40,13 @@ build, set `VITE_ENABLE_MANUAL_BOOKS=true`; leave the flag disabled for release 
 The mobile app lives in `apps/mobile`. Its package versions are exact and reproducible through
 `apps/mobile/bun.lock`.
 
+## Domain architecture
+
+The accepted canonical catalog contract separates Works, Editions, Assets, identifiers,
+provenance, ownership, access, loans, people, and contributors. Its invariants, roadmap ownership
+map, rejected alternatives, and legacy migration consequences are recorded in
+[`docs/architecture/decisions/0001-canonical-catalog-boundaries.md`](docs/architecture/decisions/0001-canonical-catalog-boundaries.md).
+
 ## Paper system
 
 Wovenleaf's Pulp design system defines the semantic paper, ink, depth, typography, state, and
