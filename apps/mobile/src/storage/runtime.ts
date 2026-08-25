@@ -2,6 +2,7 @@ import { createStarterLibrary } from '../library-model'
 import { openCapacitorDatabase } from './capacitor-database'
 import { CatalogRepository, ReadingLedgerRepository } from './catalog-repository'
 import type { SqlDatabase } from './database'
+import { DuplicateReviewRepository } from './duplicate-review-repository'
 import { installDevelopmentInspector } from './inspection'
 import { ImportRepository } from './import-repository'
 import {
@@ -22,6 +23,7 @@ export type StorageRuntime = {
   readonly database: SqlDatabase
   readonly catalog: CatalogRepository
   readonly readingLedger: ReadingLedgerRepository
+  readonly duplicateReviews: DuplicateReviewRepository
   readonly library: LibraryRepository
   readonly organization: OrganizationRepository
   readonly imports: ImportRepository
@@ -56,6 +58,7 @@ async function initializeStorageRuntime(): Promise<StorageRuntime> {
     database,
     catalog: new CatalogRepository(database),
     readingLedger: new ReadingLedgerRepository(database),
+    duplicateReviews: new DuplicateReviewRepository(database),
     library,
     organization: new OrganizationRepository(database),
     imports: new ImportRepository(database),

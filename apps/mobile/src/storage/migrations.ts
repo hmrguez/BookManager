@@ -359,7 +359,55 @@ export const STORAGE_MIGRATIONS: readonly StorageMigration[] = [
       await database.execute(libraryOrganizationSchemaSql())
     },
   },
+  {
+    version: 5,
+    name: 'duplicate decisions and reversible identity journal',
+    kind: 'additive',
+    signature: duplicateReviewSchemaSql(),
+    async up(database) {
+      await database.execute(duplicateReviewSchemaSql())
+    },
+  },
 ]
+
+function duplicateReviewSchemaSql(): string {
+  return `
+CREATE TABLE duplicate_pair_decisions (
+  id TEXT PRIMARY KEY NOT NULL,
+  pair_key TEXT NOT NULL,
+  left_work_id TEXT NOT NULL,
+  right_work_id TEXT NOT NULL,
+  action TEXT NOT NULL CHECK (action IN ('merge', 'keep-separate', 'relate', 'never-suggest')),
+  survivor_work_id TEXT,
+  operation_id TEXT,
+  decided_at TEXT NOT NULL,
+  undone_at TEXT,
+  payload_json TEXT NOT NULL CHECK (json_valid(payload_json))
+);
+
+CREATE INDEX idx_duplicate_pair_decisions_active
+  ON duplicate_pair_decisions(pair_key, undone_at, decided_at DESC, id);
+CREATE INDEX idx_duplicate_pair_decisions_operation
+  ON duplicate_pair_decisions(operation_id, id)
+  WHERE operation_id IS NOT NULL;
+
+CREATE TABLE identity_operations (
+  id TEXT PRIMARY KEY NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('merge-works', 'split-work', 'reassign-edition')),
+  from_work_id TEXT NOT NULL,
+  to_work_id TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('applied', 'undone')),
+  recorded_at TEXT NOT NULL,
+  undone_at TEXT,
+  payload_json TEXT NOT NULL CHECK (json_valid(payload_json))
+);
+
+CREATE INDEX idx_identity_operations_history
+  ON identity_operations(recorded_at DESC, id);
+CREATE INDEX idx_identity_operations_works
+  ON identity_operations(from_work_id, to_work_id, status, id);
+`
+}
 
 function libraryOrganizationSchemaSql(): string {
   return `

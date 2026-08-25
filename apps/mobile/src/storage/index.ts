@@ -3,6 +3,13 @@ export type { ReadingLedgerBatch } from './catalog-repository'
 export type { SqlDatabase, SqlRow, SqlRunResult, SqlValue } from './database'
 export { inspectStorage } from './inspection'
 export type { StorageInspection } from './inspection'
+export { DuplicateReviewRepository } from './duplicate-review-repository'
+export type {
+  DuplicateReviewRepositoryOptions,
+  MergeWorksInput,
+  MergeWorksResult,
+  RecordDuplicateDecisionInput,
+} from './duplicate-review-repository'
 export { ImportRepository } from './import-repository'
 export type { ImportRepositoryOptions } from './import-repository'
 export { LibraryRepository } from './library-repository'

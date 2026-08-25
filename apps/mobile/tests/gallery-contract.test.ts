@@ -56,5 +56,7 @@ describe('living component gallery contract', () => {
     expect(source).toContain("await import('./gallery/ComponentGallery')")
     expect(source).toContain("window.location.pathname === '/__conflicts'")
     expect(source).toContain("await import('./conflicts/ConflictInboxPrototype')")
+    expect(source).toContain("window.location.pathname === '/__duplicates'")
+    expect(source).toContain("await import('./duplicates/DuplicateReviewPrototype')")
   })
 })
