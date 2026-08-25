@@ -10,10 +10,7 @@ export class LibraryRepository {
   }
 
   async list(): Promise<LibraryBook[]> {
-    const rows = await this.#database.query(
-      'SELECT payload_json FROM library_books ORDER BY position, id',
-    )
-    return rows.map((row) => libraryBookSchema.parse(JSON.parse(readText(row, 'payload_json'))))
+    return readLibraryBooks(this.#database)
   }
 
   async seedIfEmpty(books: readonly LibraryBook[]): Promise<void> {
@@ -29,13 +26,13 @@ export class LibraryRepository {
       }>('SELECT COUNT(*) AS count FROM library_books')
       if (transactionCount !== 0) return
       for (const book of validated) {
-        await upsert(database, book)
+        await writeLibraryBook(database, book)
       }
     })
   }
 
   async save(book: LibraryBook): Promise<void> {
-    await upsert(this.#database, libraryBookSchema.parse(book))
+    await writeLibraryBook(this.#database, libraryBookSchema.parse(book))
     await this.#database.persist()
   }
 
@@ -45,7 +42,15 @@ export class LibraryRepository {
   }
 }
 
-async function upsert(database: SqlDatabase, book: LibraryBook): Promise<void> {
+export async function readLibraryBooks(database: SqlDatabase): Promise<LibraryBook[]> {
+  const rows = await database.query(
+    'SELECT payload_json FROM library_books ORDER BY position, id',
+  )
+  return rows.map((row) => libraryBookSchema.parse(JSON.parse(readText(row, 'payload_json'))))
+}
+
+export async function writeLibraryBook(database: SqlDatabase, book: LibraryBook): Promise<void> {
+  const validated = libraryBookSchema.parse(book)
   await database.run(
     `INSERT INTO library_books(
        id, position, shelf, title_sort, added_at, updated_at, payload_json
@@ -58,6 +63,13 @@ async function upsert(database: SqlDatabase, book: LibraryBook): Promise<void> {
        added_at = excluded.added_at,
        updated_at = excluded.updated_at,
        payload_json = excluded.payload_json`,
-    [book.id, book.shelf, book.title, book.addedAt, book.lastUpdatedAt, JSON.stringify(book)],
+    [
+      validated.id,
+      validated.shelf,
+      validated.title,
+      validated.addedAt,
+      validated.lastUpdatedAt,
+      JSON.stringify(validated),
+    ],
   )
 }

@@ -1,0 +1,4 @@
+external_id,title,authors,shelf,page_count,progress,current_page,rating,notes
+fixture-left-hand,"The Left Hand of Darkness","Ursula K. Le Guin",reading,304,52,158,0,"A careful, quoted note"
+fixture-piranesi,Piranesi,Susanna Clarke,tbr,272,0,0,5,
+fixture-broken,,Nobody,unknown,not-a-number,140,0,9,

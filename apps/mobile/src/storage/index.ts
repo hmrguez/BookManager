@@ -3,6 +3,8 @@ export type { ReadingLedgerBatch } from './catalog-repository'
 export type { SqlDatabase, SqlRow, SqlRunResult, SqlValue } from './database'
 export { inspectStorage } from './inspection'
 export type { StorageInspection } from './inspection'
+export { ImportRepository } from './import-repository'
+export type { ImportRepositoryOptions } from './import-repository'
 export { LibraryRepository } from './library-repository'
 export {
   createLegacyLibraryRecoveryFile,

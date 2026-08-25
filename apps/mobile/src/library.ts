@@ -187,6 +187,21 @@ export function useLibrary() {
     [enqueuePersistence, showBooks],
   )
 
+  const reload = useCallback(async () => {
+    await persistenceTailRef.current
+    try {
+      const persistedBooks = await (await getStorageRuntime()).library.list()
+      hasMutatedRef.current = false
+      showBooks(persistedBooks)
+      setStorageError(undefined)
+      return persistedBooks
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      setStorageError(message)
+      throw error
+    }
+  }, [showBooks])
+
   const downloadLegacyRecovery = useCallback(async () => {
     try {
       const recovery = await (await getStorageRuntime()).exportLegacyLibraryRecovery()
@@ -214,5 +229,6 @@ export function useLibrary() {
     setCurrentPage,
     finishBook,
     removeBook,
+    reload,
   }
 }

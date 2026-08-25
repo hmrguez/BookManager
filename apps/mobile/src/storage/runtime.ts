@@ -3,6 +3,7 @@ import { openCapacitorDatabase } from './capacitor-database'
 import { CatalogRepository, ReadingLedgerRepository } from './catalog-repository'
 import type { SqlDatabase } from './database'
 import { installDevelopmentInspector } from './inspection'
+import { ImportRepository } from './import-repository'
 import {
   createLegacyLibraryRecoveryFile,
   migrateLegacyLibrary,
@@ -20,6 +21,7 @@ export type StorageRuntime = {
   readonly catalog: CatalogRepository
   readonly readingLedger: ReadingLedgerRepository
   readonly library: LibraryRepository
+  readonly imports: ImportRepository
   readonly queries: CatalogQueryService
   readonly legacyMigration: LegacyLibraryMigrationResult
   exportLegacyLibraryRecovery(): Promise<LegacyLibraryRecoveryFile | undefined>
@@ -51,6 +53,7 @@ async function initializeStorageRuntime(): Promise<StorageRuntime> {
     catalog: new CatalogRepository(database),
     readingLedger: new ReadingLedgerRepository(database),
     library,
+    imports: new ImportRepository(database),
     queries,
     legacyMigration,
     exportLegacyLibraryRecovery: () =>

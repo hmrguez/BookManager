@@ -341,7 +341,117 @@ export const STORAGE_MIGRATIONS: readonly StorageMigration[] = [
       await database.execute(legacyLibraryMigrationSql())
     },
   },
+  {
+    version: 3,
+    name: 'durable import batches and change sets',
+    kind: 'additive',
+    signature: importPipelineSchemaSql(),
+    async up(database) {
+      await database.execute(importPipelineSchemaSql())
+    },
+  },
 ]
+
+function importPipelineSchemaSql(): string {
+  return `
+CREATE TABLE import_batches (
+  id TEXT PRIMARY KEY NOT NULL,
+  source_key TEXT NOT NULL,
+  parser_id TEXT NOT NULL,
+  parser_version TEXT NOT NULL,
+  file_name TEXT NOT NULL,
+  content_hash TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('review', 'committed', 'undone')),
+  created_at TEXT NOT NULL,
+  committed_at TEXT,
+  undone_at TEXT,
+  payload_json TEXT NOT NULL CHECK (json_valid(payload_json))
+);
+
+CREATE INDEX idx_import_batches_history
+  ON import_batches(created_at DESC, id);
+CREATE INDEX idx_import_batches_source
+  ON import_batches(source_key, status, created_at DESC, id);
+
+CREATE TABLE import_rows (
+  id TEXT PRIMARY KEY NOT NULL,
+  batch_id TEXT NOT NULL,
+  row_number INTEGER NOT NULL,
+  external_key TEXT,
+  row_hash TEXT NOT NULL,
+  proposal_kind TEXT NOT NULL,
+  decision TEXT NOT NULL CHECK (
+    decision IN ('proposed', 'included', 'excluded', 'skipped', 'duplicate', 'error')
+  ),
+  target_id TEXT,
+  payload_json TEXT NOT NULL CHECK (json_valid(payload_json)),
+  UNIQUE(batch_id, row_number),
+  FOREIGN KEY (batch_id) REFERENCES import_batches(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX idx_import_rows_batch
+  ON import_rows(batch_id, row_number, id);
+
+CREATE TABLE import_changes (
+  id TEXT PRIMARY KEY NOT NULL,
+  batch_id TEXT NOT NULL,
+  row_id TEXT NOT NULL,
+  sequence INTEGER NOT NULL,
+  entity_type TEXT NOT NULL,
+  entity_id TEXT NOT NULL,
+  field TEXT NOT NULL,
+  before_json TEXT NOT NULL CHECK (json_valid(before_json)),
+  after_json TEXT NOT NULL CHECK (json_valid(after_json)),
+  reason TEXT NOT NULL,
+  applied_at TEXT NOT NULL,
+  undo_status TEXT NOT NULL DEFAULT 'pending' CHECK (
+    undo_status IN ('pending', 'restored', 'preserved')
+  ),
+  undone_at TEXT,
+  UNIQUE(batch_id, sequence),
+  FOREIGN KEY (batch_id) REFERENCES import_batches(id) ON DELETE RESTRICT,
+  FOREIGN KEY (row_id) REFERENCES import_rows(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX idx_import_changes_batch
+  ON import_changes(batch_id, sequence DESC);
+CREATE INDEX idx_import_changes_entity
+  ON import_changes(entity_type, entity_id, applied_at, id);
+
+CREATE TABLE import_checkpoints (
+  id TEXT PRIMARY KEY NOT NULL,
+  batch_id TEXT NOT NULL UNIQUE,
+  source_key TEXT NOT NULL,
+  previous_checkpoint_id TEXT,
+  content_hash TEXT NOT NULL,
+  committed_at TEXT NOT NULL,
+  payload_json TEXT NOT NULL CHECK (json_valid(payload_json)),
+  FOREIGN KEY (batch_id) REFERENCES import_batches(id) ON DELETE RESTRICT,
+  FOREIGN KEY (previous_checkpoint_id) REFERENCES import_checkpoints(id)
+    ON DELETE NO ACTION DEFERRABLE INITIALLY DEFERRED
+);
+
+CREATE INDEX idx_import_checkpoints_chain
+  ON import_checkpoints(source_key, committed_at, id);
+
+CREATE TABLE import_row_receipts (
+  id TEXT PRIMARY KEY NOT NULL,
+  source_key TEXT NOT NULL,
+  external_key TEXT NOT NULL,
+  row_hash TEXT NOT NULL,
+  batch_id TEXT NOT NULL,
+  row_id TEXT NOT NULL,
+  target_id TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  UNIQUE(source_key, external_key, row_hash),
+  FOREIGN KEY (batch_id) REFERENCES import_batches(id) ON DELETE RESTRICT,
+  FOREIGN KEY (row_id) REFERENCES import_rows(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX idx_import_row_receipts_batch
+  ON import_row_receipts(batch_id, row_id);
+`
+}
 
 function legacyLibraryMigrationSql(): string {
   return `

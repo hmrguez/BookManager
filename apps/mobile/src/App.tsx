@@ -20,7 +20,9 @@ import {
   CirclePlus,
   Clock3,
   Download,
+  FileUp,
   FolderInput,
+  History,
   Library,
   Minus,
   Palette,
@@ -57,6 +59,9 @@ import {
   writeAppearance,
   type AppearancePreferences,
 } from './design-system'
+import { ImportReviewPage } from './imports/ImportReviewPage'
+import type { ImportBatchSummary, ImportPreview, ImportReviewDecision } from './imports'
+import { getStorageRuntime } from './storage/runtime'
 import './App.css'
 
 type SheetState =
@@ -66,7 +71,7 @@ type SheetState =
   | { kind: 'finished'; bookId: string }
   | null
 
-type AppView = 'library' | 'settings'
+type AppView = 'library' | 'settings' | 'import'
 type ToastState = { message: string; undo?: () => void; family?: 'undo' } | null
 
 const MANUAL_ENTRY_ENABLED =
@@ -758,15 +763,25 @@ function DetailSheet({
 function SettingsPage({
   books,
   appearance,
+  importHistory,
+  importBusy,
+  importError,
   onBack,
   onAppearanceChange,
   onManualAdd,
+  onImportFile,
+  onUndoImport,
 }: {
   books: LibraryBook[]
   appearance: AppearancePreferences
+  importHistory: readonly ImportBatchSummary[]
+  importBusy: boolean
+  importError?: string
   onBack: () => void
   onAppearanceChange: (preferences: AppearancePreferences) => void
   onManualAdd: () => void
+  onImportFile: (file: File) => void
+  onUndoImport: (batchId: string) => void
 }) {
   const ratedBooks = books.filter((book) => book.rating > 0).length
   const notedBooks = books.filter((book) => book.notes.trim()).length
@@ -903,6 +918,45 @@ function SettingsPage({
           </dl>
         </section>
 
+        <section className="settings-card settings-card--import">
+          <div className="settings-card__icon"><FileUp aria-hidden="true" /></div>
+          <div className="settings-card__heading">
+            <span>Import & recovery</span>
+            <h2>Preview every row before it lands.</h2>
+            <p>Use a Wovenleaf CSV now. Matching, changes, validation errors, and file permissions stay visible until you commit.</p>
+          </div>
+          <label className={`settings-action import-file-picker${importBusy ? ' is-busy' : ''}`}>
+            <FileUp aria-hidden="true" />
+            <span><strong>{importBusy ? 'Preparing preview…' : 'Choose a CSV file'}</strong><small>Parsed locally · no network access</small></span>
+            <ChevronRight aria-hidden="true" />
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              disabled={importBusy}
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0]
+                if (file) onImportFile(file)
+                event.currentTarget.value = ''
+              }}
+            />
+          </label>
+          {importError && <p className="settings-hint settings-hint--error" role="alert">{importError}</p>}
+          {importHistory.length > 0 && (
+            <div className="import-history" aria-label="Recent import batches">
+              <div className="import-history__heading"><History aria-hidden="true" /><span>Recent checkpoints</span></div>
+              {importHistory.slice(0, 3).map((batch) => (
+                <div className="import-history__row" key={batch.id}>
+                  <span><strong>{batch.fileName}</strong><small>{batch.appliedRows} rows · {batch.changeCount} changes</small></span>
+                  <span className={`import-history__status is-${batch.status}`}>{batch.status}</span>
+                  {batch.status === 'committed' && (
+                    <button type="button" onClick={() => onUndoImport(batch.id)}>Undo</button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
         <section className="settings-card">
           <div className="settings-card__icon"><Search aria-hidden="true" /></div>
           <div className="settings-card__heading">
@@ -1010,6 +1064,7 @@ function App() {
     setCurrentPage,
     finishBook,
     removeBook,
+    reload,
   } = useLibrary()
   const [sheet, setSheet] = useState<SheetState>(null)
   const [view, setView] = useState<AppView>('library')
@@ -1018,6 +1073,10 @@ function App() {
   const [toast, setToast] = useState<ToastState>(null)
   const [movingBookId, setMovingBookId] = useState<string>()
   const [appearance, setAppearance] = useState(() => readAppearance(getAppearanceStorage()))
+  const [importPreview, setImportPreview] = useState<ImportPreview>()
+  const [importHistory, setImportHistory] = useState<ImportBatchSummary[]>([])
+  const [importBusy, setImportBusy] = useState(false)
+  const [importError, setImportError] = useState<string>()
   const sheetTriggerRef = useRef<HTMLElement | null>(null)
 
   const normalizedLibraryQuery = libraryQuery.trim().toLocaleLowerCase()
@@ -1080,7 +1139,76 @@ function App() {
 
   const showSettings = () => {
     setView('settings')
+    void refreshImportHistory()
     window.scrollTo({ top: 0, behavior: motionScrollBehavior(appearance.motion) })
+  }
+
+  const refreshImportHistory = async () => {
+    try {
+      setImportHistory(await (await getStorageRuntime()).imports.listRecentBatches())
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : String(error))
+    }
+  }
+
+  const handleImportFile = async (file: File) => {
+    setImportBusy(true)
+    setImportError(undefined)
+    try {
+      await reload()
+      const preview = await (await getStorageRuntime()).imports.previewCsv(file.name, await file.text())
+      setImportPreview(preview)
+      setView('import')
+      window.scrollTo({ top: 0, behavior: motionScrollBehavior(appearance.motion) })
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setImportBusy(false)
+    }
+  }
+
+  const undoImportBatch = async (batchId: string) => {
+    setImportBusy(true)
+    setImportError(undefined)
+    try {
+      const result = await (await getStorageRuntime()).imports.undo(batchId)
+      await reload()
+      await refreshImportHistory()
+      setToast({
+        message: result.preservedChanges
+          ? `Import undone; ${result.preservedChanges} later edits were preserved`
+          : 'Import undone; the previous library state is restored',
+        family: 'undo',
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      setImportError(message)
+      setToast({ message })
+    } finally {
+      setImportBusy(false)
+    }
+  }
+
+  const commitImport = async (decisions: readonly ImportReviewDecision[]) => {
+    if (!importPreview) return
+    setImportBusy(true)
+    setImportError(undefined)
+    try {
+      const result = await (await getStorageRuntime()).imports.commit(importPreview.id, decisions)
+      await reload()
+      await refreshImportHistory()
+      setView('library')
+      setToast({
+        message: result.appliedChanges
+          ? `Imported ${result.appliedRows} rows with ${result.appliedChanges} reviewed changes`
+          : 'Import checked; no duplicate changes were made',
+        undo: result.appliedChanges ? () => { void undoImportBatch(result.batchId) } : undefined,
+      })
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setImportBusy(false)
+    }
   }
 
   const openSheet = (nextSheet: Exclude<SheetState, null>) => {
@@ -1260,13 +1388,27 @@ function App() {
               )}
             </main>
           </div>
+        ) : view === 'import' && importPreview ? (
+          <ImportReviewPage
+            preview={importPreview}
+            books={books}
+            busy={importBusy}
+            error={importError}
+            onBack={showSettings}
+            onCommit={commitImport}
+          />
         ) : (
           <SettingsPage
             books={books}
             appearance={appearance}
+            importHistory={importHistory}
+            importBusy={importBusy}
+            importError={importError}
             onBack={showLibrary}
             onAppearanceChange={setAppearance}
             onManualAdd={() => openSheet({ kind: 'search', shelf: 'tbr', manual: true })}
+            onImportFile={(file) => { void handleImportFile(file) }}
+            onUndoImport={(batchId) => { void undoImportBatch(batchId) }}
           />
         )}
 

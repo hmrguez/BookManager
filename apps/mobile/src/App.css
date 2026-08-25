@@ -1730,7 +1730,8 @@ textarea:focus-visible {
 .library-tally,
 .settings-status-row,
 .settings-hint,
-.settings-action {
+.settings-action,
+.import-history {
   grid-column: 2;
 }
 
@@ -1790,6 +1791,109 @@ textarea:focus-visible {
   padding: 1px 3px;
   background: var(--surface-sunken);
   font-size: 0.61rem;
+}
+
+.settings-hint--error {
+  color: var(--text-destructive);
+}
+
+.settings-card--import {
+  align-content: start;
+}
+
+.import-file-picker {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.import-file-picker.is-busy {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.import-file-picker input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.import-file-picker:has(input:focus-visible) {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 1px var(--focus-halo);
+}
+
+.import-history {
+  display: grid;
+  margin-top: 1px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.import-history__heading {
+  display: flex;
+  min-height: 30px;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  font: 650 0.53rem/1 var(--font-interface);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.import-history__heading svg {
+  width: 13px;
+  stroke-width: 1.45;
+}
+
+.import-history__row {
+  display: grid;
+  min-height: 45px;
+  padding: 7px 0;
+  border-top: 1px solid var(--border-subtle);
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.import-history__row > span:first-child {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.import-history__row strong,
+.import-history__row small {
+  overflow: hidden;
+  font: 520 0.64rem/1.2 var(--font-reading);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.import-history__row small {
+  color: var(--text-secondary);
+  font: 450 0.53rem/1.2 var(--font-interface);
+}
+
+.import-history__status {
+  color: var(--text-secondary);
+  font: 640 0.49rem/1 var(--font-interface);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.import-history__status.is-committed {
+  color: var(--state-selected-text);
+}
+
+.import-history__row > button {
+  min-height: 27px;
+  padding: 0 7px;
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-accent);
+  font: 620 0.55rem/1 var(--font-interface);
 }
 
 .settings-action small {
@@ -1979,7 +2083,8 @@ textarea:focus-visible {
   .library-tally,
   .settings-status-row,
   .settings-hint,
-  .settings-action {
+  .settings-action,
+  .import-history {
     grid-column: 1 / -1;
   }
 }
