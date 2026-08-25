@@ -4,9 +4,10 @@ Pulp is Wovenleaf's visual foundation. It should feel like a lived-in reading ro
 for long attention, tactile enough to feel personal, and clear enough that content and state are
 never mistaken for decoration.
 
-This document is the review record for QUI-8's surfaces and QUI-9's motion grammar. The token
-contract is enforced by `tests/design-tokens.test.ts` and `tests/motion.test.ts`; the app's
-Settings screen is the live appearance, dynamic-type, and reduced-motion specimen.
+This document is the review record for QUI-8's surfaces, QUI-9's motion grammar, and QUI-14's
+living gallery. The contracts are enforced by `tests/design-tokens.test.ts`,
+`tests/motion.test.ts`, and `tests/gallery-contract.test.ts`; Settings and `/__gallery` are the
+live appearance, dynamic-type, reduced-motion, and component-state specimens.
 
 ## Audit and files
 

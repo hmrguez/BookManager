@@ -48,6 +48,10 @@ quiet-retreat rubric, do/don't examples, and platform evidence are documented in
 `apps/mobile/src/design-system/README.md`. Appearance preferences are available from Settings
 and remain local to the device.
 
+The development-only component proofing table lives at `/__gallery`. Run `make gallery` to review
+its primitive, composite, feedback, accessibility, and performance states. Stable screenshot
+baselines and the approval checklist are documented in `apps/mobile/src/design-system/GALLERY.md`.
+
 ## App identity and release setup
 
 Wovenleaf uses the same production identifier on iOS and Android:

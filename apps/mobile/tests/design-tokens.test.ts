@@ -4,6 +4,8 @@ const tokenCssUrl = new URL('../src/design-system/tokens.css', import.meta.url)
 const productCssUrls = [
   new URL('../src/App.css', import.meta.url),
   new URL('../src/index.css', import.meta.url),
+  new URL('../src/design-system/components.css', import.meta.url),
+  new URL('../src/gallery/gallery.css', import.meta.url),
 ]
 
 const themeSelectors = {

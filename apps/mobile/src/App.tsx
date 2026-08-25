@@ -26,7 +26,6 @@ import {
   Search,
   Settings as SettingsIcon,
   ShieldCheck,
-  Star,
   Trash2,
   Wrench,
   X,
@@ -45,9 +44,14 @@ import {
   PAPER_MODES,
   TYPE_SCALES,
   applyAppearance,
+  ActionButton,
+  BookCover,
   getAppearanceStorage,
-  motionScrollBehavior,
+  ProgressMeter,
+  RatingStars,
   readAppearance,
+  motionScrollBehavior,
+  StatusBadge,
   writeAppearance,
   type AppearancePreferences,
 } from './design-system'
@@ -60,7 +64,6 @@ type SheetState =
   | { kind: 'finished'; bookId: string }
   | null
 
-type CoverData = Pick<LibraryBook, 'id' | 'title' | 'authors' | 'thumbnail'>
 type AppView = 'library' | 'settings'
 type ToastState = { message: string; undo?: () => void; family?: 'undo' } | null
 
@@ -123,65 +126,6 @@ function formatUpdated(value: string) {
   const today = new Date()
   const isToday = date.toDateString() === today.toDateString()
   return `${isToday ? 'Today' : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} at ${date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
-}
-
-function Cover({ book, large = false }: { book: CoverData; large?: boolean }) {
-  const [imageFailed, setImageFailed] = useState(false)
-  const colorIndex = [...book.title].reduce((sum, character) => sum + character.charCodeAt(0), 0) % 6
-  const initials = book.title
-    .replace(/^(the|a|an)\s+/i, '')
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((word) => word[0])
-    .join('')
-
-  return (
-    <div
-      className={`book-cover tone-${colorIndex}${large ? ' book-cover--large' : ''}`}
-      style={{ '--cover-index': colorIndex } as CSSProperties}
-      aria-hidden="true"
-    >
-      {book.thumbnail && !imageFailed ? (
-        <img src={book.thumbnail} alt="" onError={() => setImageFailed(true)} />
-      ) : (
-        <>
-          <span className="cover-rule" />
-          <strong>{initials || 'BK'}</strong>
-          <small>{book.authors[0]?.split(' ').at(-1) ?? 'Book'}</small>
-        </>
-      )}
-    </div>
-  )
-}
-
-function Stars({
-  value,
-  onChange,
-  compact = false,
-}: {
-  value: number
-  onChange?: (rating: number) => void
-  compact?: boolean
-}) {
-  return (
-    <div className={`stars${compact ? ' stars--compact' : ''}`} aria-label={`${value} out of 5 stars`}>
-      {[1, 2, 3, 4, 5].map((rating) =>
-        onChange ? (
-          <button
-            type="button"
-            key={rating}
-            className={rating <= value ? 'is-filled' : ''}
-            aria-label={`Rate ${rating} out of 5`}
-            onClick={() => onChange(rating)}
-          >
-            <Star aria-hidden="true" />
-          </button>
-        ) : (
-          <Star key={rating} className={rating <= value ? 'is-filled' : ''} aria-hidden="true" />
-        ),
-      )}
-    </div>
-  )
 }
 
 function Sheet({
@@ -396,13 +340,13 @@ function SearchSheet({
           </label>
           <div className="manual-form-actions">
             {!initialManual && (
-              <button type="button" className="secondary-button" onClick={() => setManualMode(false)}>
+              <ActionButton type="button" variant="secondary" onClick={() => setManualMode(false)}>
                 Back to search
-              </button>
+              </ActionButton>
             )}
-            <button type="submit" className="primary-button" disabled={!manualTitle.trim()}>
+            <ActionButton type="submit" disabled={!manualTitle.trim()}>
               <BookPlus aria-hidden="true" /> Add to {shelfCopy[shelf].label}
-            </button>
+            </ActionButton>
           </div>
         </form>
       ) : (
@@ -451,7 +395,7 @@ function SearchSheet({
           const alreadyHere = existing?.shelf === shelf
           return (
             <article className="search-result" key={result.id}>
-              <Cover book={result} />
+              <BookCover book={result} />
               <div className="search-result__copy">
                 <h3>{result.title}</h3>
                 <p>{authorLine(result.authors)}</p>
@@ -558,7 +502,7 @@ function ShelfSection({
               data-motion-event={movingBookId === book.id ? 'move-shelf' : undefined}
             >
               <button className="book-identity" type="button" onClick={() => onDetails(book.id)}>
-                <Cover book={book} />
+                <BookCover book={book} />
                 <span className="book-copy">
                   <strong>{book.title}</strong>
                   <small>{authorLine(book.authors)}</small>
@@ -581,9 +525,7 @@ function ShelfSection({
                 <div className="reading-actions">
                   <button className="progress-button" type="button" onClick={() => onProgress(book.id)}>
                     <span>{book.progress}%</span>
-                    <i>
-                      <b style={{ width: `${book.progress}%` }} />
-                    </i>
+                    <ProgressMeter value={book.progress} label={`${book.title} reading progress`} />
                   </button>
                   <button className="row-action row-action--finish" type="button" onClick={() => onFinish(book.id)}>
                     Finish <Check aria-hidden="true" />
@@ -592,7 +534,7 @@ function ShelfSection({
               )}
 
               {shelf === 'finished' && (
-                <Stars compact value={book.rating} onChange={(rating) => onRate(book.id, rating)} />
+                <RatingStars compact value={book.rating} onChange={(rating) => onRate(book.id, rating)} />
               )}
             </article>
           ))
@@ -618,7 +560,7 @@ function ProgressSheet({
   return (
     <Sheet title="Update progress" onClose={onClose}>
       <div className="sheet-book-line">
-        <Cover book={book} />
+        <BookCover book={book} />
         <div>
           <strong>{book.title}</strong>
           <small>{authorLine(book.authors)}</small>
@@ -693,7 +635,7 @@ function FinishedSheet({
   return (
     <Sheet title="Finished" onClose={onClose}>
       <div className="finish-celebration" data-motion-event="complete">
-        <Cover book={book} large />
+        <BookCover book={book} large />
         <div>
           <span className="finish-mark"><Check aria-hidden="true" /></span>
           <p>Another story, kept.</p>
@@ -703,10 +645,10 @@ function FinishedSheet({
       </div>
       <div className="finish-rating">
         <span>Your rating</span>
-        <Stars value={book.rating} onChange={onRate} />
+        <RatingStars value={book.rating} onChange={onRate} />
         <small>{book.rating ? `${book.rating} out of 5` : 'Optional — tap a star'}</small>
       </div>
-      <button className="primary-button" type="button" onClick={onClose}>Done</button>
+      <ActionButton type="button" onClick={onClose}>Done</ActionButton>
     </Sheet>
   )
 }
@@ -736,9 +678,9 @@ function DetailSheet({
   return (
     <Sheet title="Book details" onClose={onClose} tall>
       <div className="detail-hero">
-        <Cover book={book} large />
+        <BookCover book={book} large />
         <div className="detail-hero__copy">
-          <span className="status-pill"><BookOpen aria-hidden="true" /> {shelfCopy[book.shelf].label}</span>
+          <StatusBadge icon={<BookOpen aria-hidden="true" />}>{shelfCopy[book.shelf].label}</StatusBadge>
           <h3>{book.title}</h3>
           <p>{authorLine(book.authors)}</p>
           {book.pageCount > 0 && <small>{book.pageCount} pages</small>}
@@ -755,7 +697,7 @@ function DetailSheet({
 
       <div className="detail-rating">
         <span>My rating</span>
-        <Stars value={book.rating} onChange={onRate} />
+        <RatingStars value={book.rating} onChange={onRate} />
       </div>
 
       <label className="notes-field">

@@ -17,6 +17,16 @@ export {
 } from './appearance'
 
 export {
+  ActionButton,
+  BookCover,
+  EmptyState,
+  FeedbackNotice,
+  ProgressMeter,
+  RatingStars,
+  StatusBadge,
+} from './components'
+
+export {
   MOTION_FRAME_BUDGET,
   MOTION_GRAMMAR,
   MOTION_MODES,
