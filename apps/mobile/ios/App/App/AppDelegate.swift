@@ -7,7 +7,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        excludePrivateAppDataFromAutomaticBackup()
         return true
     }
 
@@ -40,5 +40,24 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                                           sessionRole: connectingSceneSession.role)
         config.delegateClass = SceneDelegate.self
         return config
+    }
+
+    private func excludePrivateAppDataFromAutomaticBackup() {
+        let directories: [FileManager.SearchPathDirectory] = [
+            .applicationSupportDirectory,
+            .documentDirectory,
+            .libraryDirectory,
+        ]
+
+        for directory in directories {
+            guard var url = FileManager.default.urls(
+                for: directory,
+                in: .userDomainMask
+            ).first else { continue }
+
+            var values = URLResourceValues()
+            values.isExcludedFromBackup = true
+            try? url.setResourceValues(values)
+        }
     }
 }

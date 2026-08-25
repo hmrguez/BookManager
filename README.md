@@ -49,6 +49,9 @@ map, rejected alternatives, and legacy migration consequences are recorded in
 The append-only reading event/session ledger, native location normalization, offline ordering,
 correction, checkpoint, and privacy/export rules are recorded in
 [`docs/architecture/decisions/0003-reading-ledger.md`](docs/architecture/decisions/0003-reading-ledger.md).
+The threat model, native credential vault, least-privilege capabilities, redaction boundary,
+screen/lock behavior, and backup/encryption stance are recorded in
+[`docs/architecture/decisions/0004-private-data-and-integration-credentials.md`](docs/architecture/decisions/0004-private-data-and-integration-credentials.md).
 
 Source trust and reconciliation are field-scoped: newer data is not inherently better, exact user
 choices do not freeze unrelated fields, and Work merge/split/Edition reassignment are journaled and
