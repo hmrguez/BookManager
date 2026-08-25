@@ -11,7 +11,7 @@ BRAND_SOURCE_PNG ?= branding/source/wovenleaf-mark-color-2048px.png
 BRAND_SOURCE_SVG ?= branding/source/wovenleaf-mark-color.svg
 BRAND_LOCAL_OUTPUT ?= branding/final/platform
 
-.PHONY: help install dev gallery gallery-test preview lint test build check clean doctor versions brand-assets sync cap-doctor \
+.PHONY: help install dev gallery conflicts gallery-test preview lint test build check clean doctor versions brand-assets sync cap-doctor \
 	native-add ios-add android-add ios-open android-open ios-list android-list \
 	ios-build android-build android-release ios-simulator android-run \
 	android-device android-live android-install android-devices
@@ -27,6 +27,9 @@ dev: ## Start the Vite development server
 
 gallery: ## Open the development-only Pulp component gallery
 	cd $(MOBILE_DIR) && bun run gallery
+
+conflicts: ## Open the development-only conflict inbox prototype
+	cd $(MOBILE_DIR) && bun run conflicts
 
 gallery-test: ## Compare the deterministic component screenshots
 	cd $(MOBILE_DIR) && bun run gallery:test

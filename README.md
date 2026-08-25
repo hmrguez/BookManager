@@ -47,6 +47,13 @@ provenance, ownership, access, loans, people, and contributors. Its invariants, 
 map, rejected alternatives, and legacy migration consequences are recorded in
 [`docs/architecture/decisions/0001-canonical-catalog-boundaries.md`](docs/architecture/decisions/0001-canonical-catalog-boundaries.md).
 
+Source trust and reconciliation are field-scoped: newer data is not inherently better, exact user
+choices do not freeze unrelated fields, and Work merge/split/Edition reassignment are journaled and
+undoable. The rules and adapter examples are recorded in
+[`docs/architecture/decisions/0002-source-precedence-and-reconciliation.md`](docs/architecture/decisions/0002-source-precedence-and-reconciliation.md).
+Run `make conflicts` to use the keyboard- and screen-reader-oriented conflict inbox prototype at
+`/__conflicts` during development.
+
 ## Paper system
 
 Wovenleaf's Pulp design system defines the semantic paper, ink, depth, typography, state, and

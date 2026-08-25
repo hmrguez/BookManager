@@ -5,10 +5,14 @@ import './index.css'
 
 const root = createRoot(document.getElementById('root')!)
 const isDevelopmentGallery = import.meta.env.DEV && window.location.pathname === '/__gallery'
+const isDevelopmentConflictInbox = import.meta.env.DEV && window.location.pathname === '/__conflicts'
 
 if (isDevelopmentGallery) {
   const { ComponentGallery } = await import('./gallery/ComponentGallery')
   root.render(<StrictMode><ComponentGallery /></StrictMode>)
+} else if (isDevelopmentConflictInbox) {
+  const { ConflictInboxPrototype } = await import('./conflicts/ConflictInboxPrototype')
+  root.render(<StrictMode><ConflictInboxPrototype /></StrictMode>)
 } else {
   const { default: App } = await import('./App.tsx')
   root.render(<StrictMode><App /></StrictMode>)

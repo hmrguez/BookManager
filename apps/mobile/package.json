@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "gallery": "vite --host 127.0.0.1 --open /__gallery",
+    "conflicts": "vite --host 127.0.0.1 --open /__conflicts",
     "gallery:test": "playwright test",
     "gallery:update": "playwright test --update-snapshots",
     "build": "bun run typecheck && vite build",

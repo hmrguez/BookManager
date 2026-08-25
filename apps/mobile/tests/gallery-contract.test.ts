@@ -54,5 +54,7 @@ describe('living component gallery contract', () => {
 
     expect(source).toContain("import.meta.env.DEV && window.location.pathname === '/__gallery'")
     expect(source).toContain("await import('./gallery/ComponentGallery')")
+    expect(source).toContain("window.location.pathname === '/__conflicts'")
+    expect(source).toContain("await import('./conflicts/ConflictInboxPrototype')")
   })
 })

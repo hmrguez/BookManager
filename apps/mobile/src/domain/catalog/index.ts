@@ -3,6 +3,31 @@ export type { AccessGrant, Loan, Ownership } from './access'
 export { catalogSchema } from './catalog'
 export type { Catalog } from './catalog'
 export {
+  choiceAppliesTo,
+  conflictCandidateSchema,
+  conflictDomainSchema,
+  conflictItemSchema,
+  conflictSubjectSchema,
+  createDurableChoice,
+  DEFAULT_PRECEDENCE_RULES,
+  durableChoiceSchema,
+  evaluateConflict,
+  evidenceClassSchema,
+  precedenceRuleSchema,
+  sourceAdapterSchema,
+} from './conflicts'
+export type {
+  ConflictCandidate,
+  ConflictDomain,
+  ConflictItem,
+  ConflictResolution,
+  ConflictSubject,
+  DurableChoice,
+  EvidenceClass,
+  PrecedenceRule,
+  SourceAdapter,
+} from './conflicts'
+export {
   assetFormatSchema,
   assetLocationSchema,
   assetRoleSchema,
@@ -57,6 +82,15 @@ export { progressLocatorSchema, progressSnapshotSchema } from './progress'
 export type { ProgressLocator, ProgressSnapshot } from './progress'
 export { catalogRecordsSchema } from './records'
 export type { CatalogRecords } from './records'
+export {
+  applyIdentityOperation,
+  createEditionReassignmentOperation,
+  createWorkMergeOperation,
+  createWorkSplitOperation,
+  identityOperationSchema,
+  undoIdentityOperation,
+} from './reconciliation'
+export type { IdentityOperation, IdentityOperationDetails } from './reconciliation'
 export {
   editionRefSchema,
   isoDateTimeSchema,
