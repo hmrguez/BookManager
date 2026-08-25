@@ -1,3 +1,17 @@
-// The app currently consumes the design tokens and bundled fonts directly.
-// Keep this module as a future public barrel without exporting removed specimen components.
-export {}
+export {
+  APPEARANCE_STORAGE_KEY,
+  CONTRAST_MODES,
+  DEFAULT_APPEARANCE,
+  PAPER_MODES,
+  TEXTURE_MODES,
+  TYPE_SCALES,
+  applyAppearance,
+  getAppearanceStorage,
+  readAppearance,
+  writeAppearance,
+  type AppearancePreferences,
+  type ContrastMode,
+  type PaperMode,
+  type TextureMode,
+  type TypeScale,
+} from './appearance'

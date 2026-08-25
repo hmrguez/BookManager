@@ -40,6 +40,14 @@ build, set `VITE_ENABLE_MANUAL_BOOKS=true`; leave the flag disabled for release 
 The mobile app lives in `apps/mobile`. Its package versions are exact and reproducible through
 `apps/mobile/bun.lock`.
 
+## Paper system
+
+Wovenleaf's Pulp design system defines the semantic paper, ink, depth, typography, state, and
+texture contract used by the app. Its modes, measured contrast matrix, performance budget,
+quiet-retreat rubric, do/don't examples, and platform evidence are documented in
+`apps/mobile/src/design-system/README.md`. Appearance preferences are available from Settings
+and remain local to the device.
+
 ## App identity and release setup
 
 Wovenleaf uses the same production identifier on iOS and Android:

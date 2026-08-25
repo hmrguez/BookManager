@@ -1,32 +1,80 @@
+/*
+ * Pulp design tokens
+ *
+ * Palette values live here; product CSS consumes the semantic aliases below.
+ * Theme selectors intentionally redefine roles rather than individual components.
+ */
 :root {
-  /* Raw palette */
-  --paper-0: #fcfaf4;
-  --paper-50: #f4f0e6;
-  --paper-100: #eae4d8;
-  --paper-200: #d3ccbe;
-  --ink-950: #23221e;
-  --ink-800: #3a3832;
-  --ink-600: #706c63;
-  --ink-400: #9a958a;
+  /* Approved identity palette */
+  --brand-forest: #173429;
+  --brand-clay: #a64627;
+  --brand-coral: #c95f39;
+  --brand-cream: #f3e3cc;
 
-  /* Semantic color */
-  --surface-page: var(--paper-50);
-  --surface-raised: var(--paper-0);
-  --surface-sunken: var(--paper-100);
-  --text-primary: var(--ink-950);
-  --text-secondary: var(--ink-600);
-  --text-tertiary: var(--ink-400);
-  --border-subtle: color-mix(in srgb, var(--text-primary) 16%, transparent);
-  --border-strong: color-mix(in srgb, var(--text-primary) 72%, transparent);
-  --action-primary: var(--ink-950);
-  --action-primary-text: var(--paper-0);
-  --action-accent: var(--ink-950);
-  --focus-ring: color-mix(in srgb, var(--ink-950) 32%, transparent);
+  /* Paper stocks */
+  --stock-warm-canvas: #f4f0e6;
+  --stock-warm-sheet: #fcfaf4;
+  --stock-warm-inset: #eae4d8;
+  --stock-cool-canvas: #eef0ec;
+  --stock-cool-sheet: #fafbf8;
+  --stock-cool-inset: #e1e5e0;
+  --stock-print-canvas: #f3e3cc;
+  --stock-print-sheet: #fff9ed;
+  --stock-print-inset: #e4d0b2;
+  --stock-night-canvas: #1c2521;
+  --stock-night-sheet: #26302b;
+  --stock-night-inset: #141b18;
+  --paper-preview-warm: var(--stock-warm-canvas);
+  --paper-preview-cool: var(--stock-cool-canvas);
+  --paper-preview-print: var(--stock-print-canvas);
+  --paper-preview-night: var(--stock-night-canvas);
 
-  /* Typography */
+  /* Default: warm paper */
+  color-scheme: light;
+  --surface-page: #f4f0e6;
+  --surface-raised: #fcfaf4;
+  --surface-sunken: #eae4d8;
+  --surface-card: color-mix(in srgb, var(--surface-raised) 58%, transparent);
+  --surface-navigation: color-mix(in srgb, var(--surface-page) 96%, transparent);
+  --surface-inverse: #23221e;
+  --surface-scrim: rgb(35 34 30 / 42%);
+  --text-primary: #23221e;
+  --text-secondary: #57534b;
+  --text-tertiary: #665f57;
+  --text-on-inverse: #fcfaf4;
+  --text-accent: #a64627;
+  --text-destructive: #932f2b;
+  --border-subtle: #b9b1a3;
+  --border-strong: #6c675e;
+  --border-accent: #a64627;
+  --focus-ring: #a64627;
+  --focus-halo: #fcfaf4;
+  --selection-background: #a64627;
+  --selection-text: #ffffff;
+  --state-selected-surface: #e4d5c5;
+  --state-selected-border: #a64627;
+  --state-selected-text: #592414;
+  --state-destructive-surface: #f2dcd4;
+  --state-destructive-border: #932f2b;
+  --state-destructive-text: #6f1f1e;
+  --edge-cover: rgb(35 34 30 / 32%);
+  --edge-highlight: rgb(255 255 255 / 34%);
+  --edge-shadow: rgb(35 34 30 / 12%);
+  --cover-stock-1: #ded8c9;
+  --cover-stock-2: #c9c6ba;
+  --cover-stock-3: #e7dfca;
+  --cover-stock-4: #b8b5a9;
+  --cover-stock-5: #d5ccba;
+  --cover-stock-6: #c4bcaa;
+
+  /* Typography: rem values preserve browser and OS text scaling. */
   --font-reading: 'Literata Variable', Georgia, serif;
   --font-interface: 'IBM Plex Sans Variable', 'Helvetica Neue', sans-serif;
   --font-label: 'IBM Plex Sans Variable', 'Helvetica Neue', sans-serif;
+  --font-reading-weight: 450;
+  --font-heading-weight: 520;
+  --font-interface-weight: 450;
+  --font-label-weight: 600;
   --text-2xs: 0.6875rem;
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
@@ -34,8 +82,12 @@
   --text-lg: 1.25rem;
   --text-xl: clamp(1.8rem, 4vw, 2.75rem);
   --text-display: clamp(3.7rem, 10vw, 8.75rem);
+  --leading-interface: 1.35;
+  --leading-reading: 1.62;
+  --measure-reading: 68ch;
+  --tracking-label: 0.08em;
 
-  /* Spacing — a four-point reading rhythm */
+  /* Spacing: a four-point reading rhythm. */
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
@@ -49,47 +101,304 @@
   --space-20: 5rem;
   --space-24: 6rem;
 
-  /* Shape and elevation */
+  /* Shape, edge, and depth */
   --radius-xs: 3px;
   --radius-sm: 8px;
   --radius-md: 16px;
   --radius-pill: 999px;
   --stroke-hairline: 1px;
-  --shadow-paper: 0 1px 0 rgb(35 34 30 / 8%), 0 18px 60px rgb(35 34 30 / 8%);
+  --depth-resting: 0 1px 0 rgb(35 34 30 / 8%);
+  --depth-navigation: 0 -8px 20px rgb(35 34 30 / 4%);
+  --depth-floating: 0 1px 0 rgb(35 34 30 / 8%), 0 18px 60px rgb(35 34 30 / 10%);
+  --depth-modal: 0 24px 80px rgb(35 34 30 / 26%);
+  --shadow-paper: var(--depth-floating);
 
-  /* Motion mirrors the deliberate pace of an e-reader */
+  /* Procedural paper atmosphere: no bitmap, request, or animated paint. */
+  --paper-glow: rgb(255 255 255 / 72%);
+  --paper-warmth: rgb(127 106 72 / 8%);
+  --fiber-ink: rgb(35 34 30 / 100%);
+  --texture-opacity: 0.13;
+  --texture-blend: multiply;
+  --surface-backdrop:
+    radial-gradient(circle at 12% 0%, var(--paper-glow), transparent 28rem),
+    radial-gradient(circle at 90% 96%, var(--paper-warmth), transparent 34rem),
+    var(--surface-page);
+  --texture-fibers:
+    repeating-linear-gradient(0deg, transparent 0 6px, color-mix(in srgb, var(--fiber-ink) 2.2%, transparent) 7px),
+    repeating-linear-gradient(90deg, transparent 0 11px, color-mix(in srgb, var(--fiber-ink) 1.7%, transparent) 12px);
+
+  /* Motion mirrors the deliberate pace of an e-reader. */
   --ease-page: cubic-bezier(0.22, 1, 0.36, 1);
   --duration-quick: 140ms;
   --duration-page: 360ms;
 }
 
-:root[data-paper-mode='white'] {
-  --surface-page: #f8f7f2;
-  --surface-raised: #fefefb;
-  --surface-sunken: #e9e8e2;
-  --text-primary: #20211e;
-  --text-secondary: #62635d;
-  --text-tertiary: #8b8c84;
-  --action-primary: #20211e;
-  --action-primary-text: #ffffff;
+:root[data-paper-mode='warm'] {
+  color-scheme: light;
+}
+
+:root[data-paper-mode='cool'] {
+  color-scheme: light;
+  --surface-page: #eef0ec;
+  --surface-raised: #fafbf8;
+  --surface-sunken: #e1e5e0;
+  --surface-inverse: #1f2724;
+  --surface-scrim: rgb(31 39 36 / 42%);
+  --text-primary: #1f2724;
+  --text-secondary: #4d5651;
+  --text-tertiary: #5d655f;
+  --text-on-inverse: #fafbf8;
+  --text-accent: #91402c;
+  --text-destructive: #922e32;
+  --border-subtle: #aeb6b0;
+  --border-strong: #606963;
+  --border-accent: #91402c;
+  --focus-ring: #91402c;
+  --focus-halo: #fafbf8;
+  --selection-background: #91402c;
+  --selection-text: #ffffff;
+  --state-selected-surface: #dfe2db;
+  --state-selected-border: #91402c;
+  --state-selected-text: #572015;
+  --state-destructive-surface: #eedbd8;
+  --state-destructive-border: #922e32;
+  --state-destructive-text: #701f25;
+  --edge-cover: rgb(31 39 36 / 32%);
+  --edge-highlight: rgb(255 255 255 / 38%);
+  --edge-shadow: rgb(31 39 36 / 12%);
+  --paper-glow: rgb(255 255 255 / 66%);
+  --paper-warmth: rgb(63 91 79 / 7%);
+  --fiber-ink: rgb(31 39 36 / 100%);
+}
+
+:root[data-paper-mode='print'] {
+  color-scheme: light;
+  --surface-page: #f3e3cc;
+  --surface-raised: #fff9ed;
+  --surface-sunken: #e4d0b2;
+  --surface-inverse: #173429;
+  --surface-scrim: rgb(23 52 41 / 44%);
+  --text-primary: #173429;
+  --text-secondary: #3f574e;
+  --text-tertiary: #485f57;
+  --text-on-inverse: #fff9ed;
+  --text-accent: #94381f;
+  --text-destructive: #922e2b;
+  --border-subtle: #ad9c84;
+  --border-strong: #52675f;
+  --border-accent: #94381f;
+  --focus-ring: #94381f;
+  --focus-halo: #fff9ed;
+  --selection-background: #173429;
+  --selection-text: #fff9ed;
+  --state-selected-surface: #e8c9a8;
+  --state-selected-border: #94381f;
+  --state-selected-text: #5f2012;
+  --state-destructive-surface: #edcbbd;
+  --state-destructive-border: #922e2b;
+  --state-destructive-text: #6c1f1d;
+  --edge-cover: rgb(23 52 41 / 34%);
+  --edge-highlight: rgb(255 255 255 / 42%);
+  --edge-shadow: rgb(23 52 41 / 14%);
+  --cover-stock-1: #d7bd98;
+  --cover-stock-2: #bdc0aa;
+  --cover-stock-3: #e1c9a7;
+  --cover-stock-4: #aab5a7;
+  --cover-stock-5: #cba98d;
+  --cover-stock-6: #b8a98e;
+  --paper-glow: rgb(255 255 255 / 52%);
+  --paper-warmth: rgb(166 70 39 / 7%);
+  --fiber-ink: rgb(23 52 41 / 100%);
+  --texture-opacity: 0.16;
 }
 
 :root[data-paper-mode='night'] {
-  --surface-page: #20211e;
-  --surface-raised: #292a26;
-  --surface-sunken: #181916;
-  --text-primary: #e7e1d3;
-  --text-secondary: #aaa69c;
-  --text-tertiary: #7f7d76;
-  --action-primary: #e7e1d3;
-  --action-primary-text: #20211e;
-  --action-accent: #e7e1d3;
-  --focus-ring: color-mix(in srgb, #e7e1d3 38%, transparent);
+  color-scheme: dark;
+  --surface-page: #1c2521;
+  --surface-raised: #26302b;
+  --surface-sunken: #141b18;
+  --surface-card: color-mix(in srgb, var(--surface-raised) 72%, transparent);
+  --surface-navigation: color-mix(in srgb, var(--surface-page) 96%, transparent);
+  --surface-inverse: #f3e3cc;
+  --surface-scrim: rgb(4 8 6 / 66%);
+  --text-primary: #f3e3cc;
+  --text-secondary: #c9c3b6;
+  --text-tertiary: #aaa69b;
+  --text-on-inverse: #17201c;
+  --text-accent: #e28a66;
+  --text-destructive: #ff9a83;
+  --border-subtle: #4e5c55;
+  --border-strong: #aaa69b;
+  --border-accent: #e28a66;
+  --focus-ring: #e28a66;
+  --focus-halo: #141b18;
+  --selection-background: #e28a66;
+  --selection-text: #17201c;
+  --state-selected-surface: #49352c;
+  --state-selected-border: #e28a66;
+  --state-selected-text: #ffdcca;
+  --state-destructive-surface: #482b29;
+  --state-destructive-border: #ff9a83;
+  --state-destructive-text: #ffd8cd;
+  --edge-cover: rgb(243 227 204 / 34%);
+  --edge-highlight: rgb(255 255 255 / 16%);
+  --edge-shadow: rgb(0 0 0 / 32%);
+  --cover-stock-1: #4f4a3f;
+  --cover-stock-2: #3d4c45;
+  --cover-stock-3: #5a493d;
+  --cover-stock-4: #35453f;
+  --cover-stock-5: #51423a;
+  --cover-stock-6: #44473e;
+  --depth-resting: 0 1px 0 rgb(0 0 0 / 34%);
+  --depth-navigation: 0 -8px 20px rgb(0 0 0 / 16%);
+  --depth-floating: 0 1px 0 rgb(255 255 255 / 5%), 0 18px 60px rgb(0 0 0 / 34%);
+  --depth-modal: 0 24px 80px rgb(0 0 0 / 54%);
+  --paper-glow: rgb(243 227 204 / 5%);
+  --paper-warmth: rgb(226 138 102 / 4%);
+  --fiber-ink: rgb(243 227 204 / 100%);
+  --texture-opacity: 0.09;
+  --texture-blend: screen;
+}
+
+/* Explicit high contrast preserves the paper hue while sharpening hierarchy. */
+:root[data-contrast='high'] {
+  --surface-card: var(--surface-raised);
+  --surface-navigation: var(--surface-page);
+  --text-primary: #0d0f0e;
+  --text-secondary: #292b29;
+  --text-tertiary: #41443f;
+  --text-accent: #762713;
+  --text-destructive: #7b1518;
+  --border-subtle: #62635e;
+  --border-strong: #171917;
+  --border-accent: #762713;
+  --focus-ring: #0d0f0e;
+  --state-selected-border: #0d0f0e;
+  --state-destructive-border: #7b1518;
+  --texture-opacity: 0;
+  --depth-resting: none;
+  --depth-navigation: none;
+  --depth-floating: none;
+  --depth-modal: 0 0 0 2px var(--border-strong);
+}
+
+:root[data-paper-mode='night'][data-contrast='high'] {
+  --surface-page: #090d0b;
+  --surface-raised: #111714;
+  --surface-sunken: #000000;
+  --surface-card: #111714;
+  --surface-navigation: #090d0b;
+  --surface-inverse: #fffdf7;
+  --text-primary: #fffdf7;
+  --text-secondary: #e2ded4;
+  --text-tertiary: #c3c0b8;
+  --text-on-inverse: #090d0b;
+  --text-accent: #ffb08d;
+  --text-destructive: #ffb4a4;
+  --border-subtle: #a6aaa5;
+  --border-strong: #fffdf7;
+  --border-accent: #ffb08d;
+  --focus-ring: #fffdf7;
+  --focus-halo: #090d0b;
+  --selection-background: #fffdf7;
+  --selection-text: #090d0b;
+  --state-selected-surface: #2d211c;
+  --state-selected-border: #fffdf7;
+  --state-selected-text: #fffdf7;
+  --state-destructive-surface: #321a18;
+  --state-destructive-border: #ffb4a4;
+  --state-destructive-text: #fffdf7;
+}
+
+/* 1rem continues to follow the user's browser/OS default; these are optional boosts. */
+:root[data-type-scale='large'] {
+  font-size: 112.5%;
+}
+
+:root[data-type-scale='x-large'] {
+  font-size: 125%;
+}
+
+:root[data-texture='off'] {
+  --texture-opacity: 0;
+  --surface-backdrop: var(--surface-page);
+}
+
+@media (prefers-contrast: more) {
+  :root:not([data-contrast='standard']) {
+    --border-subtle: var(--border-strong);
+    --focus-ring: var(--text-primary);
+    --texture-opacity: 0;
+    --depth-resting: none;
+    --depth-navigation: none;
+    --depth-floating: none;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --surface-card: var(--surface-raised);
+    --surface-navigation: var(--surface-page);
+    --texture-opacity: 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   :root {
     --duration-quick: 1ms;
     --duration-page: 1ms;
+  }
+}
+
+@media (forced-colors: active) {
+  :root {
+    --surface-page: Canvas;
+    --surface-raised: Canvas;
+    --surface-sunken: Canvas;
+    --surface-card: Canvas;
+    --surface-navigation: Canvas;
+    --surface-inverse: CanvasText;
+    --surface-scrim: transparent;
+    --text-primary: CanvasText;
+    --text-secondary: CanvasText;
+    --text-tertiary: CanvasText;
+    --text-on-inverse: Canvas;
+    --text-accent: LinkText;
+    --text-destructive: MarkText;
+    --border-subtle: CanvasText;
+    --border-strong: CanvasText;
+    --border-accent: LinkText;
+    --focus-ring: Highlight;
+    --focus-halo: Canvas;
+    --selection-background: Highlight;
+    --selection-text: HighlightText;
+    --texture-opacity: 0;
+    --surface-backdrop: Canvas;
+    --depth-resting: none;
+    --depth-navigation: none;
+    --depth-floating: none;
+    --depth-modal: none;
+  }
+}
+
+@media print {
+  :root {
+    color-scheme: light;
+    --surface-page: #ffffff;
+    --surface-raised: #ffffff;
+    --surface-sunken: #f1f1ee;
+    --surface-card: #ffffff;
+    --surface-navigation: #ffffff;
+    --text-primary: #000000;
+    --text-secondary: #292929;
+    --text-tertiary: #444444;
+    --border-subtle: #777777;
+    --border-strong: #000000;
+    --texture-opacity: 0;
+    --surface-backdrop: #ffffff;
+    --depth-resting: none;
+    --depth-navigation: none;
+    --depth-floating: none;
+    --depth-modal: none;
   }
 }

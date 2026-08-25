@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
   type CSSProperties,
@@ -19,6 +20,7 @@ import {
   FolderInput,
   Library,
   Minus,
+  Palette,
   Plus,
   Search,
   Settings as SettingsIcon,
@@ -36,6 +38,16 @@ import {
   type LibraryBook,
   type ShelfId,
 } from './library'
+import {
+  CONTRAST_MODES,
+  PAPER_MODES,
+  TYPE_SCALES,
+  applyAppearance,
+  getAppearanceStorage,
+  readAppearance,
+  writeAppearance,
+  type AppearancePreferences,
+} from './design-system'
 import './App.css'
 
 type SheetState =
@@ -51,6 +63,25 @@ type AppView = 'library' | 'settings'
 const MANUAL_ENTRY_ENABLED =
   import.meta.env.DEV || import.meta.env.VITE_ENABLE_MANUAL_BOOKS === 'true'
 const GOOGLE_BOOKS_KEY_CONFIGURED = Boolean(import.meta.env.VITE_GOOGLE_BOOKS_API_KEY)
+
+const appearanceLabels = {
+  paperMode: {
+    warm: 'Warm',
+    cool: 'Cool',
+    print: 'Print',
+    night: 'Night',
+  },
+  contrast: {
+    system: 'System',
+    standard: 'Standard',
+    high: 'High',
+  },
+  typeScale: {
+    standard: '100%',
+    large: '113%',
+    'x-large': '125%',
+  },
+} as const
 
 const shelfCopy: Record<ShelfId, { label: string; eyebrow: string; empty: string }> = {
   tbr: {
@@ -726,11 +757,15 @@ function DetailSheet({
 
 function SettingsPage({
   books,
+  appearance,
   onBack,
+  onAppearanceChange,
   onManualAdd,
 }: {
   books: LibraryBook[]
+  appearance: AppearancePreferences
   onBack: () => void
+  onAppearanceChange: (preferences: AppearancePreferences) => void
   onManualAdd: () => void
 }) {
   const ratedBooks = books.filter((book) => book.rating > 0).length
@@ -756,6 +791,84 @@ function SettingsPage({
       </header>
 
       <div className="settings-ledger">
+        <section className="settings-card settings-card--appearance">
+          <div className="settings-card__icon"><Palette aria-hidden="true" /></div>
+          <div className="settings-card__heading">
+            <span>Reading room</span>
+            <h2>Paper, contrast, and type</h2>
+            <p>Choose the atmosphere without changing the hierarchy or hiding state.</p>
+          </div>
+
+          <fieldset className="appearance-field appearance-field--paper">
+            <legend>Paper stock</legend>
+            <div className="appearance-options">
+              {PAPER_MODES.map((mode) => (
+                <button
+                  className="appearance-option appearance-option--paper"
+                  data-paper={mode}
+                  type="button"
+                  key={mode}
+                  aria-pressed={appearance.paperMode === mode}
+                  onClick={() => onAppearanceChange({ ...appearance, paperMode: mode })}
+                >
+                  <i aria-hidden="true" />
+                  <span>{appearanceLabels.paperMode[mode]}</span>
+                </button>
+              ))}
+            </div>
+          </fieldset>
+
+          <fieldset className="appearance-field">
+            <legend>Contrast</legend>
+            <div className="appearance-options appearance-options--compact">
+              {CONTRAST_MODES.map((contrast) => (
+                <button
+                  className="appearance-option"
+                  type="button"
+                  key={contrast}
+                  aria-pressed={appearance.contrast === contrast}
+                  onClick={() => onAppearanceChange({ ...appearance, contrast })}
+                >
+                  {appearanceLabels.contrast[contrast]}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+
+          <fieldset className="appearance-field">
+            <legend>Type scale</legend>
+            <div className="appearance-options appearance-options--compact">
+              {TYPE_SCALES.map((typeScale) => (
+                <button
+                  className="appearance-option"
+                  type="button"
+                  key={typeScale}
+                  aria-pressed={appearance.typeScale === typeScale}
+                  onClick={() => onAppearanceChange({ ...appearance, typeScale })}
+                >
+                  {appearanceLabels.typeScale[typeScale]}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+
+          <button
+            className="texture-toggle"
+            type="button"
+            aria-pressed={appearance.texture === 'quiet'}
+            onClick={() => onAppearanceChange({
+              ...appearance,
+              texture: appearance.texture === 'quiet' ? 'off' : 'quiet',
+            })}
+          >
+            <span>
+              <strong>Paper fiber</strong>
+              <small>One static procedural layer; automatically removed for contrast and transparency preferences.</small>
+            </span>
+            <i aria-hidden="true" />
+          </button>
+        </section>
+
         <section className="settings-card settings-card--privacy">
           <div className="settings-card__icon"><ShieldCheck aria-hidden="true" /></div>
           <div className="settings-card__heading">
@@ -880,6 +993,7 @@ function App() {
   const [librarySearchOpen, setLibrarySearchOpen] = useState(false)
   const [libraryQuery, setLibraryQuery] = useState('')
   const [toast, setToast] = useState('')
+  const [appearance, setAppearance] = useState(() => readAppearance(getAppearanceStorage()))
 
   const normalizedLibraryQuery = libraryQuery.trim().toLocaleLowerCase()
   const visibleBooks = useMemo(() => {
@@ -906,6 +1020,12 @@ function App() {
     const timer = window.setTimeout(() => setToast(''), 2400)
     return () => window.clearTimeout(timer)
   }, [toast])
+
+  useLayoutEffect(() => {
+    applyAppearance(document.documentElement, appearance)
+    const storage = getAppearanceStorage()
+    if (storage) writeAppearance(storage, appearance)
+  }, [appearance])
 
   const scrollToShelf = (shelf: ShelfId) => {
     document.getElementById(`shelf-${shelf}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -1042,7 +1162,9 @@ function App() {
         ) : (
           <SettingsPage
             books={books}
+            appearance={appearance}
             onBack={showLibrary}
+            onAppearanceChange={setAppearance}
             onManualAdd={() => setSheet({ kind: 'search', shelf: 'tbr', manual: true })}
           />
         )}

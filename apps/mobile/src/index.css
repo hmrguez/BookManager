@@ -56,7 +56,8 @@ a {
 }
 
 ::selection {
-  background: color-mix(in srgb, var(--action-accent) 26%, transparent);
+  background: var(--selection-background);
+  color: var(--selection-text);
 }
 
 @keyframes eink-refresh {
