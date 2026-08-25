@@ -44,11 +44,11 @@ describe('canonical catalog model', () => {
 
     expect(editions.map(({ medium }) => medium).sort()).toEqual(['audiobook', 'ebook'])
     expect(ebook).toMatchObject({
-      locator: { kind: 'epub' },
+      position: { locator: { kind: 'epub' } },
       normalizedProgress: 0.42,
     })
     expect(audio).toMatchObject({
-      locator: { kind: 'audio-time' },
+      position: { locator: { kind: 'audio-time' } },
       normalizedProgress: 0.2,
     })
   })
@@ -184,7 +184,19 @@ describe('canonical catalog model', () => {
       ...representativeCatalog,
       progressSnapshots: representativeCatalog.progressSnapshots.map((progress) =>
         progress.editionId === fixtureIds.editions.leftHandAudio
-          ? { ...progress, locator: { kind: 'epub', locator: 'epubcfi(/6/2)' } }
+          ? {
+              ...progress,
+              position: {
+                locator: {
+                  kind: 'epub',
+                  href: 'chapter-01.xhtml',
+                  locator: 'epubcfi(/6/2)',
+                  progression: 0.2,
+                },
+                normalizedProgress: 0.2,
+                normalization: { kind: 'epub-progression', confidence: 1 },
+              },
+            }
           : progress,
       ),
     }

@@ -78,8 +78,41 @@ export type {
 } from './metadata'
 export { accessStateAt, reparentEditionsForWorkMerge } from './operations'
 export type { AccessState } from './operations'
-export { progressLocatorSchema, progressSnapshotSchema } from './progress'
-export type { ProgressLocator, ProgressSnapshot } from './progress'
+export {
+  READING_EVENT_KINDS,
+  deriveReadingState,
+  integrationCheckpointSchema,
+  progressSnapshotSchema,
+  readingCorrectionReplacementSchema,
+  readingEventPrivacyPolicy,
+  readingEventSchema,
+  readingEventSourceSchema,
+  readingLedgerSchema,
+  readingLocatorSchema,
+  readingNormalizationSchema,
+  readingPositionSchema,
+  readingPositionsInEvent,
+  readingStatusSchema,
+  toProgressSnapshot,
+} from './progress'
+export type {
+  IntegrationCheckpoint,
+  ProgressSnapshot,
+  ProjectedReadingNote,
+  ProjectedReadingRating,
+  ProjectedReadingSession,
+  ReadingCorrectionReplacement,
+  ReadingEvent,
+  ReadingEventKind,
+  ReadingEventSource,
+  ReadingLedger,
+  ReadingLocator,
+  ReadingNormalization,
+  ReadingPosition,
+  ReadingProjectionOptions,
+  ReadingState,
+  ReadingStatus,
+} from './progress'
 export { catalogRecordsSchema } from './records'
 export type { CatalogRecords } from './records'
 export {

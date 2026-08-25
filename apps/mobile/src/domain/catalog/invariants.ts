@@ -1,5 +1,6 @@
 import type { EditionId, PersonId, SourceClaimId, SourceRecordId, WorkId } from './ids'
 import type { ResolvedMetadataValue, SourceClaim } from './metadata'
+import { readingLedgerSchema, readingPositionsInEvent, type ReadingPosition } from './progress'
 import type { CatalogRecords } from './records'
 import { sameTarget, type EditionRef, type MetadataTarget, type WorkRef } from './shared'
 
@@ -17,12 +18,31 @@ export function validateCatalogInvariants(
   const loans = uniqueMap(catalog.loans, 'loans', addIssue)
   const people = uniqueMap(catalog.people, 'people', addIssue)
   const overrides = uniqueMap(catalog.metadataOverrides, 'metadataOverrides', addIssue)
+  const integrationCheckpoints = new Map(
+    catalog.integrationCheckpoints.map((checkpoint) => [checkpoint.id, checkpoint]),
+  )
+  const readingEvents = new Map(catalog.readingEvents.map((event) => [event.id, event]))
 
   uniqueMap(catalog.identifiers, 'identifiers', addIssue)
   uniqueMap(catalog.accessGrants, 'accessGrants', addIssue)
   uniqueMap(catalog.contributors, 'contributors', addIssue)
   uniqueMap(catalog.workParts, 'workParts', addIssue)
   uniqueMap(catalog.progressSnapshots, 'progressSnapshots', addIssue)
+
+  const ledgerResult = readingLedgerSchema.safeParse({
+    integrationCheckpoints: catalog.integrationCheckpoints,
+    events: catalog.readingEvents,
+  })
+  if (!ledgerResult.success) {
+    ledgerResult.error.issues.forEach((issue) => {
+      const [collection, ...rest] = issue.path
+      const safeRest = rest.filter((segment): segment is string | number => typeof segment !== 'symbol')
+      addIssue(
+        [collection === 'events' ? 'readingEvents' : String(collection), ...safeRest],
+        issue.message,
+      )
+    })
+  }
 
   const sourceClaims = new Map<
     SourceClaimId,
@@ -286,6 +306,48 @@ export function validateCatalogInvariants(
     }
   })
 
+  catalog.readingEvents.forEach((event, index) => {
+    const edition = editions.get(event.editionId)
+    if (!edition) {
+      addIssue(['readingEvents', index, 'editionId'], `Missing Edition ${event.editionId}`)
+      return
+    }
+    if (event.assetId) {
+      const asset = assets.get(event.assetId)
+      if (!asset || asset.editionId !== event.editionId) {
+        addIssue(
+          ['readingEvents', index, 'assetId'],
+          'Reading event Asset must belong to the same Edition',
+        )
+      }
+    }
+    if (event.source.kind === 'integration' && event.source.sourceRecordId) {
+      validateOptionalSource(
+        event.source.sourceRecordId,
+        sourceRecords,
+        ['readingEvents', index, 'source', 'sourceRecordId'],
+        addIssue,
+      )
+    }
+    if (
+      event.integrationCheckpointId &&
+      !integrationCheckpoints.has(event.integrationCheckpointId)
+    ) {
+      addIssue(
+        ['readingEvents', index, 'integrationCheckpointId'],
+        `Missing integration checkpoint ${event.integrationCheckpointId}`,
+      )
+    }
+    readingPositionsInEvent(event).forEach((position, positionIndex) => {
+      validateReadingPosition(
+        position,
+        edition,
+        ['readingEvents', index, 'positions', positionIndex],
+        addIssue,
+      )
+    })
+  })
+
   catalog.progressSnapshots.forEach((progress, index) => {
     const edition = editions.get(progress.editionId)
     if (!edition) {
@@ -301,46 +363,23 @@ export function validateCatalogInvariants(
         )
       }
     }
-    if (progress.locator.kind === 'audio-time' && edition.medium !== 'audiobook') {
-      addIssue(
-        ['progressSnapshots', index, 'locator'],
-        'Audio-time progress requires an audiobook Edition',
+    if (progress.position) {
+      validateReadingPosition(
+        progress.position,
+        edition,
+        ['progressSnapshots', index, 'position'],
+        addIssue,
       )
     }
-    if (progress.locator.kind === 'epub' && edition.medium !== 'ebook') {
-      addIssue(
-        ['progressSnapshots', index, 'locator'],
-        'EPUB progress requires an ebook Edition',
-      )
+    if (progress.sourceEventId) {
+      const sourceEvent = readingEvents.get(progress.sourceEventId)
+      if (!sourceEvent || sourceEvent.editionId !== progress.editionId) {
+        addIssue(
+          ['progressSnapshots', index, 'sourceEventId'],
+          'Progress snapshot source must be a reading event for the same Edition',
+        )
+      }
     }
-    if (progress.locator.kind === 'page' && edition.medium === 'audiobook') {
-      addIssue(
-        ['progressSnapshots', index, 'locator'],
-        'Page progress requires a print or ebook Edition',
-      )
-    }
-    if (
-      progress.locator.kind === 'audio-time' &&
-      edition.medium === 'audiobook' &&
-      edition.durationMs &&
-      progress.locator.positionMs > edition.durationMs.value
-    ) {
-      addIssue(['progressSnapshots', index, 'locator'], 'Audio progress exceeds Edition duration')
-    }
-    if (
-      progress.locator.kind === 'page' &&
-      edition.medium !== 'audiobook' &&
-      edition.pageCount &&
-      progress.locator.page > edition.pageCount.value
-    ) {
-      addIssue(['progressSnapshots', index, 'locator'], 'Page progress exceeds Edition page count')
-    }
-    validateOptionalSource(
-      progress.sourceRecordId,
-      sourceRecords,
-      ['progressSnapshots', index, 'sourceRecordId'],
-      addIssue,
-    )
   })
 
   function validateResolved(
@@ -380,6 +419,40 @@ export function validateCatalogInvariants(
         addIssue(path, 'Resolved metadata must reference its stored user override')
       }
     }
+  }
+}
+
+function validateReadingPosition(
+  position: ReadingPosition,
+  edition: CatalogRecords['editions'][number],
+  path: readonly (number | string)[],
+  addIssue: AddInvariantIssue,
+): void {
+  const { locator } = position
+  if (locator.kind === 'audio-time' && edition.medium !== 'audiobook') {
+    addIssue(path, 'Audio-time progress requires an audiobook Edition')
+  }
+  if (locator.kind === 'epub' && edition.medium !== 'ebook') {
+    addIssue(path, 'EPUB progress requires an ebook Edition')
+  }
+  if (locator.kind === 'page' && edition.medium === 'audiobook') {
+    addIssue(path, 'Page progress requires a print or ebook Edition')
+  }
+  if (
+    locator.kind === 'audio-time' &&
+    edition.medium === 'audiobook' &&
+    edition.durationMs &&
+    locator.positionMs > edition.durationMs.value
+  ) {
+    addIssue(path, 'Audio progress exceeds Edition duration')
+  }
+  if (
+    locator.kind === 'page' &&
+    edition.medium !== 'audiobook' &&
+    edition.pageCount &&
+    locator.page > edition.pageCount.value
+  ) {
+    addIssue(path, 'Page progress exceeds Edition page count')
   }
 }
 

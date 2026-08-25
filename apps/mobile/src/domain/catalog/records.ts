@@ -3,7 +3,7 @@ import { accessGrantSchema, loanSchema, ownershipSchema } from './access'
 import { assetSchema, editionSchema } from './editions'
 import { identifierSchema } from './identifiers'
 import { sourceRecordSchema, userMetadataOverrideValueSchema } from './metadata'
-import { progressSnapshotSchema } from './progress'
+import { integrationCheckpointSchema, progressSnapshotSchema, readingEventSchema } from './progress'
 import { contributorSchema, personSchema, workPartSchema, workSchema } from './works'
 
 /** Structural catalog shape; cross-record invariants are composed in catalog.ts. */
@@ -20,6 +20,8 @@ export const catalogRecordsSchema = z.object({
   people: z.array(personSchema),
   contributors: z.array(contributorSchema),
   workParts: z.array(workPartSchema),
+  integrationCheckpoints: z.array(integrationCheckpointSchema),
+  readingEvents: z.array(readingEventSchema),
   progressSnapshots: z.array(progressSnapshotSchema),
 })
 

@@ -54,7 +54,7 @@ boundaries.
 | `Person` | A human identity and resolved display/sort names | Role or credit order |
 | `Contributor` | Person, target (`Work` or `Edition`), role, credited name, and order | Person identity fields |
 | `WorkPart` | Ordered containment of Works in an anthology/collection | A string-only table of contents |
-| `ProgressSnapshot` | Edition-scoped, optionally Asset-scoped projection for display and resume | Authoritative event history; QUI-16 owns that ledger |
+| `ProgressSnapshot` | Edition-scoped, optionally Asset-scoped projection for display and resume | Authoritative event history; [ADR 0003](0003-reading-ledger.md) owns that ledger |
 
 ### Required invariants
 
@@ -203,8 +203,8 @@ unchanged until the transactional migration issues land.
 - The model is more relational than the current UI, but each future feature has a single owner.
 - Read views will join or project several records; repositories should expose purpose-built query
   models rather than leaking storage rows into React.
-- QUI-16 must define authoritative reading events, sessions, locations, normalization, and
-  provenance while keeping Edition as the progress target.
+- [QUI-16 / ADR 0003](0003-reading-ledger.md) defines authoritative reading events, sessions,
+  locations, normalization, correction, and provenance while keeping Edition as the progress target.
 - QUI-20 must define candidate selection, conflict review, reversible merge/split operations,
   and undo without weakening the source/override boundary above.
 - QUI-17 must translate these Zod contracts into normalized SQLite tables and transactions. Any

@@ -24,6 +24,13 @@ export const contributorIdSchema = entityIdSchema('contributor', 'ContributorId'
 export const workPartIdSchema = entityIdSchema('work-part', 'WorkPartId')
 export const metadataOverrideIdSchema = entityIdSchema('metadata-override', 'MetadataOverrideId')
 export const progressSnapshotIdSchema = entityIdSchema('progress', 'ProgressSnapshotId')
+export const readingEventIdSchema = entityIdSchema('reading-event', 'ReadingEventId')
+export const readingSessionIdSchema = entityIdSchema('reading-session', 'ReadingSessionId')
+export const readingDeviceIdSchema = entityIdSchema('reading-device', 'ReadingDeviceId')
+export const integrationCheckpointIdSchema = entityIdSchema(
+  'integration-checkpoint',
+  'IntegrationCheckpointId',
+)
 
 export type WorkId = z.infer<typeof workIdSchema>
 export type EditionId = z.infer<typeof editionIdSchema>
@@ -39,3 +46,7 @@ export type ContributorId = z.infer<typeof contributorIdSchema>
 export type WorkPartId = z.infer<typeof workPartIdSchema>
 export type MetadataOverrideId = z.infer<typeof metadataOverrideIdSchema>
 export type ProgressSnapshotId = z.infer<typeof progressSnapshotIdSchema>
+export type ReadingEventId = z.infer<typeof readingEventIdSchema>
+export type ReadingSessionId = z.infer<typeof readingSessionIdSchema>
+export type ReadingDeviceId = z.infer<typeof readingDeviceIdSchema>
+export type IntegrationCheckpointId = z.infer<typeof integrationCheckpointIdSchema>

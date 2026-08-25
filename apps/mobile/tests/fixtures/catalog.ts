@@ -17,6 +17,8 @@ import {
   contributorIdSchema,
   workPartIdSchema,
   progressSnapshotIdSchema,
+  readingDeviceIdSchema,
+  readingEventIdSchema,
   type JsonValue,
   type MetadataField,
   type MetadataTarget,
@@ -61,6 +63,12 @@ export const fixtureIds = {
   claims: {
     incorrectTitle: sourceClaimIdSchema.parse('source-claim:google:piranesi:title'),
   },
+  readingEvents: {
+    leftHandEbookStart: readingEventIdSchema.parse('reading-event:left-hand-ebook:start'),
+    leftHandEbookLocation: readingEventIdSchema.parse('reading-event:left-hand-ebook:location'),
+    leftHandAudioStart: readingEventIdSchema.parse('reading-event:left-hand-audio:start'),
+    leftHandAudioLocation: readingEventIdSchema.parse('reading-event:left-hand-audio:location'),
+  },
   people: {
     leGuin: personIdSchema.parse('person:ursula-k-le-guin'),
     narrator: personIdSchema.parse('person:george-guidall'),
@@ -69,6 +77,8 @@ export const fixtureIds = {
     tedChiang: personIdSchema.parse('person:ted-chiang'),
   },
 } as const
+
+const fixtureReadingDeviceId = readingDeviceIdSchema.parse('reading-device:catalog-fixture')
 
 const correctedTitleTarget = { type: 'work', id: fixtureIds.works.corrected } as const
 
@@ -607,22 +617,115 @@ export const representativeCatalog = catalogSchema.parse({
       position: 1,
     },
   ],
+  integrationCheckpoints: [],
+  readingEvents: [
+    {
+      id: fixtureIds.readingEvents.leftHandEbookStart,
+      kind: 'start',
+      editionId: fixtureIds.editions.leftHandEbook,
+      assetId: fixtureIds.assets.leftHandEpub,
+      source: { kind: 'local', method: 'epub-reader' },
+      deviceId: fixtureReadingDeviceId,
+      observedAt: '2026-08-25T09:00:00.000Z',
+      effectiveAt: '2026-08-25T09:00:00.000Z',
+      recordedAt: '2026-08-25T09:00:00.000Z',
+      timeConfidence: 1,
+    },
+    {
+      id: fixtureIds.readingEvents.leftHandEbookLocation,
+      kind: 'location',
+      editionId: fixtureIds.editions.leftHandEbook,
+      assetId: fixtureIds.assets.leftHandEpub,
+      source: { kind: 'local', method: 'epub-reader' },
+      deviceId: fixtureReadingDeviceId,
+      observedAt: recordedAt,
+      effectiveAt: recordedAt,
+      recordedAt,
+      timeConfidence: 1,
+      position: {
+        locator: {
+          kind: 'epub',
+          href: 'chapter-08.xhtml',
+          locator: 'epubcfi(/6/24!/4/2/14)',
+          progression: 0.42,
+        },
+        normalizedProgress: 0.42,
+        normalization: { kind: 'epub-progression', confidence: 0.95 },
+      },
+    },
+    {
+      id: fixtureIds.readingEvents.leftHandAudioStart,
+      kind: 'start',
+      editionId: fixtureIds.editions.leftHandAudio,
+      assetId: fixtureIds.assets.leftHandM4b,
+      source: { kind: 'local', method: 'audio-player' },
+      deviceId: fixtureReadingDeviceId,
+      observedAt: '2026-08-25T09:30:00.000Z',
+      effectiveAt: '2026-08-25T09:30:00.000Z',
+      recordedAt: '2026-08-25T09:30:00.000Z',
+      timeConfidence: 1,
+    },
+    {
+      id: fixtureIds.readingEvents.leftHandAudioLocation,
+      kind: 'location',
+      editionId: fixtureIds.editions.leftHandAudio,
+      assetId: fixtureIds.assets.leftHandM4b,
+      source: { kind: 'local', method: 'audio-player' },
+      deviceId: fixtureReadingDeviceId,
+      observedAt: recordedAt,
+      effectiveAt: recordedAt,
+      recordedAt,
+      timeConfidence: 1,
+      position: {
+        locator: { kind: 'audio-time', positionMs: 7_164_000 },
+        normalizedProgress: 0.2,
+        normalization: {
+          kind: 'edition-duration',
+          durationMs: 35_820_000,
+          confidence: 1,
+        },
+      },
+    },
+  ],
   progressSnapshots: [
     {
       id: progressSnapshotIdSchema.parse('progress:left-hand-ebook'),
       editionId: fixtureIds.editions.leftHandEbook,
       assetId: fixtureIds.assets.leftHandEpub,
-      locator: { kind: 'epub', locator: 'epubcfi(/6/24!/4/2/14)' },
+      status: 'reading',
+      position: {
+        locator: {
+          kind: 'epub',
+          href: 'chapter-08.xhtml',
+          locator: 'epubcfi(/6/24!/4/2/14)',
+          progression: 0.42,
+        },
+        normalizedProgress: 0.42,
+        normalization: { kind: 'epub-progression', confidence: 0.95 },
+      },
       normalizedProgress: 0.42,
-      recordedAt,
+      startedAt: '2026-08-25T09:00:00.000Z',
+      sourceEventId: fixtureIds.readingEvents.leftHandEbookLocation,
+      projectedAt: recordedAt,
     },
     {
       id: progressSnapshotIdSchema.parse('progress:left-hand-audio'),
       editionId: fixtureIds.editions.leftHandAudio,
       assetId: fixtureIds.assets.leftHandM4b,
-      locator: { kind: 'audio-time', positionMs: 7_164_000 },
+      status: 'reading',
+      position: {
+        locator: { kind: 'audio-time', positionMs: 7_164_000 },
+        normalizedProgress: 0.2,
+        normalization: {
+          kind: 'edition-duration',
+          durationMs: 35_820_000,
+          confidence: 1,
+        },
+      },
       normalizedProgress: 0.2,
-      recordedAt,
+      startedAt: '2026-08-25T09:30:00.000Z',
+      sourceEventId: fixtureIds.readingEvents.leftHandAudioLocation,
+      projectedAt: recordedAt,
     },
   ],
 })
