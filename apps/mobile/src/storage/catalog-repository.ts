@@ -16,6 +16,8 @@ const CATALOG_TABLES_IN_DELETE_ORDER = [
   'progress_snapshots',
   'reading_events',
   'integration_checkpoints',
+  'list_entries',
+  'lists',
   'access_grants',
   'ownerships',
   'loans',
@@ -52,6 +54,8 @@ export class CatalogRepository {
       people,
       contributors,
       workParts,
+      lists,
+      listEntries,
       integrationCheckpoints,
       readingEvents,
       progressSnapshots,
@@ -68,6 +72,8 @@ export class CatalogRepository {
       readPayloads(this.#database, 'people'),
       readPayloads(this.#database, 'contributors'),
       readPayloads(this.#database, 'work_parts'),
+      readPayloads(this.#database, 'lists'),
+      readPayloads(this.#database, 'list_entries'),
       readPayloads(this.#database, 'integration_checkpoints'),
       readPayloads(this.#database, 'reading_events'),
       readPayloads(this.#database, 'progress_snapshots'),
@@ -86,6 +92,8 @@ export class CatalogRepository {
       people,
       contributors,
       workParts,
+      lists,
+      listEntries,
       integrationCheckpoints,
       readingEvents,
       progressSnapshots,
@@ -101,6 +109,13 @@ export class CatalogRepository {
       await insertCatalog(database, validated)
     })
   }
+}
+
+export async function insertCatalogRecords(
+  database: SqlDatabase,
+  catalog: Catalog,
+): Promise<void> {
+  await insertCatalog(database, catalogSchema.parse(catalog))
 }
 
 export type ReadingLedgerBatch = {
@@ -325,6 +340,37 @@ async function insertCatalog(database: SqlDatabase, catalog: Catalog): Promise<v
       `INSERT INTO work_parts(id, container_work_id, work_id, position, payload_json)
        VALUES (?, ?, ?, ?, ?)`,
       [part.id, part.containerWorkId, part.workId, part.position, json(part)],
+    )
+  }
+  for (const list of catalog.lists) {
+    await database.run(
+      `INSERT INTO lists(id, kind, slug, name, created_at, updated_at, payload_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        list.id,
+        list.kind,
+        list.slug,
+        list.name,
+        list.createdAt,
+        list.updatedAt,
+        json(list),
+      ],
+    )
+  }
+  for (const entry of catalog.listEntries) {
+    await database.run(
+      `INSERT INTO list_entries(
+         id, list_id, work_id, position, created_at, updated_at, payload_json
+       ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        entry.id,
+        entry.listId,
+        entry.workId,
+        entry.position,
+        entry.createdAt,
+        entry.updatedAt,
+        json(entry),
+      ],
     )
   }
   for (const checkpoint of catalog.integrationCheckpoints) {

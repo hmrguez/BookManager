@@ -4,6 +4,18 @@ export type { SqlDatabase, SqlRow, SqlRunResult, SqlValue } from './database'
 export { inspectStorage } from './inspection'
 export type { StorageInspection } from './inspection'
 export { LibraryRepository } from './library-repository'
+export {
+  createLegacyLibraryRecoveryFile,
+  LEGACY_LIBRARY_MIGRATION_KEY,
+  LEGACY_LIBRARY_STORAGE_KEYS,
+  migrateLegacyLibrary,
+} from './legacy-library-migration'
+export type {
+  LegacyLibraryMigrationOptions,
+  LegacyLibraryMigrationResult,
+  LegacyLibraryRecoveryFile,
+  LegacyLibraryStorage,
+} from './legacy-library-migration'
 export { migrateStorage, STORAGE_MIGRATIONS } from './migrations'
 export type {
   MigrationBackupStore,

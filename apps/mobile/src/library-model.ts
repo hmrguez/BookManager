@@ -27,6 +27,23 @@ export type BookSearchResult = Pick<
   'id' | 'title' | 'authors' | 'thumbnail' | 'pageCount'
 >
 
+export const STARTER_LIBRARY_BOOK_IDS = [
+  'starter-will-of-the-many',
+  'starter-mistborn',
+  'starter-assassins-apprentice',
+  'starter-vita-nostra',
+  'starter-tainted-cup',
+  'starter-blade-itself',
+  'starter-jonathan-strange',
+  'starter-piranesi',
+] as const
+
+const starterLibraryBookIds = new Set<string>(STARTER_LIBRARY_BOOK_IDS)
+
+export function isStarterLibraryBookId(id: string): boolean {
+  return starterLibraryBookIds.has(id)
+}
+
 export function createStarterLibrary(timestamp = new Date().toISOString()): LibraryBook[] {
   return libraryBookSchema.array().parse([
     {

@@ -17,6 +17,7 @@ export function validateCatalogInvariants(
   const ownerships = uniqueMap(catalog.ownerships, 'ownerships', addIssue)
   const loans = uniqueMap(catalog.loans, 'loans', addIssue)
   const people = uniqueMap(catalog.people, 'people', addIssue)
+  const lists = uniqueMap(catalog.lists, 'lists', addIssue)
   const overrides = uniqueMap(catalog.metadataOverrides, 'metadataOverrides', addIssue)
   const integrationCheckpoints = new Map(
     catalog.integrationCheckpoints.map((checkpoint) => [checkpoint.id, checkpoint]),
@@ -27,6 +28,7 @@ export function validateCatalogInvariants(
   uniqueMap(catalog.accessGrants, 'accessGrants', addIssue)
   uniqueMap(catalog.contributors, 'contributors', addIssue)
   uniqueMap(catalog.workParts, 'workParts', addIssue)
+  uniqueMap(catalog.listEntries, 'listEntries', addIssue)
   uniqueMap(catalog.progressSnapshots, 'progressSnapshots', addIssue)
 
   const ledgerResult = readingLedgerSchema.safeParse({
@@ -380,6 +382,38 @@ export function validateCatalogInvariants(
         )
       }
     }
+  })
+
+  const listSlugs = new Set<string>()
+  catalog.lists.forEach((list, index) => {
+    if (listSlugs.has(list.slug)) {
+      addIssue(['lists', index, 'slug'], `Duplicate List slug ${list.slug}`)
+    }
+    listSlugs.add(list.slug)
+  })
+
+  const listPositions = new Set<string>()
+  const listWorks = new Set<string>()
+  catalog.listEntries.forEach((entry, index) => {
+    if (!lists.has(entry.listId)) {
+      addIssue(['listEntries', index, 'listId'], `Missing List ${entry.listId}`)
+    }
+    if (!works.has(entry.workId)) {
+      addIssue(['listEntries', index, 'workId'], `Missing Work ${entry.workId}`)
+    }
+    const positionKey = `${entry.listId}:${entry.position}`
+    if (listPositions.has(positionKey)) {
+      addIssue(
+        ['listEntries', index, 'position'],
+        `Duplicate position ${entry.position} in List ${entry.listId}`,
+      )
+    }
+    listPositions.add(positionKey)
+    const workKey = `${entry.listId}:${entry.workId}`
+    if (listWorks.has(workKey)) {
+      addIssue(['listEntries', index, 'workId'], `Work ${entry.workId} already belongs to this List`)
+    }
+    listWorks.add(workKey)
   })
 
   function validateResolved(

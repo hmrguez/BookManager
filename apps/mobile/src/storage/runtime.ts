@@ -3,6 +3,13 @@ import { openCapacitorDatabase } from './capacitor-database'
 import { CatalogRepository, ReadingLedgerRepository } from './catalog-repository'
 import type { SqlDatabase } from './database'
 import { installDevelopmentInspector } from './inspection'
+import {
+  createLegacyLibraryRecoveryFile,
+  migrateLegacyLibrary,
+  type LegacyLibraryMigrationResult,
+  type LegacyLibraryRecoveryFile,
+  type LegacyLibraryStorage,
+} from './legacy-library-migration'
 import { LibraryRepository } from './library-repository'
 import { createMigrationBackupStore } from './migration-backup'
 import { migrateStorage } from './migrations'
@@ -14,6 +21,8 @@ export type StorageRuntime = {
   readonly readingLedger: ReadingLedgerRepository
   readonly library: LibraryRepository
   readonly queries: CatalogQueryService
+  readonly legacyMigration: LegacyLibraryMigrationResult
+  exportLegacyLibraryRecovery(): Promise<LegacyLibraryRecoveryFile | undefined>
 }
 
 let runtimePromise: Promise<StorageRuntime> | undefined
@@ -27,7 +36,13 @@ async function initializeStorageRuntime(): Promise<StorageRuntime> {
   const database = await openCapacitorDatabase()
   await migrateStorage(database, { backupStore: createMigrationBackupStore() })
   const library = new LibraryRepository(database)
-  await library.seedIfEmpty(createStarterLibrary())
+  const legacyStorage = getLegacyLibraryStorage()
+  const legacyMigration = legacyStorage
+    ? await migrateLegacyLibrary(database, legacyStorage)
+    : ({ status: 'not-found' } as const)
+  if (legacyMigration.status === 'not-found') {
+    await library.seedIfEmpty(createStarterLibrary())
+  }
   const queries = new CatalogQueryService(database)
   installDevelopmentInspector(database, queries)
 
@@ -37,5 +52,18 @@ async function initializeStorageRuntime(): Promise<StorageRuntime> {
     readingLedger: new ReadingLedgerRepository(database),
     library,
     queries,
+    legacyMigration,
+    exportLegacyLibraryRecovery: () =>
+      legacyStorage
+        ? createLegacyLibraryRecoveryFile(database, legacyStorage)
+        : Promise.resolve(undefined),
+  }
+}
+
+function getLegacyLibraryStorage(): LegacyLibraryStorage | undefined {
+  try {
+    return window.localStorage
+  } catch {
+    return undefined
   }
 }

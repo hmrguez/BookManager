@@ -54,6 +54,7 @@ boundaries.
 | `Person` | A human identity and resolved display/sort names | Role or credit order |
 | `Contributor` | Person, target (`Work` or `Edition`), role, credited name, and order | Person identity fields |
 | `WorkPart` | Ordered containment of Works in an anthology/collection | A string-only table of contents |
+| `List` / `ListEntry` | Named organization and ordered Work membership | Reading status, access, or ownership |
 | `ProgressSnapshot` | Edition-scoped, optionally Asset-scoped projection for display and resume | Authoritative event history; [ADR 0003](0003-reading-ledger.md) owns that ledger |
 
 ### Required invariants
@@ -95,8 +96,10 @@ boundaries.
     optional Asset must belong to that Edition. Cross-format percentages are display
     projections, not a replacement for native locators.
 15. Managed file paths are relative to application-controlled storage. Linked files use an
-    opaque platform bookmark plus fingerprint; secrets and unrestricted absolute paths do not
-    enter the catalog.
+   opaque platform bookmark plus fingerprint; secrets and unrestricted absolute paths do not
+   enter the catalog.
+16. ListEntry organizes a Work in one ordered List. Shelf/list membership never proves ownership,
+    access, or Edition-scoped reading status.
 
 ### Metadata precedence
 
@@ -178,6 +181,9 @@ Rejected because timestamps do not establish authority and overwriting destroys 
 user corrections. Source choice must be explicit and reviewable.
 
 ## Migration consequences
+
+[ADR 0006](0006-lossless-legacy-library-migration.md) implements this mapping and its recovery
+contract.
 
 QUI-17/QUI-18 must migrate each valid legacy `LibraryBook` conservatively:
 

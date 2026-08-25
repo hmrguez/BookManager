@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react'
 import {
+  AlertTriangle,
   ArrowRight,
   BookCheck,
   BookPlus,
@@ -18,6 +19,7 @@ import {
   ChevronRight,
   CirclePlus,
   Clock3,
+  Download,
   FolderInput,
   Library,
   Minus,
@@ -998,6 +1000,9 @@ function BottomNavigation({
 function App() {
   const {
     books,
+    storageError,
+    legacyRecoveryAvailable,
+    downloadLegacyRecovery,
     addBook,
     updateBook,
     moveBook,
@@ -1150,6 +1155,23 @@ function App() {
   return (
     <div className="library-app">
       <div className="app-content" inert={sheet ? true : undefined} aria-hidden={sheet ? true : undefined}>
+        {storageError && (
+          <section className="storage-recovery" role="alert" aria-live="assertive">
+            <AlertTriangle aria-hidden="true" />
+            <div>
+              <strong>
+                {legacyRecoveryAvailable ? 'Previous library needs recovery' : 'Library storage error'}
+              </strong>
+              <p>{storageError}</p>
+              {legacyRecoveryAvailable && (
+                <button type="button" onClick={() => { void downloadLegacyRecovery() }}>
+                  <Download aria-hidden="true" />
+                  Download recovery copy
+                </button>
+              )}
+            </div>
+          </section>
+        )}
         {view === 'library' ? (
           <div className="library-page" data-motion-event="navigate">
             <header className="app-header" id="top">

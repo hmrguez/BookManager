@@ -224,7 +224,8 @@ native locators. Normalized progress is a confidence-bearing projection.
 
 - QUI-17 must persist events and checkpoints transactionally and index Edition plus all three
   timestamps; snapshots may be rebuilt or cached.
-- QUI-18 migration emits explicit migration-sourced lifecycle, location, rating, and note events.
+- [QUI-18 / ADR 0006](0006-lossless-legacy-library-migration.md) emits explicit migration-sourced
+  lifecycle, location, rating, note, and import-marker events.
 - Import and adapter work must commit fact events and their checkpoint/marker atomically.
 - Statistics must expose uncertainty instead of treating low-confidence normalized positions or
   timestamps as exact.

@@ -55,6 +55,8 @@ export {
   observedIdentifierSchema,
 } from './identifiers'
 export type { Identifier, IdentifierOwner, IdentifierScheme, ObservedIdentifier } from './identifiers'
+export { listEntrySchema, listKindSchema, listSchema } from './lists'
+export type { List, ListEntry, ListKind } from './lists'
 export {
   metadataCandidateSchema,
   metadataCandidateValueSchema,

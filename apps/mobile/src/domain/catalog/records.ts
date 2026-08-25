@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { accessGrantSchema, loanSchema, ownershipSchema } from './access'
 import { assetSchema, editionSchema } from './editions'
 import { identifierSchema } from './identifiers'
+import { listEntrySchema, listSchema } from './lists'
 import { sourceRecordSchema, userMetadataOverrideValueSchema } from './metadata'
 import { integrationCheckpointSchema, progressSnapshotSchema, readingEventSchema } from './progress'
 import { contributorSchema, personSchema, workPartSchema, workSchema } from './works'
@@ -20,6 +21,8 @@ export const catalogRecordsSchema = z.object({
   people: z.array(personSchema),
   contributors: z.array(contributorSchema),
   workParts: z.array(workPartSchema),
+  lists: z.array(listSchema).default([]),
+  listEntries: z.array(listEntrySchema).default([]),
   integrationCheckpoints: z.array(integrationCheckpointSchema),
   readingEvents: z.array(readingEventSchema),
   progressSnapshots: z.array(progressSnapshotSchema),

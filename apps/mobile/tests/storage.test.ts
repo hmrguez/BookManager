@@ -86,8 +86,9 @@ describe('transactional SQLite storage', () => {
         return `memory://${key}`
       },
     }
+    const destructiveVersion = STORAGE_MIGRATIONS.length + 1
     const destructiveMigration: StorageMigration = {
-      version: 2,
+      version: destructiveVersion,
       name: 'destructive migration proof',
       kind: 'destructive',
       signature: 'create migration_proof',
@@ -102,9 +103,12 @@ describe('transactional SQLite storage', () => {
     await migrateStorage(database, { migrations, backupStore })
 
     const versions = await database.query('SELECT version FROM schema_migrations ORDER BY version')
-    expect(versions).toEqual([{ version: 1 }, { version: 2 }])
+    expect(versions).toEqual(migrations.map(({ version }) => ({ version })))
     expect(backups).toHaveLength(1)
-    const runs = await database.query("SELECT status, backup_key FROM migration_runs WHERE version = 2")
+    const runs = await database.query(
+      'SELECT status, backup_key FROM migration_runs WHERE version = ?',
+      [destructiveVersion],
+    )
     expect(runs).toEqual([{ status: 'completed', backup_key: expect.stringMatching('memory://') }])
     await database.close()
   })
@@ -113,8 +117,9 @@ describe('transactional SQLite storage', () => {
     const database = new BunSqliteDatabase()
     await migrateStorage(database)
     await new CatalogRepository(database).replace(representativeCatalog)
+    const destructiveVersion = STORAGE_MIGRATIONS.length + 1
     const failingMigration: StorageMigration = {
-      version: 2,
+      version: destructiveVersion,
       name: 'failed destructive migration proof',
       kind: 'destructive',
       signature: 'delete works then interrupt',
@@ -139,9 +144,10 @@ describe('transactional SQLite storage', () => {
     ).rejects.toThrow('power lost during migration')
 
     const versions = await database.query('SELECT version FROM schema_migrations ORDER BY version')
-    expect(versions).toEqual([{ version: 1 }])
+    expect(versions).toEqual(STORAGE_MIGRATIONS.map(({ version }) => ({ version })))
     const failedRun = await database.query(
-      "SELECT status, backup_key, error FROM migration_runs WHERE version = 2",
+      'SELECT status, backup_key, error FROM migration_runs WHERE version = ?',
+      [destructiveVersion],
     )
     expect(failedRun).toEqual([
       {

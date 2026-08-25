@@ -332,7 +332,67 @@ export const STORAGE_MIGRATIONS: readonly StorageMigration[] = [
       await database.execute(INITIAL_SCHEMA_SQL)
     },
   },
+  {
+    version: 2,
+    name: 'legacy library checkpoints and canonical lists',
+    kind: 'additive',
+    signature: legacyLibraryMigrationSql(),
+    async up(database) {
+      await database.execute(legacyLibraryMigrationSql())
+    },
+  },
 ]
+
+function legacyLibraryMigrationSql(): string {
+  return `
+CREATE TABLE lists (
+  id TEXT PRIMARY KEY NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('system', 'custom')),
+  slug TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  payload_json TEXT NOT NULL CHECK (json_valid(payload_json))
+);
+
+CREATE INDEX idx_lists_kind
+  ON lists(kind, name, id);
+
+CREATE TABLE list_entries (
+  id TEXT PRIMARY KEY NOT NULL,
+  list_id TEXT NOT NULL,
+  work_id TEXT NOT NULL,
+  position INTEGER NOT NULL CHECK (position >= 0),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  payload_json TEXT NOT NULL CHECK (json_valid(payload_json)),
+  FOREIGN KEY (list_id) REFERENCES lists(id) ON DELETE RESTRICT,
+  FOREIGN KEY (work_id) REFERENCES works(id) ON DELETE RESTRICT,
+  UNIQUE(list_id, work_id),
+  UNIQUE(list_id, position)
+);
+
+CREATE INDEX idx_list_entries_work
+  ON list_entries(work_id, list_id, id);
+
+CREATE TABLE legacy_library_migrations (
+  migration_key TEXT PRIMARY KEY NOT NULL,
+  source_key TEXT NOT NULL,
+  source_checksum TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('started', 'verified', 'completed', 'failed')),
+  source_count INTEGER,
+  imported_count INTEGER NOT NULL DEFAULT 0,
+  recovery_payload TEXT NOT NULL CHECK (json_valid(recovery_payload)),
+  started_at TEXT NOT NULL,
+  verified_at TEXT,
+  completed_at TEXT,
+  error TEXT
+);
+
+CREATE INDEX idx_legacy_library_migrations_status
+  ON legacy_library_migrations(status, started_at DESC);
+`
+}
 
 const MIGRATION_INFRASTRUCTURE_SQL = `
 PRAGMA foreign_keys = ON;

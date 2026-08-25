@@ -73,6 +73,58 @@ textarea:focus-visible {
     calc(72px + env(safe-area-inset-bottom));
 }
 
+.storage-recovery {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  margin: 0 0 18px;
+  padding: 14px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-raised);
+  box-shadow: var(--depth-floating);
+  color: var(--text-primary);
+  gap: 12px;
+}
+
+.storage-recovery > svg {
+  width: 20px;
+  height: 20px;
+  color: var(--text-destructive);
+  stroke-width: 1.6;
+}
+
+.storage-recovery strong,
+.storage-recovery p {
+  display: block;
+  margin: 0;
+}
+
+.storage-recovery strong {
+  font: 600 0.82rem/1.2 var(--font-interface);
+}
+
+.storage-recovery p {
+  margin-top: 5px;
+  color: var(--text-secondary);
+  font: 400 0.74rem/1.45 var(--font-interface);
+}
+
+.storage-recovery button {
+  display: inline-flex;
+  min-height: 34px;
+  margin-top: 11px;
+  padding: 0 12px;
+  align-items: center;
+  background: var(--surface-inverse);
+  color: var(--text-on-inverse);
+  font: 600 0.7rem/1 var(--font-interface);
+  gap: 7px;
+}
+
+.storage-recovery button svg {
+  width: 14px;
+  height: 14px;
+}
+
 .app-header,
 .settings-header {
   padding: 4px 2px 14px;

@@ -8,6 +8,8 @@ const DOMAIN_TABLES = [
   'assets',
   'identifiers',
   'source_records',
+  'lists',
+  'list_entries',
   'reading_events',
   'progress_snapshots',
   'library_books',
@@ -20,13 +22,21 @@ export type StorageInspection = {
   readonly indexes: readonly string[]
   readonly recentWorksPlan: readonly QueryPlanStep[]
   readonly migrationRuns: readonly Readonly<Record<string, string | number | null>>[]
+  readonly legacyLibraryMigration?: Readonly<Record<string, string | number | null>>
 }
 
 export async function inspectStorage(
   database: SqlDatabase,
   queries: CatalogQueryService,
 ): Promise<StorageInspection> {
-  const [integrityRows, versionRows, indexRows, migrationRows, recentWorksPlan] = await Promise.all([
+  const [
+    integrityRows,
+    versionRows,
+    indexRows,
+    migrationRows,
+    legacyMigrationRows,
+    recentWorksPlan,
+  ] = await Promise.all([
     database.query('PRAGMA integrity_check'),
     database.query<SqlRow & { readonly version: number }>(
       'SELECT COALESCE(MAX(version), 0) AS version FROM schema_migrations',
@@ -42,6 +52,12 @@ export async function inspectStorage(
        FROM migration_runs
        ORDER BY started_at DESC
        LIMIT 20`,
+    ),
+    database.query(
+      `SELECT migration_key, source_key, status, source_count, imported_count,
+              started_at, verified_at, completed_at, error
+       FROM legacy_library_migrations
+       WHERE migration_key = 'legacy-library-v1'`,
     ),
     queries.explainRecentWorks(),
   ])
@@ -63,6 +79,9 @@ export async function inspectStorage(
     indexes: indexRows.map((row) => readText(row, 'name')),
     recentWorksPlan,
     migrationRuns: migrationRows,
+    ...(legacyMigrationRows[0]
+      ? { legacyLibraryMigration: legacyMigrationRows[0] }
+      : {}),
   }
 }
 

@@ -19,6 +19,14 @@ try {
        LIMIT 20`,
     )
     .all()
+  const legacyLibraryMigration = database
+    .query(
+      `SELECT migration_key, source_key, status, source_count, imported_count,
+              started_at, verified_at, completed_at, error
+       FROM legacy_library_migrations
+       WHERE migration_key = 'legacy-library-v1'`,
+    )
+    .get()
   const counts = database
     .query(
       `SELECT 'works' AS table_name, COUNT(*) AS count FROM works
@@ -38,7 +46,13 @@ try {
     )
     .all()
 
-  console.log(JSON.stringify({ path, integrity, migrations, runs, counts, indexes }, null, 2))
+  console.log(
+    JSON.stringify(
+      { path, integrity, migrations, runs, legacyLibraryMigration, counts, indexes },
+      null,
+      2,
+    ),
+  )
 } finally {
   database.close()
 }

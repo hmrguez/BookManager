@@ -50,10 +50,11 @@ Polymorphic references such as Contributor targets remain checked by the aggrega
 ordinary relationships use restrictive foreign keys.
 
 The `library_books` table is the current UI's compatibility read model. It replaces all catalog
-data reads and writes previously made by `library.ts` through `localStorage`. QUI-18 owns the
-one-time, lossless conversion of the old `bookmanager.library.v1`/`wovenleaf.library.v1` values into
-canonical Work, Edition, SourceRecord, list, and reading-event records. Appearance preferences are
-small UI settings outside the catalog and continue to use the appearance preference adapter.
+data reads and writes previously made by `library.ts` through `localStorage`.
+[ADR 0006](0006-lossless-legacy-library-migration.md) defines the implemented one-time, lossless
+conversion of the old `bookmanager.library.v1`/`wovenleaf.library.v1` values into canonical Work,
+Edition, SourceRecord, List, and ReadingEvent records. Appearance preferences are small UI settings
+outside the catalog and continue to use the appearance preference adapter.
 
 ### Atomic writes
 
@@ -127,5 +128,5 @@ The WASM/IndexedDB adapter has different durability mechanics but runs the same 
 
 - Native builds include SQLCipher and the Capacitor Filesystem plugin for migration snapshots.
 - Web startup loads a WASM database before repositories become available.
-- QUI-18 can migrate the legacy JSON through repository APIs without teaching React about SQL.
+- QUI-18 migrates legacy JSON through storage services without teaching React about SQL.
 - Later search, import, sync, statistics, and recovery work share one transactional contract.

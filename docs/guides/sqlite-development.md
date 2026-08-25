@@ -11,17 +11,18 @@ same migrations and repository SQL through the small `SqlDatabase` interface.
 
 The current implementation includes:
 
-- schema version 1 for the canonical catalog, reading ledger, and the temporary `library_books`
-  compatibility model;
+- schema version 2 for the canonical catalog, reading ledger, Lists, legacy migration checkpoint,
+  and the temporary `library_books` compatibility model;
 - immutable, checksummed migrations with an applied-migration ledger and run history;
 - a mandatory snapshot before every migration marked `destructive`;
 - transactional repositories for catalog replacement and reading-ledger appends;
 - indexed query services with query-plan tests; and
 - development inspection for integrity, schema version, counts, indexes, and migration history.
 
-`library_books` still exists so the current UI can use SQLite before the legacy library is converted
-to canonical records. That conversion belongs to QUI-18. New domain storage should normally extend
-the canonical catalog rather than the compatibility table.
+`library_books` still exists as the current UI's read/write projection. QUI-18 converts legacy data
+to canonical records and updates that table atomically; new domain storage should extend the
+canonical catalog rather than the compatibility table. See
+[ADR 0006](../architecture/decisions/0006-lossless-legacy-library-migration.md).
 
 ## Mental model
 
@@ -100,7 +101,7 @@ export const STORAGE_MIGRATIONS: readonly StorageMigration[] = [
     },
   },
   {
-    version: 2,
+    version: 3,
     name: 'add Work archive state',
     kind: 'additive',
     signature: ADD_WORK_ARCHIVE_STATE_SQL,
@@ -220,7 +221,7 @@ Create the table in the next migration. A typical canonical table has:
 - indexes matching known access patterns.
 
 Do not add the new table to `INITIAL_SCHEMA_SQL`; version 1 is immutable. A new installation reaches
-the same final schema by replaying versions 1, 2, and so on.
+the same final schema by replaying versions 1, 2, 3, and so on.
 
 ### Repository and queries
 

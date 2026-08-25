@@ -20,6 +20,7 @@ export const SHELVES: Array<{ id: ShelfId; label: string; shortLabel: string }> 
 export function useLibrary() {
   const [books, setBooks] = useState<LibraryBook[]>(createStarterLibrary)
   const [storageError, setStorageError] = useState<string>()
+  const [legacyRecoveryAvailable, setLegacyRecoveryAvailable] = useState(false)
   const booksRef = useRef(books)
   const hasMutatedRef = useRef(false)
   const persistenceTailRef = useRef(Promise.resolve())
@@ -43,7 +44,13 @@ export function useLibrary() {
   useEffect(() => {
     let active = true
     void getStorageRuntime()
-      .then(({ library }) => library.list())
+      .then(async ({ legacyMigration, library }) => {
+        if (legacyMigration.status === 'recovery-required') {
+          setLegacyRecoveryAvailable(true)
+          setStorageError(legacyMigration.message)
+        }
+        return library.list()
+      })
       .then((persistedBooks) => {
         if (active && !hasMutatedRef.current) showBooks(persistedBooks)
       })
@@ -180,9 +187,26 @@ export function useLibrary() {
     [enqueuePersistence, showBooks],
   )
 
+  const downloadLegacyRecovery = useCallback(async () => {
+    try {
+      const recovery = await (await getStorageRuntime()).exportLegacyLibraryRecovery()
+      if (!recovery) throw new Error('No legacy recovery copy is available')
+      const url = URL.createObjectURL(new Blob([recovery.contents], { type: recovery.mediaType }))
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = recovery.filename
+      anchor.click()
+      window.setTimeout(() => URL.revokeObjectURL(url), 0)
+    } catch (error) {
+      setStorageError(error instanceof Error ? error.message : String(error))
+    }
+  }, [])
+
   return {
     books,
     storageError,
+    legacyRecoveryAvailable,
+    downloadLegacyRecovery,
     addBook,
     updateBook,
     moveBook,

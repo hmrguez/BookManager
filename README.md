@@ -80,12 +80,13 @@ stable after a store release: changing either native application ID makes the op
 treat the result as a different app with a separate data container.
 
 The internal Capacitor WebView schemes remain at their defaults. On first launch, Wovenleaf
-migrates a valid library from the legacy `bookmanager.library.v1` local-storage key to
-`wovenleaf.library.v1`, then removes the legacy key only after the new value is written. This
-preserves browser development data and native data for upgrades that retain the same app
-container. A development build already installed under the former native application ID has a
-different OS container and cannot be read by the renamed app; preserve that installation until
-any needed data has been copied.
+defensively migrates `bookmanager.library.v1` or `wovenleaf.library.v1` into canonical SQLite
+records. It checkpoints an exact recovery copy, verifies the committed records through the domain
+schemas, and only then removes the old key. Invalid data remains untouched and the app offers a raw
+recovery download. This preserves browser development data and native data for upgrades that retain
+the same app container. A development build already installed under the former native application
+ID has a different OS container and cannot be read by the renamed app; preserve that installation
+until any needed data has been copied.
 
 Release credentials remain local and are not committed:
 
