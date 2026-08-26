@@ -27,9 +27,7 @@ import {
   FileUp,
   FileText,
   FolderCog,
-  FolderInput,
   FolderPlus,
-  Hash,
   History,
   Library,
   Minus,
@@ -65,7 +63,6 @@ import {
   RatingStars,
   readAppearance,
   motionScrollBehavior,
-  StatusBadge,
   writeAppearance,
   type AppearancePreferences,
 } from './design-system'
@@ -90,6 +87,7 @@ import {
   type SearchPreferences,
 } from './search'
 import { getStorageRuntime } from './storage/runtime'
+import { WorkDetailExperience } from './work-detail/WorkDetailExperience'
 import './App.css'
 
 type SheetState =
@@ -947,54 +945,6 @@ function CustomShelfEditorSheet({
   )
 }
 
-function TagEditor({
-  tags,
-  suggestions,
-  onChange,
-}: {
-  tags: readonly string[]
-  suggestions: readonly string[]
-  onChange: (tags: readonly string[]) => void
-}) {
-  const [value, setValue] = useState('')
-
-  const addTag = (event: FormEvent) => {
-    event.preventDefault()
-    const next = value.trim().replace(/\s+/g, ' ')
-    if (!next) return
-    onChange([...tags, next])
-    setValue('')
-  }
-
-  return (
-    <div className="tag-editor">
-      <span>Tags</span>
-      <div className="tag-editor__chips">
-        {tags.map((tag) => (
-          <button type="button" key={tag} onClick={() => onChange(tags.filter((item) => item !== tag))}>
-            <Hash aria-hidden="true" /> {tag} <X aria-hidden="true" />
-          </button>
-        ))}
-        {!tags.length && <small>No tags yet</small>}
-      </div>
-      <form onSubmit={addTag}>
-        <input
-          value={value}
-          onChange={(event) => setValue(event.target.value)}
-          list="organization-tag-suggestions"
-          maxLength={40}
-          placeholder="Add a tag"
-          aria-label="New tag"
-        />
-        <datalist id="organization-tag-suggestions">
-          {suggestions.map((suggestion) => <option value={suggestion} key={suggestion} />)}
-        </datalist>
-        <button type="submit" disabled={!value.trim()}>Add</button>
-      </form>
-    </div>
-  )
-}
-
 function ProgressSheet({
   book,
   onClose,
@@ -1135,117 +1085,24 @@ function DetailSheet({
   onTags: (tags: readonly string[]) => void
   onRemove: () => void
 }) {
-  const [showShelves, setShowShelves] = useState(false)
-  const [confirmRemove, setConfirmRemove] = useState(false)
-
   return (
     <Sheet title="Book details" onClose={onClose} tall>
-      <div className="detail-hero">
-        <BookCover book={book} large />
-        <div className="detail-hero__copy">
-          <StatusBadge icon={<BookOpen aria-hidden="true" />}>{shelfCopy[book.shelf].label}</StatusBadge>
-          <h3>{book.title}</h3>
-          <p>{authorLine(book.authors)}</p>
-          {book.pageCount > 0 && <small>{book.pageCount} pages</small>}
-        </div>
-      </div>
-
-      {(book.shelf === 'reading' || book.shelf === 'finished') && (
-        <button className="detail-progress" type="button" onClick={onProgress} disabled={book.shelf === 'finished'}>
-          <span><strong>{book.progress}%</strong> complete</span>
-          {book.pageCount > 0 && <small>{book.currentPage} / {book.pageCount} pages</small>}
-          <i><b style={{ width: `${book.progress}%` }} /></i>
-        </button>
-      )}
-
-      <div className="detail-rating">
-        <span>My rating</span>
-        <RatingStars value={book.rating} onChange={onRate} />
-      </div>
-
-      <label className="notes-field">
-        <span>Private notes</span>
-        <textarea
-          value={book.notes}
-          onChange={(event) => onNotes(event.target.value)}
-          placeholder="What do you want to remember?"
-          rows={3}
-        />
-      </label>
-
-      <TagEditor tags={tags} suggestions={tagSuggestions} onChange={onTags} />
-
-      <fieldset className="detail-custom-shelves">
-        <legend>Custom shelves</legend>
-        <p>
-          Membership is independent. This book remains {shelfCopy[book.shelf].label} until you move it below.
-        </p>
-        {customShelves.length ? (
-          <div>
-            {customShelves.map((shelf) => {
-              const checked = customShelfIds.includes(shelf.id)
-              return (
-                <label key={shelf.id}>
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => onCustomShelves(checked
-                      ? customShelfIds.filter((id) => id !== shelf.id)
-                      : [...customShelfIds, shelf.id])}
-                  />
-                  <span>{shelf.name}</span>
-                  {shelf.pinned && <Pin aria-label="Pinned" />}
-                </label>
-              )
-            })}
-          </div>
-        ) : (
-          <small>Create a custom shelf from My Books to start collecting.</small>
-        )}
-      </fieldset>
-
-      <div className="detail-actions">
-        <button type="button" onClick={() => setShowShelves((value) => !value)}>
-          <FolderInput aria-hidden="true" />
-          <span>Move to…</span>
-          <ChevronRight className={showShelves ? 'is-rotated' : ''} aria-hidden="true" />
-        </button>
-        {showShelves && (
-          <div className="move-choices" data-motion-event="reveal">
-            {SHELVES.map((shelf) => (
-              <button
-                type="button"
-                className={book.shelf === shelf.id ? 'is-current' : ''}
-                key={shelf.id}
-                onClick={() => onMove(shelf.id)}
-                disabled={book.shelf === shelf.id}
-              >
-                {shelf.shortLabel}
-                {book.shelf === shelf.id && <Check aria-hidden="true" />}
-              </button>
-            ))}
-          </div>
-        )}
-        {book.shelf !== 'finished' && (
-          <button type="button" onClick={onFinish}>
-            <BookCheck aria-hidden="true" />
-            <span>Mark finished</span>
-            <ChevronRight aria-hidden="true" />
-          </button>
-        )}
-        <button
-          type="button"
-          className="remove-action"
-          onClick={() => (confirmRemove ? onRemove() : setConfirmRemove(true))}
-        >
-          <Trash2 aria-hidden="true" />
-          <span>
-            {confirmRemove ? 'Tap again to remove everywhere' : 'Remove from library'}
-            <small>Also removes this book from every custom shelf</small>
-          </span>
-          <ChevronRight aria-hidden="true" />
-        </button>
-      </div>
+      <WorkDetailExperience
+        key={book.id}
+        book={book}
+        customShelves={customShelves}
+        customShelfIds={customShelfIds}
+        tags={tags}
+        tagSuggestions={tagSuggestions}
+        onMove={onMove}
+        onProgress={onProgress}
+        onFinish={onFinish}
+        onRate={onRate}
+        onNotes={onNotes}
+        onCustomShelves={onCustomShelves}
+        onTags={onTags}
+        onRemove={onRemove}
+      />
     </Sheet>
   )
 }
