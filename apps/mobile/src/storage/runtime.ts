@@ -18,6 +18,7 @@ import { migrateStorage } from './migrations'
 import { OrganizationRepository } from './organization-repository'
 import { PortableArchiveService } from './portable-archive'
 import { CatalogQueryService } from './query-services'
+import { SmartListRepository } from './smart-list-repository'
 import { UpNextRepository } from './up-next-repository'
 
 export type StorageRuntime = {
@@ -27,6 +28,7 @@ export type StorageRuntime = {
   readonly duplicateReviews: DuplicateReviewRepository
   readonly library: LibraryRepository
   readonly organization: OrganizationRepository
+  readonly smartLists: SmartListRepository
   readonly upNext: UpNextRepository
   readonly imports: ImportRepository
   readonly portableArchives: PortableArchiveService
@@ -63,6 +65,7 @@ async function initializeStorageRuntime(): Promise<StorageRuntime> {
     duplicateReviews: new DuplicateReviewRepository(database),
     library,
     organization: new OrganizationRepository(database),
+    smartLists: new SmartListRepository(database),
     upNext: new UpNextRepository(database),
     imports: new ImportRepository(database),
     portableArchives: new PortableArchiveService(database),

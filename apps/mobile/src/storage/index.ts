@@ -17,6 +17,8 @@ export { OrganizationRepository } from './organization-repository'
 export { readLibraryOrganization, replaceOrganization } from './organization-repository'
 export { UpNextRepository } from './up-next-repository'
 export { readUpNextState, replaceUpNextState } from './up-next-repository'
+export { SmartListRepository } from './smart-list-repository'
+export { readSavedSmartLists, replaceSavedSmartLists } from './smart-list-repository'
 export {
   createLibraryCsv,
   createLibraryMarkdown,

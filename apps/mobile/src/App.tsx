@@ -30,6 +30,7 @@ import {
   FolderPlus,
   History,
   Library,
+  ListFilter,
   Minus,
   Palette,
   Pin,
@@ -87,6 +88,16 @@ import {
   type SearchPreferences,
 } from './search'
 import { getStorageRuntime } from './storage/runtime'
+import type { Catalog } from './domain/catalog'
+import {
+  createSmartListDocuments,
+  querySmartList,
+  SmartListEditor,
+  SmartListSection,
+  useSmartLists,
+  type SavedSmartList,
+  type SmartListDraft,
+} from './smart-lists'
 import { UpNextSection, UpNextSettings } from './UpNext'
 import { useUpNext } from './up-next'
 import { WorkDetailExperience } from './work-detail/WorkDetailExperience'
@@ -95,6 +106,7 @@ import {
   orderedUpNextBooks,
 } from './up-next-model'
 import './App.css'
+import './smart-lists/smart-lists.css'
 
 type SheetState =
   | { kind: 'search'; shelf: ShelfId; manual?: boolean }
@@ -102,6 +114,7 @@ type SheetState =
   | { kind: 'progress'; bookId: string }
   | { kind: 'finished'; bookId: string }
   | { kind: 'custom-shelf'; shelfId?: string }
+  | { kind: 'smart-list'; smartListId?: string }
   | { kind: 'up-next' }
   | null
 
@@ -1530,6 +1543,13 @@ function App() {
     removeShelf,
   } = useOrganization()
   const {
+    smartLists,
+    smartListError,
+    saveSmartList,
+    saveStoredSmartList,
+    removeSmartList,
+  } = useSmartLists()
+  const {
     upNext,
     upNextError,
     savePreferences: saveUpNextPreferences,
@@ -1560,6 +1580,7 @@ function App() {
   const [importError, setImportError] = useState<string>()
   const [exportBusy, setExportBusy] = useState(false)
   const [exportError, setExportError] = useState<string>()
+  const [smartListCatalog, setSmartListCatalog] = useState<Catalog>()
   const sheetTriggerRef = useRef<HTMLElement | null>(null)
 
   const deferredLibraryQuery = useDeferredValue(libraryQuery.trim())
@@ -1659,12 +1680,53 @@ function App() {
       .filter((book): book is LibraryBook => Boolean(book)),
   ])), [activeCustomShelves, organization, visibleBookById])
 
+  const activeSmartLists = useMemo(
+    () => smartLists
+      .filter(({ archived }) => !archived)
+      .sort((left, right) => Number(right.pinned) - Number(left.pinned)
+        || left.position - right.position
+        || left.name.localeCompare(right.name)),
+    [smartLists],
+  )
+  const archivedSmartLists = useMemo(
+    () => smartLists
+      .filter(({ archived }) => archived)
+      .sort((left, right) => left.name.localeCompare(right.name)),
+    [smartLists],
+  )
+  const smartListDocuments = useMemo(
+    () => createSmartListDocuments(books, organization, smartListCatalog),
+    [books, organization, smartListCatalog],
+  )
+  const smartListQueries = useMemo(
+    () => new Map(activeSmartLists.map((list) => [
+      list.id,
+      querySmartList(list.definition, smartListDocuments),
+    ])),
+    [activeSmartLists, smartListDocuments],
+  )
+
   const selectedBook = sheet && 'bookId' in sheet
     ? books.find((book) => book.id === sheet.bookId)
     : undefined
   const selectedCustomShelf = sheet?.kind === 'custom-shelf' && sheet.shelfId
     ? organization.shelves.find((shelf) => shelf.id === sheet.shelfId)
     : undefined
+  const selectedSmartList = sheet?.kind === 'smart-list' && sheet.smartListId
+    ? smartLists.find((list) => list.id === sheet.smartListId)
+    : undefined
+
+  useEffect(() => {
+    let active = true
+    void getStorageRuntime().then(({ catalog }) => catalog.read()).then((stored) => {
+      if (active) setSmartListCatalog(stored)
+    }).catch(() => {
+      // Library-book fields remain fully queryable when canonical enrichment is unavailable.
+    })
+    return () => {
+      active = false
+    }
+  }, [])
 
   useEffect(() => {
     if (!toast) return
@@ -1960,6 +2022,32 @@ function App() {
     setToast({ message: `${shelf.name} deleted; no books were removed` })
   }
 
+  const saveSmartListEditor = (draft: SmartListDraft) => {
+    saveSmartList(draft)
+    closeSheet()
+    setToast({ message: draft.id ? 'Smart list saved and recalculated' : 'Smart list created' })
+  }
+
+  const archiveSmartList = (list: SavedSmartList) => {
+    saveStoredSmartList({
+      ...list,
+      archived: !list.archived,
+      updatedAt: new Date().toISOString(),
+    })
+    closeSheet()
+    setToast({
+      message: list.archived
+        ? `${list.name} restored and recalculated`
+        : `${list.name} archived; its rules are preserved`,
+    })
+  }
+
+  const deleteSmartList = (list: SavedSmartList) => {
+    removeSmartList(list.id)
+    closeSheet()
+    setToast({ message: `${list.name} deleted; no books were removed` })
+  }
+
   return (
     <div className="library-app">
       <div
@@ -1967,14 +2055,14 @@ function App() {
         inert={sheet || commandMenuOpen ? true : undefined}
         aria-hidden={sheet || commandMenuOpen ? true : undefined}
       >
-        {(storageError || organizationError || upNextError) && (
+        {(storageError || organizationError || smartListError || upNextError) && (
           <section className="storage-recovery" role="alert" aria-live="assertive">
             <AlertTriangle aria-hidden="true" />
             <div>
               <strong>
                 {legacyRecoveryAvailable ? 'Previous library needs recovery' : 'Library storage error'}
               </strong>
-              <p>{storageError ?? organizationError ?? upNextError}</p>
+              <p>{storageError ?? organizationError ?? smartListError ?? upNextError}</p>
               {legacyRecoveryAvailable && (
                 <button type="button" onClick={() => { void downloadLegacyRecovery() }}>
                   <Download aria-hidden="true" />
@@ -2082,6 +2170,29 @@ function App() {
                   </button>
                 ))}
               </nav>
+              {activeSmartLists.some(({ pinned }) => pinned) && (
+                <nav className="pinned-shelf-tabs" aria-label="Pinned smart lists">
+                  <span><ListFilter aria-hidden="true" /> Smart</span>
+                  <div>
+                    {activeSmartLists.filter(({ pinned }) => pinned).map((list) => {
+                      const result = smartListQueries.get(list.id)
+                      return (
+                        <button
+                          type="button"
+                          key={list.id}
+                          onClick={() => document.getElementById(`smart-list-${list.id}`)?.scrollIntoView({
+                            behavior: motionScrollBehavior(appearance.motion),
+                            block: 'start',
+                          })}
+                        >
+                          {list.name}
+                          <strong>{result?.ok ? result.items.length : '!'}</strong>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </nav>
+              )}
               {activeCustomShelves.some(({ pinned }) => pinned) && (
                 <nav className="pinned-shelf-tabs" aria-label="Pinned custom shelves">
                   <span><Pin aria-hidden="true" /> Pinned</span>
@@ -2155,6 +2266,60 @@ function App() {
                       onRate={(id, rating) => updateBook(id, { rating })}
                     />
                   ))}
+
+                  {!librarySearchActive && (
+                    <>
+                      <div className="smart-lists-heading">
+                        <div>
+                          <span>Live from your library</span>
+                          <h2>Smart lists</h2>
+                          <p>Saved rules recalculate locally—and every match can explain itself.</p>
+                        </div>
+                        <button type="button" onClick={() => openSheet({ kind: 'smart-list' })} aria-label="New smart list">
+                          <ListFilter aria-hidden="true" /> <span>New smart list</span>
+                        </button>
+                      </div>
+
+                      <div className="smart-list-stack">
+                        {activeSmartLists.map((list) => (
+                          <SmartListSection
+                            key={list.id}
+                            list={list}
+                            query={smartListQueries.get(list.id)!}
+                            booksById={bookById}
+                            onDetails={(bookId) => openSheet({ kind: 'detail', bookId })}
+                            onManage={() => openSheet({ kind: 'smart-list', smartListId: list.id })}
+                          />
+                        ))}
+                      </div>
+
+                      {!activeSmartLists.length && (
+                        <button className="smart-list-empty" type="button" onClick={() => openSheet({ kind: 'smart-list' })}>
+                          <ListFilter aria-hidden="true" />
+                          <span><strong>Let the library organize itself</strong><small>Start from a template or compose rules of your own</small></span>
+                          <i>5 templates</i>
+                        </button>
+                      )}
+
+                      {archivedSmartLists.length > 0 && (
+                        <section className="archived-shelves">
+                          <header>
+                            <Archive aria-hidden="true" />
+                            <span>Archived smart lists</span>
+                            <strong>{archivedSmartLists.length}</strong>
+                          </header>
+                          <div>
+                            {archivedSmartLists.map((list) => (
+                              <button type="button" key={list.id} onClick={() => openSheet({ kind: 'smart-list', smartListId: list.id })}>
+                                <span><strong>{list.name}</strong><small>Saved rules remain intact</small></span>
+                                <ChevronRight aria-hidden="true" />
+                              </button>
+                            ))}
+                          </div>
+                        </section>
+                      )}
+                    </>
+                  )}
 
                   {!librarySearchActive && (
                     <div className="custom-shelves-heading">
@@ -2351,6 +2516,28 @@ function App() {
           onArchive={archiveCustomShelf}
           onDelete={deleteCustomShelf}
         />
+      )}
+
+      {sheet?.kind === 'smart-list' && (
+        <Sheet title={selectedSmartList ? `Edit ${selectedSmartList.name}` : 'New smart list'} onClose={closeSheet} tall>
+          <SmartListEditor
+            key={sheet.smartListId ?? 'new-smart-list'}
+            list={selectedSmartList}
+            documents={smartListDocuments}
+            onSave={saveSmartListEditor}
+            onArchive={archiveSmartList}
+            onDelete={deleteSmartList}
+          />
+          <datalist id="smart-list-format-suggestions">
+            <option value="print" />
+            <option value="ebook" />
+            <option value="epub" />
+            <option value="pdf" />
+            <option value="audiobook" />
+            <option value="m4b" />
+            <option value="mp3" />
+          </datalist>
+        </Sheet>
       )}
 
       {sheet?.kind === 'up-next' && (

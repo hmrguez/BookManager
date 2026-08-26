@@ -377,7 +377,38 @@ export const STORAGE_MIGRATIONS: readonly StorageMigration[] = [
       await database.execute(upNextSchemaSql())
     },
   },
+  {
+    version: 7,
+    name: 'versioned smart lists and saved rules',
+    kind: 'additive',
+    signature: smartListSchemaSql(),
+    async up(database) {
+      await database.execute(smartListSchemaSql())
+    },
+  },
 ]
+
+function smartListSchemaSql(): string {
+  return `
+CREATE TABLE smart_lists (
+  id TEXT PRIMARY KEY NOT NULL,
+  name TEXT NOT NULL,
+  pinned INTEGER NOT NULL CHECK (pinned IN (0, 1)),
+  archived INTEGER NOT NULL CHECK (archived IN (0, 1)),
+  position INTEGER NOT NULL CHECK (position >= 0),
+  rule_schema_version INTEGER NOT NULL CHECK (rule_schema_version >= 0),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  definition_json TEXT NOT NULL CHECK (json_valid(definition_json)),
+  payload_json TEXT NOT NULL CHECK (json_valid(payload_json))
+);
+
+CREATE INDEX idx_smart_lists_visible
+  ON smart_lists(archived, pinned DESC, position, name, id);
+CREATE INDEX idx_smart_lists_schema
+  ON smart_lists(rule_schema_version, updated_at DESC, id);
+`
+}
 
 function upNextSchemaSql(): string {
   return `
