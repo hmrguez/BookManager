@@ -87,7 +87,13 @@ import {
   type SearchPreferences,
 } from './search'
 import { getStorageRuntime } from './storage/runtime'
+import { UpNextSection, UpNextSettings } from './UpNext'
+import { useUpNext } from './up-next'
 import { WorkDetailExperience } from './work-detail/WorkDetailExperience'
+import {
+  buildUpNextSuggestions,
+  orderedUpNextBooks,
+} from './up-next-model'
 import './App.css'
 
 type SheetState =
@@ -96,6 +102,7 @@ type SheetState =
   | { kind: 'progress'; bookId: string }
   | { kind: 'finished'; bookId: string }
   | { kind: 'custom-shelf'; shelfId?: string }
+  | { kind: 'up-next' }
   | null
 
 type AppView = 'library' | 'settings' | 'import'
@@ -1522,6 +1529,18 @@ function App() {
     setBookTags,
     removeShelf,
   } = useOrganization()
+  const {
+    upNext,
+    upNextError,
+    savePreferences: saveUpNextPreferences,
+    addQueueBook,
+    removeQueueBook,
+    moveQueueBook,
+    togglePinnedBook,
+    setReasonState,
+    dismissSuggestion,
+    restoreSuggestion,
+  } = useUpNext()
   const [sheet, setSheet] = useState<SheetState>(null)
   const [view, setView] = useState<AppView>('library')
   const [librarySearchOpen, setLibrarySearchOpen] = useState(false)
@@ -1605,6 +1624,14 @@ function App() {
   const booksByShelf = useMemo(
     () => Object.fromEntries(SHELVES.map(({ id }) => [id, visibleBooks.filter((book) => book.shelf === id)])) as Record<ShelfId, LibraryBook[]>,
     [visibleBooks],
+  )
+  const orderedNextBooks = useMemo(
+    () => orderedUpNextBooks(booksByShelf.next, upNext),
+    [booksByShelf.next, upNext],
+  )
+  const upNextSuggestions = useMemo(
+    () => buildUpNextSuggestions(searchableBooks, upNext),
+    [searchableBooks, upNext],
   )
 
   const activeCustomShelves = useMemo(
@@ -1829,17 +1856,23 @@ function App() {
     })
   }
 
+  const moveToShelf = (id: string, shelf: ShelfId) => {
+    moveBook(id, shelf)
+    if (shelf === 'next') addQueueBook(id)
+    else removeQueueBook(id)
+  }
+
   const moveWithUndo = (id: string, shelf: ShelfId, message: string) => {
     const book = books.find((item) => item.id === id)
     if (!book || book.shelf === shelf) return
 
     const previousShelf = book.shelf
-    moveBook(id, shelf)
+    moveToShelf(id, shelf)
     setMovingBookId(id)
     setToast({
       message,
       undo: () => {
-        moveBook(id, previousShelf)
+        moveToShelf(id, previousShelf)
         setMovingBookId(id)
         if (shelf === 'finished') closeSheet()
         setToast({
@@ -1854,12 +1887,16 @@ function App() {
     const previous = books.find((book) => book.id === result.id)
     if (previous && previous.shelf !== shelf) {
       addBook(result, shelf)
+      if (shelf === 'next') addQueueBook(result.id)
+      else removeQueueBook(result.id)
       setMovingBookId(previous.id)
       setToast({ message: `Moved to ${shelfCopy[shelf].label}` })
       return
     }
 
     addBook(result, shelf)
+    if (shelf === 'next') addQueueBook(result.id)
+    else removeQueueBook(result.id)
     setMovingBookId(result.id)
     setToast({ message: previous ? `Already in ${shelfCopy[shelf].label}` : `Added to ${shelfCopy[shelf].label}` })
   }
@@ -1876,8 +1913,22 @@ function App() {
 
   const handleFinish = (id: string) => {
     finishBook(id)
+    removeQueueBook(id)
     setMovingBookId(id)
     openSheet({ kind: 'finished', bookId: id })
+  }
+
+  const saveUpNextSettings = (
+    mode: typeof upNext.mode,
+    preferences: typeof upNext.preferences,
+  ) => {
+    saveUpNextPreferences(mode, preferences)
+    closeSheet()
+    setToast({
+      message: mode === 'manual'
+        ? 'Up Next is fully manual'
+        : 'Choice signals saved on this device',
+    })
   }
 
   const saveCustomShelf = (draft: ShelfDraft, orderedBookIds: readonly string[]) => {
@@ -1916,14 +1967,14 @@ function App() {
         inert={sheet || commandMenuOpen ? true : undefined}
         aria-hidden={sheet || commandMenuOpen ? true : undefined}
       >
-        {(storageError || organizationError) && (
+        {(storageError || organizationError || upNextError) && (
           <section className="storage-recovery" role="alert" aria-live="assertive">
             <AlertTriangle aria-hidden="true" />
             <div>
               <strong>
                 {legacyRecoveryAvailable ? 'Previous library needs recovery' : 'Library storage error'}
               </strong>
-              <p>{storageError ?? organizationError}</p>
+              <p>{storageError ?? organizationError ?? upNextError}</p>
               {legacyRecoveryAvailable && (
                 <button type="button" onClick={() => { void downloadLegacyRecovery() }}>
                   <Download aria-hidden="true" />
@@ -2066,7 +2117,28 @@ function App() {
                 <>
                   {SHELVES.filter(
                     (shelf) => !librarySearchActive || booksByShelf[shelf.id].length > 0,
-                  ).map((shelf) => (
+                  ).map((shelf) => shelf.id === 'next' ? (
+                    <UpNextSection
+                      key={shelf.id}
+                      books={orderedNextBooks}
+                      state={upNext}
+                      suggestions={upNextSuggestions}
+                      isFiltering={librarySearchActive}
+                      onAdd={() => openSheet({ kind: 'search', shelf: 'next' })}
+                      onDetails={(bookId) => openSheet({ kind: 'detail', bookId })}
+                      onStart={handleStart}
+                      onMove={(bookId, targetIndex) => moveQueueBook(
+                        bookId,
+                        targetIndex,
+                        orderedNextBooks.map(({ id }) => id),
+                      )}
+                      onPinBook={togglePinnedBook}
+                      onManage={() => openSheet({ kind: 'up-next' })}
+                      onAddSuggestion={handleNext}
+                      onDismissSuggestion={dismissSuggestion}
+                      onReasonState={setReasonState}
+                    />
+                  ) : (
                     <ShelfSection
                       key={shelf.id}
                       shelf={shelf.id}
@@ -2241,7 +2313,7 @@ function App() {
             if (shelf === 'finished') {
               handleFinish(selectedBook.id)
             } else {
-              moveBook(selectedBook.id, shelf)
+              moveToShelf(selectedBook.id, shelf)
               setMovingBookId(selectedBook.id)
               setToast({ message: `Moved to ${shelfCopy[shelf].label}` })
             }
@@ -2261,6 +2333,7 @@ function App() {
           onTags={(tags) => setBookTags(selectedBook.id, tags)}
           onRemove={() => {
             removeBook(selectedBook.id)
+            removeQueueBook(selectedBook.id)
             closeSheet()
             setToast({ message: 'Removed from your library' })
           }}
@@ -2278,6 +2351,18 @@ function App() {
           onArchive={archiveCustomShelf}
           onDelete={deleteCustomShelf}
         />
+      )}
+
+      {sheet?.kind === 'up-next' && (
+        <Sheet title="How should Up Next help?" onClose={closeSheet} tall>
+          <UpNextSettings
+            state={upNext}
+            books={books}
+            onSave={saveUpNextSettings}
+            onRestoreSuggestion={restoreSuggestion}
+            onRestoreReason={(criterion) => setReasonState(criterion, 'neutral')}
+          />
+        </Sheet>
       )}
 
       <CommandPalette
@@ -2300,7 +2385,7 @@ function App() {
           if (shelf === 'finished') {
             handleFinish(bookId)
           } else {
-            moveBook(bookId, shelf)
+            moveToShelf(bookId, shelf)
             setMovingBookId(bookId)
             setToast({ message: `Moved to ${shelfCopy[shelf].label}` })
           }

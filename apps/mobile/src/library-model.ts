@@ -2,6 +2,13 @@ import { z } from 'zod'
 
 export const shelfIdSchema = z.enum(['tbr', 'next', 'reading', 'finished'])
 
+export const libraryLoanSchema = z.object({
+  provider: z.string().trim().min(1),
+  borrowedAt: z.iso.datetime({ offset: true }).optional(),
+  dueAt: z.iso.datetime({ offset: true }),
+  returnedAt: z.iso.datetime({ offset: true }).optional(),
+})
+
 export const libraryBookSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
@@ -14,6 +21,7 @@ export const libraryBookSchema = z.object({
   sourceNames: z.array(z.string().min(1)).optional(),
   editionTitle: z.string().min(1).optional(),
   format: z.string().min(1).optional(),
+  loan: libraryLoanSchema.optional(),
   thumbnail: z.url().optional(),
   pageCount: z.number().int().nonnegative(),
   shelf: shelfIdSchema,
@@ -59,11 +67,16 @@ export function isStarterLibraryBookId(id: string): boolean {
 }
 
 export function createStarterLibrary(timestamp = new Date().toISOString()): LibraryBook[] {
+  const loanDueAt = new Date(new Date(timestamp).getTime() + 6 * 86_400_000).toISOString()
   return libraryBookSchema.array().parse([
     {
       id: 'starter-will-of-the-many',
       title: 'The Will of the Many',
       authors: ['James Islington'],
+      series: ['Hierarchy'],
+      tags: ['Epic', 'Political'],
+      format: 'eBook',
+      loan: { provider: 'Libby', borrowedAt: timestamp, dueAt: loanDueAt },
       pageCount: 639,
       shelf: 'tbr',
       progress: 0,
@@ -77,6 +90,9 @@ export function createStarterLibrary(timestamp = new Date().toISOString()): Libr
       id: 'starter-mistborn',
       title: 'Mistborn',
       authors: ['Brandon Sanderson'],
+      series: ['Mistborn'],
+      tags: ['Epic', 'Heist'],
+      format: 'Paperback',
       pageCount: 541,
       shelf: 'tbr',
       progress: 0,
@@ -90,6 +106,9 @@ export function createStarterLibrary(timestamp = new Date().toISOString()): Libr
       id: 'starter-assassins-apprentice',
       title: "Assassin's Apprentice",
       authors: ['Robin Hobb'],
+      series: ['The Farseer Trilogy'],
+      tags: ['Character-driven', 'Melancholy'],
+      format: 'Paperback',
       pageCount: 448,
       shelf: 'next',
       progress: 0,
@@ -103,6 +122,8 @@ export function createStarterLibrary(timestamp = new Date().toISOString()): Libr
       id: 'starter-vita-nostra',
       title: 'Vita Nostra',
       authors: ['Marina & Sergey Dyachenko'],
+      tags: ['Surreal', 'Challenging'],
+      format: 'eBook',
       pageCount: 416,
       shelf: 'next',
       progress: 0,

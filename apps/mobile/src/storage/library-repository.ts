@@ -1,6 +1,8 @@
 import { libraryBookSchema, type LibraryBook } from '../library-model'
+import { upNextStateSchema } from '../up-next-model'
 import type { SqlDatabase } from './database'
 import { readText } from './database'
+import { writeUpNextState } from './up-next-repository'
 
 export class LibraryRepository {
   readonly #database: SqlDatabase
@@ -40,6 +42,17 @@ export class LibraryRepository {
     await this.#database.transaction(async (database) => {
       await database.run('DELETE FROM custom_shelf_entries WHERE book_id = ?', [id])
       await database.run('DELETE FROM library_book_tags WHERE book_id = ?', [id])
+      const [upNextRow] = await database.query('SELECT payload_json FROM up_next_state WHERE id = ?', ['primary'])
+      if (upNextRow) {
+        const upNext = upNextStateSchema.parse(JSON.parse(readText(upNextRow, 'payload_json')))
+        await writeUpNextState(database, {
+          ...upNext,
+          queueBookIds: upNext.queueBookIds.filter((bookId) => bookId !== id),
+          pinnedBookId: upNext.pinnedBookId === id ? null : upNext.pinnedBookId,
+          dismissedSuggestions: upNext.dismissedSuggestions.filter(({ bookId }) => bookId !== id),
+          updatedAt: new Date().toISOString(),
+        })
+      }
       await database.run('DELETE FROM library_books WHERE id = ?', [id])
       await database.run(
         `DELETE FROM organization_tags

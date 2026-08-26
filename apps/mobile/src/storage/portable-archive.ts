@@ -14,6 +14,11 @@ import {
   libraryOrganizationSchema,
   type LibraryOrganization,
 } from '../organization-model'
+import {
+  createDefaultUpNextState,
+  upNextStateSchema,
+  type UpNextState,
+} from '../up-next-model'
 import { assertCredentialFree } from '../security'
 import {
   CatalogRepository,
@@ -26,10 +31,11 @@ import {
   replaceLibraryBooks,
 } from './library-repository'
 import { readLibraryOrganization, replaceOrganization } from './organization-repository'
+import { readUpNextState, replaceUpNextState } from './up-next-repository'
 
 export const PORTABLE_ARCHIVE_FORMAT = 'wovenleaf-portable-library'
 export const PORTABLE_ARCHIVE_FORMAT_VERSION = 1
-export const PORTABLE_ARCHIVE_SCHEMA_VERSION = 2
+export const PORTABLE_ARCHIVE_SCHEMA_VERSION = 3
 
 const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/)
 const archiveEntryDescriptorSchema = z.object({
@@ -124,6 +130,7 @@ export type PortableArchiveInspection = {
   readonly catalog: Catalog
   readonly books: readonly LibraryBook[]
   readonly organization: LibraryOrganization
+  readonly upNext: UpNextState
   readonly assetContents: readonly PortableAssetContent[]
 }
 
@@ -152,12 +159,13 @@ export class PortableArchiveService {
   }
 
   async create(options: PortableArchiveOptions = {}): Promise<PortableArchiveBundle> {
-    const [catalog, books, organization] = await Promise.all([
+    const [catalog, books, organization, upNext] = await Promise.all([
       new CatalogRepository(this.#database).read(),
       readLibraryBooks(this.#database),
       readLibraryOrganization(this.#database),
+      readUpNextState(this.#database),
     ])
-    return createPortableArchive(catalog, books, options, organization)
+    return createPortableArchive(catalog, books, options, organization, upNext)
   }
 
   async inspect(serializedArchive: string): Promise<PortableArchiveInspection> {
@@ -171,6 +179,7 @@ export class PortableArchiveService {
       await replaceLibraryBooks(database, inspection.books)
       await insertCatalogRecords(database, inspection.catalog)
       await replaceOrganization(database, inspection.organization)
+      await replaceUpNextState(database, inspection.upNext)
     })
     return inspection
   }
@@ -181,6 +190,7 @@ export async function createPortableArchive(
   libraryInput: readonly LibraryBook[],
   options: PortableArchiveOptions = {},
   organizationInput: LibraryOrganization = EMPTY_LIBRARY_ORGANIZATION,
+  upNextInput: UpNextState = createDefaultUpNextState(options.createdAt),
 ): Promise<PortableArchiveBundle> {
   const includeAnnotations = options.includeAnnotations ?? true
   const includeSourcePayloads = options.includeSourcePayloads ?? false
@@ -191,6 +201,7 @@ export async function createPortableArchive(
   })
   const books = libraryBookSchema.array().parse(libraryInput)
   const organization = libraryOrganizationSchema.parse(organizationInput)
+  const upNext = upNextStateSchema.parse(upNextInput)
   const portableOrganization = includeAnnotations
     ? organization
     : libraryOrganizationSchema.parse({
@@ -224,6 +235,7 @@ export async function createPortableArchive(
     annotations,
     library: libraryData,
     organization: portableOrganization,
+    upNext,
   })
 
   const entries: Record<string, string> = {}
@@ -248,6 +260,13 @@ export async function createPortableArchive(
     mediaType: 'application/json',
     fidelity: 'canonical',
     contents: canonicalStringify(portableOrganization),
+  })
+  await addTextEntry(entries, descriptors, {
+    path: 'data/up-next.json',
+    role: 'data',
+    mediaType: 'application/json',
+    fidelity: 'canonical',
+    contents: canonicalStringify(upNext),
   })
   await addTextEntry(entries, descriptors, {
     path: 'annotations/reading.json',
@@ -411,6 +430,9 @@ export async function inspectPortableArchive(
   const organization = archive.manifest.schemaVersion >= 2
     ? parseJsonEntry(archive, 'data/organization.json', libraryOrganizationSchema)
     : EMPTY_LIBRARY_ORGANIZATION
+  const upNext = archive.manifest.schemaVersion >= 3
+    ? parseJsonEntry(archive, 'data/up-next.json', upNextStateSchema)
+    : createDefaultUpNextState(archive.manifest.createdAt)
   const catalog = parseCatalogEntries(coreCatalog, annotations.readingEvents)
   const books = mergeLibraryAnnotations(
     libraryData,
@@ -423,8 +445,8 @@ export async function inspectPortableArchive(
     archive.entries,
   )
 
-  assertCredentialFree({ catalog, books, organization })
-  return { manifest: archive.manifest, catalog, books, organization, assetContents }
+  assertCredentialFree({ catalog, books, organization, upNext })
+  return { manifest: archive.manifest, catalog, books, organization, upNext, assetContents }
 }
 
 function preparePortableCatalog(

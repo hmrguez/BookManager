@@ -368,7 +368,26 @@ export const STORAGE_MIGRATIONS: readonly StorageMigration[] = [
       await database.execute(duplicateReviewSchemaSql())
     },
   },
+  {
+    version: 6,
+    name: 'explainable up next preferences and decisions',
+    kind: 'additive',
+    signature: upNextSchemaSql(),
+    async up(database) {
+      await database.execute(upNextSchemaSql())
+    },
+  },
 ]
+
+function upNextSchemaSql(): string {
+  return `
+CREATE TABLE up_next_state (
+  id TEXT PRIMARY KEY NOT NULL CHECK (id = 'primary'),
+  updated_at TEXT NOT NULL,
+  payload_json TEXT NOT NULL CHECK (json_valid(payload_json))
+);
+`
+}
 
 function duplicateReviewSchemaSql(): string {
   return `

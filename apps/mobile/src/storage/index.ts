@@ -15,6 +15,8 @@ export type { ImportRepositoryOptions } from './import-repository'
 export { LibraryRepository } from './library-repository'
 export { OrganizationRepository } from './organization-repository'
 export { readLibraryOrganization, replaceOrganization } from './organization-repository'
+export { UpNextRepository } from './up-next-repository'
+export { readUpNextState, replaceUpNextState } from './up-next-repository'
 export {
   createLibraryCsv,
   createLibraryMarkdown,

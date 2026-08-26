@@ -2,10 +2,12 @@ import { describe, expect, test } from 'bun:test'
 import { catalogSchema } from '../src/domain/catalog'
 import { createStarterLibrary } from '../src/library-model'
 import { libraryOrganizationSchema } from '../src/organization-model'
+import { createDefaultUpNextState } from '../src/up-next-model'
 import { CatalogRepository } from '../src/storage/catalog-repository'
 import { LibraryRepository } from '../src/storage/library-repository'
 import { migrateStorage } from '../src/storage/migrations'
 import { OrganizationRepository } from '../src/storage/organization-repository'
+import { UpNextRepository } from '../src/storage/up-next-repository'
 import {
   createPortableArchive,
   inspectPortableArchive,
@@ -53,6 +55,14 @@ const representativeOrganization = libraryOrganizationSchema.parse({
     createdAt: exportedAt,
   }],
 })
+const representativeUpNext = {
+  ...createDefaultUpNextState(exportedAt),
+  mode: 'assisted' as const,
+  queueBookIds: [representativeLibrary[2].id],
+  pinnedBookId: representativeLibrary[2].id,
+  dismissedCriteria: ['format'] as const,
+  dismissedSuggestions: [{ bookId: representativeLibrary[1].id, dismissedAt: exportedAt }],
+}
 
 describe('portable archive contract', () => {
   test('reconstructs a representative library on a clean install after validating every entry', async () => {
@@ -61,6 +71,7 @@ describe('portable archive contract', () => {
     await new CatalogRepository(source).replace(representativeCatalog)
     await new LibraryRepository(source).replace(representativeLibrary)
     await new OrganizationRepository(source).replace(representativeOrganization)
+    await new UpNextRepository(source).replace(representativeUpNext)
 
     const bundle = await new PortableArchiveService(source).create({
       createdAt: exportedAt,
@@ -73,10 +84,11 @@ describe('portable archive contract', () => {
     expect(await new LibraryRepository(target).list()).toEqual(representativeLibrary)
     expect(await new CatalogRepository(target).read()).toEqual(restored.catalog)
     expect(await new OrganizationRepository(target).read()).toEqual(representativeOrganization)
+    expect(await new UpNextRepository(target).read()).toEqual(representativeUpNext)
     expect(restored.manifest).toMatchObject({
       format: 'wovenleaf-portable-library',
       formatVersion: 1,
-      schemaVersion: 2,
+      schemaVersion: 3,
       scope: { kind: 'complete-library', bookCount: 3 },
       redactions: {
         privateAnnotations: 'included',
@@ -88,6 +100,7 @@ describe('portable archive contract', () => {
     expect(bundle.archive).not.toContain('books/left-hand.epub')
     expect(restored.manifest.entries.every(({ sha256 }) => sha256.length === 64)).toBe(true)
     expect(restored.organization).toEqual(representativeOrganization)
+    expect(restored.upNext).toEqual(representativeUpNext)
 
     await source.close()
     await target.close()
@@ -124,6 +137,29 @@ describe('portable archive contract', () => {
     const inspected = await inspectPortableArchive(JSON.stringify(legacy))
 
     expect(inspected.organization).toEqual({ shelves: [], entries: [], tags: [], bookTags: [] })
+  })
+
+  test('opens schema-2 archives with a transparent manual Up Next default', async () => {
+    const bundle = await createPortableArchive(
+      representativeCatalog,
+      representativeLibrary,
+      { createdAt: exportedAt },
+      representativeOrganization,
+      representativeUpNext,
+    )
+    const legacy = JSON.parse(bundle.archive) as {
+      manifest: { schemaVersion: number; entries: Array<{ path: string }> }
+      entries: Record<string, string>
+    }
+    legacy.manifest.schemaVersion = 2
+    legacy.manifest.entries = legacy.manifest.entries.filter(
+      ({ path }) => path !== 'data/up-next.json',
+    )
+    delete legacy.entries['data/up-next.json']
+
+    const inspected = await inspectPortableArchive(JSON.stringify(legacy))
+
+    expect(inspected.upNext).toEqual(createDefaultUpNextState(exportedAt))
   })
 
   test('redacts private annotations consistently and labels readable views as lossy', async () => {
