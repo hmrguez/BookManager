@@ -41,17 +41,27 @@ import { useLibraryViewModel } from './library/useLibraryViewModel'
 import { SearchSheet } from './search/SearchSheet'
 import { CustomShelfEditorSheet } from './organization/CustomShelfComponents'
 import { FinishedSheet, ProgressSheet } from './reading/ReadingSheets'
-import { SettingsPage, type EpubImportViewState } from './settings/SettingsPage'
+import {
+  SettingsPage,
+  type AudiobookImportViewState,
+  type EpubImportViewState,
+} from './settings/SettingsPage'
 import { DetailSheet } from './work-detail/DetailSheet'
 import { tw } from './tailwind/styles'
 import { motionStyles } from './tailwind/motion'
 import {
   epubImportErrorMessage,
   epubSourceFromFile,
-  epubSourceFromIncomingUrl,
   type EpubImportSource,
   type EpubImportResult,
 } from './epub'
+import {
+  audiobookImportErrorMessage,
+  audiobookSourceFromIncomingUrl,
+  audiobookSourcesFromFiles,
+  type AudiobookImportReview,
+  type AudiobookImportSource,
+} from './audiobooks'
 
 function App() {
   const {
@@ -116,11 +126,15 @@ function App() {
   const [importError, setImportError] = useState<string>()
   const [epubImport, setEpubImport] = useState<EpubImportViewState>({})
   const [epubBusy, setEpubBusy] = useState(false)
+  const [audiobookImport, setAudiobookImport] = useState<AudiobookImportViewState>({})
+  const [audiobookBusy, setAudiobookBusy] = useState(false)
   const [exportBusy, setExportBusy] = useState(false)
   const [exportError, setExportError] = useState<string>()
   const [smartListCatalog, setSmartListCatalog] = useState<Catalog>()
   const sheetTriggerRef = useRef<HTMLElement | null>(null)
   const epubAbortRef = useRef<AbortController | undefined>(undefined)
+  const audiobookAbortRef = useRef<AbortController | undefined>(undefined)
+  const audiobookSourcesRef = useRef<readonly AudiobookImportSource[]>([])
 
   const libraryViewModel = useLibraryViewModel({
     books,
@@ -162,6 +176,75 @@ function App() {
       active = false
     }
   }, [])
+
+  const prepareAudiobookSources = async (
+    loadSources: () => Promise<readonly AudiobookImportSource[]>,
+  ) => {
+    if (audiobookBusy) return
+    const controller = new AbortController()
+    audiobookAbortRef.current = controller
+    setAudiobookBusy(true)
+    setAudiobookImport({})
+    try {
+      const sources = await loadSources()
+      if (sources.length === 0) return
+      audiobookSourcesRef.current = sources
+      const draft = await (await getStorageRuntime()).audiobooks.prepare(sources, {
+        signal: controller.signal,
+        onProgress: (progress) => setAudiobookImport({ progress }),
+      })
+      setAudiobookImport({ draft })
+    } catch (error) {
+      audiobookSourcesRef.current = []
+      const message = audiobookImportErrorMessage(error)
+      setAudiobookImport({ error: message })
+      setToast({ message })
+    } finally {
+      audiobookAbortRef.current = undefined
+      setAudiobookBusy(false)
+    }
+  }
+
+  const prepareAudiobookFiles = (files: readonly File[]) => {
+    if (files.length === 0) return
+    return prepareAudiobookSources(() => audiobookSourcesFromFiles(files))
+  }
+
+  const commitAudiobook = async (review: AudiobookImportReview) => {
+    if (audiobookBusy || audiobookSourcesRef.current.length === 0) return
+    const controller = new AbortController()
+    audiobookAbortRef.current = controller
+    setAudiobookBusy(true)
+    try {
+      const result = await (await getStorageRuntime()).audiobooks.import(
+        audiobookSourcesRef.current,
+        review,
+        {
+          signal: controller.signal,
+          onProgress: (progress) => setAudiobookImport((current) => ({ ...current, progress })),
+        },
+      )
+      audiobookSourcesRef.current = []
+      setAudiobookImport({ result })
+      await reload()
+      setSmartListCatalog(await (await getStorageRuntime()).catalog.read())
+      setToast({ message: audiobookResultToastMessage(result) })
+    } catch (error) {
+      audiobookSourcesRef.current = []
+      const message = audiobookImportErrorMessage(error)
+      setAudiobookImport({ error: message })
+      setToast({ message })
+    } finally {
+      audiobookAbortRef.current = undefined
+      setAudiobookBusy(false)
+    }
+  }
+
+  const dismissAudiobookImport = () => {
+    if (audiobookBusy) return
+    audiobookSourcesRef.current = []
+    setAudiobookImport({})
+  }
 
   useEffect(() => {
     if (!toast) return
@@ -300,16 +383,36 @@ function App() {
     }
   }
 
-  const onIncomingEpub = useEffectEvent((url: string) => {
+  const routeIncomingBookFile = async (url: string) => {
+    try {
+      const source = await audiobookSourceFromIncomingUrl(url)
+      if (isZipContainer(source.bytes)) {
+        const name = source.name.toLocaleLowerCase().endsWith('.epub') ? source.name : `${source.name}.epub`
+        await importEpubSources([async () => ({
+          name,
+          mediaType: 'application/epub+zip',
+          bytes: source.bytes,
+        })])
+      } else {
+        await prepareAudiobookSources(async () => [source])
+      }
+    } catch (error) {
+      const message = audiobookImportErrorMessage(error)
+      setAudiobookImport({ error: message })
+      setToast({ message })
+    }
+  }
+
+  const onIncomingBookFile = useEffectEvent((url: string) => {
     if (!/^(?:file|content):/i.test(url)) return
     showSettings()
-    void importEpubSources([() => epubSourceFromIncomingUrl(url)])
+    void routeIncomingBookFile(url)
   })
 
   useEffect(() => {
     let disposed = false
     let removeListener: (() => Promise<void>) | undefined
-    void CapacitorApp.addListener('appUrlOpen', ({ url }) => onIncomingEpub(url))
+    void CapacitorApp.addListener('appUrlOpen', ({ url }) => onIncomingBookFile(url))
       .then((handle) => {
         if (disposed) void handle.remove()
         else removeListener = () => handle.remove()
@@ -612,6 +715,8 @@ function App() {
             importError={importError}
             epubImport={epubImport}
             epubBusy={epubBusy}
+            audiobookImport={audiobookImport}
+            audiobookBusy={audiobookBusy}
             exportBusy={exportBusy}
             exportError={exportError}
             onBack={showLibrary}
@@ -623,6 +728,10 @@ function App() {
               void importEpubSources(files.map((file) => () => epubSourceFromFile(file)))
             }}
             onCancelEpubImport={() => epubAbortRef.current?.abort()}
+            onPrepareAudiobookFiles={(files) => { void prepareAudiobookFiles(files) }}
+            onCommitAudiobook={(review) => { void commitAudiobook(review) }}
+            onCancelAudiobookImport={() => audiobookAbortRef.current?.abort()}
+            onDismissAudiobookImport={dismissAudiobookImport}
             onUndoImport={(batchId) => { void undoImportBatch(batchId) }}
             onExport={(format, includeAnnotations) => { void handleExport(format, includeAnnotations) }}
           />
@@ -778,6 +887,16 @@ function resultToastMessage(result: EpubImportResult): string {
   if (result.outcome === 'duplicate') return `${result.title} is already safely managed`
   if (result.outcome === 'revision') return `Revised EPUB linked to ${result.title}`
   return `${result.title} added from a verified EPUB`
+}
+
+function audiobookResultToastMessage(result: { readonly outcome: string; readonly title: string }): string {
+  if (result.outcome === 'duplicate') return `${result.title} is already safely managed`
+  if (result.outcome === 'revision') return `Revised audiobook linked to ${result.title} without losing progress`
+  return `${result.title} is ready as one audiobook`
+}
+
+function isZipContainer(bytes: Uint8Array): boolean {
+  return bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04
 }
 
 export default App

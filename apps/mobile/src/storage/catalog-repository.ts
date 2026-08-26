@@ -12,6 +12,8 @@ import type { SqlDatabase, SqlValue } from './database'
 import { readText } from './database'
 
 const CATALOG_TABLES_IN_DELETE_ORDER = [
+  'audiobook_files',
+  'audiobook_imports',
   'reading_event_references',
   'progress_snapshots',
   'reading_events',

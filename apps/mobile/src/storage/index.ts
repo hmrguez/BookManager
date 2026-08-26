@@ -12,6 +12,7 @@ export type {
 } from './duplicate-review-repository'
 export { ImportRepository } from './import-repository'
 export type { ImportRepositoryOptions } from './import-repository'
+export { AudiobookImportService } from '../audiobooks'
 export { EpubImportService } from '../epub'
 export { LibraryRepository } from './library-repository'
 export { MetadataSearchCacheRepository } from './metadata-search-cache'

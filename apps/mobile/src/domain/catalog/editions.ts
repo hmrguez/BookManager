@@ -60,6 +60,13 @@ export const assetLocationSchema = z.discriminatedUnion('kind', [
     byteSize: z.number().int().nonnegative(),
   }),
   z.object({
+    kind: z.literal('managed-bundle'),
+    relativePath: managedRelativePathSchema,
+    fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+    byteSize: z.number().int().nonnegative(),
+    entryCount: z.number().int().positive(),
+  }),
+  z.object({
     kind: z.literal('linked-file'),
     bookmarkId: z.string().min(1),
     fingerprint: z.string().min(1),

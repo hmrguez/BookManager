@@ -492,6 +492,16 @@ function preparePortableCatalog(
         },
       }
     }
+    if (asset.location.kind === 'managed-bundle') {
+      return {
+        ...asset,
+        location: {
+          kind: 'missing' as const,
+          fingerprint: `sha256:${asset.location.fingerprint}`,
+          lastKnownName: asset.location.relativePath.split('/').at(-1) ?? 'audiobook',
+        },
+      }
+    }
     if (asset.location.kind === 'linked-file') {
       return {
         ...asset,

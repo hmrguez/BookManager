@@ -10,7 +10,7 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        normalizeSharedEpubIntent(getIntent());
+        normalizeSharedBookIntent(getIntent());
         super.onCreate(savedInstanceState);
 
         // The library, reading history, and notes are private throughout the current app.
@@ -23,12 +23,12 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     protected void onNewIntent(Intent intent) {
-        normalizeSharedEpubIntent(intent);
+        normalizeSharedBookIntent(intent);
         super.onNewIntent(intent);
     }
 
     @SuppressWarnings("deprecation")
-    private void normalizeSharedEpubIntent(Intent intent) {
+    private void normalizeSharedBookIntent(Intent intent) {
         if (!Intent.ACTION_SEND.equals(intent.getAction()) || intent.getData() != null) return;
 
         Uri stream = intent.getParcelableExtra(Intent.EXTRA_STREAM);

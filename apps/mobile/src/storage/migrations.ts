@@ -404,7 +404,63 @@ export const STORAGE_MIGRATIONS: readonly StorageMigration[] = [
       await database.execute(epubImportSchemaSql())
     },
   },
+  {
+    version: 10,
+    name: 'normalized managed audiobook imports',
+    kind: 'additive',
+    signature: audiobookImportSchemaSql(),
+    async up(database) {
+      await database.execute(audiobookImportSchemaSql())
+    },
+  },
 ]
+
+function audiobookImportSchemaSql(): string {
+  return `
+CREATE TABLE audiobook_imports (
+  id TEXT PRIMARY KEY NOT NULL,
+  fingerprint TEXT NOT NULL UNIQUE CHECK (length(fingerprint) = 64),
+  source_set_fingerprint TEXT NOT NULL CHECK (length(source_set_fingerprint) = 64),
+  metadata_key TEXT NOT NULL,
+  title TEXT NOT NULL,
+  book_id TEXT NOT NULL,
+  edition_id TEXT NOT NULL,
+  content_asset_id TEXT NOT NULL UNIQUE,
+  cover_asset_id TEXT,
+  source_record_id TEXT NOT NULL,
+  outcome TEXT NOT NULL CHECK (outcome IN ('imported', 'revision')),
+  imported_at TEXT NOT NULL,
+  manifest_json TEXT NOT NULL CHECK (json_valid(manifest_json)),
+  payload_json TEXT NOT NULL CHECK (json_valid(payload_json)),
+  FOREIGN KEY (edition_id) REFERENCES editions(id) ON DELETE RESTRICT,
+  FOREIGN KEY (content_asset_id) REFERENCES assets(id) ON DELETE RESTRICT,
+  FOREIGN KEY (cover_asset_id) REFERENCES assets(id) ON DELETE RESTRICT,
+  FOREIGN KEY (source_record_id) REFERENCES source_records(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX idx_audiobook_imports_identity
+  ON audiobook_imports(source_set_fingerprint, metadata_key, imported_at DESC, id);
+CREATE INDEX idx_audiobook_imports_edition
+  ON audiobook_imports(edition_id, imported_at DESC, id);
+
+CREATE TABLE audiobook_files (
+  capability_id TEXT PRIMARY KEY NOT NULL,
+  import_id TEXT NOT NULL,
+  segment_id TEXT NOT NULL,
+  position INTEGER NOT NULL CHECK (position >= 0),
+  relative_path TEXT NOT NULL,
+  fingerprint TEXT NOT NULL CHECK (length(fingerprint) = 64),
+  byte_size INTEGER NOT NULL CHECK (byte_size >= 0),
+  media_type TEXT NOT NULL,
+  FOREIGN KEY (import_id) REFERENCES audiobook_imports(id) ON DELETE RESTRICT,
+  UNIQUE(import_id, segment_id),
+  UNIQUE(import_id, position)
+);
+
+CREATE INDEX idx_audiobook_files_import
+  ON audiobook_files(import_id, position, capability_id);
+`
+}
 
 function epubImportSchemaSql(): string {
   return `

@@ -1,6 +1,7 @@
 import { useState, type DragEvent } from 'react'
 import {
   Archive,
+  AudioLines,
   BookPlus,
   BookOpen,
   CheckCircle2,
@@ -10,6 +11,7 @@ import {
   FileUp,
   FolderOpen,
   History,
+  Headphones,
   Library,
   Palette,
   Search,
@@ -32,10 +34,24 @@ import type { ExportFormat } from '../app/model'
 import { tw } from '../tailwind/styles'
 import { motionStyles } from '../tailwind/motion'
 import type { EpubImportProgress, EpubImportResult } from '../epub'
+import { AudiobookImportReviewPanel } from '../audiobooks/AudiobookImportReview'
+import type {
+  AudiobookImportDraft,
+  AudiobookImportProgress,
+  AudiobookImportResult,
+  AudiobookImportReview,
+} from '../audiobooks'
 
 export type EpubImportViewState = {
   readonly progress?: EpubImportProgress
   readonly result?: EpubImportResult
+  readonly error?: string
+}
+
+export type AudiobookImportViewState = {
+  readonly progress?: AudiobookImportProgress
+  readonly draft?: AudiobookImportDraft
+  readonly result?: AudiobookImportResult
   readonly error?: string
 }
 
@@ -48,6 +64,8 @@ export function SettingsPage({
   importError,
   epubImport,
   epubBusy,
+  audiobookImport,
+  audiobookBusy,
   exportBusy,
   exportError,
   onBack,
@@ -57,6 +75,10 @@ export function SettingsPage({
   onImportFile,
   onImportEpubFiles,
   onCancelEpubImport,
+  onPrepareAudiobookFiles,
+  onCommitAudiobook,
+  onCancelAudiobookImport,
+  onDismissAudiobookImport,
   onUndoImport,
   onExport,
 }: {
@@ -68,6 +90,8 @@ export function SettingsPage({
   importError?: string
   epubImport: EpubImportViewState
   epubBusy: boolean
+  audiobookImport: AudiobookImportViewState
+  audiobookBusy: boolean
   exportBusy: boolean
   exportError?: string
   onBack: () => void
@@ -77,11 +101,16 @@ export function SettingsPage({
   onImportFile: (file: File) => void
   onImportEpubFiles: (files: readonly File[]) => void
   onCancelEpubImport: () => void
+  onPrepareAudiobookFiles: (files: readonly File[]) => void
+  onCommitAudiobook: (review: AudiobookImportReview) => void
+  onCancelAudiobookImport: () => void
+  onDismissAudiobookImport: () => void
   onUndoImport: (batchId: string) => void
   onExport: (format: ExportFormat, includeAnnotations: boolean) => void
 }) {
   const [includeExportAnnotations, setIncludeExportAnnotations] = useState(true)
   const [epubDropActive, setEpubDropActive] = useState(false)
+  const [audiobookDropActive, setAudiobookDropActive] = useState(false)
   const ratedBooks = books.filter((book) => book.rating > 0).length
   const notedBooks = books.filter((book) => book.notes.trim()).length
 
@@ -96,6 +125,20 @@ export function SettingsPage({
     event.preventDefault()
     setEpubDropActive(false)
     if (!epubBusy) offerEpubFiles(event.dataTransfer.files)
+  }
+
+  const offerAudiobookFiles = (files: FileList | readonly File[]) => {
+    const selected = Array.from(files)
+    const hasAudio = selected.some((file) =>
+      /\.(?:m4b|m4a|mp4|mp3)$/i.test(file.name) || file.type.startsWith('audio/'),
+    )
+    if (hasAudio) onPrepareAudiobookFiles(selected)
+  }
+
+  const handleAudiobookDrop = (event: DragEvent<HTMLElement>) => {
+    event.preventDefault()
+    setAudiobookDropActive(false)
+    if (!audiobookBusy) offerAudiobookFiles(event.dataTransfer.files)
   }
 
   return (
@@ -189,6 +232,93 @@ export function SettingsPage({
               </span>
               {epubBusy && <button type="button" onClick={onCancelEpubImport}>Cancel</button>}
             </div>
+          )}
+        </section>
+
+        <section
+          className={tw(`settings-card audiobook-intake${audiobookDropActive ? ' is-dragging' : ''}`)}
+          onDragEnter={(event) => {
+            event.preventDefault()
+            if (!audiobookBusy) setAudiobookDropActive(true)
+          }}
+          onDragOver={(event) => event.preventDefault()}
+          onDragLeave={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setAudiobookDropActive(false)
+          }}
+          onDrop={handleAudiobookDrop}
+        >
+          <div className={tw('settings-card__icon')}><Headphones aria-hidden="true" /></div>
+          <div className={tw('settings-card__heading')}>
+            <span>Listening library</span><h2>Make one audiobook from its files.</h2>
+            <p>M4B chapters or ordered MP3s become one private timeline. Covers, CUE sheets, tags, and revisions stay attached to the same edition.</p>
+          </div>
+          <label className={tw(`settings-action import-file-picker audiobook-picker${audiobookBusy ? ' is-busy' : ''}`)}>
+            <AudioLines aria-hidden="true" />
+            <span>
+              <strong>{audiobookBusy ? 'Reading audio evidence…' : 'Choose audiobook files'}</strong>
+              <small>M4B, MP3, CUE, JSON, and cover art</small>
+            </span>
+            <ChevronRight aria-hidden="true" />
+            <input
+              type="file"
+              accept=".m4b,.m4a,.mp4,.mp3,.cue,.json,.jpg,.jpeg,.png,.gif,.webp,.avif,audio/mpeg,audio/mp4,image/jpeg,image/png,image/gif,image/webp,image/avif"
+              multiple
+              disabled={audiobookBusy}
+              onChange={(event) => {
+                if (event.currentTarget.files) offerAudiobookFiles(event.currentTarget.files)
+                event.currentTarget.value = ''
+              }}
+            />
+          </label>
+          <label className={tw(`settings-action import-file-picker audiobook-folder-picker${audiobookBusy ? ' is-busy' : ''}`)}>
+            <FolderOpen aria-hidden="true" />
+            <span><strong>Choose an MP3 folder</strong><small>Keeps only supported audio and sidecar evidence</small></span>
+            <ChevronRight aria-hidden="true" />
+            <input
+              ref={(node) => node?.setAttribute('webkitdirectory', '')}
+              type="file"
+              multiple
+              disabled={audiobookBusy}
+              onChange={(event) => {
+                if (event.currentTarget.files) offerAudiobookFiles(event.currentTarget.files)
+                event.currentTarget.value = ''
+              }}
+            />
+          </label>
+          <div className={tw('audiobook-drop-note')} aria-hidden="true">
+            <span>Drop one M4B or one book folder here on the web.</span>
+          </div>
+          {(audiobookImport.progress || audiobookImport.result || audiobookImport.error) && !audiobookImport.draft && (
+            <div
+              className={tw(`audiobook-import-state${audiobookImport.error ? ' is-error' : audiobookImport.result ? ' is-complete' : ''}`)}
+              role={audiobookImport.error ? 'alert' : 'status'}
+              aria-live="polite"
+            >
+              {audiobookImport.error ? <X aria-hidden="true" /> : audiobookImport.result ? <CheckCircle2 aria-hidden="true" /> : <Headphones aria-hidden="true" />}
+              <span>
+                <strong>{audiobookImport.result?.title ?? audiobookImport.progress?.fileName ?? 'Audiobook import'}</strong>
+                <small>
+                  {audiobookImport.error
+                    ?? (audiobookImport.result?.outcome === 'duplicate'
+                      ? 'Already managed · no duplicate asset created'
+                      : audiobookImport.result?.outcome === 'revision'
+                        ? 'Revision linked · existing progress retained'
+                        : audiobookImport.result
+                          ? `${audiobookImport.result.manifest.segments.length} file timeline ready for playback`
+                          : audiobookImport.progress?.detail)}
+                </small>
+              </span>
+              {audiobookBusy && <button type="button" onClick={onCancelAudiobookImport}>Cancel</button>}
+            </div>
+          )}
+          {audiobookImport.draft && (
+            <AudiobookImportReviewPanel
+              key={audiobookImport.draft.inspectionId}
+              draft={audiobookImport.draft}
+              busy={audiobookBusy}
+              onImport={onCommitAudiobook}
+              onDismiss={onDismissAudiobookImport}
+            />
           )}
         </section>
 

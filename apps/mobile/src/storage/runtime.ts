@@ -1,4 +1,5 @@
 import { createStarterLibrary } from '../library-model'
+import { AudiobookImportService } from '../audiobooks'
 import { EpubImportService } from '../epub'
 import { openCapacitorDatabase } from './capacitor-database'
 import { CatalogRepository, ReadingLedgerRepository } from './catalog-repository'
@@ -34,6 +35,7 @@ export type StorageRuntime = {
   readonly smartLists: SmartListRepository
   readonly upNext: UpNextRepository
   readonly imports: ImportRepository
+  readonly audiobooks: AudiobookImportService
   readonly epubs: EpubImportService
   readonly portableArchives: PortableArchiveService
   readonly queries: CatalogQueryService
@@ -73,6 +75,7 @@ async function initializeStorageRuntime(): Promise<StorageRuntime> {
     smartLists: new SmartListRepository(database),
     upNext: new UpNextRepository(database),
     imports: new ImportRepository(database),
+    audiobooks: new AudiobookImportService(database),
     epubs: new EpubImportService(database),
     portableArchives: new PortableArchiveService(database),
     queries,

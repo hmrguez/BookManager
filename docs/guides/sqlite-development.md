@@ -11,8 +11,9 @@ same migrations and repository SQL through the small `SqlDatabase` interface.
 
 The current implementation includes:
 
-- schema version 9 for the canonical catalog, reading ledger, Lists, import and identity journals,
-  metadata cache, managed EPUB provenance, and the temporary `library_books` compatibility model;
+- schema version 10 for the canonical catalog, reading ledger, Lists, import and identity journals,
+  metadata cache, managed EPUB/audiobook provenance, and the temporary `library_books`
+  compatibility model;
 - immutable, checksummed migrations with an applied-migration ledger and run history;
 - a mandatory snapshot before every migration marked `destructive`;
 - transactional repositories for catalog replacement and reading-ledger appends;
@@ -54,6 +55,7 @@ transaction.
 | Catalog and ledger writes | `apps/mobile/src/storage/catalog-repository.ts` |
 | Current UI compatibility writes | `apps/mobile/src/storage/library-repository.ts` |
 | EPUB validation, managed-file policy, and transactional import | `apps/mobile/src/epub/` |
+| Audiobook inspection, normalization, manifests, and managed bundles | `apps/mobile/src/audiobooks/` |
 | Indexed reads and query plans | `apps/mobile/src/storage/query-services.ts` |
 | Runtime construction | `apps/mobile/src/storage/runtime.ts` |
 | Development inspection | `apps/mobile/src/storage/inspection.ts` |
