@@ -1,5 +1,6 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react'
 import { AlertTriangle, Check, Download } from 'lucide-react'
+import { App as CapacitorApp } from '@capacitor/app'
 import {
   applyAppearance,
   getAppearanceStorage,
@@ -40,10 +41,17 @@ import { useLibraryViewModel } from './library/useLibraryViewModel'
 import { SearchSheet } from './search/SearchSheet'
 import { CustomShelfEditorSheet } from './organization/CustomShelfComponents'
 import { FinishedSheet, ProgressSheet } from './reading/ReadingSheets'
-import { SettingsPage } from './settings/SettingsPage'
+import { SettingsPage, type EpubImportViewState } from './settings/SettingsPage'
 import { DetailSheet } from './work-detail/DetailSheet'
 import { tw } from './tailwind/styles'
 import { motionStyles } from './tailwind/motion'
+import {
+  epubImportErrorMessage,
+  epubSourceFromFile,
+  epubSourceFromIncomingUrl,
+  type EpubImportSource,
+  type EpubImportResult,
+} from './epub'
 
 function App() {
   const {
@@ -106,10 +114,13 @@ function App() {
   const [importHistory, setImportHistory] = useState<ImportBatchSummary[]>([])
   const [importBusy, setImportBusy] = useState(false)
   const [importError, setImportError] = useState<string>()
+  const [epubImport, setEpubImport] = useState<EpubImportViewState>({})
+  const [epubBusy, setEpubBusy] = useState(false)
   const [exportBusy, setExportBusy] = useState(false)
   const [exportError, setExportError] = useState<string>()
   const [smartListCatalog, setSmartListCatalog] = useState<Catalog>()
   const sheetTriggerRef = useRef<HTMLElement | null>(null)
+  const epubAbortRef = useRef<AbortController | undefined>(undefined)
 
   const libraryViewModel = useLibraryViewModel({
     books,
@@ -249,6 +260,65 @@ function App() {
       setImportBusy(false)
     }
   }
+
+  const importEpubSources = async (
+    sources: readonly (() => Promise<EpubImportSource>)[],
+  ) => {
+    if (epubBusy || sources.length === 0) return
+    const controller = new AbortController()
+    epubAbortRef.current = controller
+    setEpubBusy(true)
+    setEpubImport({})
+    const results: EpubImportResult[] = []
+    try {
+      const runtime = await getStorageRuntime()
+      for (const loadSource of sources) {
+        const source = await loadSource()
+        const result = await runtime.epubs.import(source, {
+          signal: controller.signal,
+          onProgress: (progress) => setEpubImport({ progress }),
+        })
+        results.push(result)
+        setEpubImport({ result })
+        await reload()
+        setSmartListCatalog(await runtime.catalog.read())
+      }
+      const duplicateCount = results.filter(({ outcome }) => outcome === 'duplicate').length
+      const changedCount = results.length - duplicateCount
+      setToast({
+        message: results.length === 1
+          ? resultToastMessage(results[0])
+          : `${changedCount} EPUB${changedCount === 1 ? '' : 's'} added or revised; ${duplicateCount} already managed`,
+      })
+    } catch (error) {
+      const message = epubImportErrorMessage(error)
+      setEpubImport((current) => ({ ...current, error: message }))
+      setToast({ message })
+    } finally {
+      epubAbortRef.current = undefined
+      setEpubBusy(false)
+    }
+  }
+
+  const onIncomingEpub = useEffectEvent((url: string) => {
+    if (!/^(?:file|content):/i.test(url)) return
+    showSettings()
+    void importEpubSources([() => epubSourceFromIncomingUrl(url)])
+  })
+
+  useEffect(() => {
+    let disposed = false
+    let removeListener: (() => Promise<void>) | undefined
+    void CapacitorApp.addListener('appUrlOpen', ({ url }) => onIncomingEpub(url))
+      .then((handle) => {
+        if (disposed) void handle.remove()
+        else removeListener = () => handle.remove()
+      })
+    return () => {
+      disposed = true
+      if (removeListener) void removeListener()
+    }
+  }, [])
 
   const handleExport = async (format: ExportFormat, includeAnnotations: boolean) => {
     setExportBusy(true)
@@ -540,6 +610,8 @@ function App() {
             importHistory={importHistory}
             importBusy={importBusy}
             importError={importError}
+            epubImport={epubImport}
+            epubBusy={epubBusy}
             exportBusy={exportBusy}
             exportError={exportError}
             onBack={showLibrary}
@@ -547,6 +619,10 @@ function App() {
             onSearchPreferencesChange={setSearchPreferences}
             onManualAdd={() => openSheet({ kind: 'search', shelf: 'tbr', manual: true })}
             onImportFile={(file) => { void handleImportFile(file) }}
+            onImportEpubFiles={(files) => {
+              void importEpubSources(files.map((file) => () => epubSourceFromFile(file)))
+            }}
+            onCancelEpubImport={() => epubAbortRef.current?.abort()}
             onUndoImport={(batchId) => { void undoImportBatch(batchId) }}
             onExport={(format, includeAnnotations) => { void handleExport(format, includeAnnotations) }}
           />
@@ -696,6 +772,12 @@ function App() {
       />
     </div>
   )
+}
+
+function resultToastMessage(result: EpubImportResult): string {
+  if (result.outcome === 'duplicate') return `${result.title} is already safely managed`
+  if (result.outcome === 'revision') return `Revised EPUB linked to ${result.title}`
+  return `${result.title} added from a verified EPUB`
 }
 
 export default App

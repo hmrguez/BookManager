@@ -1,4 +1,5 @@
 import { createStarterLibrary } from '../library-model'
+import { EpubImportService } from '../epub'
 import { openCapacitorDatabase } from './capacitor-database'
 import { CatalogRepository, ReadingLedgerRepository } from './catalog-repository'
 import type { SqlDatabase } from './database'
@@ -33,6 +34,7 @@ export type StorageRuntime = {
   readonly smartLists: SmartListRepository
   readonly upNext: UpNextRepository
   readonly imports: ImportRepository
+  readonly epubs: EpubImportService
   readonly portableArchives: PortableArchiveService
   readonly queries: CatalogQueryService
   readonly legacyMigration: LegacyLibraryMigrationResult
@@ -71,6 +73,7 @@ async function initializeStorageRuntime(): Promise<StorageRuntime> {
     smartLists: new SmartListRepository(database),
     upNext: new UpNextRepository(database),
     imports: new ImportRepository(database),
+    epubs: new EpubImportService(database),
     portableArchives: new PortableArchiveService(database),
     queries,
     legacyMigration,

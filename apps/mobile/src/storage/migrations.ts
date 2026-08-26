@@ -395,7 +395,46 @@ export const STORAGE_MIGRATIONS: readonly StorageMigration[] = [
       await database.execute(metadataSearchCacheSchemaSql())
     },
   },
+  {
+    version: 9,
+    name: 'safe managed EPUB imports',
+    kind: 'additive',
+    signature: epubImportSchemaSql(),
+    async up(database) {
+      await database.execute(epubImportSchemaSql())
+    },
+  },
 ]
+
+function epubImportSchemaSql(): string {
+  return `
+CREATE TABLE epub_imports (
+  id TEXT PRIMARY KEY NOT NULL,
+  content_hash TEXT NOT NULL UNIQUE CHECK (length(content_hash) = 64),
+  package_identifier TEXT NOT NULL,
+  metadata_key TEXT NOT NULL,
+  package_version TEXT NOT NULL CHECK (package_version IN ('2', '3')),
+  original_name TEXT NOT NULL,
+  book_id TEXT NOT NULL,
+  edition_id TEXT NOT NULL,
+  content_asset_id TEXT NOT NULL UNIQUE,
+  cover_asset_id TEXT,
+  source_record_id TEXT NOT NULL,
+  outcome TEXT NOT NULL CHECK (outcome IN ('imported', 'revision')),
+  imported_at TEXT NOT NULL,
+  payload_json TEXT NOT NULL CHECK (json_valid(payload_json)),
+  FOREIGN KEY (edition_id) REFERENCES editions(id) ON DELETE RESTRICT,
+  FOREIGN KEY (content_asset_id) REFERENCES assets(id) ON DELETE RESTRICT,
+  FOREIGN KEY (cover_asset_id) REFERENCES assets(id) ON DELETE RESTRICT,
+  FOREIGN KEY (source_record_id) REFERENCES source_records(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX idx_epub_imports_package
+  ON epub_imports(package_identifier, metadata_key, imported_at DESC, id);
+CREATE INDEX idx_epub_imports_edition
+  ON epub_imports(edition_id, imported_at DESC, id);
+`
+}
 
 function metadataSearchCacheSchemaSql(): string {
   return `

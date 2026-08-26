@@ -1,17 +1,21 @@
-import { useState } from 'react'
+import { useState, type DragEvent } from 'react'
 import {
   Archive,
   BookPlus,
+  BookOpen,
+  CheckCircle2,
   ChevronRight,
   Download,
   FileText,
   FileUp,
+  FolderOpen,
   History,
   Library,
   Palette,
   Search,
   ShieldCheck,
   Table2,
+  X,
 } from 'lucide-react'
 import {
   CONTRAST_MODES,
@@ -27,6 +31,13 @@ import { GOOGLE_BOOKS_KEY_CONFIGURED, appearanceLabels } from '../app/config'
 import type { ExportFormat } from '../app/model'
 import { tw } from '../tailwind/styles'
 import { motionStyles } from '../tailwind/motion'
+import type { EpubImportProgress, EpubImportResult } from '../epub'
+
+export type EpubImportViewState = {
+  readonly progress?: EpubImportProgress
+  readonly result?: EpubImportResult
+  readonly error?: string
+}
 
 export function SettingsPage({
   books,
@@ -35,6 +46,8 @@ export function SettingsPage({
   importHistory,
   importBusy,
   importError,
+  epubImport,
+  epubBusy,
   exportBusy,
   exportError,
   onBack,
@@ -42,6 +55,8 @@ export function SettingsPage({
   onSearchPreferencesChange,
   onManualAdd,
   onImportFile,
+  onImportEpubFiles,
+  onCancelEpubImport,
   onUndoImport,
   onExport,
 }: {
@@ -51,6 +66,8 @@ export function SettingsPage({
   importHistory: readonly ImportBatchSummary[]
   importBusy: boolean
   importError?: string
+  epubImport: EpubImportViewState
+  epubBusy: boolean
   exportBusy: boolean
   exportError?: string
   onBack: () => void
@@ -58,12 +75,28 @@ export function SettingsPage({
   onSearchPreferencesChange: (preferences: SearchPreferences) => void
   onManualAdd: () => void
   onImportFile: (file: File) => void
+  onImportEpubFiles: (files: readonly File[]) => void
+  onCancelEpubImport: () => void
   onUndoImport: (batchId: string) => void
   onExport: (format: ExportFormat, includeAnnotations: boolean) => void
 }) {
   const [includeExportAnnotations, setIncludeExportAnnotations] = useState(true)
+  const [epubDropActive, setEpubDropActive] = useState(false)
   const ratedBooks = books.filter((book) => book.rating > 0).length
   const notedBooks = books.filter((book) => book.notes.trim()).length
+
+  const offerEpubFiles = (files: FileList | readonly File[]) => {
+    const epubs = Array.from(files).filter((file) =>
+      file.name.toLocaleLowerCase().endsWith('.epub') || file.type === 'application/epub+zip',
+    )
+    if (epubs.length > 0) onImportEpubFiles(epubs)
+  }
+
+  const handleEpubDrop = (event: DragEvent<HTMLElement>) => {
+    event.preventDefault()
+    setEpubDropActive(false)
+    if (!epubBusy) offerEpubFiles(event.dataTransfer.files)
+  }
 
   return (
     <main className={tw('settings-page', motionStyles.navigate)} data-motion-event="navigate">
@@ -80,6 +113,85 @@ export function SettingsPage({
       </header>
 
       <div className={tw('settings-ledger')}>
+        <section
+          className={tw(`settings-card epub-intake${epubDropActive ? ' is-dragging' : ''}`)}
+          onDragEnter={(event) => {
+            event.preventDefault()
+            if (!epubBusy) setEpubDropActive(true)
+          }}
+          onDragOver={(event) => event.preventDefault()}
+          onDragLeave={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setEpubDropActive(false)
+          }}
+          onDrop={handleEpubDrop}
+        >
+          <div className={tw('settings-card__icon')}><BookOpen aria-hidden="true" /></div>
+          <div className={tw('settings-card__heading')}>
+            <span>Books on this device</span><h2>Bring in a DRM-free EPUB.</h2>
+            <p>The original package is checked offline, fingerprinted, and copied into private managed storage before it joins your library.</p>
+          </div>
+          <label className={tw(`settings-action import-file-picker epub-picker${epubBusy ? ' is-busy' : ''}`)}>
+            <FileUp aria-hidden="true" />
+            <span>
+              <strong>{epubBusy ? 'Checking the package…' : 'Choose EPUB files'}</strong>
+              <small>Native file picker · EPUB 2 and EPUB 3</small>
+            </span>
+            <ChevronRight aria-hidden="true" />
+            <input
+              type="file"
+              accept=".epub,application/epub+zip"
+              multiple
+              disabled={epubBusy}
+              onChange={(event) => {
+                if (event.currentTarget.files) offerEpubFiles(event.currentTarget.files)
+                event.currentTarget.value = ''
+              }}
+            />
+          </label>
+          <label className={tw(`settings-action import-file-picker epub-folder-picker${epubBusy ? ' is-busy' : ''}`)}>
+            <FolderOpen aria-hidden="true" />
+            <span><strong>Choose a folder</strong><small>Imports only the EPUB files inside · where supported</small></span>
+            <ChevronRight aria-hidden="true" />
+            <input
+              ref={(node) => node?.setAttribute('webkitdirectory', '')}
+              type="file"
+              accept=".epub,application/epub+zip"
+              multiple
+              disabled={epubBusy}
+              onChange={(event) => {
+                if (event.currentTarget.files) offerEpubFiles(event.currentTarget.files)
+                event.currentTarget.value = ''
+              }}
+            />
+          </label>
+          <div className={tw('epub-drop-note')} aria-hidden="true">
+            <span>On the web, you can also drop EPUB files here.</span>
+          </div>
+          {(epubImport.progress || epubImport.result || epubImport.error) && (
+            <div
+              className={tw(`epub-import-state${epubImport.error ? ' is-error' : epubImport.result ? ' is-complete' : ''}`)}
+              role={epubImport.error ? 'alert' : 'status'}
+              aria-live="polite"
+            >
+              {epubImport.error ? <X aria-hidden="true" /> : epubImport.result ? <CheckCircle2 aria-hidden="true" /> : <BookOpen aria-hidden="true" />}
+              <span>
+                <strong>{epubImport.result?.title ?? epubImport.progress?.fileName ?? 'EPUB import'}</strong>
+                <small>
+                  {epubImport.error
+                    ?? (epubImport.result?.outcome === 'duplicate'
+                      ? 'Already in managed storage · no duplicate asset created'
+                      : epubImport.result?.outcome === 'revision'
+                        ? 'Revised package linked to the existing edition'
+                        : epubImport.result
+                          ? 'Validated, fingerprinted, and stored with provenance'
+                          : epubImport.progress?.detail)}
+                </small>
+              </span>
+              {epubBusy && <button type="button" onClick={onCancelEpubImport}>Cancel</button>}
+            </div>
+          )}
+        </section>
+
         <section className={tw('settings-card settings-card--appearance')}>
           <div className={tw('settings-card__icon')}><Palette aria-hidden="true" /></div>
           <div className={tw('settings-card__heading')}>
