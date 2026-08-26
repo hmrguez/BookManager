@@ -21,6 +21,7 @@ import {
   type UpNextState,
   type UpNextSuggestionSet,
 } from './up-next-model'
+import { tw } from './tailwind/styles'
 
 type ReasonState = 'neutral' | 'pinned' | 'dismissed'
 
@@ -57,23 +58,23 @@ export function UpNextSection({
   const isCollapsed = collapsed && !isFiltering
 
   return (
-    <section className="shelf shelf--next up-next" id="shelf-next" data-shelf="next">
-      <header className="shelf-header up-next__header">
+    <section className={tw("shelf shelf--next up-next")} id="shelf-next" data-shelf="next">
+      <header className={tw("shelf-header up-next__header")}>
         <button
           type="button"
-          className="shelf-toggle"
+          className={tw("shelf-toggle")}
           onClick={() => setCollapsed((value) => !value)}
           aria-expanded={!isCollapsed}
           aria-controls="shelf-books-next"
         >
           <h2>Up Next <i>·</i> {books.length}</h2>
-          <ChevronDown className={isCollapsed ? 'is-collapsed' : ''} aria-hidden="true" />
+          <ChevronDown className={tw(isCollapsed ? 'is-collapsed' : '')} aria-hidden="true" />
         </button>
-        <span className={`up-next__mode up-next__mode--${state.mode}`}>
+        <span className={tw(`up-next__mode up-next__mode--${state.mode}`)}>
           {state.mode === 'manual' ? 'Manual' : 'Guided'}
         </span>
         <button
-          className="shelf-add up-next__manage"
+          className={tw("shelf-add up-next__manage")}
           type="button"
           onClick={onManage}
           aria-label="Choose how Up Next suggestions work"
@@ -82,7 +83,7 @@ export function UpNextSection({
         </button>
         <button
           type="button"
-          className="shelf-add"
+          className={tw("shelf-add")}
           onClick={onAdd}
           aria-label="Add a book to Up Next"
         >
@@ -90,8 +91,8 @@ export function UpNextSection({
         </button>
       </header>
 
-      <div className="shelf-books" id="shelf-books-next" hidden={isCollapsed}>
-        <div className="up-next__principle">
+      <div className={tw("shelf-books")} id="shelf-books-next" hidden={isCollapsed}>
+        <div className={tw("up-next__principle")}>
           <span>{state.mode === 'manual' ? 'Your order, exactly' : 'Your order stays in charge'}</span>
           <small>
             {state.mode === 'manual'
@@ -101,7 +102,7 @@ export function UpNextSection({
         </div>
 
         {books.length === 0 ? (
-          <button className="empty-shelf" type="button" onClick={onAdd}>
+          <button className={tw("empty-shelf")} type="button" onClick={onAdd}>
             <Plus aria-hidden="true" />
             <span>
               <strong>Choose what comes next</strong>
@@ -109,29 +110,29 @@ export function UpNextSection({
             </span>
           </button>
         ) : (
-          <div className="up-next__queue">
+          <div className={tw("up-next__queue")}>
             {books.map((book, index) => {
               const pinned = state.pinnedBookId === book.id
               return (
                 <article
-                  className={`up-next-book${pinned ? ' is-pinned' : ''}`}
+                  className={tw(`up-next-book${pinned ? ' is-pinned' : ''}`)}
                   key={book.id}
                   data-motion-event="reorder"
                 >
-                  <span className="up-next-book__number" aria-label={`Position ${index + 1}`}>
+                  <span className={tw("up-next-book__number")} aria-label={`Position ${index + 1}`}>
                     {pinned ? <Pin aria-hidden="true" /> : String(index + 1).padStart(2, '0')}
                   </span>
-                  <button className="book-identity" type="button" onClick={() => onDetails(book.id)}>
+                  <button className={tw("book-identity")} type="button" onClick={() => onDetails(book.id)}>
                     <BookCover book={book} />
-                    <span className="book-copy">
+                    <span className={tw("book-copy")}>
                       <strong>{book.title}</strong>
                       <small>{book.authors.join(', ')}</small>
-                      <em className="up-next-book__note">
+                      <em className={tw("up-next-book__note")}>
                         {pinned ? 'Pinned choice · always first' : book.format ?? 'Format not recorded'}
                       </em>
                     </span>
                   </button>
-                  <div className="up-next-book__actions">
+                  <div className={tw("up-next-book__actions")}>
                     <button
                       type="button"
                       onClick={() => onMove(book.id, index - 1)}
@@ -150,7 +151,7 @@ export function UpNextSection({
                     </button>
                     <button
                       type="button"
-                      className={pinned ? 'is-active' : ''}
+                      className={tw(pinned ? 'is-active' : '')}
                       onClick={() => onPinBook(book.id)}
                       aria-label={`${pinned ? 'Unpin' : 'Pin'} ${book.title} as the next choice`}
                       aria-pressed={pinned}
@@ -159,7 +160,7 @@ export function UpNextSection({
                     </button>
                     <button
                       type="button"
-                      className="up-next-book__start"
+                      className={tw("up-next-book__start")}
                       onClick={() => onStart(book.id)}
                       aria-label={`Start reading ${book.title}`}
                     >
@@ -173,26 +174,26 @@ export function UpNextSection({
         )}
 
         {state.mode === 'assisted' && !isFiltering && (
-          <aside className={`choice-notes choice-notes--${suggestions.certainty}`}>
+          <aside className={tw(`choice-notes choice-notes--${suggestions.certainty}`)}>
             <header>
               <span><Sparkles aria-hidden="true" /> Choice notes</span>
               <button type="button" onClick={onManage}>Adjust signals</button>
             </header>
             <p>{suggestions.guidance}</p>
             {suggestions.suggestions.length > 0 && (
-              <div className="choice-notes__list">
+              <div className={tw("choice-notes__list")}>
                 {suggestions.suggestions.map((suggestion, index) => (
-                  <article className="suggestion" key={suggestion.book.id}>
-                    <span className="suggestion__rank">{String(index + 1).padStart(2, '0')}</span>
+                  <article className={tw("suggestion")} key={suggestion.book.id}>
+                    <span className={tw("suggestion__rank")}>{String(index + 1).padStart(2, '0')}</span>
                     <button
-                      className="suggestion__book"
+                      className={tw("suggestion__book")}
                       type="button"
                       onClick={() => onDetails(suggestion.book.id)}
                     >
                       <strong>{suggestion.book.title}</strong>
                       <small>{suggestion.book.authors.join(', ')}</small>
                     </button>
-                    <div className="suggestion__actions">
+                    <div className={tw("suggestion__actions")}>
                       <button type="button" onClick={() => onAddSuggestion(suggestion.book.id)}>
                         <Plus aria-hidden="true" /> Queue
                       </button>
@@ -204,9 +205,9 @@ export function UpNextSection({
                         <X aria-hidden="true" />
                       </button>
                     </div>
-                    <div className="suggestion__reasons">
+                    <div className={tw("suggestion__reasons")}>
                       {suggestion.reasons.length ? suggestion.reasons.map((reason) => (
-                        <div className={`reason${reason.pinned ? ' is-pinned' : ''}`} key={reason.criterion}>
+                        <div className={tw(`reason${reason.pinned ? ' is-pinned' : ''}`)} key={reason.criterion}>
                           <span>
                             {reason.pinned && <Pin aria-label="Pinned reason" />}
                             <strong>{reason.label}</strong>
@@ -215,7 +216,7 @@ export function UpNextSection({
                           <div>
                             <button
                               type="button"
-                              className={reason.pinned ? 'is-active' : ''}
+                              className={tw(reason.pinned ? 'is-active' : '')}
                               onClick={() => onReasonState(reason.criterion, reason.pinned ? 'neutral' : 'pinned')}
                               aria-label={`${reason.pinned ? 'Unpin' : 'Pin'} ${UP_NEXT_CRITERION_COPY[reason.criterion].label} reason`}
                               aria-pressed={reason.pinned}
@@ -232,7 +233,7 @@ export function UpNextSection({
                           </div>
                         </div>
                       )) : (
-                        <div className="reason reason--empty">
+                        <div className={tw("reason reason--empty")}>
                           <span>
                             <strong>No strong preference match</strong>
                             <small>Shown alphabetically; no score is being implied</small>
@@ -292,18 +293,18 @@ export function UpNextSettings({
 
   return (
     <form
-      className="up-next-settings"
+      className={tw("up-next-settings")}
       onSubmit={(event) => {
         event.preventDefault()
         onSave(mode, preferences)
       }}
     >
-      <fieldset className="choice-mode">
+      <fieldset className={tw("choice-mode")}>
         <legend>Who decides the order?</legend>
         <div>
           <button
             type="button"
-            className={mode === 'manual' ? 'is-active' : ''}
+            className={tw(mode === 'manual' ? 'is-active' : '')}
             onClick={() => setMode('manual')}
             aria-pressed={mode === 'manual'}
           >
@@ -312,7 +313,7 @@ export function UpNextSettings({
           </button>
           <button
             type="button"
-            className={mode === 'assisted' ? 'is-active' : ''}
+            className={tw(mode === 'assisted' ? 'is-active' : '')}
             onClick={() => setMode('assisted')}
             aria-pressed={mode === 'assisted'}
           >
@@ -323,18 +324,18 @@ export function UpNextSettings({
       </fieldset>
 
       {mode === 'manual' ? (
-        <div className="manual-promise">
+        <div className={tw("manual-promise")}>
           <span>Manual means manual.</span>
           <p>No ranking runs, and no reading behavior is optimized. Your queue order is the whole decision.</p>
         </div>
       ) : (
         <>
-          <div className="assistant-disclosure">
+          <div className={tw("assistant-disclosure")}>
             <Sparkles aria-hidden="true" />
             <p><strong>A small, local comparison.</strong> Only the signals below affect suggestions. Nothing leaves this device, and every contributing signal is shown beside the book.</p>
           </div>
 
-          <section className="signal-list" aria-labelledby="signal-list-title">
+          <section className={tw("signal-list")} aria-labelledby="signal-list-title">
             <header>
               <span id="signal-list-title">Signals</span>
               <small>Off · Light · Medium · Strong</small>
@@ -362,7 +363,7 @@ export function UpNextSettings({
       )}
 
       {(state.dismissedCriteria.length > 0 || state.dismissedSuggestions.length > 0) && (
-        <section className="up-next-decisions">
+        <section className={tw("up-next-decisions")}>
           <header>
             <span>Editable decisions</span>
             <small>Included in portable exports</small>
@@ -382,7 +383,7 @@ export function UpNextSettings({
         </section>
       )}
 
-      <button className="primary-action up-next-settings__save" type="submit">
+      <button className={tw("primary-action up-next-settings__save")} type="submit">
         Save choice settings
       </button>
     </form>
@@ -411,15 +412,15 @@ function SignalEditor({
   const enabled = preferences.weights[criterion] > 0
 
   return (
-    <article className={`signal${enabled ? ' is-enabled' : ''}`}>
-      <div className="signal__heading">
+    <article className={tw(`signal${enabled ? ' is-enabled' : ''}`)}>
+      <div className={tw("signal__heading")}>
         <span><strong>{copy.label}</strong><small>{copy.description}</small></span>
-        <div className="signal__weights" role="group" aria-label={`${copy.label} importance`}>
+        <div className={tw("signal__weights")} role="group" aria-label={`${copy.label} importance`}>
           {[0, 1, 2, 3].map((weight) => (
             <button
               type="button"
               key={weight}
-              className={preferences.weights[criterion] === weight ? 'is-active' : ''}
+              className={tw(preferences.weights[criterion] === weight ? 'is-active' : '')}
               onClick={() => onWeight(weight)}
               aria-label={`${copy.label}: ${['Off', 'Light', 'Medium', 'Strong'][weight]}`}
               aria-pressed={preferences.weights[criterion] === weight}
@@ -438,7 +439,7 @@ function SignalEditor({
         />
       )}
       {enabled && criterion === 'length' && (
-        <label className="signal__number">
+        <label className={tw("signal__number")}>
           <span>Up to</span>
           <input
             type="number"
@@ -481,10 +482,10 @@ function SignalEditor({
         </select>
       )}
       {enabled && criterion === 'loan-expiry' && (
-        <p className="signal__source">Uses due dates already recorded for Libby or other loans.</p>
+        <p className={tw("signal__source")}>Uses due dates already recorded for Libby or other loans.</p>
       )}
       {enabled && canRequire && (
-        <label className="signal__required">
+        <label className={tw("signal__required")}>
           <input
             type="checkbox"
             checked={preferences.requiredCriteria.includes(criterion)}

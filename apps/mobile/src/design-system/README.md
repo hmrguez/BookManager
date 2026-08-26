@@ -19,7 +19,9 @@ live appearance, dynamic-type, reduced-motion, and component-state specimens.
 | `components.tsx` | Reusable UI primitives registered in the development gallery |
 | `GALLERY.md` | Component-story contract, deterministic baselines, and visual review gate |
 | `motion.ts` | Semantic motion rules, reduced equivalents, gesture/interruption policy, and frame budget |
-| `motion.css` | Composited implementations and global OS/explicit reduced-motion enforcement |
+| `../tailwind/styles.ts` | Tailwind utility recipes for app, feature, and gallery surfaces |
+| `../tailwind/motion.ts` | Tailwind utility recipes for composited semantic motion |
+| `motion.css` | Keyframes and global OS/explicit reduced-motion enforcement |
 | `index.ts` | Public TypeScript contract |
 | `../../tests/design-tokens.test.ts` | Literal-color boundary, contrast measurements, required-token checks, and texture budget |
 | `../../tests/appearance.test.ts` | Preference validation, persistence, and system-contrast behavior |
@@ -46,20 +48,12 @@ import './design-system/fonts.css'
 import './index.css'
 ```
 
-Feature and component CSS must use roles, never palette values:
+Feature and component utilities must use semantic roles, never palette values:
 
-```css
-.book-note {
-  border-top: var(--stroke-hairline) solid var(--border-subtle);
-  background: var(--surface-raised);
-  color: var(--text-primary);
-  font-family: var(--font-reading);
-}
-
-.book-note:focus-within {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 3px;
-}
+```tsx
+<aside className="border-t-[var(--stroke-hairline)] border-[var(--border-subtle)] bg-[var(--surface-raised)] font-[var(--font-reading)] text-[var(--text-primary)] focus-within:outline-2 focus-within:outline-offset-3 focus-within:outline-[var(--focus-ring)]">
+  {note}
+</aside>
 ```
 
 Raw `--brand-*` and `--stock-*` values are ingredients for `tokens.css`; they are not component
@@ -149,8 +143,8 @@ Paper craft must not become scrolling or battery debt.
 
 Motion explains a change in place, hierarchy, or state. It never runs merely because the screen is
 idle, and no paper texture, cover, icon, or empty state loops for decoration. The executable source
-of truth is `motion.ts`; components opt into it with `data-motion-event` rather than inventing
-durations locally.
+of truth is `motion.ts`; components combine `data-motion-event` with recipes from
+`../tailwind/motion.ts` rather than inventing durations locally.
 
 | Family | Purpose and trigger | Duration / easing / origin | Interruption and reduced equivalent |
 | --- | --- | --- | --- |

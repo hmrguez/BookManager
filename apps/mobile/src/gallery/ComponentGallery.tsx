@@ -30,8 +30,7 @@ import {
   REQUIRED_GALLERY_STATES,
   REVIEW_SCENARIOS,
 } from './catalog'
-import '../App.css'
-import './gallery.css'
+import { tw } from '../tailwind/styles'
 
 type GalleryView = 'all' | 'primitives' | 'composites' | 'feedback' | 'review'
 type GalleryPaper = 'warm' | 'cool' | 'print' | 'night'
@@ -111,8 +110,8 @@ function Specimen({
   wide?: boolean
 }) {
   return (
-    <article className={`gallery-specimen${wide ? ' gallery-specimen--wide' : ''}`} id={id}>
-      <header className="gallery-specimen__header">
+    <article className={tw(`gallery-specimen${wide ? ' gallery-specimen--wide' : ''}`)} id={id}>
+      <header className={tw("gallery-specimen__header")}>
         <div>
           <span>#{id}</span>
           <h3>{title}</h3>
@@ -121,7 +120,7 @@ function Specimen({
           {states.map((state) => <li key={state}>{state}</li>)}
         </ul>
       </header>
-      <div className="gallery-specimen__canvas">{children}</div>
+      <div className={tw("gallery-specimen__canvas")}>{children}</div>
     </article>
   )
 }
@@ -138,7 +137,7 @@ function ControlGroup<T extends string>({
   onChange: (next: T) => void
 }) {
   return (
-    <fieldset className="gallery-control">
+    <fieldset className={tw("gallery-control")}>
       <legend>{label}</legend>
       <div>
         {options.map((option) => (
@@ -160,16 +159,16 @@ function ActionButtonStory() {
   const states = ['default', 'hover', 'focus', 'pressed', 'disabled', 'loading'] as const
 
   return (
-    <div className="gallery-state-grid gallery-state-grid--buttons">
+    <div className={tw("gallery-state-grid gallery-state-grid--buttons")}>
       {states.map((state) => (
-        <div className="gallery-state" data-visual-state={state} key={state}>
+        <div className={tw("gallery-state")} data-visual-state={state} key={state}>
           <span>{state}</span>
           <ActionButton disabled={state === 'disabled'} isLoading={state === 'loading'}>
             {state === 'loading' ? 'Adding book' : 'Add to library'}
           </ActionButton>
         </div>
       ))}
-      <div className="gallery-state gallery-state--wide" data-visual-state="long-content">
+      <div className={tw("gallery-state gallery-state--wide")} data-visual-state="long-content">
         <span>long content</span>
         <ActionButton variant="secondary">
           Move this unusually titled volume into the finished-books archive
@@ -181,7 +180,7 @@ function ActionButtonStory() {
 
 function BookCoverStory() {
   return (
-    <div className="gallery-cover-line">
+    <div className={tw("gallery-cover-line")}>
       <BookCover book={galleryBook} />
       <BookCover book={{ ...galleryBook, id: 'two', title: 'Piranesi', authors: ['Susanna Clarke'] }} />
       <BookCover book={{ ...galleryBook, id: 'three', title: 'Vita Nostra', authors: ['Marina Dyachenko'] }} />
@@ -194,17 +193,17 @@ function RatingStory() {
   const [rating, setRating] = useState(3)
 
   return (
-    <div className="gallery-state-grid gallery-state-grid--rating">
-      <div className="gallery-state"><span>default</span><RatingStars value={4} /></div>
-      <div className="gallery-state" data-visual-state="focus"><span>focus</span><RatingStars value={rating} onChange={setRating} /></div>
-      <div className="gallery-state"><span>disabled</span><RatingStars value={2} onChange={setRating} disabled /></div>
+    <div className={tw("gallery-state-grid gallery-state-grid--rating")}>
+      <div className={tw("gallery-state")}><span>default</span><RatingStars value={4} /></div>
+      <div className={tw("gallery-state")} data-visual-state="focus"><span>focus</span><RatingStars value={rating} onChange={setRating} /></div>
+      <div className={tw("gallery-state")}><span>disabled</span><RatingStars value={2} onChange={setRating} disabled /></div>
     </div>
   )
 }
 
 function StatusStory() {
   return (
-    <div className="gallery-inline-specimens">
+    <div className={tw("gallery-inline-specimens")}>
       <StatusBadge icon={<BookOpen aria-hidden="true" />}>Reading</StatusBadge>
       <StatusBadge tone="accent" icon={<Check aria-hidden="true" />}>Finished</StatusBadge>
       <StatusBadge tone="destructive" icon={<AlertTriangle aria-hidden="true" />}>Sync failed</StatusBadge>
@@ -214,7 +213,7 @@ function StatusStory() {
 
 function ProgressStory() {
   return (
-    <div className="gallery-progress-set">
+    <div className={tw("gallery-progress-set")}>
       {[0, 31, 67, 100].map((value) => (
         <div key={value}>
           <span>{value}%</span>
@@ -227,23 +226,23 @@ function ProgressStory() {
 
 function FieldStory() {
   return (
-    <div className="gallery-field-grid">
-      <label className="gallery-field">
+    <div className={tw("gallery-field-grid")}>
+      <label className={tw("gallery-field")}>
         <span>Default</span>
         <input value="The Left Hand of Darkness" readOnly />
         <small>Title as it appears on the cover.</small>
       </label>
-      <label className="gallery-field" data-visual-state="focus">
+      <label className={tw("gallery-field")} data-visual-state="focus">
         <span>Focus</span>
         <input value="Ursula K. Le Guin" readOnly />
         <small>Visible ring is held for review.</small>
       </label>
-      <label className="gallery-field gallery-field--error">
+      <label className={tw("gallery-field gallery-field--error")}>
         <span>Error</span>
         <input value="-4" aria-invalid="true" readOnly />
         <small>Page count must be zero or greater.</small>
       </label>
-      <label className="gallery-field">
+      <label className={tw("gallery-field")}>
         <span>Disabled</span>
         <input value="Synced metadata" disabled />
         <small>Read-only from the source edition.</small>
@@ -254,33 +253,33 @@ function FieldStory() {
 
 function BookRowStory() {
   return (
-    <div className="gallery-book-stack">
-      <article className="book-row">
-        <button className="book-identity" type="button">
+    <div className={tw("gallery-book-stack")}>
+      <article className={tw("book-row")}>
+        <button className={tw("book-identity")} type="button">
           <BookCover book={galleryBook} />
-          <span className="book-copy">
+          <span className={tw("book-copy")}>
             <strong>{galleryBook.title}</strong>
             <small>{galleryBook.authors.join(', ')}</small>
           </span>
         </button>
-        <div className="reading-actions">
-          <button className="progress-button" type="button">
+        <div className={tw("reading-actions")}>
+          <button className={tw("progress-button")} type="button">
             <span>{galleryBook.progress}%</span>
             <ProgressMeter value={galleryBook.progress} label={`${galleryBook.title} reading progress`} />
           </button>
-          <button className="row-action row-action--finish" type="button">
+          <button className={tw("row-action row-action--finish")} type="button">
             Finish <Check aria-hidden="true" />
           </button>
         </div>
       </article>
-      <article className="search-result">
+      <article className={tw("search-result")}>
         <BookCover book={{ ...galleryBook, title: 'Piranesi', authors: ['Susanna Clarke'] }} />
-        <div className="search-result__copy">
+        <div className={tw("search-result__copy")}>
           <h3>Piranesi</h3>
           <p>Susanna Clarke</p>
           <small>272 pages</small>
         </div>
-        <button className="result-add" type="button"><Plus aria-hidden="true" /><span>Add</span></button>
+        <button className={tw("result-add")} type="button"><Plus aria-hidden="true" /><span>Add</span></button>
       </article>
     </div>
   )
@@ -288,20 +287,20 @@ function BookRowStory() {
 
 function SheetStory() {
   return (
-    <div className="gallery-sheet-frame">
-      <section className="bottom-sheet" role="dialog" aria-label="Update progress specimen">
-        <div className="sheet-handle" aria-hidden="true" />
-        <header className="sheet-header"><h2>Update progress</h2><span>Fixed state</span></header>
-        <div className="sheet-book-line">
+    <div className={tw("gallery-sheet-frame")}>
+      <section className={tw("bottom-sheet")} role="dialog" aria-label="Update progress specimen">
+        <div className={tw("sheet-handle")} aria-hidden="true" />
+        <header className={tw("sheet-header")}><h2>Update progress</h2><span>Fixed state</span></header>
+        <div className={tw("sheet-book-line")}>
           <BookCover book={galleryBook} />
           <div><strong>{galleryBook.title}</strong><small>{galleryBook.authors.join(', ')}</small></div>
         </div>
-        <div className="progress-editor">
+        <div className={tw("progress-editor")}>
           <button type="button" aria-label="Decrease by 5 percent"><Minus aria-hidden="true" /></button>
           <output>67<span>%</span></output>
           <button type="button" aria-label="Increase by 5 percent"><Plus aria-hidden="true" /></button>
         </div>
-        <div className="progress-presets" aria-label="Progress presets">
+        <div className={tw("progress-presets")} aria-label="Progress presets">
           <button type="button">25%</button><button type="button">50%</button>
           <button type="button">75%</button><button type="button">Finished</button>
         </div>
@@ -314,7 +313,7 @@ function FeedbackStories() {
   return (
     <>
       <Specimen id="feedback-notice" title="Feedback notices" states={['loading', 'error', 'reduced motion']} wide>
-        <div className="gallery-feedback-stack">
+        <div className={tw("gallery-feedback-stack")}>
           <FeedbackNotice tone="loading" title="Looking through the stacks">
             Results will replace this message without moving the search field.
           </FeedbackNotice>
@@ -347,7 +346,7 @@ function ReviewGate() {
   ] as const
 
   return (
-    <section className="gallery-review" id="review-gate" data-testid="review-gate">
+    <section className={tw("gallery-review")} id="review-gate" data-testid="review-gate">
       <header>
         <span>Completion contract</span>
         <h2>Visual approval is accessibility approval.</h2>
@@ -358,11 +357,11 @@ function ReviewGate() {
           <li key={name}><span><Check aria-hidden="true" /></span><div><strong>{name}</strong><p>{detail}</p></div></li>
         ))}
       </ol>
-      <div className="gallery-review__commands">
+      <div className={tw("gallery-review__commands")}>
         <code>bun run gallery:test</code>
         <code>bun run gallery:update</code>
       </div>
-      <div className="gallery-review__scenarios">
+      <div className={tw("gallery-review__scenarios")}>
         {REVIEW_SCENARIOS.map((scenario) => (
           <a key={scenario.id} href={`/__gallery?${scenario.query}`}>{scenario.label}<ArrowRight aria-hidden="true" /></a>
         ))}
@@ -381,7 +380,7 @@ function StateLedger() {
   }, [])
 
   return (
-    <section className="gallery-ledger" aria-labelledby="gallery-ledger-title">
+    <section className={tw("gallery-ledger")} aria-labelledby="gallery-ledger-title">
       <div><Gauge aria-hidden="true" /><h2 id="gallery-ledger-title">Coverage ledger</h2></div>
       <ul>
         {REQUIRED_GALLERY_STATES.map((state) => (
@@ -422,9 +421,9 @@ export function ComponentGallery() {
   const showReview = view === 'all' || view === 'review'
 
   return (
-    <div className="component-gallery">
-      <header className="gallery-masthead">
-        <div className="gallery-masthead__brand">
+    <div className={tw("component-gallery")}>
+      <header className={tw("gallery-masthead")}>
+        <div className={tw("gallery-masthead__brand")}>
           <a href="/" aria-label="Back to Wovenleaf"><ArrowLeft aria-hidden="true" /></a>
           <div><span>Pulp · development ledger</span><h1>Component gallery</h1></div>
         </div>
@@ -432,7 +431,7 @@ export function ComponentGallery() {
         <StatusBadge tone="accent" icon={<FlaskConical aria-hidden="true" />}>Development only</StatusBadge>
       </header>
 
-      <aside className="gallery-toolbar" aria-label="Gallery controls">
+      <aside className={tw("gallery-toolbar")} aria-label="Gallery controls">
         <nav aria-label="Gallery views">
           {(Object.keys(viewLabels) as GalleryView[]).map((option) => (
             <button type="button" key={option} aria-pressed={view === option} onClick={() => setView(option)}>
@@ -440,7 +439,7 @@ export function ComponentGallery() {
             </button>
           ))}
         </nav>
-        <div className="gallery-toolbar__modes">
+        <div className={tw("gallery-toolbar__modes")}>
           <ControlGroup label="Paper" value={environment.paper} options={paperOptions} onChange={(value) => updateEnvironment('paper', value)} />
           <ControlGroup label="Contrast" value={environment.contrast} options={contrastOptions} onChange={(value) => updateEnvironment('contrast', value)} />
           <ControlGroup label="Type" value={environment.type} options={typeOptions} onChange={(value) => updateEnvironment('type', value)} />
@@ -449,13 +448,13 @@ export function ComponentGallery() {
         </div>
       </aside>
 
-      <main className="gallery-main" data-testid="gallery-canvas">
+      <main className={tw("gallery-main")} data-testid="gallery-canvas">
         {view === 'all' && <StateLedger />}
 
         {showPrimitives && (
-          <section className="gallery-chapter" aria-labelledby="primitives-title" data-gallery-chapter="primitives">
-            <header className="gallery-chapter__header"><span>Chapter 01</span><h2 id="primitives-title">Primitives</h2><p>Interaction and meaning at their smallest reusable scale.</p></header>
-            <div className="gallery-grid">
+          <section className={tw("gallery-chapter")} aria-labelledby="primitives-title" data-gallery-chapter="primitives">
+            <header className={tw("gallery-chapter__header")}><span>Chapter 01</span><h2 id="primitives-title">Primitives</h2><p>Interaction and meaning at their smallest reusable scale.</p></header>
+            <div className={tw("gallery-grid")}>
               <Specimen id="action-button" title="Action button" states={['default', 'hover', 'focus', 'pressed', 'disabled', 'loading', 'long content']} wide><ActionButtonStory /></Specimen>
               <Specimen id="book-cover" title="Book cover" states={['fallback', 'large', 'long content']}><BookCoverStory /></Specimen>
               <Specimen id="rating-stars" title="Rating stars" states={['default', 'focus', 'disabled']}><RatingStory /></Specimen>
@@ -467,9 +466,9 @@ export function ComponentGallery() {
         )}
 
         {showComposites && (
-          <section className="gallery-chapter" aria-labelledby="composites-title" data-gallery-chapter="composites">
-            <header className="gallery-chapter__header"><span>Chapter 02</span><h2 id="composites-title">Composites</h2><p>Production-shaped arrangements with fixed local fixtures.</p></header>
-            <div className="gallery-grid">
+          <section className={tw("gallery-chapter")} aria-labelledby="composites-title" data-gallery-chapter="composites">
+            <header className={tw("gallery-chapter__header")}><span>Chapter 02</span><h2 id="composites-title">Composites</h2><p>Production-shaped arrangements with fixed local fixtures.</p></header>
+            <div className={tw("gallery-grid")}>
               <Specimen id="book-row" title="Book and search rows" states={['default', 'long content', 'large text']} wide><BookRowStory /></Specimen>
               <Specimen id="progress-sheet" title="Progress sheet" states={['default', 'disabled', 'large text']} wide><SheetStory /></Specimen>
             </div>
@@ -477,16 +476,16 @@ export function ComponentGallery() {
         )}
 
         {showFeedback && (
-          <section className="gallery-chapter" aria-labelledby="feedback-title" data-gallery-chapter="feedback">
-            <header className="gallery-chapter__header"><span>Chapter 03</span><h2 id="feedback-title">Feedback</h2><p>Empty, loading, and error states that keep the reader oriented.</p></header>
-            <div className="gallery-grid"><FeedbackStories /></div>
+          <section className={tw("gallery-chapter")} aria-labelledby="feedback-title" data-gallery-chapter="feedback">
+            <header className={tw("gallery-chapter__header")}><span>Chapter 03</span><h2 id="feedback-title">Feedback</h2><p>Empty, loading, and error states that keep the reader oriented.</p></header>
+            <div className={tw("gallery-grid")}><FeedbackStories /></div>
           </section>
         )}
 
         {showReview && <ReviewGate />}
       </main>
 
-      <footer className="gallery-footer">
+      <footer className={tw("gallery-footer")}>
         <ShieldCheck aria-hidden="true" />
         <span>Fixtures are local. Motion is reduced by default. Time and network do not enter the frame.</span>
         <Search aria-hidden="true" />

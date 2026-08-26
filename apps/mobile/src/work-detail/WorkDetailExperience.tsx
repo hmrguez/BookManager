@@ -37,7 +37,8 @@ import {
   type WorkDetailSection,
   type WorkEditionDetail,
 } from './model'
-import './work-detail.css'
+import { tw } from '../tailwind/styles'
+import { motionStyles } from '../tailwind/motion'
 
 type WorkDetailExperienceProps = {
   readonly book: LibraryBook
@@ -145,26 +146,26 @@ export function WorkDetailExperience({
   }
 
   return (
-    <div className="work-detail" data-density={model.editions.length > 1 ? 'dense' : 'sparse'}>
-      <header className="work-detail__hero">
+    <div className={tw("work-detail")} data-density={model.editions.length > 1 ? 'dense' : 'sparse'}>
+      <header className={tw("work-detail__hero")}>
         <BookCover book={book} large />
-        <div className="work-detail__identity">
-          <div className="work-detail__eyebrow">
+        <div className={tw("work-detail__identity")}>
+          <div className={tw("work-detail__eyebrow")}>
             <span>Work record</span>
             <StatusBadge icon={<HardDrive aria-hidden="true" />}>Saved locally</StatusBadge>
           </div>
           <h3>{model.title}</h3>
           <p>{model.authors.join(', ')}</p>
-          <div className="work-detail__work-state">
+          <div className={tw("work-detail__work-state")}>
             <strong>{model.overallProgressLabel}</strong>
             <span>{model.identitySource}</span>
           </div>
         </div>
       </header>
 
-      <p className="work-detail__summary">{model.summary}</p>
+      <p className={tw("work-detail__summary")}>{model.summary}</p>
 
-      <section className="edition-switcher" aria-labelledby="edition-switcher-title">
+      <section className={tw("edition-switcher")} aria-labelledby="edition-switcher-title">
         <header>
           <div>
             <span>Manifestations</span>
@@ -172,7 +173,7 @@ export function WorkDetailExperience({
           </div>
           <small>{model.editions.length} together · one Work history</small>
         </header>
-        <div className="edition-switcher__rail" role="radiogroup" aria-label="Editions and formats">
+        <div className={tw("edition-switcher__rail")} role="radiogroup" aria-label="Editions and formats">
           {model.editions.map((edition) => {
             const preferred = preferredEditionId === edition.id
             const separated = separatedEditionIds.includes(edition.id)
@@ -182,10 +183,10 @@ export function WorkDetailExperience({
                 role="radio"
                 key={edition.id}
                 aria-checked={selectedEdition.id === edition.id}
-                className={selectedEdition.id === edition.id ? 'is-selected' : ''}
+                className={tw(selectedEdition.id === edition.id ? 'is-selected' : '')}
                 onClick={() => setSelectedEditionId(edition.id)}
               >
-                <span className="edition-switcher__icon">{editionIcons[edition.kind]}</span>
+                <span className={tw("edition-switcher__icon")}>{editionIcons[edition.kind]}</span>
                 <span>
                   <strong>{edition.shortLabel}</strong>
                   <small>{separated ? 'Separate Work' : edition.accessLabel}</small>
@@ -197,7 +198,7 @@ export function WorkDetailExperience({
         </div>
       </section>
 
-      <nav className="work-detail__tabs" aria-label="Book detail sections" role="tablist">
+      <nav className={tw("work-detail__tabs")} aria-label="Book detail sections" role="tablist">
         {detailSections.map((section) => (
           <button
             type="button"
@@ -215,7 +216,7 @@ export function WorkDetailExperience({
       </nav>
 
       <div
-        className="work-detail__panel"
+        className={tw("work-detail__panel")}
         id={`work-detail-panel-${activeSection}`}
         role="tabpanel"
         aria-labelledby={`work-detail-tab-${activeSection}`}
@@ -269,7 +270,7 @@ export function WorkDetailExperience({
         />
       )}
 
-      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</p>
+      <p className={tw("sr-only")} role="status" aria-live="polite" aria-atomic="true">{announcement}</p>
     </div>
   )
 }
@@ -286,20 +287,20 @@ function EditionOverview({
   readonly onPrefer: () => void
 }) {
   return (
-    <div className="edition-overview" id="selected-edition-panel">
-      <header className="panel-heading">
+    <div className={tw("edition-overview")} id="selected-edition-panel">
+      <header className={tw("panel-heading")}>
         <div>
           <span>Selected edition · {edition.medium}</span>
           <h4>{edition.label}</h4>
         </div>
-        <div className="panel-heading__badges">
+        <div className={tw("panel-heading__badges")}>
           {preferred && <StatusBadge icon={<Check aria-hidden="true" />}>Preferred</StatusBadge>}
           {separated && <StatusBadge tone="accent">Separate Work</StatusBadge>}
         </div>
       </header>
 
-      <section className={`edition-access is-${edition.availabilityTone}`} aria-labelledby="edition-access-title">
-        <span className="edition-access__mark" aria-hidden="true">
+      <section className={tw(`edition-access is-${edition.availabilityTone}`)} aria-labelledby="edition-access-title">
+        <span className={tw("edition-access__mark")} aria-hidden="true">
           {edition.availabilityTone === 'local' ? <HardDrive /> : edition.availabilityTone === 'record-only' ? <BookCopy /> : <WifiOff />}
         </span>
         <div>
@@ -307,14 +308,14 @@ function EditionOverview({
           <h5 id="edition-access-title">{edition.accessLabel}</h5>
           <p>{edition.accessDetail}</p>
         </div>
-        <div className="edition-access__progress">
+        <div className={tw("edition-access__progress")}>
           <strong>{edition.progress}%</strong>
           <small>{edition.progressLabel}</small>
         </div>
       </section>
 
-      <div className="edition-overview__split">
-        <section className="edition-facts" aria-labelledby="edition-facts-title">
+      <div className={tw("edition-overview__split")}>
+        <section className={tw("edition-facts")} aria-labelledby="edition-facts-title">
           <header><span>Edition facts, never Work facts</span><h5 id="edition-facts-title">Publication ledger</h5></header>
           <dl>
             {edition.facts.map((fact) => (
@@ -326,8 +327,8 @@ function EditionOverview({
           </dl>
         </section>
 
-        <div className="edition-assets-stack">
-          <section className="edition-asset" aria-labelledby="edition-asset-title">
+        <div className={tw("edition-assets-stack")}>
+          <section className={tw("edition-asset")} aria-labelledby="edition-asset-title">
             <header><span>Current asset</span><h5 id="edition-asset-title">{edition.asset ? edition.asset.name : 'No readable asset'}</h5></header>
             {edition.asset ? (
               <dl>
@@ -341,13 +342,13 @@ function EditionOverview({
           </section>
 
           {edition.loan && (
-            <section className="edition-loan" aria-labelledby="edition-loan-title">
+            <section className={tw("edition-loan")} aria-labelledby="edition-loan-title">
               <header><span>Loan state</span><h5 id="edition-loan-title">{edition.loan.due}</h5></header>
               <p><strong>{edition.loan.provider}</strong>{edition.loan.detail}</p>
             </section>
           )}
 
-          <section className="edition-provenance" aria-labelledby="edition-provenance-title">
+          <section className={tw("edition-provenance")} aria-labelledby="edition-provenance-title">
             <header><span>Source provenance</span><h5 id="edition-provenance-title">Why these facts appear</h5></header>
             <ul>
               {edition.sources.map((source) => <li key={source}><ShieldCheck aria-hidden="true" />{source}</li>)}
@@ -356,7 +357,7 @@ function EditionOverview({
         </div>
       </div>
 
-      <button className="edition-preference" type="button" disabled={preferred} onClick={onPrefer}>
+      <button className={tw("edition-preference")} type="button" disabled={preferred} onClick={onPrefer}>
         <BookOpen aria-hidden="true" />
         <span><strong>{preferred ? 'Preferred edition' : 'Choose as preferred edition'}</strong><small>Controls the cover and default quick action for this Work</small></span>
         {preferred ? <Check aria-hidden="true" /> : <ChevronRight aria-hidden="true" />}
@@ -381,25 +382,25 @@ function ReadingPanel({
   const editionNames = new Map(model.editions.map((edition) => [edition.id, edition.shortLabel]))
 
   return (
-    <div className="reading-panel">
-      <section className="reading-overview" aria-labelledby="reading-overview-title">
+    <div className={tw("reading-panel")}>
+      <section className={tw("reading-overview")} aria-labelledby="reading-overview-title">
         <div>
           <span>One Work history</span>
           <h4 id="reading-overview-title">{model.overallProgress}% complete</h4>
           <p>Sessions from print, files, audio, and loans appear once in the same chronology.</p>
         </div>
-        <div className="reading-overview__meter" aria-label={`${model.overallProgress}% complete`}>
+        <div className={tw("reading-overview__meter")} aria-label={`${model.overallProgress}% complete`}>
           <i><b style={{ width: `${model.overallProgress}%` }} /></i>
           <span><strong>{selectedEdition.shortLabel}</strong>{selectedEdition.progressLabel}</span>
         </div>
-        <div className="reading-overview__actions">
+        <div className={tw("reading-overview__actions")}>
           <button type="button" onClick={onProgress} disabled={book.shelf === 'finished'}>Update progress</button>
           {book.shelf !== 'finished' && <button type="button" onClick={onFinish}><BookCheck aria-hidden="true" /> Mark finished</button>}
         </div>
       </section>
 
-      <section className="reading-timeline" aria-labelledby="reading-history-title">
-        <header className="panel-heading">
+      <section className={tw("reading-timeline")} aria-labelledby="reading-history-title">
+        <header className={tw("panel-heading")}>
           <div><span>All manifestations</span><h4 id="reading-history-title">Reading history</h4></div>
           <small>{model.sessions.length} sessions</small>
         </header>
@@ -407,7 +408,7 @@ function ReadingPanel({
           <ol>
             {model.sessions.map((session) => (
               <li key={session.id}>
-                <span className="reading-timeline__mark" aria-hidden="true" />
+                <span className={tw("reading-timeline__mark")} aria-hidden="true" />
                 <div><strong>{session.when}</strong><small>{editionNames.get(session.editionId)} · {session.duration}</small></div>
                 <span>{session.change}</span>
               </li>
@@ -445,10 +446,10 @@ function NotesPanel({
   const editionNames = new Map(model.editions.map((edition) => [edition.id, edition.shortLabel]))
 
   return (
-    <div className="notes-panel">
-      <section className="work-memory" aria-labelledby="work-memory-title">
+    <div className={tw("notes-panel")}>
+      <section className={tw("work-memory")} aria-labelledby="work-memory-title">
         <header><span>Work-level memory</span><h4 id="work-memory-title">Your private record</h4></header>
-        <div className="work-memory__rating"><span>Rating</span><RatingStars value={book.rating} onChange={onRate} /></div>
+        <div className={tw("work-memory__rating")}><span>Rating</span><RatingStars value={book.rating} onChange={onRate} /></div>
         <label>
           <span>Private note</span>
           <textarea
@@ -461,8 +462,8 @@ function NotesPanel({
         <WorkTagEditor tags={tags} suggestions={suggestions} onChange={onTags} />
       </section>
 
-      <section className="annotation-ledger" aria-labelledby="annotation-ledger-title">
-        <header className="panel-heading">
+      <section className={tw("annotation-ledger")} aria-labelledby="annotation-ledger-title">
+        <header className={tw("panel-heading")}>
           <div><span>Edition-located, Work-visible</span><h4 id="annotation-ledger-title">Annotations</h4></div>
           <small>{model.annotations.length} saved</small>
         </header>
@@ -520,17 +521,17 @@ function LibraryPanel({
   const [confirmRemove, setConfirmRemove] = useState(false)
 
   return (
-    <div className="library-panel">
-      <section className="library-membership" aria-labelledby="library-membership-title">
+    <div className={tw("library-panel")}>
+      <section className={tw("library-membership")} aria-labelledby="library-membership-title">
         <header><span>Lists and status</span><h4 id="library-membership-title">Where this Work lives</h4></header>
-        <div className="library-membership__status">
+        <div className={tw("library-membership__status")}>
           <button type="button" onClick={() => setShowShelves((value) => !value)}>
             <FolderInput aria-hidden="true" />
             <span><strong>{SHELVES.find(({ id }) => id === book.shelf)?.label}</strong><small>Reading status applies to the Work</small></span>
-            <ChevronRight className={showShelves ? 'is-rotated' : ''} aria-hidden="true" />
+            <ChevronRight className={tw(showShelves ? 'is-rotated' : '')} aria-hidden="true" />
           </button>
           {showShelves && (
-            <div className="library-membership__choices" data-motion-event="reveal">
+            <div className={tw("library-membership__choices", motionStyles.reveal)} data-motion-event="reveal">
               {SHELVES.map((shelf) => (
                 <button type="button" key={shelf.id} disabled={shelf.id === book.shelf} onClick={() => onMove(shelf.id)}>
                   {shelf.shortLabel}{shelf.id === book.shelf && <Check aria-hidden="true" />}
@@ -561,8 +562,8 @@ function LibraryPanel({
         </fieldset>
       </section>
 
-      <section className="work-history" aria-labelledby="work-history-title">
-        <header className="panel-heading">
+      <section className={tw("work-history")} aria-labelledby="work-history-title">
+        <header className={tw("panel-heading")}>
           <div><span>Local journal</span><h4 id="work-history-title">Work history</h4></div>
           <small>Offline-first</small>
         </header>
@@ -573,17 +574,17 @@ function LibraryPanel({
         </ol>
       </section>
 
-      <section className="identity-actions" aria-labelledby="identity-actions-title">
+      <section className={tw("identity-actions")} aria-labelledby="identity-actions-title">
         <header>
           <div><span>Careful tools</span><h4 id="identity-actions-title">Work identity & editions</h4></div>
           <button type="button" onClick={onUndoIdentity} disabled={!undoAvailable}><RotateCcw aria-hidden="true" /> Undo</button>
         </header>
         <p>Every identity change previews what moves. Assets, loans, sources, progress, and annotations remain attached by Edition ID.</p>
-        <div className="identity-actions__state">
+        <div className={tw("identity-actions__state")}>
           <span>{selectedEdition.label}</span>
           <strong>{separated ? 'Split into a separate Work' : mergedRecord ? 'Imported record merged' : 'Belongs to this Work'}</strong>
         </div>
-        <div className="identity-actions__buttons">
+        <div className={tw("identity-actions__buttons")}>
           <button type="button" onClick={() => onPreviewIdentity('merge')} disabled={mergedRecord}>
             <GitMerge aria-hidden="true" /><span><strong>Merge another Work…</strong><small>Review a possible duplicate and its destination</small></span><ChevronRight aria-hidden="true" />
           </button>
@@ -593,7 +594,7 @@ function LibraryPanel({
         </div>
       </section>
 
-      <section className="remove-work" aria-label="Remove from library">
+      <section className={tw("remove-work")} aria-label="Remove from library">
         <button type="button" onClick={() => (confirmRemove ? onRemove() : setConfirmRemove(true))}>
           <Trash2 aria-hidden="true" />
           <span><strong>{confirmRemove ? 'Tap again to remove from library' : 'Remove from library'}</strong><small>Also removes this Work from every custom shelf</small></span>
@@ -624,7 +625,7 @@ function WorkTagEditor({
   }
 
   return (
-    <div className="work-tag-editor">
+    <div className={tw("work-tag-editor")}>
       <span>Tags</span>
       <div>
         {tags.map((tag) => (
@@ -668,9 +669,9 @@ function IdentityPreviewDialog({
   }, [])
 
   return createPortal(
-    <div className="identity-preview-layer">
+    <div className={tw("identity-preview-layer")}>
       <section
-        className="identity-preview"
+        className={tw("identity-preview")}
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
@@ -702,7 +703,7 @@ function IdentityPreviewDialog({
 
 function EmptyDetailState({ icon, title, copy }: { readonly icon: ReactNode; readonly title: string; readonly copy: string }) {
   return (
-    <div className="detail-empty-state">
+    <div className={tw("detail-empty-state")}>
       <span>{icon}</span>
       <div><strong>{title}</strong><p>{copy}</p></div>
     </div>

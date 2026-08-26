@@ -32,6 +32,7 @@ import {
 import type { SmartListDraft } from './use-smart-lists'
 import type { SmartListDocument } from './query'
 import { querySmartList } from './query'
+import { tw } from '../tailwind/styles'
 
 export function SmartListEditor({
   list,
@@ -132,7 +133,7 @@ export function SmartListEditor({
       ? storedValidation.issues
       : [{ path: 'definition.root', message: 'Nested rule groups require the advanced editor' }]
     return (
-      <div className="smart-list-preserved" role="alert">
+      <div className={tw("smart-list-preserved")} role="alert">
         <AlertTriangle aria-hidden="true" />
         <div>
           <span>Configuration preserved</span>
@@ -152,13 +153,13 @@ export function SmartListEditor({
   }
 
   return (
-    <form className="smart-list-editor" onSubmit={submit}>
-      <div className="smart-list-editor__intro">
+    <form className={tw("smart-list-editor")} onSubmit={submit}>
+      <div className={tw("smart-list-editor__intro")}>
         <span><Sparkles aria-hidden="true" /> Live, local, explainable</span>
         <p>Rules recalculate on this device. Books remain on their reading and custom shelves.</p>
       </div>
 
-      <section className="smart-list-templates" aria-labelledby="smart-list-template-title">
+      <section className={tw("smart-list-templates")} aria-labelledby="smart-list-template-title">
         <header>
           <span>Start with a useful pattern</span>
           <small>Each template remains fully editable</small>
@@ -173,8 +174,8 @@ export function SmartListEditor({
         </div>
       </section>
 
-      <div className="smart-list-basics">
-        <label className="shelf-field">
+      <div className={tw("smart-list-basics")}>
+        <label className={tw("shelf-field")}>
           <span>List name</span>
           <input
             autoFocus
@@ -185,7 +186,7 @@ export function SmartListEditor({
             placeholder="Quiet weekend reads"
           />
         </label>
-        <label className="shelf-field">
+        <label className={tw("shelf-field")}>
           <span>Note <i>optional</i></span>
           <textarea
             maxLength={1_000}
@@ -195,21 +196,21 @@ export function SmartListEditor({
             placeholder="What this view is for"
           />
         </label>
-        <label className="shelf-pin-field smart-list-pin-field">
+        <label className={tw("shelf-pin-field smart-list-pin-field")}>
           <input type="checkbox" checked={pinned} onChange={(event) => setPinned(event.target.checked)} />
           <Pin aria-hidden="true" />
           <span><strong>Pin this smart list</strong><small>Keep it above your other automatic views</small></span>
         </label>
       </div>
 
-      <section className="smart-rule-builder" aria-labelledby="smart-rule-title">
+      <section className={tw("smart-rule-builder")} aria-labelledby="smart-rule-title">
         <header>
           <div>
             <span>Rules · schema v{SMART_LIST_RULE_SCHEMA_VERSION}</span>
             <h3 id="smart-rule-title">Include books matching</h3>
           </div>
           <label>
-            <span className="sr-only">How rules are combined</span>
+            <span className={tw("sr-only")}>How rules are combined</span>
             <select
               value={definition.root.combinator}
               onChange={(event) => setDefinition((current) => ({
@@ -224,12 +225,12 @@ export function SmartListEditor({
           </label>
         </header>
 
-        <div className="smart-rule-list">
+        <div className={tw("smart-rule-list")}>
           {conditions.map((condition, index) => (
-            <div className="smart-rule-row" key={condition.id}>
-              <span className="smart-rule-row__number">{String(index + 1).padStart(2, '0')}</span>
+            <div className={tw("smart-rule-row")} key={condition.id}>
+              <span className={tw("smart-rule-row__number")}>{String(index + 1).padStart(2, '0')}</span>
               <label>
-                <span className="sr-only">Field for rule {index + 1}</span>
+                <span className={tw("sr-only")}>Field for rule {index + 1}</span>
                 <select
                   value={condition.field}
                   onChange={(event) => changeField(condition, event.target.value as SmartListRuleField)}
@@ -243,7 +244,7 @@ export function SmartListEditor({
                 </select>
               </label>
               <label>
-                <span className="sr-only">Operator for rule {index + 1}</span>
+                <span className={tw("sr-only")}>Operator for rule {index + 1}</span>
                 <select
                   value={condition.operator}
                   onChange={(event) => updateCondition(condition.id, {
@@ -259,7 +260,7 @@ export function SmartListEditor({
               </label>
               <RuleValueEditor condition={condition} index={index} onChange={(value) => updateCondition(condition.id, { value })} />
               <button
-                className="smart-rule-row__remove"
+                className={tw("smart-rule-row__remove")}
                 type="button"
                 disabled={conditions.length === 1}
                 onClick={() => removeCondition(condition.id)}
@@ -270,12 +271,12 @@ export function SmartListEditor({
             </div>
           ))}
         </div>
-        <button className="smart-rule-add" type="button" onClick={addCondition} disabled={conditions.length >= 50}>
+        <button className={tw("smart-rule-add")} type="button" onClick={addCondition} disabled={conditions.length >= 50}>
           <Plus aria-hidden="true" /> Add rule
         </button>
       </section>
 
-      <section className="smart-list-arrangement">
+      <section className={tw("smart-list-arrangement")}>
         <header>
           <span>Arrangement</span>
           <small>Applied after the rules match</small>
@@ -321,8 +322,8 @@ export function SmartListEditor({
         </div>
       </section>
 
-      <section className={`smart-list-preview${query.ok ? '' : ' smart-list-preview--error'}`} aria-live="polite">
-        <div className="smart-list-preview__count">
+      <section className={tw(`smart-list-preview${query.ok ? '' : ' smart-list-preview--error'}`)} aria-live="polite">
+        <div className={tw("smart-list-preview__count")}>
           {query.ok ? <ListFilter aria-hidden="true" /> : <AlertTriangle aria-hidden="true" />}
           <span><strong>{query.ok ? query.items.length : '—'}</strong><small>{query.ok ? `of ${documents.length} books` : 'Rules need attention'}</small></span>
         </div>
@@ -352,10 +353,10 @@ function RuleValueEditor({
   index: number
   onChange: (value: unknown) => void
 }) {
-  if (condition.operator === 'is-missing') return <span className="smart-rule-value smart-rule-value--empty">No value</span>
+  if (condition.operator === 'is-missing') return <span className={tw("smart-rule-value smart-rule-value--empty")}>No value</span>
   if (condition.field === 'status') {
     return (
-      <select className="smart-rule-value" value={String(condition.value)} onChange={(event) => onChange(event.target.value)} aria-label={`Value for rule ${index + 1}`}>
+      <select className={tw("smart-rule-value")} value={String(condition.value)} onChange={(event) => onChange(event.target.value)} aria-label={`Value for rule ${index + 1}`}>
         <option value="tbr">To Be Read</option>
         <option value="next">Up Next</option>
         <option value="reading">Reading</option>
@@ -365,7 +366,7 @@ function RuleValueEditor({
   }
   if (condition.field === 'ownership') {
     return (
-      <select className="smart-rule-value" value={String(condition.value)} onChange={(event) => onChange(event.target.value)} aria-label={`Value for rule ${index + 1}`}>
+      <select className={tw("smart-rule-value")} value={String(condition.value)} onChange={(event) => onChange(event.target.value)} aria-label={`Value for rule ${index + 1}`}>
         <option value="owned">Owned</option>
         <option value="borrowed">Borrowed</option>
         <option value="subscription">Subscription</option>
@@ -376,7 +377,7 @@ function RuleValueEditor({
   }
   if (condition.field === 'availability') {
     return (
-      <select className="smart-rule-value" value={String(condition.value)} onChange={(event) => onChange(event.target.value)} aria-label={`Value for rule ${index + 1}`}>
+      <select className={tw("smart-rule-value")} value={String(condition.value)} onChange={(event) => onChange(event.target.value)} aria-label={`Value for rule ${index + 1}`}>
         <option value="available">Available</option>
         <option value="expiring-soon">Expiring soon</option>
         <option value="expired">Expired</option>
@@ -387,7 +388,7 @@ function RuleValueEditor({
   if (condition.operator === 'between') {
     const [minimum, maximum] = Array.isArray(condition.value) ? condition.value : [0, 100]
     return (
-      <span className="smart-rule-value smart-rule-value--between">
+      <span className={tw("smart-rule-value smart-rule-value--between")}>
         <input type="number" value={Number(minimum)} onChange={(event) => onChange([Number(event.target.value), Number(maximum)])} aria-label={`Minimum for rule ${index + 1}`} />
         <i>to</i>
         <input type="number" value={Number(maximum)} onChange={(event) => onChange([Number(minimum), Number(event.target.value)])} aria-label={`Maximum for rule ${index + 1}`} />
@@ -398,7 +399,7 @@ function RuleValueEditor({
     || ['within-next-days', 'within-last-days', 'older-than-days'].includes(condition.operator)) {
     return (
       <input
-        className="smart-rule-value"
+        className={tw("smart-rule-value")}
         type="number"
         min={condition.field === 'rating' ? 0 : undefined}
         max={condition.field === 'rating' ? 5 : condition.field === 'progress' ? 100 : undefined}
@@ -411,7 +412,7 @@ function RuleValueEditor({
   if (condition.operator === 'before' || condition.operator === 'after') {
     return (
       <input
-        className="smart-rule-value"
+        className={tw("smart-rule-value")}
         type="date"
         value={String(condition.value).slice(0, 10)}
         onChange={(event) => onChange(`${event.target.value}T00:00:00.000Z`)}
@@ -421,7 +422,7 @@ function RuleValueEditor({
   }
   return (
     <input
-      className="smart-rule-value"
+      className={tw("smart-rule-value")}
       value={String(condition.value ?? '')}
       onChange={(event) => onChange(event.target.value)}
       list={condition.field === 'format' ? 'smart-list-format-suggestions' : undefined}
@@ -445,12 +446,12 @@ function SmartListDanger({
   onDelete: (list: SavedSmartList) => void
 }) {
   return (
-    <div className="custom-shelf-editor__danger smart-list-danger">
+    <div className={tw("custom-shelf-editor__danger smart-list-danger")}>
       <button type="button" onClick={() => onArchive(list)}>
         {list.archived ? <ArchiveRestore aria-hidden="true" /> : <Archive aria-hidden="true" />}
         <span><strong>{list.archived ? 'Restore smart list' : 'Archive smart list'}</strong><small>{list.archived ? 'Return it to My Books' : 'Hide it without losing its rules'}</small></span>
       </button>
-      <button className="remove-action" type="button" onClick={() => confirmDelete ? onDelete(list) : onConfirmDelete(true)}>
+      <button className={tw("remove-action")} type="button" onClick={() => confirmDelete ? onDelete(list) : onConfirmDelete(true)}>
         <Trash2 aria-hidden="true" />
         <span><strong>{confirmDelete ? 'Tap again to delete list' : 'Delete smart list'}</strong><small>Deletes the saved rules only—not any books</small></span>
       </button>

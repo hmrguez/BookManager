@@ -1,11 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 
 const tokenCssUrl = new URL('../src/design-system/tokens.css', import.meta.url)
-const productCssUrls = [
-  new URL('../src/App.css', import.meta.url),
+const productStyleUrls = [
   new URL('../src/index.css', import.meta.url),
-  new URL('../src/design-system/components.css', import.meta.url),
-  new URL('../src/gallery/gallery.css', import.meta.url),
+  new URL('../src/design-system/motion.css', import.meta.url),
+  new URL('../src/tailwind/custom.css', import.meta.url),
+  new URL('../src/tailwind/motion.ts', import.meta.url),
+  new URL('../src/tailwind/styles.ts', import.meta.url),
 ]
 
 const themeSelectors = {
@@ -102,11 +103,11 @@ describe('Pulp design-token contract', () => {
   })
 
   test('keeps raw brand colors inside the token layer', async () => {
-    const productCss = (await Promise.all(productCssUrls.map((url) => Bun.file(url).text()))).join('\n')
+    const productStyles = (await Promise.all(productStyleUrls.map((url) => Bun.file(url).text()))).join('\n')
 
-    expect(productCss).not.toMatch(/#[0-9a-f]{3,8}\b/i)
-    expect(productCss).not.toMatch(/\brgba?\(/i)
-    expect(productCss).not.toMatch(/var\(--(?:brand|stock)-/i)
+    expect(productStyles).not.toMatch(/#[0-9a-f]{3,8}\b/i)
+    expect(productStyles).not.toMatch(/\brgba?\(/i)
+    expect(productStyles).not.toMatch(/var\(--(?:brand|stock)-/i)
   })
 
   test('holds every intended foreground/background pairing at WCAG AA', async () => {

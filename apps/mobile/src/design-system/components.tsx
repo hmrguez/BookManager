@@ -1,7 +1,8 @@
 import { useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react'
 import { AlertTriangle, LoaderCircle, Star } from 'lucide-react'
 import type { LibraryBook } from '../library'
-import './components.css'
+import { tw } from '../tailwind/styles'
+import { motionStyles } from '../tailwind/motion'
 
 type CoverData = Pick<LibraryBook, 'id' | 'title' | 'authors' | 'thumbnail'>
 
@@ -21,11 +22,11 @@ export function ActionButton({
   return (
     <button
       {...props}
-      className={classes}
+      className={tw(classes)}
       disabled={disabled || isLoading}
       aria-busy={isLoading || undefined}
     >
-      {isLoading && <LoaderCircle className="pulp-button__spinner" aria-hidden="true" />}
+      {isLoading && <LoaderCircle className={tw("pulp-button__spinner")} aria-hidden="true" />}
       {children}
     </button>
   )
@@ -43,7 +44,7 @@ export function BookCover({ book, large = false }: { book: CoverData; large?: bo
 
   return (
     <div
-      className={`book-cover tone-${colorIndex}${large ? ' book-cover--large' : ''}`}
+      className={tw(`book-cover tone-${colorIndex}${large ? ' book-cover--large' : ''}`)}
       style={{ '--cover-index': colorIndex } as CSSProperties}
       aria-hidden="true"
     >
@@ -51,7 +52,7 @@ export function BookCover({ book, large = false }: { book: CoverData; large?: bo
         <img src={book.thumbnail} alt="" onError={() => setImageFailed(true)} />
       ) : (
         <>
-          <span className="cover-rule" />
+          <span className={tw("cover-rule")} />
           <strong>{initials || 'BK'}</strong>
           <small>{book.authors[0]?.split(' ').at(-1) ?? 'Book'}</small>
         </>
@@ -72,13 +73,13 @@ export function EmptyState({
   action?: ReactNode
 }) {
   return (
-    <div className="pulp-empty-state">
-      <span className="pulp-empty-state__mark" aria-hidden="true">{icon}</span>
-      <div>
+    <div className={tw("pulp-empty-state")}>
+      <span className={tw("pulp-empty-state__mark")} aria-hidden="true">{icon}</span>
+      <div className={tw("grid gap-[3px]")}>
         <strong>{title}</strong>
         <p>{description}</p>
       </div>
-      {action && <div className="pulp-empty-state__action">{action}</div>}
+      {action && <div className={tw("pulp-empty-state__action")}>{action}</div>}
     </div>
   )
 }
@@ -94,16 +95,16 @@ export function FeedbackNotice({
 }) {
   return (
     <div
-      className={`pulp-feedback-notice pulp-feedback-notice--${tone}`}
+      className={tw(`pulp-feedback-notice pulp-feedback-notice--${tone}`)}
       role={tone === 'error' ? 'alert' : 'status'}
       aria-live="polite"
     >
       {tone === 'loading' ? (
-        <LoaderCircle className="pulp-feedback-notice__spinner" aria-hidden="true" />
+        <LoaderCircle className={tw("pulp-feedback-notice__spinner")} aria-hidden="true" />
       ) : tone === 'error' ? (
         <AlertTriangle aria-hidden="true" />
       ) : (
-        <span className="pulp-feedback-notice__rule" aria-hidden="true" />
+        <span className={tw("pulp-feedback-notice__rule")} aria-hidden="true" />
       )}
       <div>
         <strong>{title}</strong>
@@ -124,14 +125,14 @@ export function ProgressMeter({
 
   return (
     <span
-      className="pulp-progress-meter"
+      className={tw("pulp-progress-meter")}
       role="progressbar"
       aria-label={label}
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={boundedValue}
     >
-      <span style={{ width: `${boundedValue}%` }} />
+      <span className={tw(motionStyles.progressFill)} style={{ width: `${boundedValue}%` }} />
     </span>
   )
 }
@@ -148,13 +149,13 @@ export function RatingStars({
   disabled?: boolean
 }) {
   return (
-    <div className={`stars${compact ? ' stars--compact' : ''}`} aria-label={`${value} out of 5 stars`}>
+    <div className={tw(`stars${compact ? ' stars--compact' : ''}`)} aria-label={`${value} out of 5 stars`}>
       {[1, 2, 3, 4, 5].map((rating) =>
         onChange ? (
           <button
             type="button"
             key={rating}
-            className={rating <= value ? 'is-filled' : ''}
+            className={tw(rating <= value ? 'is-filled' : '')}
             aria-label={`Rate ${rating} out of 5`}
             onClick={() => onChange(rating)}
             disabled={disabled}
@@ -162,7 +163,7 @@ export function RatingStars({
             <Star aria-hidden="true" />
           </button>
         ) : (
-          <Star key={rating} className={rating <= value ? 'is-filled' : ''} aria-hidden="true" />
+          <Star key={rating} className={tw(rating <= value ? 'is-filled' : '')} aria-hidden="true" />
         ),
       )}
     </div>
@@ -179,7 +180,7 @@ export function StatusBadge({
   tone?: 'neutral' | 'accent' | 'destructive'
 }) {
   return (
-    <span className={`status-pill status-pill--${tone}`}>
+    <span className={tw(`status-pill status-pill--${tone}`)}>
       {icon}
       {children}
     </span>

@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import type { Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 
 const sqliteWasmPath = fileURLToPath(
   new URL('./node_modules/sql.js/dist/sql-wasm.wasm', import.meta.url),
@@ -33,5 +34,5 @@ function sqliteWasmAsset(): Plugin {
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), sqliteWasmAsset()],
+  plugins: [tailwindcss(), react(), sqliteWasmAsset()],
 })

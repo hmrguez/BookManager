@@ -10,8 +10,7 @@ import {
   SearchCheck,
   ShieldOff,
 } from 'lucide-react'
-import '../App.css'
-import './duplicate-review.css'
+import { tw } from '../tailwind/styles'
 
 type DemoSide = {
   readonly id: string
@@ -215,17 +214,17 @@ export function DuplicateReviewPrototype() {
   const openCount = DEMO_CANDIDATES.length - Object.keys(decisions).length
 
   return (
-    <div className="duplicate-desk">
-      <header className="duplicate-masthead">
-        <div className="duplicate-masthead__identity">
+    <div className={tw("duplicate-desk")}>
+      <header className={tw("duplicate-masthead")}>
+        <div className={tw("duplicate-masthead__identity")}>
           <a href="/" aria-label="Back to Wovenleaf"><ArrowLeft aria-hidden="true" /></a>
           <div><span>Wovenleaf · identity desk</span><h1>Duplicate review</h1></div>
         </div>
         <p>Search finds the resemblance. Evidence earns the merge.</p>
-        <span className="duplicate-offline"><SearchCheck aria-hidden="true" /> On-device · offline</span>
+        <span className={tw("duplicate-offline")}><SearchCheck aria-hidden="true" /> On-device · offline</span>
       </header>
 
-      <section className="duplicate-summary" aria-label="Duplicate review summary">
+      <section className={tw("duplicate-summary")} aria-label="Duplicate review summary">
         <div><strong>{openCount}</strong><span>ready for review</span></div>
         <p><span>3 quiet leads</span> Low-confidence matches wait here and never interrupt capture.</p>
         <button type="button" onClick={undoLastDecision} disabled={!lastDecision}>
@@ -233,8 +232,8 @@ export function DuplicateReviewPrototype() {
         </button>
       </section>
 
-      <main className="duplicate-workbench">
-        <aside className="duplicate-queue" aria-labelledby="duplicate-queue-title">
+      <main className={tw("duplicate-workbench")}>
+        <aside className={tw("duplicate-queue")} aria-labelledby="duplicate-queue-title">
           <header><span>Candidate queue</span><h2 id="duplicate-queue-title">Worth a closer look</h2></header>
           <ol>
             {DEMO_CANDIDATES.map((candidate, index) => {
@@ -246,15 +245,15 @@ export function DuplicateReviewPrototype() {
                     aria-current={candidate.id === active.id ? 'true' : undefined}
                     onClick={() => openCandidate(candidate.id)}
                   >
-                    <span className="duplicate-queue__number">{String(index + 1).padStart(2, '0')}</span>
-                    <span className="duplicate-queue__copy">
+                    <span className={tw("duplicate-queue__number")}>{String(index + 1).padStart(2, '0')}</span>
+                    <span className={tw("duplicate-queue__copy")}>
                       <small>{candidate.confidence} confidence · {candidate.score}%</small>
                       <strong>{candidate.left.title}</strong>
                       <span>{candidate.left.contributor}</span>
                     </span>
-                    <span className={`duplicate-queue__state${resolved ? ' is-resolved' : ''}`}>
+                    <span className={tw(`duplicate-queue__state${resolved ? ' is-resolved' : ''}`)}>
                       {resolved ? <Check aria-hidden="true" /> : <CircleAlert aria-hidden="true" />}
-                      <span className="sr-only">{resolved ? 'Reviewed' : 'Open'}</span>
+                      <span className={tw("sr-only")}>{resolved ? 'Reviewed' : 'Open'}</span>
                     </span>
                   </button>
                 </li>
@@ -263,28 +262,28 @@ export function DuplicateReviewPrototype() {
           </ol>
         </aside>
 
-        <article className="duplicate-dossier" aria-labelledby="duplicate-detail-title">
-          <header className="duplicate-dossier__header">
+        <article className={tw("duplicate-dossier")} aria-labelledby="duplicate-detail-title">
+          <header className={tw("duplicate-dossier__header")}>
             <div>
               <span>{active.confidence} confidence · {active.score}% evidence score</span>
               <h2 id="duplicate-detail-title" ref={headingRef} tabIndex={-1}>Are these the same Work?</h2>
             </div>
-            <span className={`duplicate-state${decision ? ' is-reviewed' : ''}`}>
+            <span className={tw(`duplicate-state${decision ? ' is-reviewed' : ''}`)}>
               {decision ? 'Reviewed' : 'No automatic changes'}
             </span>
           </header>
 
-          <section className="duplicate-comparison" aria-label="Work comparison">
+          <section className={tw("duplicate-comparison")} aria-label="Work comparison">
             <WorkCard side={active.left} />
-            <span className="duplicate-comparison__link" aria-hidden="true"><BookCopy /></span>
+            <span className={tw("duplicate-comparison__link")} aria-hidden="true"><BookCopy /></span>
             <WorkCard side={active.right} />
           </section>
 
-          <section className="duplicate-evidence" aria-labelledby="duplicate-evidence-title">
+          <section className={tw("duplicate-evidence")} aria-labelledby="duplicate-evidence-title">
             <header><span>Why it surfaced</span><h3 id="duplicate-evidence-title">Evidence ledger</h3></header>
             <ol>
               {active.evidence.map((item) => (
-                <li key={item.label} className={item.tone === 'caution' ? 'is-caution' : ''}>
+                <li key={item.label} className={tw(item.tone === 'caution' ? 'is-caution' : '')}>
                   <span aria-hidden="true">{item.tone === 'supporting' ? <Check /> : <CircleAlert />}</span>
                   <p><strong>{item.label}</strong>{item.explanation}</p>
                 </li>
@@ -292,15 +291,15 @@ export function DuplicateReviewPrototype() {
             </ol>
           </section>
 
-          <section className="duplicate-preview" aria-labelledby="duplicate-preview-title">
+          <section className={tw("duplicate-preview")} aria-labelledby="duplicate-preview-title">
             <header>
               <div><span>Before any merge</span><h3 id="duplicate-preview-title">Choose the destination</h3></div>
               <p>Everything below moves by stable Edition ID.</p>
             </header>
             <fieldset>
-              <legend className="sr-only">Surviving Work</legend>
+              <legend className={tw("sr-only")}>Surviving Work</legend>
               {[active.left, active.right].map((side) => (
-                <label key={side.id} className={destinationId === side.id ? 'is-selected' : ''}>
+                <label key={side.id} className={tw(destinationId === side.id ? 'is-selected' : '')}>
                   <input
                     type="radio"
                     name={`destination-${active.id}`}
@@ -312,13 +311,13 @@ export function DuplicateReviewPrototype() {
               ))}
             </fieldset>
 
-            <div className="duplicate-preview__route">
+            <div className={tw("duplicate-preview__route")}>
               <div><span>Moving from</span><strong>{moving.label}</strong><small>{moving.editionSummary}</small></div>
               <GitMerge aria-hidden="true" />
               <div><span>Destination after merge</span><strong>{destination.title}</strong><small>{destinationAfter.editions} editions together</small></div>
             </div>
 
-            <dl className="duplicate-counts">
+            <dl className={tw("duplicate-counts")}>
               {countLabels.map(([key, label]) => (
                 <div key={key}>
                   <dt>{label}</dt>
@@ -327,7 +326,7 @@ export function DuplicateReviewPrototype() {
               ))}
             </dl>
 
-            <ul className="duplicate-editions" aria-label="Edition destinations">
+            <ul className={tw("duplicate-editions")} aria-label="Edition destinations">
               {moving.editions.map((edition) => <li key={edition}><span>Moves intact</span><strong>{edition}</strong></li>)}
               {active.listConsolidations > 0 && (
                 <li><span>List cleanup</span><strong>{active.listConsolidations} shared membership consolidated; custom order retained</strong></li>
@@ -335,14 +334,14 @@ export function DuplicateReviewPrototype() {
             </ul>
           </section>
 
-          <section className="duplicate-actions" aria-label="Duplicate decision">
+          <section className={tw("duplicate-actions")} aria-label="Duplicate decision">
             <div>
-              <button type="button" className="duplicate-actions__merge" onClick={() => applyDecision('merge')} disabled={Boolean(decision)}>
+              <button type="button" className={tw("duplicate-actions__merge")} onClick={() => applyDecision('merge')} disabled={Boolean(decision)}>
                 <GitMerge aria-hidden="true" /> Merge into {destination.title}
               </button>
               <small>Journaled with one-step undo. No Edition or source evidence is deleted.</small>
             </div>
-            <div className="duplicate-actions__alternatives">
+            <div className={tw("duplicate-actions__alternatives")}>
               <button type="button" onClick={() => applyDecision('keep-separate')} disabled={Boolean(decision)}>
                 <BookCopy aria-hidden="true" /> Keep separate
               </button>
@@ -357,7 +356,7 @@ export function DuplicateReviewPrototype() {
         </article>
       </main>
 
-      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</p>
+      <p className={tw("sr-only")} role="status" aria-live="polite" aria-atomic="true">{announcement}</p>
     </div>
   )
 }

@@ -1,6 +1,9 @@
+@import 'tailwindcss';
 @import './design-system/tokens.css';
 @import './design-system/motion.css';
+@import './tailwind/custom.css';
 
+@layer base {
 * {
   box-sizing: border-box;
 }
@@ -76,4 +79,5 @@ a {
 
 html.eink-refresh[data-motion='reduced']::after {
   animation: none;
+}
 }

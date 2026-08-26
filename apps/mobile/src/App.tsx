@@ -105,8 +105,8 @@ import {
   buildUpNextSuggestions,
   orderedUpNextBooks,
 } from './up-next-model'
-import './App.css'
-import './smart-lists/smart-lists.css'
+import { tw } from './tailwind/styles'
+import { motionStyles } from './tailwind/motion'
 
 type SheetState =
   | { kind: 'search'; shelf: ShelfId; manual?: boolean }
@@ -219,7 +219,7 @@ function SearchBookCopy({
   }
 
   return (
-    <span className="book-copy">
+    <span className={tw("book-copy")}>
       <strong>
         <SearchHighlightedText value={book.title} highlight={highlightFor(result, 'title', book.title)} />
       </strong>
@@ -235,7 +235,7 @@ function SearchBookCopy({
         ))}
       </small>
       {(book.format || context) && (
-        <em className="book-search-context">
+        <em className={tw("book-search-context")}>
           {book.format && <span>{book.format}</span>}
           {context && (
             <span>
@@ -328,10 +328,10 @@ function Sheet({
   }
 
   return (
-    <div className="sheet-layer" data-motion-event="reveal" role="presentation" onMouseDown={onClose}>
+    <div className={tw("sheet-layer", motionStyles.sheetVeil)} data-motion-event="reveal" role="presentation" onMouseDown={onClose}>
       <section
         ref={dialogRef}
-        className={`bottom-sheet${tall ? ' bottom-sheet--tall' : ''}`}
+        className={tw(`bottom-sheet${tall ? ' bottom-sheet--tall' : ''}`, motionStyles.sheetReveal)}
         data-motion-event="reveal"
         role="dialog"
         aria-modal="true"
@@ -339,10 +339,10 @@ function Sheet({
         onMouseDown={(event) => event.stopPropagation()}
         onKeyDown={containFocus}
       >
-        <div className="sheet-handle" aria-hidden="true" />
-        <header className="sheet-header">
+        <div className={tw("sheet-handle")} aria-hidden="true" />
+        <header className={tw("sheet-header")}>
           <h2>{title}</h2>
-          <button className="icon-button" type="button" onClick={onClose} aria-label="Close">
+          <button className={tw("icon-button")} type="button" onClick={onClose} aria-label="Close">
             <X aria-hidden="true" />
           </button>
         </header>
@@ -442,8 +442,8 @@ function SearchSheet({
       tall
     >
       {manualMode ? (
-        <form className="manual-book-form" onSubmit={forceAddBook}>
-          <div className="manual-notice">
+        <form className={tw("manual-book-form")} onSubmit={forceAddBook}>
+          <div className={tw("manual-notice")}>
             <Wrench aria-hidden="true" />
             <p>
               <strong>Development tool</strong>
@@ -479,7 +479,7 @@ function SearchSheet({
               placeholder="0"
             />
           </label>
-          <div className="manual-form-actions">
+          <div className={tw("manual-form-actions")}>
             {!initialManual && (
               <ActionButton type="button" variant="secondary" onClick={() => setManualMode(false)}>
                 Back to search
@@ -492,7 +492,7 @@ function SearchSheet({
         </form>
       ) : (
         <>
-      <form className="book-search" onSubmit={addFirstResult}>
+      <form className={tw("book-search")} onSubmit={addFirstResult}>
         <Search aria-hidden="true" />
         <input
           autoFocus
@@ -510,7 +510,7 @@ function SearchSheet({
         )}
       </form>
 
-      <div className="search-meta" aria-live="polite">
+      <div className={tw("search-meta")} aria-live="polite">
         {status === 'idle' && <span>Search Google Books. Tap once to add.</span>}
         {status === 'loading' && <span>Looking through the stacks…</span>}
         {status === 'ready' && (
@@ -520,7 +520,7 @@ function SearchSheet({
       </div>
 
       {MANUAL_ENTRY_ENABLED && (
-        <button className="manual-entry-trigger" type="button" onClick={openManualEntry}>
+        <button className={tw("manual-entry-trigger")} type="button" onClick={openManualEntry}>
           <Wrench aria-hidden="true" />
           <span>
             <strong>{query.trim() ? `Can't find “${query.trim()}”?` : 'Google Books missing something?'}</strong>
@@ -530,20 +530,20 @@ function SearchSheet({
         </button>
       )}
 
-      <div className="search-results">
+      <div className={tw("search-results")}>
         {results.map((result) => {
           const existing = books.find((book) => book.id === result.id)
           const alreadyHere = existing?.shelf === shelf
           return (
-            <article className="search-result" key={result.id}>
+            <article className={tw("search-result")} key={result.id}>
               <BookCover book={result} />
-              <div className="search-result__copy">
+              <div className={tw("search-result__copy")}>
                 <h3>{result.title}</h3>
                 <p>{authorLine(result.authors)}</p>
                 {result.pageCount > 0 && <small>{result.pageCount} pages</small>}
               </div>
               <button
-                className={`result-add${alreadyHere ? ' is-added' : ''}`}
+                className={tw(`result-add${alreadyHere ? ' is-added' : ''}`)}
                 type="button"
                 onClick={() => onAdd(result, shelf)}
                 disabled={alreadyHere}
@@ -594,11 +594,11 @@ function ShelfSection({
   const isCollapsed = collapsed && !isFiltering
 
   return (
-    <section className={`shelf shelf--${shelf}`} id={`shelf-${shelf}`} data-shelf={shelf}>
-      <header className="shelf-header">
+    <section className={tw(`shelf shelf--${shelf}`)} id={`shelf-${shelf}`} data-shelf={shelf}>
+      <header className={tw("shelf-header")}>
         <button
           type="button"
-          className="shelf-toggle"
+          className={tw("shelf-toggle")}
           onClick={() => setCollapsed((value) => !value)}
           aria-expanded={!isCollapsed}
           aria-controls={`shelf-books-${shelf}`}
@@ -606,11 +606,11 @@ function ShelfSection({
           <h2>
             {meta.label} <i>·</i> {books.length}
           </h2>
-          <ChevronDown className={isCollapsed ? 'is-collapsed' : ''} aria-hidden="true" />
+          <ChevronDown className={tw(isCollapsed ? 'is-collapsed' : '')} aria-hidden="true" />
         </button>
         <button
           type="button"
-          className="shelf-add"
+          className={tw("shelf-add")}
           onClick={() => onAdd(shelf)}
           aria-label={`Add a book to ${meta.label}`}
         >
@@ -618,10 +618,10 @@ function ShelfSection({
         </button>
       </header>
 
-      <div className="shelf-books" id={`shelf-books-${shelf}`} hidden={isCollapsed}>
+      <div className={tw("shelf-books")} id={`shelf-books-${shelf}`} hidden={isCollapsed}>
         {books.length === 0 ? (
           isFiltering ? (
-            <div className="empty-shelf empty-shelf--filter">
+            <div className={tw("empty-shelf empty-shelf--filter")}>
               <Search aria-hidden="true" />
               <span>
                 <strong>No matches on this shelf</strong>
@@ -629,7 +629,7 @@ function ShelfSection({
               </span>
             </div>
           ) : (
-            <button className="empty-shelf" type="button" onClick={() => onAdd(shelf)}>
+            <button className={tw("empty-shelf")} type="button" onClick={() => onAdd(shelf)}>
               <CirclePlus aria-hidden="true" />
               <span>
                 <strong>{meta.empty}</strong>
@@ -640,34 +640,34 @@ function ShelfSection({
         ) : (
           books.map((book) => (
             <article
-              className="book-row"
+              className={tw("book-row", motionStyles.moveShelf)}
               key={book.id}
               data-motion-event={movingBookId === book.id ? 'move-shelf' : undefined}
             >
-              <button className="book-identity" type="button" onClick={() => onDetails(book.id)}>
+              <button className={tw("book-identity")} type="button" onClick={() => onDetails(book.id)}>
                 <BookCover book={book} />
                 <SearchBookCopy book={book} result={searchResults.get(book.id)} />
               </button>
 
               {shelf === 'tbr' && (
-                <button className="row-action row-action--next" type="button" onClick={() => onNext(book.id)}>
+                <button className={tw("row-action row-action--next")} type="button" onClick={() => onNext(book.id)}>
                   Next <ArrowRight aria-hidden="true" />
                 </button>
               )}
 
               {shelf === 'next' && (
-                <button className="row-action row-action--start" type="button" onClick={() => onStart(book.id)}>
+                <button className={tw("row-action row-action--start")} type="button" onClick={() => onStart(book.id)}>
                   Start <ArrowRight aria-hidden="true" />
                 </button>
               )}
 
               {shelf === 'reading' && (
-                <div className="reading-actions">
-                  <button className="progress-button" type="button" onClick={() => onProgress(book.id)}>
+                <div className={tw("reading-actions")}>
+                  <button className={tw("progress-button")} type="button" onClick={() => onProgress(book.id)}>
                     <span>{book.progress}%</span>
                     <ProgressMeter value={book.progress} label={`${book.title} reading progress`} />
                   </button>
-                  <button className="row-action row-action--finish" type="button" onClick={() => onFinish(book.id)}>
+                  <button className={tw("row-action row-action--finish")} type="button" onClick={() => onFinish(book.id)}>
                     Finish <Check aria-hidden="true" />
                   </button>
                 </div>
@@ -705,11 +705,11 @@ function CustomShelfSection({
   const isCollapsed = collapsed && !isFiltering
 
   return (
-    <section className="shelf custom-shelf" id={`custom-shelf-${shelf.id}`}>
-      <header className="shelf-header custom-shelf__header">
+    <section className={tw("shelf custom-shelf")} id={`custom-shelf-${shelf.id}`}>
+      <header className={tw("shelf-header custom-shelf__header")}>
         <button
           type="button"
-          className="shelf-toggle"
+          className={tw("shelf-toggle")}
           onClick={() => setCollapsed((value) => !value)}
           aria-expanded={!isCollapsed}
           aria-controls={`custom-shelf-books-${shelf.id}`}
@@ -718,11 +718,11 @@ function CustomShelfSection({
             {shelf.pinned && <Pin aria-label="Pinned shelf" />}
             {shelf.name} <i>·</i> {books.length}
           </h2>
-          <ChevronDown className={isCollapsed ? 'is-collapsed' : ''} aria-hidden="true" />
+          <ChevronDown className={tw(isCollapsed ? 'is-collapsed' : '')} aria-hidden="true" />
         </button>
         <button
           type="button"
-          className="shelf-add custom-shelf__manage"
+          className={tw("shelf-add custom-shelf__manage")}
           onClick={onManage}
           aria-label={`Manage ${shelf.name}`}
         >
@@ -730,11 +730,11 @@ function CustomShelfSection({
         </button>
       </header>
 
-      <div className="shelf-books" id={`custom-shelf-books-${shelf.id}`} hidden={isCollapsed}>
-        {shelf.notes && <p className="custom-shelf__note">{shelf.notes}</p>}
+      <div className={tw("shelf-books")} id={`custom-shelf-books-${shelf.id}`} hidden={isCollapsed}>
+        {shelf.notes && <p className={tw("custom-shelf__note")}>{shelf.notes}</p>}
         {books.length === 0 ? (
           isFiltering ? (
-            <div className="empty-shelf empty-shelf--filter">
+            <div className={tw("empty-shelf empty-shelf--filter")}>
               <Search aria-hidden="true" />
               <span>
                 <strong>No matches on this shelf</strong>
@@ -742,7 +742,7 @@ function CustomShelfSection({
               </span>
             </div>
           ) : (
-            <button className="empty-shelf" type="button" onClick={onManage}>
+            <button className={tw("empty-shelf")} type="button" onClick={onManage}>
               <FolderPlus aria-hidden="true" />
               <span>
                 <strong>Collect the first book</strong>
@@ -754,11 +754,11 @@ function CustomShelfSection({
           books.map((book) => {
             const tags = tagsForBook(organization, book.id)
             return (
-              <article className="book-row custom-book-row" key={book.id}>
-                <button className="book-identity" type="button" onClick={() => onDetails(book.id)}>
+              <article className={tw("book-row custom-book-row")} key={book.id}>
+                <button className={tw("book-identity")} type="button" onClick={() => onDetails(book.id)}>
                   <BookCover book={book} />
                   <SearchBookCopy book={book} result={searchResults.get(book.id)}>
-                    <span className="custom-book-row__meta">
+                    <span className={tw("custom-book-row__meta")}>
                       <i>{shelfCopy[book.shelf].label}</i>
                       {tags.slice(0, 2).map((tag) => <em key={tag.id}>#{tag.name}</em>)}
                       {tags.length > 2 && <em>+{tags.length - 2}</em>}
@@ -836,13 +836,13 @@ function CustomShelfEditorSheet({
 
   return (
     <Sheet title={shelf ? `Edit ${shelf.name}` : 'New custom shelf'} onClose={onClose} tall>
-      <form className="custom-shelf-editor" onSubmit={submit}>
-        <div className="custom-shelf-editor__intro">
+      <form className={tw("custom-shelf-editor")} onSubmit={submit}>
+        <div className={tw("custom-shelf-editor__intro")}>
           <span>Collection, not reading status</span>
           <p>Books can live on several custom shelves. Their TBR, Up Next, Reading, or Finished status stays unchanged.</p>
         </div>
 
-        <label className="shelf-field">
+        <label className={tw("shelf-field")}>
           <span>Shelf name</span>
           <input
             autoFocus
@@ -854,7 +854,7 @@ function CustomShelfEditorSheet({
           />
         </label>
 
-        <label className="shelf-field">
+        <label className={tw("shelf-field")}>
           <span>Shelf note <i>optional</i></span>
           <textarea
             maxLength={1_000}
@@ -865,13 +865,13 @@ function CustomShelfEditorSheet({
           />
         </label>
 
-        <label className="shelf-pin-field">
+        <label className={tw("shelf-pin-field")}>
           <input type="checkbox" checked={pinned} onChange={(event) => setPinned(event.target.checked)} />
           <Pin aria-hidden="true" />
           <span><strong>Pin this shelf</strong><small>Keep a shortcut beneath your reading shelves</small></span>
         </label>
 
-        <section className="shelf-membership-editor">
+        <section className={tw("shelf-membership-editor")}>
           <header>
             <div>
               <span>Books</span>
@@ -879,7 +879,7 @@ function CustomShelfEditorSheet({
             </div>
             <small>Checkboxes change membership only</small>
           </header>
-          <div className="shelf-book-search">
+          <div className={tw("shelf-book-search")}>
             <Search aria-hidden="true" />
             <input
               type="search"
@@ -895,18 +895,18 @@ function CustomShelfEditorSheet({
             )}
           </div>
 
-          <div className="shelf-membership-list">
+          <div className={tw("shelf-membership-list")}>
             {visibleBooks.map((book) => {
               const selected = selectedIds.has(book.id)
               const order = selected ? orderedBookIds.indexOf(book.id) + 1 : 0
               return (
-                <div className="shelf-membership-row" key={book.id}>
+                <div className={tw("shelf-membership-row")} key={book.id}>
                   <label>
                     <input type="checkbox" checked={selected} onChange={() => toggleBook(book.id)} />
                     <span><strong>{book.title}</strong><small>{authorLine(book.authors)}</small></span>
                   </label>
                   {selected && (
-                    <label className="shelf-position">
+                    <label className={tw("shelf-position")}>
                       <span>Order</span>
                       <input
                         key={`${book.id}-${order}`}
@@ -922,14 +922,14 @@ function CustomShelfEditorSheet({
                 </div>
               )
             })}
-            {!visibleBooks.length && <p className="shelf-membership-empty">No matching books.</p>}
+            {!visibleBooks.length && <p className={tw("shelf-membership-empty")}>No matching books.</p>}
           </div>
           {matchingBooks.length > visibleBooks.length && (
-            <p className="shelf-result-limit">
+            <p className={tw("shelf-result-limit")}>
               Showing 80 of {matchingBooks.length}. Refine the search to reach any book without loading the entire library.
             </p>
           )}
-          <p className="shelf-order-help">
+          <p className={tw("shelf-order-help")}>
             Set any selected book’s order number to move it without dragging.
           </p>
         </section>
@@ -939,7 +939,7 @@ function CustomShelfEditorSheet({
         </ActionButton>
 
         {shelf && (
-          <div className="custom-shelf-editor__danger">
+          <div className={tw("custom-shelf-editor__danger")}>
             <button type="button" onClick={() => onArchive(shelf)}>
               {shelf.archived ? <ArchiveRestore aria-hidden="true" /> : <Archive aria-hidden="true" />}
               <span>
@@ -948,7 +948,7 @@ function CustomShelfEditorSheet({
               </span>
             </button>
             <button
-              className="remove-action"
+              className={tw("remove-action")}
               type="button"
               onClick={() => (confirmDelete ? onDelete(shelf) : setConfirmDelete(true))}
             >
@@ -980,7 +980,7 @@ function ProgressSheet({
 }) {
   return (
     <Sheet title="Update progress" onClose={onClose}>
-      <div className="sheet-book-line">
+      <div className={tw("sheet-book-line")}>
         <BookCover book={book} />
         <div>
           <strong>{book.title}</strong>
@@ -988,14 +988,14 @@ function ProgressSheet({
         </div>
       </div>
 
-      <div className="progress-editor">
+      <div className={tw("progress-editor")}>
         <button type="button" onClick={() => onProgress(book.progress - 5)} aria-label="Decrease by 5 percent">
           <Minus aria-hidden="true" />
         </button>
-        <div className="progress-editor__value">
+        <div className={tw("progress-editor__value")}>
           <output>{book.progress}<span>%</span></output>
-          <i className="progress-editor__meter" aria-hidden="true">
-            <b style={{ width: `${book.progress}%` }} />
+          <i className={tw("progress-editor__meter")} aria-hidden="true">
+            <b className={tw(motionStyles.progressFill)} style={{ width: `${book.progress}%` }} />
           </i>
         </div>
         <button type="button" onClick={() => onProgress(book.progress + 5)} aria-label="Increase by 5 percent">
@@ -1003,7 +1003,7 @@ function ProgressSheet({
         </button>
       </div>
 
-      <div className="progress-presets" aria-label="Progress presets">
+      <div className={tw("progress-presets")} aria-label="Progress presets">
         {[25, 50, 75].map((progress) => (
           <button type="button" key={progress} onClick={() => onProgress(progress)}>{progress}%</button>
         ))}
@@ -1011,9 +1011,9 @@ function ProgressSheet({
       </div>
 
       {book.pageCount > 0 && (
-        <div className="page-progress">
+        <div className={tw("page-progress")}>
           <label htmlFor="current-page">Or set by page</label>
-          <div className="page-input-line">
+          <div className={tw("page-input-line")}>
             <input
               id="current-page"
               type="number"
@@ -1026,7 +1026,7 @@ function ProgressSheet({
             <span>/ {book.pageCount} pages</span>
           </div>
           <input
-            className="page-range"
+            className={tw("page-range")}
             type="range"
             min="0"
             max={book.pageCount}
@@ -1035,11 +1035,11 @@ function ProgressSheet({
             onChange={(event) => onPage(Number(event.target.value))}
             style={{ '--range-progress': `${(book.currentPage / book.pageCount) * 100}%` } as CSSProperties}
           />
-          <div className="range-labels"><span>0</span><span>{book.pageCount}</span></div>
+          <div className={tw("range-labels")}><span>0</span><span>{book.pageCount}</span></div>
         </div>
       )}
 
-      <p className="updated-time"><Clock3 aria-hidden="true" /> Last updated {formatUpdated(book.lastUpdatedAt)}</p>
+      <p className={tw("updated-time")}><Clock3 aria-hidden="true" /> Last updated {formatUpdated(book.lastUpdatedAt)}</p>
     </Sheet>
   )
 }
@@ -1055,16 +1055,16 @@ function FinishedSheet({
 }) {
   return (
     <Sheet title="Finished" onClose={onClose}>
-      <div className="finish-celebration" data-motion-event="complete">
+      <div className={tw("finish-celebration", motionStyles.complete)} data-motion-event="complete">
         <BookCover book={book} large />
         <div>
-          <span className="finish-mark"><Check aria-hidden="true" /></span>
+          <span className={tw("finish-mark")}><Check aria-hidden="true" /></span>
           <p>Another story, kept.</p>
           <h3>{book.title}</h3>
           <small>{authorLine(book.authors)}</small>
         </div>
       </div>
-      <div className="finish-rating">
+      <div className={tw("finish-rating")}>
         <span>Your rating</span>
         <RatingStars value={book.rating} onChange={onRate} />
         <small>{book.rating ? `${book.rating} out of 5` : 'Optional — tap a star'}</small>
@@ -1165,39 +1165,39 @@ function SettingsPage({
   const notedBooks = books.filter((book) => book.notes.trim()).length
 
   return (
-    <main className="settings-page" data-motion-event="navigate">
-      <header className="settings-header">
-        <div className="app-header__meta">
+    <main className={tw("settings-page", motionStyles.navigate)} data-motion-event="navigate">
+      <header className={tw("settings-header")}>
+        <div className={tw("app-header__meta")}>
           <span>Wovenleaf</span>
           <i aria-hidden="true" />
           <span>Local preferences</span>
         </div>
-        <div className="title-row">
+        <div className={tw("title-row")}>
           <div>
             <p>Quiet controls for a private library</p>
             <h1 tabIndex={-1}>Settings</h1>
           </div>
-          <button className="header-search" type="button" onClick={onBack} aria-label="Back to my books">
+          <button className={tw("header-search")} type="button" onClick={onBack} aria-label="Back to my books">
             <Library aria-hidden="true" />
           </button>
         </div>
       </header>
 
-      <div className="settings-ledger">
-        <section className="settings-card settings-card--appearance">
-          <div className="settings-card__icon"><Palette aria-hidden="true" /></div>
-          <div className="settings-card__heading">
+      <div className={tw("settings-ledger")}>
+        <section className={tw("settings-card settings-card--appearance")}>
+          <div className={tw("settings-card__icon")}><Palette aria-hidden="true" /></div>
+          <div className={tw("settings-card__heading")}>
             <span>Reading room</span>
             <h2>Paper, contrast, and type</h2>
             <p>Choose the atmosphere without changing the hierarchy or hiding state.</p>
           </div>
 
-          <fieldset className="appearance-field appearance-field--paper">
+          <fieldset className={tw("appearance-field appearance-field--paper")}>
             <legend>Paper stock</legend>
-            <div className="appearance-options">
+            <div className={tw("appearance-options")}>
               {PAPER_MODES.map((mode) => (
                 <button
-                  className="appearance-option appearance-option--paper"
+                  className={tw("appearance-option appearance-option--paper")}
                   data-paper={mode}
                   type="button"
                   key={mode}
@@ -1211,12 +1211,12 @@ function SettingsPage({
             </div>
           </fieldset>
 
-          <fieldset className="appearance-field">
+          <fieldset className={tw("appearance-field")}>
             <legend>Contrast</legend>
-            <div className="appearance-options appearance-options--compact">
+            <div className={tw("appearance-options appearance-options--compact")}>
               {CONTRAST_MODES.map((contrast) => (
                 <button
-                  className="appearance-option"
+                  className={tw("appearance-option")}
                   type="button"
                   key={contrast}
                   aria-pressed={appearance.contrast === contrast}
@@ -1228,12 +1228,12 @@ function SettingsPage({
             </div>
           </fieldset>
 
-          <fieldset className="appearance-field">
+          <fieldset className={tw("appearance-field")}>
             <legend>Motion</legend>
-            <div className="appearance-options appearance-options--motion">
+            <div className={tw("appearance-options appearance-options--motion")}>
               {MOTION_MODES.map((motion) => (
                 <button
-                  className="appearance-option"
+                  className={tw("appearance-option")}
                   type="button"
                   key={motion}
                   aria-pressed={appearance.motion === motion}
@@ -1243,17 +1243,17 @@ function SettingsPage({
                 </button>
               ))}
             </div>
-            <small className="appearance-field__hint">
+            <small className={tw("appearance-field__hint")}>
               Reduced is a global test mode: hierarchy, status, focus, and feedback stay intact.
             </small>
           </fieldset>
 
-          <fieldset className="appearance-field">
+          <fieldset className={tw("appearance-field")}>
             <legend>Type scale</legend>
-            <div className="appearance-options appearance-options--compact">
+            <div className={tw("appearance-options appearance-options--compact")}>
               {TYPE_SCALES.map((typeScale) => (
                 <button
-                  className="appearance-option"
+                  className={tw("appearance-option")}
                   type="button"
                   key={typeScale}
                   aria-pressed={appearance.typeScale === typeScale}
@@ -1266,7 +1266,7 @@ function SettingsPage({
           </fieldset>
 
           <button
-            className="texture-toggle"
+            className={tw("texture-toggle")}
             type="button"
             aria-pressed={appearance.texture === 'quiet'}
             onClick={() => onAppearanceChange({
@@ -1282,20 +1282,20 @@ function SettingsPage({
           </button>
         </section>
 
-        <section className="settings-card settings-card--privacy">
-          <div className="settings-card__icon"><ShieldCheck aria-hidden="true" /></div>
-          <div className="settings-card__heading">
+        <section className={tw("settings-card settings-card--privacy")}>
+          <div className={tw("settings-card__icon")}><ShieldCheck aria-hidden="true" /></div>
+          <div className={tw("settings-card__heading")}>
             <span>Data & privacy</span>
             <h2>Your reading life stays here.</h2>
             <p>There is no account, analytics layer, community profile, or cloud sync.</p>
           </div>
-          <dl className="library-tally">
+          <dl className={tw("library-tally")}>
             <div><dt>Books</dt><dd>{books.length}</dd></div>
             <div><dt>Rated</dt><dd>{ratedBooks}</dd></div>
             <div><dt>With notes</dt><dd>{notedBooks}</dd></div>
           </dl>
           <button
-            className="texture-toggle search-notes-toggle"
+            className={tw("texture-toggle search-notes-toggle")}
             type="button"
             aria-pressed={searchPreferences.includePrivateNotes}
             onClick={() => onSearchPreferencesChange({
@@ -1314,15 +1314,15 @@ function SettingsPage({
           </button>
         </section>
 
-        <section className="settings-card settings-card--export">
-          <div className="settings-card__icon"><Archive aria-hidden="true" /></div>
-          <div className="settings-card__heading">
+        <section className={tw("settings-card settings-card--export")}>
+          <div className={tw("settings-card__icon")}><Archive aria-hidden="true" /></div>
+          <div className={tw("settings-card__heading")}>
             <span>Portable export · Contract v1</span>
             <h2>Your library, with a way home.</h2>
             <p>Built entirely on this device. Review the manifest below before saving or sharing anything.</p>
           </div>
 
-          <div className="export-manifest" aria-label="Portable export contents">
+          <div className={tw("export-manifest")} aria-label="Portable export contents">
             <div>
               <strong>Inside the archive</strong>
               <span>Catalog records and relationships</span>
@@ -1338,7 +1338,7 @@ function SettingsPage({
           </div>
 
           <button
-            className="export-annotation-toggle"
+            className={tw("export-annotation-toggle")}
             type="button"
             aria-pressed={includeExportAnnotations}
             onClick={() => setIncludeExportAnnotations((value) => !value)}
@@ -1350,9 +1350,9 @@ function SettingsPage({
             <i aria-hidden="true" />
           </button>
 
-          <div className="export-actions">
+          <div className={tw("export-actions")}>
             <button
-              className="export-action export-action--primary"
+              className={tw("export-action export-action--primary")}
               type="button"
               disabled={exportBusy}
               onClick={() => onExport('archive', includeExportAnnotations)}
@@ -1362,7 +1362,7 @@ function SettingsPage({
               <Download aria-hidden="true" />
             </button>
             <button
-              className="export-action"
+              className={tw("export-action")}
               type="button"
               disabled={exportBusy}
               onClick={() => onExport('csv', includeExportAnnotations)}
@@ -1372,7 +1372,7 @@ function SettingsPage({
               <Download aria-hidden="true" />
             </button>
             <button
-              className="export-action"
+              className={tw("export-action")}
               type="button"
               disabled={exportBusy}
               onClick={() => onExport('markdown', includeExportAnnotations)}
@@ -1382,17 +1382,17 @@ function SettingsPage({
               <Download aria-hidden="true" />
             </button>
           </div>
-          {exportError && <p className="settings-hint settings-hint--error export-error" role="alert">{exportError}</p>}
+          {exportError && <p className={tw("settings-hint settings-hint--error export-error")} role="alert">{exportError}</p>}
         </section>
 
-        <section className="settings-card settings-card--import">
-          <div className="settings-card__icon"><FileUp aria-hidden="true" /></div>
-          <div className="settings-card__heading">
+        <section className={tw("settings-card settings-card--import")}>
+          <div className={tw("settings-card__icon")}><FileUp aria-hidden="true" /></div>
+          <div className={tw("settings-card__heading")}>
             <span>Import & recovery</span>
             <h2>Preview every row before it lands.</h2>
             <p>Use a Wovenleaf CSV now. Matching, changes, validation errors, and file permissions stay visible until you commit.</p>
           </div>
-          <label className={`settings-action import-file-picker${importBusy ? ' is-busy' : ''}`}>
+          <label className={tw(`settings-action import-file-picker${importBusy ? ' is-busy' : ''}`)}>
             <FileUp aria-hidden="true" />
             <span><strong>{importBusy ? 'Preparing preview…' : 'Choose a CSV file'}</strong><small>Parsed locally · no network access</small></span>
             <ChevronRight aria-hidden="true" />
@@ -1407,14 +1407,14 @@ function SettingsPage({
               }}
             />
           </label>
-          {importError && <p className="settings-hint settings-hint--error" role="alert">{importError}</p>}
+          {importError && <p className={tw("settings-hint settings-hint--error")} role="alert">{importError}</p>}
           {importHistory.length > 0 && (
-            <div className="import-history" aria-label="Recent import batches">
-              <div className="import-history__heading"><History aria-hidden="true" /><span>Recent checkpoints</span></div>
+            <div className={tw("import-history")} aria-label="Recent import batches">
+              <div className={tw("import-history__heading")}><History aria-hidden="true" /><span>Recent checkpoints</span></div>
               {importHistory.slice(0, 3).map((batch) => (
-                <div className="import-history__row" key={batch.id}>
+                <div className={tw("import-history__row")} key={batch.id}>
                   <span><strong>{batch.fileName}</strong><small>{batch.appliedRows} rows · {batch.changeCount} changes</small></span>
-                  <span className={`import-history__status is-${batch.status}`}>{batch.status}</span>
+                  <span className={tw(`import-history__status is-${batch.status}`)}>{batch.status}</span>
                   {batch.status === 'committed' && (
                     <button type="button" onClick={() => onUndoImport(batch.id)}>Undo</button>
                   )}
@@ -1424,41 +1424,41 @@ function SettingsPage({
           )}
         </section>
 
-        <section className="settings-card">
-          <div className="settings-card__icon"><Search aria-hidden="true" /></div>
-          <div className="settings-card__heading">
+        <section className={tw("settings-card")}>
+          <div className={tw("settings-card__icon")}><Search aria-hidden="true" /></div>
+          <div className={tw("settings-card__heading")}>
             <span>Book search</span>
             <h2>Google Books API</h2>
             <p>Search metadata comes from Google. Your personal library data is never sent with a search.</p>
           </div>
-          <div className="settings-status-row">
+          <div className={tw("settings-status-row")}>
             <span>API key</span>
-            <strong className={GOOGLE_BOOKS_KEY_CONFIGURED ? 'is-ready' : 'is-warning'}>
+            <strong className={tw(GOOGLE_BOOKS_KEY_CONFIGURED ? 'is-ready' : 'is-warning')}>
               {GOOGLE_BOOKS_KEY_CONFIGURED ? 'Configured' : 'Anonymous quota'}
             </strong>
           </div>
           {!GOOGLE_BOOKS_KEY_CONFIGURED && (
-            <p className="settings-hint">
+            <p className={tw("settings-hint")}>
               Add <code>VITE_GOOGLE_BOOKS_API_KEY</code> to <code>.env.local</code> for project-specific quota.
             </p>
           )}
         </section>
 
-        <section className="settings-card settings-card--developer">
-          <div className="settings-card__icon"><Wrench aria-hidden="true" /></div>
-          <div className="settings-card__heading">
+        <section className={tw("settings-card settings-card--developer")}>
+          <div className={tw("settings-card__icon")}><Wrench aria-hidden="true" /></div>
+          <div className={tw("settings-card__heading")}>
             <span>Developer tools</span>
             <h2>Manual book entry</h2>
             <p>Force add local metadata when a title is absent from Google Books or the API is unavailable.</p>
           </div>
           {MANUAL_ENTRY_ENABLED ? (
-            <button className="settings-action" type="button" onClick={onManualAdd}>
+            <button className={tw("settings-action")} type="button" onClick={onManualAdd}>
               <BookPlus aria-hidden="true" />
               <span><strong>Force add a book</strong><small>Development mode is enabled</small></span>
               <ChevronRight aria-hidden="true" />
             </button>
           ) : (
-            <p className="settings-hint">
+            <p className={tw("settings-hint")}>
               Set <code>VITE_ENABLE_MANUAL_BOOKS=true</code> only in a local development environment to enable this tool.
             </p>
           )}
@@ -1482,9 +1482,9 @@ function BottomNavigation({
   onSettings: () => void
 }) {
   return (
-    <nav className="bottom-nav" aria-label="App shortcuts">
+    <nav className={tw("bottom-nav")} aria-label="App shortcuts">
       <button
-        className={view === 'library' ? 'is-active' : ''}
+        className={tw(view === 'library' ? 'is-active' : '')}
         type="button"
         onClick={onLibrary}
         aria-current={view === 'library' ? 'page' : undefined}
@@ -1497,7 +1497,7 @@ function BottomNavigation({
       >
         <BookOpen aria-hidden="true" /><span>Reading</span>
       </button>
-      <button className="bottom-nav__add" type="button" onClick={onAdd}>
+      <button className={tw("bottom-nav__add")} type="button" onClick={onAdd}>
         <Plus aria-hidden="true" /><span>Add Book</span>
       </button>
       <button
@@ -1507,7 +1507,7 @@ function BottomNavigation({
         <BookCheck aria-hidden="true" /><span>Finished</span>
       </button>
       <button
-        className={view === 'settings' ? 'is-active' : ''}
+        className={tw(view === 'settings' ? 'is-active' : '')}
         type="button"
         onClick={onSettings}
         aria-current={view === 'settings' ? 'page' : undefined}
@@ -2049,14 +2049,14 @@ function App() {
   }
 
   return (
-    <div className="library-app">
+    <div className={tw("library-app")}>
       <div
-        className="app-content"
+        className={tw("app-content")}
         inert={sheet || commandMenuOpen ? true : undefined}
         aria-hidden={sheet || commandMenuOpen ? true : undefined}
       >
         {(storageError || organizationError || smartListError || upNextError) && (
-          <section className="storage-recovery" role="alert" aria-live="assertive">
+          <section className={tw("storage-recovery")} role="alert" aria-live="assertive">
             <AlertTriangle aria-hidden="true" />
             <div>
               <strong>
@@ -2073,13 +2073,13 @@ function App() {
           </section>
         )}
         {view === 'library' ? (
-          <div className="library-page" data-motion-event="navigate">
-            <header className="app-header" id="top">
-              <div className="title-row">
+          <div className={tw("library-page", motionStyles.navigate)} data-motion-event="navigate">
+            <header className={tw("app-header")} id="top">
+              <div className={tw("title-row")}>
                 <h1 tabIndex={-1}>My Books</h1>
-                <div className="header-actions">
+                <div className={tw("header-actions")}>
                   <button
-                    className="header-search command-trigger"
+                    className={tw("header-search command-trigger")}
                     type="button"
                     onClick={() => {
                       closeLibrarySearch()
@@ -2091,7 +2091,7 @@ function App() {
                     <CommandIcon aria-hidden="true" />
                   </button>
                   <button
-                    className={`header-search${librarySearchOpen ? ' is-open' : ''}`}
+                    className={tw(`header-search${librarySearchOpen ? ' is-open' : ''}`)}
                     type="button"
                     onClick={() => {
                       if (librarySearchOpen) closeLibrarySearch()
@@ -2106,8 +2106,8 @@ function App() {
               </div>
 
               {librarySearchOpen && (
-                <div className="library-search-panel" data-motion-event="reveal">
-                  <div className="library-search">
+                <div className={tw("library-search-panel", motionStyles.reveal)} data-motion-event="reveal">
+                  <div className={tw("library-search")}>
                     <Search aria-hidden="true" />
                     <input
                       autoFocus
@@ -2130,9 +2130,9 @@ function App() {
                       </button>
                     )}
                   </div>
-                  <div className="library-search-controls">
+                  <div className={tw("library-search-controls")}>
                     <label>
-                      <span className="sr-only">Filter by shelf</span>
+                      <span className={tw("sr-only")}>Filter by shelf</span>
                       <select
                         value={libraryShelfFilter}
                         onChange={(event) => setLibraryShelfFilter(event.target.value as ShelfId | 'all')}
@@ -2142,7 +2142,7 @@ function App() {
                       </select>
                     </label>
                     <label>
-                      <span className="sr-only">Sort library search results</span>
+                      <span className={tw("sr-only")}>Sort library search results</span>
                       <select
                         value={librarySort}
                         onChange={(event) => setLibrarySort(event.target.value as LocalSearchSort)}
@@ -2158,7 +2158,7 @@ function App() {
                 </div>
               )}
 
-              <nav className="shelf-tabs" aria-label="Jump to a shelf">
+              <nav className={tw("shelf-tabs")} aria-label="Jump to a shelf">
                 {SHELVES.map((shelf) => (
                   <button
                     type="button"
@@ -2171,7 +2171,7 @@ function App() {
                 ))}
               </nav>
               {activeSmartLists.some(({ pinned }) => pinned) && (
-                <nav className="pinned-shelf-tabs" aria-label="Pinned smart lists">
+                <nav className={tw("pinned-shelf-tabs")} aria-label="Pinned smart lists">
                   <span><ListFilter aria-hidden="true" /> Smart</span>
                   <div>
                     {activeSmartLists.filter(({ pinned }) => pinned).map((list) => {
@@ -2194,7 +2194,7 @@ function App() {
                 </nav>
               )}
               {activeCustomShelves.some(({ pinned }) => pinned) && (
-                <nav className="pinned-shelf-tabs" aria-label="Pinned custom shelves">
+                <nav className={tw("pinned-shelf-tabs")} aria-label="Pinned custom shelves">
                   <span><Pin aria-hidden="true" /> Pinned</span>
                   <div>
                     {activeCustomShelves.filter(({ pinned }) => pinned).map((shelf) => (
@@ -2215,9 +2215,9 @@ function App() {
               )}
             </header>
 
-            <main className="shelf-stack">
+            <main className={tw("shelf-stack")}>
               {librarySearchActive && visibleBooks.length === 0 ? (
-                <div className="library-no-results">
+                <div className={tw("library-no-results")}>
                   <Search aria-hidden="true" />
                   <div>
                     <strong>No books found</strong>
@@ -2269,7 +2269,7 @@ function App() {
 
                   {!librarySearchActive && (
                     <>
-                      <div className="smart-lists-heading">
+                      <div className={tw("smart-lists-heading")}>
                         <div>
                           <span>Live from your library</span>
                           <h2>Smart lists</h2>
@@ -2280,7 +2280,7 @@ function App() {
                         </button>
                       </div>
 
-                      <div className="smart-list-stack">
+                      <div className={tw("smart-list-stack")}>
                         {activeSmartLists.map((list) => (
                           <SmartListSection
                             key={list.id}
@@ -2294,7 +2294,7 @@ function App() {
                       </div>
 
                       {!activeSmartLists.length && (
-                        <button className="smart-list-empty" type="button" onClick={() => openSheet({ kind: 'smart-list' })}>
+                        <button className={tw("smart-list-empty")} type="button" onClick={() => openSheet({ kind: 'smart-list' })}>
                           <ListFilter aria-hidden="true" />
                           <span><strong>Let the library organize itself</strong><small>Start from a template or compose rules of your own</small></span>
                           <i>5 templates</i>
@@ -2302,7 +2302,7 @@ function App() {
                       )}
 
                       {archivedSmartLists.length > 0 && (
-                        <section className="archived-shelves">
+                        <section className={tw("archived-shelves")}>
                           <header>
                             <Archive aria-hidden="true" />
                             <span>Archived smart lists</span>
@@ -2322,7 +2322,7 @@ function App() {
                   )}
 
                   {!librarySearchActive && (
-                    <div className="custom-shelves-heading">
+                    <div className={tw("custom-shelves-heading")}>
                       <div>
                         <span>Your collections</span>
                         <h2>Custom shelves</h2>
@@ -2351,7 +2351,7 @@ function App() {
 
                   {!librarySearchActive && !activeCustomShelves.length && (
                     <button
-                      className="custom-shelf-empty"
+                      className={tw("custom-shelf-empty")}
                       type="button"
                       onClick={() => openSheet({ kind: 'custom-shelf' })}
                     >
@@ -2361,7 +2361,7 @@ function App() {
                   )}
 
                   {!librarySearchActive && archivedCustomShelves.length > 0 && (
-                    <section className="archived-shelves">
+                    <section className={tw("archived-shelves")}>
                       <header>
                         <Archive aria-hidden="true" />
                         <span>Archived shelves</span>
@@ -2424,7 +2424,7 @@ function App() {
       </div>
 
       <div
-        className={`toast${toast ? ' is-visible' : ''}`}
+        className={tw(`toast${toast ? ' is-visible' : ''}`, motionStyles.undo)}
         data-motion-event={toast?.family}
         role="status"
         aria-live="polite"

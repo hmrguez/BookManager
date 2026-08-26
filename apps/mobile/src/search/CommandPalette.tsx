@@ -12,6 +12,7 @@ import {
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { LibraryBook, ShelfId } from '../library-model'
 import { LocalSearchIndex } from './local-search'
+import { tw } from '../tailwind/styles'
 
 type CommandPaletteProps = {
   readonly open: boolean
@@ -187,10 +188,10 @@ export function CommandPalette({
   }
 
   return (
-    <div className="command-backdrop" onMouseDown={onClose}>
+    <div className={tw("command-backdrop")} onMouseDown={onClose}>
       <section
         ref={dialogRef}
-        className="command-palette"
+        className={tw("command-palette")}
         role="dialog"
         aria-modal="true"
         aria-labelledby={`${listId}-title`}
@@ -215,9 +216,9 @@ export function CommandPalette({
           }
         }}
       >
-        <header className="command-palette__search">
+        <header className={tw("command-palette__search")}>
           <Search aria-hidden="true" />
-          <label className="sr-only" htmlFor={`${listId}-input`} id={`${listId}-title`}>
+          <label className={tw("sr-only")} htmlFor={`${listId}-input`} id={`${listId}-title`}>
             Wovenleaf command menu
           </label>
           <input
@@ -252,12 +253,12 @@ export function CommandPalette({
           <kbd>Esc</kbd>
         </header>
 
-        <div className="command-palette__results" id={listId} role="listbox">
+        <div className={tw("command-palette__results")} id={listId} role="listbox">
           {items.length ? items.map((item, index) => {
             const Icon = item.icon
             const previousGroup = items[index - 1]?.group
             return (
-              <div className="command-palette__result" key={item.id}>
+              <div className={tw("command-palette__result")} key={item.id}>
                 {item.group !== previousGroup && <p>{item.group}</p>}
                 <button
                   id={`${listId}-${item.id}`}
@@ -267,7 +268,7 @@ export function CommandPalette({
                   onMouseMove={() => setActiveIndex(index)}
                   onClick={() => run(item)}
                 >
-                  <span className="command-palette__icon"><Icon aria-hidden="true" /></span>
+                  <span className={tw("command-palette__icon")}><Icon aria-hidden="true" /></span>
                   <span>
                     <strong>{item.label}</strong>
                     <small>{item.detail}</small>
@@ -277,7 +278,7 @@ export function CommandPalette({
               </div>
             )
           }) : (
-            <div className="command-palette__empty">
+            <div className={tw("command-palette__empty")}>
               <Search aria-hidden="true" />
               <strong>Nothing found</strong>
               <span>Try a title, author, shelf, or action.</span>

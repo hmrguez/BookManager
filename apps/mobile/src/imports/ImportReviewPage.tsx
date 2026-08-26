@@ -21,7 +21,8 @@ import {
   type ImportProposal,
   type ImportReviewDecision,
 } from './model'
-import './import-review.css'
+import { tw } from '../tailwind/styles'
+import { motionStyles } from '../tailwind/motion'
 
 const proposalCopy = {
   add: { label: 'Add', icon: FilePlus2 },
@@ -82,8 +83,8 @@ export function ImportReviewPage({
   }
 
   return (
-    <main className="import-review" data-motion-event="navigate">
-      <header className="import-review__masthead">
+    <main className={tw("import-review", motionStyles.navigate)} data-motion-event="navigate">
+      <header className={tw("import-review__masthead")}>
         <button type="button" onClick={onBack} aria-label="Back to import settings">
           <ArrowLeft aria-hidden="true" />
         </button>
@@ -92,17 +93,17 @@ export function ImportReviewPage({
           <h1>Review before it lands</h1>
           <p>{preview.fileName} · {preview.proposals.length} parsed rows · local only</p>
         </div>
-        <div className="import-review__seal">
+        <div className={tw("import-review__seal")}>
           <ShieldCheck aria-hidden="true" />
           <span><strong>Nothing writes yet</strong><small>Every mutation is listed below.</small></span>
         </div>
       </header>
 
-      <ol className="import-stage-rail" aria-label="Import pipeline stages">
+      <ol className={tw("import-stage-rail")} aria-label="Import pipeline stages">
         {IMPORT_STAGES.map((stage, index) => {
           const completed = preview.completedStages.includes(stage)
           return (
-            <li key={stage} className={completed ? 'is-complete' : stage === 'commit' ? 'is-next' : ''}>
+            <li key={stage} className={tw(completed ? 'is-complete' : stage === 'commit' ? 'is-next' : '')}>
               <span>{completed ? <Check aria-hidden="true" /> : String(index + 1)}</span>
               <strong>{stage}</strong>
             </li>
@@ -110,7 +111,7 @@ export function ImportReviewPage({
         })}
       </ol>
 
-      <section className="import-permission-ledger" aria-labelledby="import-permissions-title">
+      <section className={tw("import-permission-ledger")} aria-labelledby="import-permissions-title">
         <header>
           <LockKeyhole aria-hidden="true" />
           <div><span>Source permissions</span><h2 id="import-permissions-title">A deliberately small footprint</h2></div>
@@ -118,18 +119,18 @@ export function ImportReviewPage({
         <ul>
           {preview.source.permissions.map((permission) => (
             <li key={permission.scope}>
-              <span className={`import-permission__access is-${permission.access}`}>{permission.access}</span>
+              <span className={tw(`import-permission__access is-${permission.access}`)}>{permission.access}</span>
               <span><strong>{permission.label}</strong><small>{permission.explanation}</small></span>
             </li>
           ))}
         </ul>
       </section>
 
-      <section className="import-workbench">
-        <aside className="import-summary" aria-label="Import proposal summary">
+      <section className={tw("import-workbench")}>
+        <aside className={tw("import-summary")} aria-label="Import proposal summary">
           <header><span>Change set</span><h2>What this file proposes</h2></header>
-          <div className="import-summary__count"><strong>{included.length}</strong><span>rows selected to commit</span></div>
-          <div className="import-filter-list">
+          <div className={tw("import-summary__count")}><strong>{included.length}</strong><span>rows selected to commit</span></div>
+          <div className={tw("import-filter-list")}>
             <FilterButton label="All rows" count={preview.proposals.length} active={filter === 'all'} onClick={() => setFilter('all')} />
             {(Object.keys(proposalCopy) as Array<keyof typeof proposalCopy>).map((kind) => (
               <FilterButton key={kind} label={`${proposalCopy[kind].label}s`} count={summary[kind]} active={filter === kind} onClick={() => setFilter(kind)} />
@@ -139,7 +140,7 @@ export function ImportReviewPage({
           <p><RotateCcw aria-hidden="true" /> Commit creates a checkpoint and field-level undo record.</p>
         </aside>
 
-        <div className="import-proposals" aria-label="Import rows">
+        <div className={tw("import-proposals")} aria-label="Import rows">
           {visible.map((proposal) => (
             <ProposalCard
               key={proposal.id}
@@ -151,11 +152,11 @@ export function ImportReviewPage({
               onChange={(patch) => changeDecision(proposal.id, patch)}
             />
           ))}
-          {!visible.length && <p className="import-proposals__empty">No rows in this category.</p>}
+          {!visible.length && <p className={tw("import-proposals__empty")}>No rows in this category.</p>}
         </div>
       </section>
 
-      <footer className="import-commit-bar">
+      <footer className={tw("import-commit-bar")}>
         <div>
           <strong>{unresolved.length ? `${unresolved.length} selected rows need attention` : 'Ready for a transactional commit'}</strong>
           <span>{included.length} included · {preview.proposals.length - included.length} excluded · undo remains available in Settings</span>
@@ -207,9 +208,9 @@ function ProposalCard({
       : proposal.reason
 
   return (
-    <article className={`import-proposal import-proposal--${proposal.kind}${decision.included ? ' is-included' : ''}`}>
+    <article className={tw(`import-proposal import-proposal--${proposal.kind}${decision.included ? ' is-included' : ''}`)}>
       <header>
-        <label className="import-row-toggle">
+        <label className={tw("import-row-toggle")}>
           <input
             type="checkbox"
             checked={decision.included}
@@ -217,22 +218,22 @@ function ProposalCard({
             onChange={(event) => onChange({ included: event.target.checked })}
           />
           <span aria-hidden="true"><Check /></span>
-          <span className="sr-only">Include row {proposal.rowNumber}</span>
+          <span className={tw("sr-only")}>Include row {proposal.rowNumber}</span>
         </label>
-        <span className="import-proposal__kind"><Icon aria-hidden="true" />{copy.label}</span>
-        {proposal.match.confidence === 'low' && <span className="import-proposal__confidence">Low confidence</span>}
-        <span className="import-proposal__row">row {proposal.rowNumber}</span>
+        <span className={tw("import-proposal__kind")}><Icon aria-hidden="true" />{copy.label}</span>
+        {proposal.match.confidence === 'low' && <span className={tw("import-proposal__confidence")}>Low confidence</span>}
+        <span className={tw("import-proposal__row")}>row {proposal.rowNumber}</span>
       </header>
 
-      <div className="import-proposal__body">
-        <div className="import-proposal__identity">
+      <div className={tw("import-proposal__body")}>
+        <div className={tw("import-proposal__identity")}>
           <span>{proposal.externalKey ?? 'Invalid row'}</span>
           <h3>{proposal.record?.title ?? 'Could not normalize this row'}</h3>
           <p>{proposal.record?.authors.join(', ') ?? proposal.validationErrors.join(' · ')}</p>
         </div>
 
         {proposal.record && proposal.kind !== 'skip' && (
-          <label className="import-target-select">
+          <label className={tw("import-target-select")}>
             <span>Map this row to</span>
             <select
               value={decision.targetId ?? ''}
@@ -252,16 +253,16 @@ function ProposalCard({
           </label>
         )}
 
-        <p className="import-proposal__reason">{effectiveReason}</p>
+        <p className={tw("import-proposal__reason")}>{effectiveReason}</p>
         <details>
           <summary>Why this proposal?</summary>
-          <div className="import-proposal__evidence">
+          <div className={tw("import-proposal__evidence")}>
             <ul>
               {proposal.match.reasons.map((reason) => <li key={reason}>{reason}</li>)}
               {proposal.validationErrors.map((validationError) => <li key={validationError}>{validationError}</li>)}
             </ul>
             {proposal.match.candidates.length > 0 && (
-              <div className="import-match-candidates">
+              <div className={tw("import-match-candidates")}>
                 {proposal.match.candidates.map((candidate) => (
                   <div key={candidate.targetId}>
                     <span>{Math.round(candidate.score * 100)}% signal</span>
@@ -272,7 +273,7 @@ function ProposalCard({
               </div>
             )}
             {effectiveChanges.length > 0 && effectiveChanges[0]?.field !== '$record' && (
-              <dl className="import-change-list">
+              <dl className={tw("import-change-list")}>
                 {effectiveChanges.map((change) => (
                   <div key={change.field}>
                     <dt>{humanField(change.field)}</dt>
@@ -282,7 +283,7 @@ function ProposalCard({
               </dl>
             )}
             {createdValue && typeof createdValue === 'object' && !Array.isArray(createdValue) && (
-              <dl className="import-change-list import-change-list--create">
+              <dl className={tw("import-change-list import-change-list--create")}>
                 {Object.entries(createdValue)
                   .filter(([field]) => field !== 'id')
                   .map(([field, value]) => (
