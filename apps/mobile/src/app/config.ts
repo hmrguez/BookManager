@@ -1,8 +1,5 @@
 import type { ShelfId } from '../library'
 
-export const MANUAL_ENTRY_ENABLED =
-  import.meta.env.DEV || import.meta.env.VITE_ENABLE_MANUAL_BOOKS === 'true'
-
 export const GOOGLE_BOOKS_KEY_CONFIGURED = Boolean(import.meta.env.VITE_GOOGLE_BOOKS_API_KEY)
 
 export const appearanceLabels = {

@@ -13,6 +13,7 @@ import {
   type LegacyLibraryStorage,
 } from './legacy-library-migration'
 import { LibraryRepository } from './library-repository'
+import { MetadataSearchCacheRepository } from './metadata-search-cache'
 import { createMigrationBackupStore } from './migration-backup'
 import { migrateStorage } from './migrations'
 import { OrganizationRepository } from './organization-repository'
@@ -27,6 +28,7 @@ export type StorageRuntime = {
   readonly readingLedger: ReadingLedgerRepository
   readonly duplicateReviews: DuplicateReviewRepository
   readonly library: LibraryRepository
+  readonly metadataSearchCache: MetadataSearchCacheRepository
   readonly organization: OrganizationRepository
   readonly smartLists: SmartListRepository
   readonly upNext: UpNextRepository
@@ -64,6 +66,7 @@ async function initializeStorageRuntime(): Promise<StorageRuntime> {
     readingLedger: new ReadingLedgerRepository(database),
     duplicateReviews: new DuplicateReviewRepository(database),
     library,
+    metadataSearchCache: new MetadataSearchCacheRepository(database),
     organization: new OrganizationRepository(database),
     smartLists: new SmartListRepository(database),
     upNext: new UpNextRepository(database),

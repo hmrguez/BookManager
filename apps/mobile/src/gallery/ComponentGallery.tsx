@@ -317,7 +317,7 @@ function FeedbackStories() {
           <FeedbackNotice tone="loading" title="Looking through the stacks">
             Results will replace this message without moving the search field.
           </FeedbackNotice>
-          <FeedbackNotice tone="error" title="Google Books is unavailable">
+          <FeedbackNotice tone="error" title="Book catalogs are unavailable">
             Your library is still here. Try the search again shortly.
           </FeedbackNotice>
         </div>

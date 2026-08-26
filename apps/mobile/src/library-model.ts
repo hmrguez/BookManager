@@ -1,4 +1,9 @@
 import { z } from 'zod'
+import {
+  canonicalEditionIsbn,
+  metadataSelectionSchema,
+  type MetadataSelection,
+} from './metadata/model'
 
 export const shelfIdSchema = z.enum(['tbr', 'next', 'reading', 'finished'])
 
@@ -19,6 +24,7 @@ export const libraryBookSchema = z.object({
   tags: z.array(z.string().min(1)).optional(),
   listNames: z.array(z.string().min(1)).optional(),
   sourceNames: z.array(z.string().min(1)).optional(),
+  metadataSelection: metadataSelectionSchema.optional(),
   editionTitle: z.string().min(1).optional(),
   format: z.string().min(1).optional(),
   loan: libraryLoanSchema.optional(),
@@ -47,7 +53,47 @@ export type BookSearchResult = Pick<
   | 'sourceNames'
   | 'thumbnail'
   | 'pageCount'
->
+> & {
+  readonly editionTitle?: string
+  readonly metadataSelection?: MetadataSelection
+}
+
+export function findLibraryBookForSearchResult(
+  books: readonly LibraryBook[],
+  result: BookSearchResult,
+): LibraryBook | undefined {
+  const providerKeys = new Set(
+    result.metadataSelection?.variants.map(({ provider, externalKey }) => `${provider}:${externalKey}`),
+  )
+  const editionIsbns = new Set(
+    result.metadataSelection?.variants.flatMap(({ identifiers }) =>
+      identifiers.flatMap(({ normalizedValue }) => canonicalEditionIsbn(normalizedValue) ?? []),
+    ) ?? [],
+  )
+
+  return books.find((book) => {
+    if (!result.metadataSelection) return book.id === result.id
+    const matchesLegacyProviderId = result.metadataSelection.variants.some(
+      ({ externalKey, providerName }) =>
+        book.id === externalKey && book.sourceNames?.includes(providerName),
+    )
+    if (matchesLegacyProviderId) return true
+    const matchingProviderRecord = book.metadataSelection?.variants.some(({ provider, externalKey }) =>
+      providerKeys.has(`${provider}:${externalKey}`),
+    )
+    if (matchingProviderRecord) return true
+    if (book.identifiers?.some((identifier) => {
+      const canonical = canonicalEditionIsbn(identifier)
+      return canonical ? editionIsbns.has(canonical) : false
+    })) return true
+    return book.metadataSelection?.variants.some(({ identifiers }) =>
+      identifiers.some(({ normalizedValue }) => {
+        const canonical = canonicalEditionIsbn(normalizedValue)
+        return canonical ? editionIsbns.has(canonical) : false
+      }),
+    )
+  })
+}
 
 export const STARTER_LIBRARY_BOOK_IDS = [
   'starter-will-of-the-many',

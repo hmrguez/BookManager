@@ -12,7 +12,6 @@ import {
   Search,
   ShieldCheck,
   Table2,
-  Wrench,
 } from 'lucide-react'
 import {
   CONTRAST_MODES,
@@ -24,7 +23,7 @@ import {
 import type { ImportBatchSummary } from '../imports'
 import type { LibraryBook } from '../library'
 import type { SearchPreferences } from '../search'
-import { GOOGLE_BOOKS_KEY_CONFIGURED, MANUAL_ENTRY_ENABLED, appearanceLabels } from '../app/config'
+import { GOOGLE_BOOKS_KEY_CONFIGURED, appearanceLabels } from '../app/config'
 import type { ExportFormat } from '../app/model'
 import { tw } from '../tailwind/styles'
 import { motionStyles } from '../tailwind/motion'
@@ -307,39 +306,37 @@ export function SettingsPage({
         <section className={tw('settings-card')}>
           <div className={tw('settings-card__icon')}><Search aria-hidden="true" /></div>
           <div className={tw('settings-card__heading')}>
-            <span>Book search</span><h2>Google Books API</h2>
-            <p>Search metadata comes from Google. Your personal library data is never sent with a search.</p>
+            <span>Book search</span><h2>Open Library + Google Books</h2>
+            <p>Open Library is the primary catalog. Google Books can broaden a search when a restricted API key is configured.</p>
           </div>
           <div className={tw('settings-status-row')}>
-            <span>API key</span>
+            <span>Open Library</span>
+            <strong className={tw('is-ready')}>Primary · no key</strong>
+          </div>
+          <div className={tw('settings-status-row')}>
+            <span>Google Books fallback</span>
             <strong className={tw(GOOGLE_BOOKS_KEY_CONFIGURED ? 'is-ready' : 'is-warning')}>
-              {GOOGLE_BOOKS_KEY_CONFIGURED ? 'Configured' : 'Anonymous quota'}
+              {GOOGLE_BOOKS_KEY_CONFIGURED ? 'Configured' : 'Not configured'}
             </strong>
           </div>
           {!GOOGLE_BOOKS_KEY_CONFIGURED && (
             <p className={tw('settings-hint')}>
-              Add <code>VITE_GOOGLE_BOOKS_API_KEY</code> to <code>.env.local</code> for project-specific quota.
+              Add a restricted <code>VITE_GOOGLE_BOOKS_API_KEY</code> to <code>.env.local</code> to enable the optional fallback.
             </p>
           )}
         </section>
 
-        <section className={tw('settings-card settings-card--developer')}>
-          <div className={tw('settings-card__icon')}><Wrench aria-hidden="true" /></div>
+        <section className={tw('settings-card')}>
+          <div className={tw('settings-card__icon')}><BookPlus aria-hidden="true" /></div>
           <div className={tw('settings-card__heading')}>
-            <span>Developer tools</span><h2>Manual book entry</h2>
-            <p>Force add local metadata when a title is absent from Google Books or the API is unavailable.</p>
+            <span>Local catalog</span><h2>Manual book entry</h2>
+            <p>Add a personal record when a catalog has no match or the device is offline.</p>
           </div>
-          {MANUAL_ENTRY_ENABLED ? (
-            <button className={tw('settings-action')} type="button" onClick={onManualAdd}>
-              <BookPlus aria-hidden="true" />
-              <span><strong>Force add a book</strong><small>Development mode is enabled</small></span>
-              <ChevronRight aria-hidden="true" />
-            </button>
-          ) : (
-            <p className={tw('settings-hint')}>
-              Set <code>VITE_ENABLE_MANUAL_BOOKS=true</code> only in a local development environment to enable this tool.
-            </p>
-          )}
+          <button className={tw('settings-action')} type="button" onClick={onManualAdd}>
+            <BookPlus aria-hidden="true" />
+            <span><strong>Add a book manually</strong><small>Always available on this device</small></span>
+            <ChevronRight aria-hidden="true" />
+          </button>
         </section>
       </div>
     </main>

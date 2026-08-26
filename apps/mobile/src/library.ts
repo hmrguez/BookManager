@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   createStarterLibrary,
+  findLibraryBookForSearchResult,
   type BookSearchResult,
   type LibraryBook,
   type ShelfId,
@@ -91,20 +92,21 @@ export function useLibrary() {
   const addBook = useCallback(
     (result: BookSearchResult, shelf: ShelfId) => {
       const current = booksRef.current
-      const existing = current.find((book) => book.id === result.id)
+      const existing = findLibraryBookForSearchResult(current, result)
       if (existing) {
-        saveChangedBook(result.id, (book) => ({
+        saveChangedBook(existing.id, (book) => ({
           ...book,
           shelf,
           startedAt: shelf === 'reading' ? book.startedAt ?? new Date().toISOString() : book.startedAt,
           lastUpdatedAt: new Date().toISOString(),
         }))
-        return true
+        return { bookId: existing.id, existed: true }
       }
 
       const timestamp = new Date().toISOString()
       const added: LibraryBook = {
         ...result,
+        id: result.metadataSelection ? createLibraryBookId() : result.id,
         shelf,
         progress: shelf === 'finished' ? 100 : 0,
         currentPage: shelf === 'finished' ? result.pageCount : 0,
@@ -118,7 +120,7 @@ export function useLibrary() {
       hasMutatedRef.current = true
       showBooks([...current, added])
       enqueuePersistence((repository) => repository.save(added))
-      return false
+      return { bookId: added.id, existed: false }
     },
     [enqueuePersistence, saveChangedBook, showBooks],
   )
@@ -231,4 +233,11 @@ export function useLibrary() {
     removeBook,
     reload,
   }
+}
+
+function createLibraryBookId(): string {
+  const unique = typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  return `book:${unique}`
 }

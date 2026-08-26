@@ -13,6 +13,7 @@ export type {
 export { ImportRepository } from './import-repository'
 export type { ImportRepositoryOptions } from './import-repository'
 export { LibraryRepository } from './library-repository'
+export { MetadataSearchCacheRepository } from './metadata-search-cache'
 export { OrganizationRepository } from './organization-repository'
 export { readLibraryOrganization, replaceOrganization } from './organization-repository'
 export { UpNextRepository } from './up-next-repository'

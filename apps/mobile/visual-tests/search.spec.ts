@@ -67,3 +67,66 @@ test('local fuzzy search, privacy, filters, and command menu work by keyboard', 
   expect(providerRequests).toEqual([])
   expect(consoleErrors.filter((error) => !error.includes('ERR_INTERNET_DISCONNECTED'))).toEqual([])
 })
+
+test('catalog search uses Open Library, reuses saved results offline, and keeps manual entry available', async ({ context, page }, testInfo) => {
+  const consoleErrors: string[] = []
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text())
+  })
+  page.on('pageerror', (error) => consoleErrors.push(error.message))
+  await page.route('https://openlibrary.org/search.json**', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        docs: [{
+          key: '/works/OL15297W',
+          title: 'Le città invisibili',
+          author_name: ['Italo Calvino'],
+          editions: {
+            docs: [{
+              key: '/books/OL26350002M',
+              title: 'Invisible Cities',
+              isbn: ['9780156453806'],
+              language: ['eng'],
+              publisher: ['Mariner Books'],
+              publish_date: ['1978'],
+              number_of_pages: 176,
+              cover_i: 8032342,
+            }],
+          },
+        }],
+      }),
+    })
+  })
+
+  await page.setViewportSize({ width: 430, height: 932 })
+  await page.goto('/')
+  await page.evaluate(() => document.fonts.ready)
+  await page.waitForLoadState('networkidle')
+  await page.getByRole('button', { name: 'Add Book' }).click()
+  await page.getByRole('searchbox', { name: 'Search book catalogs' }).fill('Invisible Cities')
+
+  await expect(page.getByRole('heading', { name: 'Invisible Cities' })).toBeVisible()
+  await expect(page.getByText('Open Library', { exact: true }).first()).toBeVisible()
+  await expect(page.getByText('Strong match')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Open Library' }).first()).toHaveAttribute(
+    'href',
+    'https://openlibrary.org/books/OL26350002M',
+  )
+  await page.getByRole('button', { name: 'Add Invisible Cities' }).click()
+  await expect(page.getByRole('button', { name: 'Invisible Cities already added' })).toBeDisabled()
+  await page.screenshot({ path: testInfo.outputPath('catalog-search.png'), fullPage: true })
+  await page.getByRole('button', { name: 'Close' }).click()
+
+  await context.setOffline(true)
+  await page.getByRole('button', { name: 'Add Book' }).click()
+  await page.getByRole('searchbox', { name: 'Search book catalogs' }).fill('Invisible Cities')
+  await expect(page.getByText('Saved', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Refresh saved results' })).toBeVisible()
+
+  await page.getByRole('button', { name: /Can't find “Invisible Cities”/ }).click()
+  await expect(page.getByRole('heading', { name: 'Add a book manually' })).toBeVisible()
+  await expect(page.getByText('This book stays on your device. You can enrich its metadata later.')).toBeVisible()
+
+  expect(consoleErrors.filter((error) => !error.includes('ERR_INTERNET_DISCONNECTED'))).toEqual([])
+})

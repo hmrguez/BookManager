@@ -27,6 +27,7 @@ import {
 } from './smart-lists'
 import { getStorageRuntime } from './storage/runtime'
 import type { Catalog } from './domain/catalog'
+import { findLibraryBookForSearchResult } from './library-model'
 import { UpNextSettings } from './UpNext'
 import { useUpNext } from './up-next'
 import { shelfCopy } from './app/config'
@@ -369,20 +370,20 @@ function App() {
   }
 
   const handleAdd = (result: BookSearchResult, shelf: ShelfId) => {
-    const previous = books.find((book) => book.id === result.id)
+    const previous = findLibraryBookForSearchResult(books, result)
     if (previous && previous.shelf !== shelf) {
-      addBook(result, shelf)
-      if (shelf === 'next') addQueueBook(result.id)
-      else removeQueueBook(result.id)
+      const { bookId } = addBook(result, shelf)
+      if (shelf === 'next') addQueueBook(bookId)
+      else removeQueueBook(bookId)
       setMovingBookId(previous.id)
       setToast({ message: `Moved to ${shelfCopy[shelf].label}` })
       return
     }
 
-    addBook(result, shelf)
-    if (shelf === 'next') addQueueBook(result.id)
-    else removeQueueBook(result.id)
-    setMovingBookId(result.id)
+    const { bookId } = addBook(result, shelf)
+    if (shelf === 'next') addQueueBook(bookId)
+    else removeQueueBook(bookId)
+    setMovingBookId(bookId)
     setToast({ message: previous ? `Already in ${shelfCopy[shelf].label}` : `Added to ${shelfCopy[shelf].label}` })
   }
 

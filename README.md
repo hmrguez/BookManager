@@ -6,26 +6,30 @@ React and Capacitor for web, iOS, and Android. It keeps a deliberately small wor
 
 ## What it does
 
-- Finds books by title, author, or ISBN through the Google Books API.
-- Can force-add local-only book metadata in development when Google has no result.
+- Finds books by title, author, or ISBN through Open Library, with Google Books as an optional fallback.
+- Keeps provider evidence and metadata disagreements visible instead of silently overwriting a result.
+- Can always add a personal, local-only book record when catalogs have no result.
 - Adds a result directly to any of the four built-in shelves.
 - Advances TBR books to Up Next, starts Up Next books, and finishes active books in one tap.
 - Tracks reading percentage or current page, ratings, and private notes.
-- Persists the whole library in the Capacitor WebView's local storage; there is no account,
+- Persists the library and a short-lived metadata cache in on-device SQLite; there is no account,
   backend, community layer, or cloud sync.
 
 The first launch includes a small starter library so every interaction is immediately visible.
 Each starter title can be moved or removed like any other book.
 
-## Google Books
+## Book metadata providers
 
-Google Books search works without authentication under Google's public quota. For dependable
-development and release builds, copy `apps/mobile/.env.example` to `apps/mobile/.env.local` and
-add a Google Books API key. Because Vite includes this value in the client bundle, restrict the
-key to the Books API and to the app's allowed origins/application identifiers in Google Cloud.
+Open Library is the primary provider and needs no API key. Requests are rate-limited to its
+published unauthenticated limit, locale-aware, and cached on device for seven days. If live search
+is unavailable, Wovenleaf can show the last saved result with a visible freshness label.
 
-Manual entry is available automatically under `bun run dev`. To include it in a local Capacitor
-build, set `VITE_ENABLE_MANUAL_BOOKS=true`; leave the flag disabled for release builds.
+Google Books is an optional secondary provider. Copy `apps/mobile/.env.example` to
+`apps/mobile/.env.local` and add a Google Books API key to enable automatic fallback for an empty
+Open Library search and the explicit “Also search Google Books” action. Because Vite includes this
+value in the client bundle, restrict the key to the Books API and to the app's allowed
+origins/application identifiers in Google Cloud. Manual entry is always available, including
+offline and in release builds.
 
 ## Stack
 

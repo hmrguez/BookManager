@@ -386,7 +386,33 @@ export const STORAGE_MIGRATIONS: readonly StorageMigration[] = [
       await database.execute(smartListSchemaSql())
     },
   },
+  {
+    version: 8,
+    name: 'durable metadata search cache',
+    kind: 'additive',
+    signature: metadataSearchCacheSchemaSql(),
+    async up(database) {
+      await database.execute(metadataSearchCacheSchemaSql())
+    },
+  },
 ]
+
+function metadataSearchCacheSchemaSql(): string {
+  return `
+CREATE TABLE metadata_search_cache (
+  provider TEXT NOT NULL CHECK (provider IN ('open-library', 'google-books')),
+  query_key TEXT NOT NULL,
+  locale TEXT NOT NULL,
+  observed_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  payload_json TEXT NOT NULL CHECK (json_valid(payload_json)),
+  PRIMARY KEY (provider, query_key)
+);
+
+CREATE INDEX idx_metadata_search_cache_expiry
+  ON metadata_search_cache(expires_at, provider, query_key);
+`
+}
 
 function smartListSchemaSql(): string {
   return `
