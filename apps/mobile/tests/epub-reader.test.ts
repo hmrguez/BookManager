@@ -6,6 +6,7 @@ import {
   MAX_FORCE_QUIT_POSITION_LOSS_MS,
   fallbackLocatorForReplacement,
   nativeReaderEventSchema,
+  readerNavigationStateSchema,
   readerPreferencesSchema,
   readiumLocatorSchema,
   type EpubReaderCapability,
@@ -233,6 +234,58 @@ describe('paper-aware reader preferences', () => {
   })
 })
 
+describe('portable reader navigation', () => {
+  test('persists TOC context and bookmark mutations without replacing the reading checkpoint', async () => {
+    const database = new BunSqliteDatabase()
+    await migrateStorage(database)
+    await new CatalogRepository(database).replace(representativeCatalog)
+    const repository = new EpubReaderRepository(database)
+    await repository.ingest(readerEvent({ sequence: 1, progression: 0.42, locator: semanticLocator }))
+
+    const bookmark = nativeReaderEventSchema.parse({
+      ...nativeEnvelope(2),
+      kind: 'bookmark',
+      action: 'upsert',
+      bookmarkId: 'reader-bookmark:camp-at-dawn',
+      locator: semanticLocator,
+      createdAt: '2026-08-28T12:00:02.000Z',
+    })
+    const toc = nativeReaderEventSchema.parse({
+      ...nativeEnvelope(3),
+      kind: 'toc',
+      locator: semanticLocator,
+    })
+    expect(await repository.ingest(bookmark)).toBe('applied')
+    expect(await repository.ingest(toc)).toBe('applied')
+
+    const state = await repository.navigationStateForBook(readerCapability(fingerprint))
+    expect(state).toMatchObject({
+      version: 1,
+      bookId: 'book:left-hand-reader',
+      toc: { locator: semanticLocator },
+      bookmarks: [{ id: 'reader-bookmark:camp-at-dawn', locator: semanticLocator }],
+    })
+    expect(readerNavigationStateSchema.parse(state)).toEqual(state)
+    expect(await repository.checkpointForBook('book:left-hand-reader')).toMatchObject({
+      lastSequence: 3,
+      locator: semanticLocator,
+    })
+
+    const replacement = await repository.navigationStateForBook(readerCapability('b'.repeat(64)))
+    expect(replacement.bookmarks[0]?.locator.locations.fragments).toEqual([])
+    expect(replacement.toc?.locator.locations.fragments).toEqual([])
+
+    expect(await repository.ingest(nativeReaderEventSchema.parse({
+      ...nativeEnvelope(4),
+      kind: 'bookmark',
+      action: 'delete',
+      bookmarkId: 'reader-bookmark:camp-at-dawn',
+    }))).toBe('applied')
+    expect((await repository.navigationStateForBook(readerCapability(fingerprint))).bookmarks).toEqual([])
+    await database.close()
+  })
+})
+
 function readerEvent(options: {
   readonly sequence: number
   readonly progression: number
@@ -263,6 +316,21 @@ function readerEvent(options: {
     platform: 'ios',
     toolkitVersion: '3.11.0',
   })
+}
+
+function nativeEnvelope(sequence: number) {
+  return {
+    id: `reading-event:reader:navigation-${sequence}`,
+    sequence,
+    bookId: 'book:left-hand-reader',
+    editionId: fixtureIds.editions.leftHandEbook,
+    assetId: fixtureIds.assets.leftHandEpub,
+    assetFingerprint: fingerprint,
+    sessionId: 'reading-session:reader:test',
+    emittedAt: `2026-08-28T12:00:0${sequence}.000Z`,
+    platform: 'ios' as const,
+    toolkitVersion: '3.11.0',
+  }
 }
 
 async function seedImport(

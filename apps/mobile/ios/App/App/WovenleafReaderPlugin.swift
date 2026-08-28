@@ -39,7 +39,8 @@ final class WovenleafReaderPlugin: CAPPlugin, CAPBridgedPlugin {
             let fileURI = call.getString("fileUri"),
             let fileURL = URL(string: fileURI),
             let validatedURL = validateManagedURL(fileURL),
-            let globalPreferences = WovenleafReaderPreferences(object: call.getObject("globalPreferences"))
+            let globalPreferences = WovenleafReaderPreferences(object: call.getObject("globalPreferences")),
+            let navigationState = ReaderNavigationState(object: call.getObject("navigationState"))
         else {
             call.reject("The reader capability is invalid.", "INVALID_CAPABILITY")
             return
@@ -54,9 +55,10 @@ final class WovenleafReaderPlugin: CAPPlugin, CAPBridgedPlugin {
             editionId: editionId,
             assetId: assetId,
             assetFingerprint: fingerprint,
-            title: title
+            title: title,
+            navigationState: navigationState
         )
-        let initialLocator = call.getObject("initialLocator").flatMap(locator(from:))
+        let initialLocator = call.getObject("initialLocator").flatMap(readerLocator(from:))
         let bookPreferences = WovenleafReaderPreferences(object: call.getObject("bookPreferences"))
 
         Task { @MainActor in
@@ -111,16 +113,6 @@ final class WovenleafReaderPlugin: CAPPlugin, CAPBridgedPlugin {
         current?.notifyListeners("readerEvent", data: event, retainUntilConsumed: true)
     }
 
-    private func locator(from object: JSObject) -> Locator? {
-        guard
-            JSONSerialization.isValidJSONObject(object),
-            let data = try? JSONSerialization.data(withJSONObject: object),
-            let string = String(data: data, encoding: .utf8),
-            let json = try? JSONValue(jsonString: string)
-        else { return nil }
-        return try? Locator(json: json, warnings: nil)
-    }
-
     private func validateManagedURL(_ url: URL) -> URL? {
         guard url.isFileURL else { return nil }
         let candidate = url.standardizedFileURL.resolvingSymlinksInPath()
@@ -152,6 +144,7 @@ struct ReaderContext {
     let assetId: String
     let assetFingerprint: String
     let title: String
+    let navigationState: ReaderNavigationState
 }
 
 enum ReaderOutbox {
@@ -227,6 +220,38 @@ enum ReaderOutbox {
             sessionId: sessionId,
             locator: nil,
             extra: extra
+        )
+    }
+
+    static func enqueueBookmark(
+        context: ReaderContext,
+        sessionId: String,
+        action: String,
+        bookmarkId: String,
+        locator: Locator? = nil,
+        createdAt: String? = nil
+    ) {
+        var extra: [String: Any] = [
+            "action": action,
+            "bookmarkId": bookmarkId,
+        ]
+        if let createdAt { extra["createdAt"] = createdAt }
+        enqueue(
+            kind: "bookmark",
+            context: context,
+            sessionId: sessionId,
+            locator: locator,
+            extra: extra
+        )
+    }
+
+    static func enqueueToc(context: ReaderContext, sessionId: String, locator: Locator?) {
+        enqueue(
+            kind: "toc",
+            context: context,
+            sessionId: sessionId,
+            locator: locator,
+            extra: locator == nil ? ["locator": NSNull()] : [:]
         )
     }
 

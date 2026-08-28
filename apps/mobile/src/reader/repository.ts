@@ -16,12 +16,14 @@ import {
   DEFAULT_READER_PREFERENCES,
   fallbackLocatorForReplacement,
   nativeReaderEventSchema,
+  readerNavigationStateSchema,
   readerPreferencesSchema,
   readerCheckpointSchema,
   readiumLocatorSchema,
   type EpubReaderCapability,
   type NativeReaderEvent,
   type ReaderCheckpoint,
+  type ReaderNavigationState,
   type ReaderPreferences,
   type ReaderPreferenceScope,
   type ReaderPreferenceState,
@@ -53,7 +55,10 @@ type PreferenceRow = SqlRow & {
   readonly preferences_json: string
 }
 
-type ReadingNativeReaderEvent = Exclude<NativeReaderEvent, { readonly kind: 'preference' }>
+type ReadingNativeReaderEvent = Exclude<
+  NativeReaderEvent,
+  { readonly kind: 'preference' | 'bookmark' | 'toc' }
+>
 
 export class EpubReaderRepository {
   readonly #database: SqlDatabase
@@ -149,6 +154,57 @@ export class EpubReaderRepository {
     return { global, ...(book ? { book } : {}) }
   }
 
+  async navigationStateForBook(capability: EpubReaderCapability): Promise<ReaderNavigationState> {
+    const [row] = await this.#database.query<{ readonly state_json: string }>(
+      'SELECT state_json FROM epub_reader_navigation WHERE book_id = ?',
+      [capability.bookId],
+    )
+    if (!row) {
+      return readerNavigationStateSchema.parse({
+        version: 1,
+        bookId: capability.bookId,
+        editionId: capability.editionId,
+        bookmarks: [],
+        updatedAt: new Date(0).toISOString(),
+      })
+    }
+    const state = readerNavigationStateSchema.parse(JSON.parse(readText(row, 'state_json')))
+    const toc = state.toc
+      ? {
+          assetFingerprint: state.toc.assetFingerprint,
+          locator: state.toc.assetFingerprint === capability.assetFingerprint
+            ? state.toc.locator
+            : fallbackLocatorForReplacement(state.toc.locator),
+        }
+      : undefined
+    return readerNavigationStateSchema.parse({
+      ...state,
+      editionId: capability.editionId,
+      ...(toc ? { toc } : {}),
+      bookmarks: state.bookmarks.map((bookmark) => ({
+        ...bookmark,
+        locator: bookmark.assetFingerprint === capability.assetFingerprint
+          ? bookmark.locator
+          : fallbackLocatorForReplacement(bookmark.locator),
+      })),
+    })
+  }
+
+  async allNavigationStates(): Promise<ReaderNavigationState[]> {
+    const rows = await this.#database.query<{ readonly state_json: string }>(
+      'SELECT state_json FROM epub_reader_navigation ORDER BY book_id',
+    )
+    return rows.map((row) =>
+      readerNavigationStateSchema.parse(JSON.parse(readText(row, 'state_json'))),
+    )
+  }
+
+  async replaceNavigationStates(states: readonly ReaderNavigationState[]): Promise<void> {
+    await this.#database.transaction(async (database) => {
+      await replaceReaderNavigationStates(database, states)
+    })
+  }
+
   async savePreferences(
     scope: ReaderPreferenceScope,
     bookId: string,
@@ -206,6 +262,12 @@ export class EpubReaderRepository {
       return 'applied'
     }
 
+    if (event.kind === 'bookmark' || event.kind === 'toc') {
+      await this.#saveNavigationState(event)
+      await this.#saveCheckpoint(event, undefined)
+      return 'applied'
+    }
+
     const eventId = readingEventId(event.id)
     const [existing] = await this.#database.query('SELECT id FROM reading_events WHERE id = ?', [eventId])
     const readingEvent = toReadingEvent(event, eventId)
@@ -232,8 +294,73 @@ export class EpubReaderRepository {
     return existing ? 'duplicate' : 'applied'
   }
 
-  async #saveCheckpoint(event: NativeReaderEvent): Promise<void> {
-    const locator = 'locator' in event ? event.locator : undefined
+  async #saveNavigationState(
+    event: Extract<NativeReaderEvent, { readonly kind: 'bookmark' | 'toc' }>,
+  ): Promise<void> {
+    const [row] = await this.#database.query<{ readonly state_json: string }>(
+      'SELECT state_json FROM epub_reader_navigation WHERE book_id = ?',
+      [event.bookId],
+    )
+    const current = row
+      ? readerNavigationStateSchema.parse(JSON.parse(readText(row, 'state_json')))
+      : readerNavigationStateSchema.parse({
+          version: 1,
+          bookId: event.bookId,
+          editionId: event.editionId,
+          bookmarks: [],
+          updatedAt: event.emittedAt,
+        })
+    let next: ReaderNavigationState
+    if (event.kind === 'toc') {
+      const { toc: _toc, ...withoutToc } = current
+      next = readerNavigationStateSchema.parse({
+        ...withoutToc,
+        editionId: event.editionId,
+        ...(event.locator
+          ? { toc: { assetFingerprint: event.assetFingerprint, locator: event.locator } }
+          : {}),
+        updatedAt: event.emittedAt,
+      })
+    } else {
+      const retained = current.bookmarks.filter(({ id }) => id !== event.bookmarkId)
+      const bookmarks = event.action === 'upsert' && event.locator && event.createdAt
+        ? [
+            ...retained,
+            {
+              id: event.bookmarkId,
+              assetId: event.assetId,
+              assetFingerprint: event.assetFingerprint,
+              locator: event.locator,
+              createdAt: event.createdAt,
+              updatedAt: event.emittedAt,
+            },
+          ]
+        : retained
+      next = readerNavigationStateSchema.parse({
+        ...current,
+        editionId: event.editionId,
+        bookmarks: bookmarks.sort((left, right) => left.createdAt.localeCompare(right.createdAt)),
+        updatedAt: event.emittedAt,
+      })
+    }
+    await this.#database.run(
+      `INSERT INTO epub_reader_navigation(book_id, edition_id, state_json, recorded_at)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(book_id) DO UPDATE SET
+         edition_id = excluded.edition_id,
+         state_json = excluded.state_json,
+         recorded_at = excluded.recorded_at`,
+      [next.bookId, next.editionId, JSON.stringify(next), next.updatedAt],
+    )
+    await this.#database.persist()
+  }
+
+  async #saveCheckpoint(event: NativeReaderEvent, explicitLocator?: ReadiumLocator): Promise<void> {
+    const locator = explicitLocator ?? (
+      event.kind === 'start' || event.kind === 'location' || event.kind === 'session'
+        ? event.locator
+        : undefined
+    )
     const progression = locator?.locations.totalProgression
     await this.#database.run(
       `INSERT INTO epub_reader_checkpoints(
@@ -275,6 +402,21 @@ export class EpubReaderRepository {
         await this.#database.persist()
       }
     }
+  }
+}
+
+export async function replaceReaderNavigationStates(
+  database: SqlDatabase,
+  states: readonly ReaderNavigationState[],
+): Promise<void> {
+  const validated = readerNavigationStateSchema.array().parse(states)
+  await database.run('DELETE FROM epub_reader_navigation')
+  for (const state of validated) {
+    await database.run(
+      `INSERT INTO epub_reader_navigation(book_id, edition_id, state_json, recorded_at)
+       VALUES (?, ?, ?, ?)`,
+      [state.bookId, state.editionId, JSON.stringify(state), state.updatedAt],
+    )
   }
 }
 

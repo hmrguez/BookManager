@@ -19,6 +19,27 @@ outbox and use a monotonically increasing sequence per asset. The database ignor
 or below its checkpoint, making retries idempotent and preventing a delayed event from silently
 moving progress backwards.
 
+## Navigation and saved passages
+
+The native navigation sheet keeps the book in view while offering its hierarchical table of
+contents, saved bookmarks, and full-text search. Search results retain Readium's title, surrounding
+text, and exact locator; selecting a result, TOC entry, internal link, or scrubber position adds the
+current passage to an in-book back stack. Hardware back, Escape, Alt-Left, and the visible Back
+control unwind that stack before leaving the reader. Arrow keys and the page controls turn pages,
+while Command/Control-F opens search and Command/Control-B toggles a bookmark.
+
+Footnotes open over the current passage with an explicit return action. Web links are limited to
+HTTP(S), name their destination before handing off to the system browser, and never expose the
+managed EPUB URL. Tapping an EPUB image opens bytes read from the publication container in a
+local-only zoom surface; missing resources and broken TOC targets leave the current passage intact
+and show a recoverable message.
+
+Bookmarks and the last selected TOC target use the same asset fingerprint and locator rules as
+reading checkpoints. They travel in portable archive schema 5 when annotations are included, and
+are omitted when private annotation data is excluded. Restoring an archive replaces navigation
+state transactionally, while an edition replacement drops revision-specific locator fragments
+before offering the saved passage to the new asset.
+
 ## Replacement and recovery
 
 Every checkpoint records the managed asset's SHA-256 fingerprint. If a new import replaces that

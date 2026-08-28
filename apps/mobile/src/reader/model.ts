@@ -89,7 +89,42 @@ export const nativeReaderEventSchema = z.discriminatedUnion('kind', [
     ({ preferenceScope, preferences }) => preferenceScope === 'book' || preferences !== null,
     { message: 'Global reader preferences cannot be removed.', path: ['preferences'] },
   ),
+  nativeReaderEventBaseSchema.extend({
+    kind: z.literal('bookmark'),
+    action: z.enum(['upsert', 'delete']),
+    bookmarkId: z.string().min(1),
+    locator: readiumLocatorSchema.optional(),
+    createdAt: z.string().datetime({ offset: true }).optional(),
+  }).refine(
+    ({ action, locator, createdAt }) => action === 'delete' || (locator !== undefined && createdAt !== undefined),
+    { message: 'A saved bookmark needs a locator and creation time.', path: ['locator'] },
+  ),
+  nativeReaderEventBaseSchema.extend({
+    kind: z.literal('toc'),
+    locator: readiumLocatorSchema.nullable(),
+  }),
 ])
+
+export const readerBookmarkSchema = z.object({
+  id: z.string().min(1),
+  assetId: z.string().min(1),
+  assetFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+  locator: readiumLocatorSchema,
+  createdAt: z.string().datetime({ offset: true }),
+  updatedAt: z.string().datetime({ offset: true }),
+})
+
+export const readerNavigationStateSchema = z.object({
+  version: z.literal(1),
+  bookId: z.string().min(1),
+  editionId: z.string().min(1),
+  toc: z.object({
+    assetFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+    locator: readiumLocatorSchema,
+  }).optional(),
+  bookmarks: z.array(readerBookmarkSchema),
+  updatedAt: z.string().datetime({ offset: true }),
+})
 
 export const readerCheckpointSchema = z.object({
   bookId: z.string().min(1),
@@ -111,6 +146,8 @@ export type ReaderPreferenceState = {
 }
 export type NativeReaderEvent = z.infer<typeof nativeReaderEventSchema>
 export type ReaderCheckpoint = z.infer<typeof readerCheckpointSchema>
+export type ReaderBookmark = z.infer<typeof readerBookmarkSchema>
+export type ReaderNavigationState = z.infer<typeof readerNavigationStateSchema>
 
 export type EpubReaderCapability = {
   readonly bookId: string

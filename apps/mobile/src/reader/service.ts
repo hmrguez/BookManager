@@ -36,11 +36,13 @@ export class EpubReaderService {
     })
     const initialLocator = await this.#repository.resumeLocator(capability)
     const preferences = await this.#repository.preferencesForBook(bookId)
+    const navigationState = await this.#repository.navigationStateForBook(capability)
     try {
       await nativeReader.open({
         ...capability,
         fileUri: uri,
         globalPreferences: preferences.global,
+        navigationState,
         ...(preferences.book ? { bookPreferences: preferences.book } : {}),
         ...(initialLocator ? { initialLocator } : {}),
       })

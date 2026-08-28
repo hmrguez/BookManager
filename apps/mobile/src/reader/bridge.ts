@@ -1,5 +1,10 @@
 import { registerPlugin, type PluginListenerHandle } from '@capacitor/core'
-import type { NativeReaderEvent, ReaderPreferences, ReadiumLocator } from './model'
+import type {
+  NativeReaderEvent,
+  ReaderNavigationState,
+  ReaderPreferences,
+  ReadiumLocator,
+} from './model'
 
 type ReaderOpenOptions = {
   readonly bookId: string
@@ -10,6 +15,7 @@ type ReaderOpenOptions = {
   readonly title: string
   readonly globalPreferences: ReaderPreferences
   readonly bookPreferences?: ReaderPreferences
+  readonly navigationState: ReaderNavigationState
   readonly initialLocator?: ReadiumLocator
 }
 

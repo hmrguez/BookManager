@@ -1,4 +1,4 @@
-import ReadiumNavigator
+@_spi(ExperimentalTargetElement) import ReadiumNavigator
 import ReadiumShared
 import UIKit
 
@@ -17,7 +17,24 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
     private var preferenceTimer: Timer?
     private var pendingPreference: (ReaderPreferenceScope, WovenleafReaderPreferences?)?
     private var lastLocator: Locator?
-    private let progressLabel = UILabel()
+    private var navigationState: ReaderNavigationState
+    private var navigationHistory: [Locator] = []
+    private var pendingJumpOrigin: Locator?
+    private var restoringHistory = false
+    private var inputObserverTokens: Set<InputObservableToken> = []
+    private let progressControl = ReaderProgressControl()
+    private lazy var historyButton = UIBarButtonItem(
+        image: UIImage(systemName: "arrow.uturn.backward"),
+        style: .plain,
+        target: self,
+        action: #selector(goBackInBook)
+    )
+    private lazy var bookmarkButton = UIBarButtonItem(
+        image: UIImage(systemName: "bookmark"),
+        style: .plain,
+        target: self,
+        action: #selector(toggleBookmark)
+    )
     private let textureView = PaperTextureView()
 
     init(
@@ -32,6 +49,7 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         self.initialLocator = initialLocator
         self.globalPreferences = globalPreferences
         self.bookPreferences = bookPreferences
+        navigationState = context.navigationState
         let preferences = bookPreferences ?? globalPreferences
         self.navigator = try EPUBNavigatorViewController(
             publication: publication,
@@ -60,13 +78,15 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
             target: self,
             action: #selector(closeReader)
         )
-        navigationItem.rightBarButtonItem = UIBarButtonItem(
+        let appearanceButton = UIBarButtonItem(
             image: UIImage(systemName: "textformat.size"),
             style: .plain,
             target: self,
             action: #selector(showReaderSettings)
         )
-        navigationItem.rightBarButtonItem?.accessibilityLabel = "Reading appearance"
+        appearanceButton.accessibilityLabel = "Reading appearance"
+        bookmarkButton.accessibilityLabel = "Add bookmark"
+        navigationItem.rightBarButtonItems = [appearanceButton, bookmarkButton]
 
         addChild(navigator)
         navigator.view.translatesAutoresizingMaskIntoConstraints = false
@@ -88,20 +108,42 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
             textureView.bottomAnchor.constraint(equalTo: navigator.view.bottomAnchor),
         ])
 
-        progressLabel.font = .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
-        progressLabel.text = "Opening…"
+        progressControl.onCommit = { [weak self] progression in
+            self?.scrub(to: progression)
+        }
         let flexibleSpace = UIBarButtonItem(
             barButtonSystemItem: .flexibleSpace,
             target: nil,
             action: nil
         )
         toolbarItems = [
-            UIBarButtonItem(title: "Previous", style: .plain, target: self, action: #selector(previousPage)),
+            UIBarButtonItem(
+                image: UIImage(systemName: "list.bullet.indent"),
+                style: .plain,
+                target: self,
+                action: #selector(showReaderOutline)
+            ),
+            historyButton,
             flexibleSpace,
-            UIBarButtonItem(customView: progressLabel),
+            UIBarButtonItem(customView: progressControl),
             UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil),
-            UIBarButtonItem(title: "Next", style: .plain, target: self, action: #selector(nextPage)),
+            UIBarButtonItem(
+                image: UIImage(systemName: "chevron.backward"),
+                style: .plain,
+                target: self,
+                action: #selector(previousPage)
+            ),
+            UIBarButtonItem(
+                image: UIImage(systemName: "chevron.forward"),
+                style: .plain,
+                target: self,
+                action: #selector(nextPage)
+            ),
         ]
+        toolbarItems?[0].accessibilityLabel = "Contents, bookmarks, and search"
+        historyButton.accessibilityLabel = "Return to previous passage"
+        toolbarItems?[5].accessibilityLabel = "Previous page"
+        toolbarItems?[6].accessibilityLabel = "Next page"
         navigationController?.setToolbarHidden(false, animated: false)
 
         NotificationCenter.default.addObserver(
@@ -111,11 +153,27 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
             object: nil
         )
         applyReaderPalette()
+        updateHistoryButton()
+        updateBookmarkButton()
+        setupReaderInput()
         ReaderOutbox.enqueue(kind: "start", context: context, sessionId: sessionId, locator: initialLocator)
     }
 
     override var preferredStatusBarStyle: UIStatusBarStyle {
         effectivePreferences.theme == .graphite ? .lightContent : .darkContent
+    }
+
+    override var canBecomeFirstResponder: Bool { true }
+
+    override var keyCommands: [UIKeyCommand]? {
+        [
+            UIKeyCommand(input: UIKeyCommand.inputLeftArrow, modifierFlags: [], action: #selector(previousPage)),
+            UIKeyCommand(input: UIKeyCommand.inputRightArrow, modifierFlags: [], action: #selector(nextPage)),
+            UIKeyCommand(input: "f", modifierFlags: .command, action: #selector(showReaderOutline)),
+            UIKeyCommand(input: "b", modifierFlags: .command, action: #selector(toggleBookmark)),
+            UIKeyCommand(input: "[", modifierFlags: .command, action: #selector(goBackInBook)),
+            UIKeyCommand(input: UIKeyCommand.inputEscape, modifierFlags: [], action: #selector(handleEscape)),
+        ]
     }
 
     override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
@@ -135,10 +193,67 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
     func navigator(_ navigator: Navigator, locationDidChange locator: Locator) {
         lastLocator = locator
         updateProgress(locator)
+        updateBookmarkButton()
         checkpointTimer?.invalidate()
         checkpointTimer = Timer.scheduledTimer(withTimeInterval: 0.75, repeats: false) { [weak self] _ in
             Task { @MainActor in self?.flushLocation() }
         }
+    }
+
+    func navigator(_ navigator: Navigator, didJumpTo locator: Locator) {
+        if restoringHistory {
+            restoringHistory = false
+            pendingJumpOrigin = nil
+            return
+        }
+        if let origin = pendingJumpOrigin, !samePassage(origin, locator) {
+            navigationHistory.append(origin)
+        }
+        pendingJumpOrigin = nil
+        updateHistoryButton()
+    }
+
+    func navigator(_ navigator: VisualNavigator, shouldNavigateToLink link: Link) -> Bool {
+        pendingJumpOrigin = lastLocator ?? self.navigator.currentLocation
+        return true
+    }
+
+    func navigator(
+        _ navigator: Navigator,
+        shouldNavigateToNoteAt link: Link,
+        content: String,
+        referrer: String?
+    ) -> Bool {
+        let note = ReaderFootnoteViewController(content: content, palette: readerPalette)
+        let navigation = UINavigationController(rootViewController: note)
+        navigation.modalPresentationStyle = .pageSheet
+        if let sheet = navigation.sheetPresentationController {
+            sheet.detents = [.medium(), .large()]
+            sheet.prefersGrabberVisible = true
+        }
+        present(navigation, animated: !UIAccessibility.isReduceMotionEnabled)
+        return false
+    }
+
+    func navigator(_ navigator: Navigator, presentExternalURL url: URL) {
+        guard let scheme = url.scheme?.lowercased(), ["http", "https"].contains(scheme) else {
+            presentReaderMessage(
+                title: "Link blocked",
+                message: "Wovenleaf only hands web links to your browser. This link uses an unsupported address type."
+            )
+            return
+        }
+        let destination = url.host ?? "your browser"
+        let alert = UIAlertController(
+            title: "Leave Wovenleaf?",
+            message: "Open \(destination) in your default browser? The book file and Wovenleaf’s private storage are not shared.",
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Open in Browser", style: .default) { _ in
+            UIApplication.shared.open(url, options: [:])
+        })
+        present(alert, animated: !UIAccessibility.isReduceMotionEnabled)
     }
 
     func navigator(_ navigator: Navigator, presentError error: NavigatorError) {
@@ -161,6 +276,80 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
 
     @objc private func nextPage() {
         Task { await navigator.goForward(options: .animated) }
+    }
+
+    @objc private func showReaderOutline() {
+        let outline = ReaderOutlineViewController(
+            publication: publication,
+            currentLocator: lastLocator ?? navigator.currentLocation,
+            selectedTocLocator: navigationState.toc?.locator,
+            bookmarks: navigationState.bookmarks,
+            palette: readerPalette
+        )
+        outline.onNavigateToLink = { [weak self] link in self?.navigate(to: link, fromToc: true) }
+        outline.onNavigateToLocator = { [weak self] locator in self?.navigate(to: locator) }
+        outline.onDeleteBookmark = { [weak self] bookmark in self?.deleteBookmark(bookmark) }
+        let navigation = UINavigationController(rootViewController: outline)
+        navigation.modalPresentationStyle = .pageSheet
+        if let sheet = navigation.sheetPresentationController {
+            sheet.detents = [.medium(), .large()]
+            sheet.prefersGrabberVisible = true
+            sheet.preferredCornerRadius = 18
+        }
+        present(navigation, animated: !UIAccessibility.isReduceMotionEnabled)
+    }
+
+    @objc private func goBackInBook() {
+        guard let locator = navigationHistory.popLast() else { return }
+        restoringHistory = true
+        updateHistoryButton()
+        Task {
+            if !(await navigator.go(to: locator, options: .animated)) {
+                restoringHistory = false
+                navigationHistory.append(locator)
+                updateHistoryButton()
+            }
+        }
+    }
+
+    @objc private func toggleBookmark() {
+        guard let locator = lastLocator ?? navigator.currentLocation else { return }
+        if let existing = navigationState.bookmarks.first(where: { samePassage($0.locator, locator) }) {
+            deleteBookmark(existing)
+            UIAccessibility.post(notification: .announcement, argument: "Bookmark removed")
+            return
+        }
+        let timestamp = ReaderOutbox.timestamp()
+        let bookmark = ReaderBookmarkState(
+            id: "reader-bookmark:\(UUID().uuidString.lowercased())",
+            assetId: context.assetId,
+            assetFingerprint: context.assetFingerprint,
+            locator: locator,
+            createdAt: timestamp,
+            updatedAt: timestamp
+        )
+        navigationState.bookmarks.append(bookmark)
+        navigationState.updatedAt = timestamp
+        ReaderOutbox.enqueueBookmark(
+            context: context,
+            sessionId: sessionId,
+            action: "upsert",
+            bookmarkId: bookmark.id,
+            locator: locator,
+            createdAt: timestamp
+        )
+        updateBookmarkButton()
+        UIAccessibility.post(notification: .announcement, argument: "Bookmark added")
+    }
+
+    @objc private func handleEscape() {
+        if presentedViewController != nil {
+            dismiss(animated: !UIAccessibility.isReduceMotionEnabled)
+        } else if !navigationHistory.isEmpty {
+            goBackInBook()
+        } else {
+            closeReader()
+        }
     }
 
     @objc private func showReaderSettings() {
@@ -189,6 +378,10 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
 
     @objc private func closeReader() {
         checkpointTimer?.invalidate()
+        for token in inputObserverTokens {
+            navigator.removeObserver(token)
+        }
+        inputObserverTokens.removeAll()
         flushPreference()
         flushLocation()
         let endedAt = Date()
@@ -213,10 +406,123 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
 
     private func updateProgress(_ locator: Locator) {
         if let progression = locator.locations.totalProgression {
-            progressLabel.text = "\(Int((progression * 100).rounded()))%"
+            progressControl.setProgress(progression, label: "\(Int((progression * 100).rounded()))%")
         } else {
-            progressLabel.text = locator.title ?? "Reading"
+            progressControl.setLabel(locator.title ?? "Reading")
         }
+    }
+
+    private func navigate(to link: Link, fromToc: Bool = false) {
+        pendingJumpOrigin = lastLocator ?? navigator.currentLocation
+        Task {
+            guard await navigator.go(to: link, options: .animated) else {
+                pendingJumpOrigin = nil
+                presentReaderMessage(title: "Section unavailable", message: "This book’s navigation entry is broken or missing.")
+                return
+            }
+            if fromToc, let locator = await publication.locate(link) {
+                navigationState.toc = .init(
+                    assetFingerprint: context.assetFingerprint,
+                    locator: locator
+                )
+                navigationState.updatedAt = ReaderOutbox.timestamp()
+                ReaderOutbox.enqueueToc(context: context, sessionId: sessionId, locator: locator)
+            }
+        }
+    }
+
+    private func navigate(to locator: Locator) {
+        pendingJumpOrigin = lastLocator ?? navigator.currentLocation
+        Task {
+            if !(await navigator.go(to: locator, options: .animated)) {
+                pendingJumpOrigin = nil
+                presentReaderMessage(title: "Passage unavailable", message: "Wovenleaf could not recover this passage in the current edition.")
+            }
+        }
+    }
+
+    private func scrub(to progression: Double) {
+        Task {
+            guard let locator = await publication.locate(progression: progression) else {
+                presentReaderMessage(
+                    title: "Position unavailable",
+                    message: "This book does not provide enough navigation data for precise scrubbing."
+                )
+                return
+            }
+            navigate(to: locator)
+        }
+    }
+
+    private func deleteBookmark(_ bookmark: ReaderBookmarkState) {
+        navigationState.bookmarks.removeAll { $0.id == bookmark.id }
+        navigationState.updatedAt = ReaderOutbox.timestamp()
+        ReaderOutbox.enqueueBookmark(
+            context: context,
+            sessionId: sessionId,
+            action: "delete",
+            bookmarkId: bookmark.id
+        )
+        updateBookmarkButton()
+    }
+
+    private func updateBookmarkButton() {
+        let locator = lastLocator ?? navigator.currentLocation
+        let bookmarked = locator.map { current in
+            navigationState.bookmarks.contains { samePassage($0.locator, current) }
+        } ?? false
+        bookmarkButton.image = UIImage(systemName: bookmarked ? "bookmark.fill" : "bookmark")
+        bookmarkButton.accessibilityLabel = bookmarked ? "Remove bookmark" : "Add bookmark"
+        bookmarkButton.accessibilityValue = bookmarked ? "Bookmarked" : "Not bookmarked"
+    }
+
+    private func updateHistoryButton() {
+        historyButton.isEnabled = !navigationHistory.isEmpty
+        historyButton.accessibilityValue = navigationHistory.isEmpty
+            ? "No previous passage"
+            : "\(navigationHistory.count) previous passage\(navigationHistory.count == 1 ? "" : "s")"
+    }
+
+    private func samePassage(_ left: Locator, _ right: Locator) -> Bool {
+        if left.href != right.href { return false }
+        if left.locations.fragments == right.locations.fragments, !left.locations.fragments.isEmpty { return true }
+        guard
+            let leftProgression = left.locations.progression,
+            let rightProgression = right.locations.progression
+        else { return left.locations.fragments == right.locations.fragments }
+        return abs(leftProgression - rightProgression) < 0.002
+    }
+
+    private var readerPalette: ReaderPalette {
+        ReaderPalette(
+            theme: effectivePreferences.theme,
+            highContrast: UIAccessibility.isDarkerSystemColorsEnabled
+        )
+    }
+
+    private func setupReaderInput() {
+        navigator.addObserver(.activate { [weak self] event in
+            guard
+                let self,
+                let target = event.targetElement,
+                let image = target.content as? ImageContentElement
+            else { return false }
+            let detail = ReaderImageViewController(
+                publication: publication,
+                image: image,
+                palette: readerPalette
+            )
+            let navigation = UINavigationController(rootViewController: detail)
+            navigation.modalPresentationStyle = .pageSheet
+            present(navigation, animated: !UIAccessibility.isReduceMotionEnabled)
+            return true
+        }).store(in: &inputObserverTokens)
+    }
+
+    private func presentReaderMessage(title: String, message: String) {
+        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: !UIAccessibility.isReduceMotionEnabled)
     }
 
     private var effectivePreferences: WovenleafReaderPreferences {
@@ -270,7 +576,7 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
             highContrast: UIAccessibility.isDarkerSystemColorsEnabled
         )
         view.backgroundColor = palette.page
-        progressLabel.textColor = palette.secondaryInk
+        progressControl.applyPalette(palette)
         textureView.theme = effectivePreferences.theme
         navigationController?.navigationBar.tintColor = palette.ink
         navigationController?.toolbar.tintColor = palette.ink
@@ -293,4 +599,67 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         }
         setNeedsStatusBarAppearanceUpdate()
     }
+}
+
+@MainActor
+private final class ReaderProgressControl: UIStackView {
+    var onCommit: ((Double) -> Void)?
+
+    private let slider = UISlider()
+    private let label = UILabel()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        axis = .vertical
+        alignment = .fill
+        spacing = 1
+        slider.minimumValue = 0
+        slider.maximumValue = 1
+        slider.value = 0
+        slider.isContinuous = true
+        slider.widthAnchor.constraint(equalToConstant: 124).isActive = true
+        slider.accessibilityLabel = "Reading position"
+        slider.addTarget(self, action: #selector(valueChanged), for: .valueChanged)
+        slider.addTarget(
+            self,
+            action: #selector(commit),
+            for: [.touchUpInside, .touchUpOutside, .touchCancel]
+        )
+        label.text = "Opening…"
+        label.font = .monospacedDigitSystemFont(ofSize: 10, weight: .medium)
+        label.textAlignment = .center
+        label.isAccessibilityElement = false
+        addArrangedSubview(slider)
+        addArrangedSubview(label)
+        accessibilityElements = [slider]
+    }
+
+    @available(*, unavailable)
+    required init(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    func setProgress(_ progression: Double, label text: String) {
+        if !slider.isTracking { slider.value = Float(progression) }
+        label.text = text
+        slider.accessibilityValue = text
+    }
+
+    func setLabel(_ text: String) {
+        label.text = text
+        slider.accessibilityValue = text
+    }
+
+    func applyPalette(_ palette: ReaderPalette) {
+        label.textColor = palette.secondaryInk
+        slider.minimumTrackTintColor = palette.ink
+        slider.maximumTrackTintColor = palette.rule
+        slider.thumbTintColor = palette.ink
+    }
+
+    @objc private func valueChanged() {
+        let percent = "\(Int((Double(slider.value) * 100).rounded()))%"
+        label.text = percent
+        slider.accessibilityValue = percent
+    }
+
+    @objc private func commit() { onCommit?(Double(slider.value)) }
 }

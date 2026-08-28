@@ -440,7 +440,31 @@ export const STORAGE_MIGRATIONS: readonly StorageMigration[] = [
       await database.execute(audiobookPlaybackCheckpointSchemaSql())
     },
   },
+  {
+    version: 14,
+    name: 'portable EPUB navigation and bookmarks',
+    kind: 'additive',
+    signature: epubReaderNavigationSchemaSql(),
+    async up(database) {
+      await database.execute(epubReaderNavigationSchemaSql())
+    },
+  },
 ]
+
+function epubReaderNavigationSchemaSql(): string {
+  return `
+CREATE TABLE epub_reader_navigation (
+  book_id TEXT PRIMARY KEY NOT NULL,
+  edition_id TEXT NOT NULL,
+  state_json TEXT NOT NULL CHECK (json_valid(state_json)),
+  recorded_at TEXT NOT NULL,
+  FOREIGN KEY (edition_id) REFERENCES editions(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX idx_epub_reader_navigation_edition
+  ON epub_reader_navigation(edition_id, recorded_at DESC, book_id);
+`
+}
 
 function audiobookPlaybackCheckpointSchemaSql(): string {
   return `

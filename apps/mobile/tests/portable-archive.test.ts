@@ -8,6 +8,8 @@ import { LibraryRepository } from '../src/storage/library-repository'
 import { migrateStorage } from '../src/storage/migrations'
 import { OrganizationRepository } from '../src/storage/organization-repository'
 import { UpNextRepository } from '../src/storage/up-next-repository'
+import { readerNavigationStateSchema, readiumLocatorSchema } from '../src/reader/model'
+import { EpubReaderRepository } from '../src/reader/repository'
 import {
   createPortableArchive,
   inspectPortableArchive,
@@ -72,6 +74,24 @@ describe('portable archive contract', () => {
     await new LibraryRepository(source).replace(representativeLibrary)
     await new OrganizationRepository(source).replace(representativeOrganization)
     await new UpNextRepository(source).replace(representativeUpNext)
+    const readerNavigation = readerNavigationStateSchema.parse({
+      version: 1,
+      bookId: representativeLibrary[0].id,
+      editionId: representativeCatalog.editions[0].id,
+      toc: {
+        assetFingerprint: 'a'.repeat(64),
+        locator: readiumLocatorSchema.parse({
+          href: 'Text/chapter-08.xhtml',
+          type: 'application/xhtml+xml',
+          title: 'Chapter Eight',
+          locations: { fragments: ['epubcfi(/6/24!/4/2/14)'], totalProgression: 0.42 },
+          text: {},
+        }),
+      },
+      bookmarks: [],
+      updatedAt: exportedAt,
+    })
+    await new EpubReaderRepository(source).replaceNavigationStates([readerNavigation])
 
     const bundle = await new PortableArchiveService(source).create({
       createdAt: exportedAt,
@@ -85,10 +105,11 @@ describe('portable archive contract', () => {
     expect(await new CatalogRepository(target).read()).toEqual(restored.catalog)
     expect(await new OrganizationRepository(target).read()).toEqual(representativeOrganization)
     expect(await new UpNextRepository(target).read()).toEqual(representativeUpNext)
+    expect(await new EpubReaderRepository(target).allNavigationStates()).toEqual([readerNavigation])
     expect(restored.manifest).toMatchObject({
       format: 'wovenleaf-portable-library',
       formatVersion: 1,
-      schemaVersion: 4,
+      schemaVersion: 5,
       scope: { kind: 'complete-library', bookCount: 3 },
       redactions: {
         privateAnnotations: 'included',

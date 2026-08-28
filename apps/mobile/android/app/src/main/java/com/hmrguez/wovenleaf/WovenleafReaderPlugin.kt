@@ -11,6 +11,7 @@ import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.CapacitorPlugin
 import org.json.JSONArray
 import org.json.JSONObject
+import org.readium.r2.shared.publication.Locator
 import java.io.File
 import java.time.Instant
 import java.util.UUID
@@ -35,9 +36,11 @@ class WovenleafReaderPlugin : Plugin() {
         val title = call.getString("title")
         val fileUri = call.getString("fileUri")
         val globalPreferences = call.getObject("globalPreferences")
+        val navigationState = ReaderNavigationState.fromJson(call.getObject("navigationState"))
         if (
             listOf(bookId, editionId, assetId, fingerprint, title, fileUri).any { it.isNullOrBlank() }
             || WovenleafReaderPreferences.fromJson(globalPreferences) == null
+            || navigationState == null
         ) {
             call.reject("The reader capability is invalid.", "INVALID_CAPABILITY")
             return
@@ -61,6 +64,7 @@ class WovenleafReaderPlugin : Plugin() {
             putExtra(ReaderContract.TITLE, title)
             putExtra(ReaderContract.FILE_PATH, file.path)
             putExtra(ReaderContract.GLOBAL_PREFERENCES, globalPreferences.toString())
+            putExtra(ReaderContract.NAVIGATION_STATE, call.getObject("navigationState").toString())
             call.getObject("bookPreferences")?.let {
                 putExtra(ReaderContract.BOOK_PREFERENCES, it.toString())
             }
@@ -111,6 +115,7 @@ internal object ReaderContract {
     const val GLOBAL_PREFERENCES = "reader.globalPreferences"
     const val BOOK_PREFERENCES = "reader.bookPreferences"
     const val INITIAL_LOCATOR = "reader.initialLocator"
+    const val NAVIGATION_STATE = "reader.navigationState"
 }
 
 internal data class ReaderContext(
@@ -121,6 +126,7 @@ internal data class ReaderContext(
     val title: String,
     var globalPreferences: WovenleafReaderPreferences,
     var bookPreferences: WovenleafReaderPreferences?,
+    val navigationState: ReaderNavigationState,
 )
 
 internal object ReaderOutbox {
@@ -148,6 +154,7 @@ internal object ReaderOutbox {
         preferenceScope: ReaderPreferenceScope? = null,
         preferences: WovenleafReaderPreferences? = null,
         removesBookPreferences: Boolean = false,
+        extra: JSONObject? = null,
     ): JSONObject = synchronized(this) {
         val storage = preferences(androidContext)
         val sequenceKey = SEQUENCE_PREFIX + readerContext.assetId
@@ -172,6 +179,7 @@ internal object ReaderOutbox {
             if (preferenceScope != null) {
                 put("preferences", if (removesBookPreferences) JSONObject.NULL else preferences?.toJson())
             }
+            extra?.keys()?.forEach { key -> put(key, extra.get(key)) }
         }
         val pending = JSONArray().apply { events(androidContext).forEach(::put) }
         pending.put(event)
@@ -200,6 +208,41 @@ internal object ReaderOutbox {
         removesBookPreferences = scope == ReaderPreferenceScope.BOOK && preferences == null,
     )
 
+    fun enqueueBookmark(
+        context: Context,
+        readerContext: ReaderContext,
+        sessionId: String,
+        action: String,
+        bookmarkId: String,
+        locator: Locator? = null,
+        createdAt: String? = null,
+    ) = enqueue(
+        context,
+        "bookmark",
+        readerContext,
+        sessionId,
+        locator?.toJSON(),
+        extra = JSONObject().apply {
+            put("action", action)
+            put("bookmarkId", bookmarkId)
+            createdAt?.let { put("createdAt", it) }
+        },
+    )
+
+    fun enqueueToc(
+        context: Context,
+        readerContext: ReaderContext,
+        sessionId: String,
+        locator: Locator?,
+    ) = enqueue(
+        context,
+        "toc",
+        readerContext,
+        sessionId,
+        locator?.toJSON(),
+        extra = if (locator == null) JSONObject().put("locator", JSONObject.NULL) else null,
+    )
+
     fun acknowledge(context: Context, ids: Set<String>) = synchronized(this) {
         if (ids.isEmpty()) return@synchronized
         val remaining = JSONArray().apply {
@@ -210,7 +253,11 @@ internal object ReaderOutbox {
 
     fun latestLocator(context: Context, assetId: String): JSONObject? = synchronized(this) {
         events(context).asReversed().firstNotNullOfOrNull { event ->
-            if (event.optString("assetId") == assetId) event.optJSONObject("locator") else null
+            val kind = event.optString("kind")
+            if (
+                event.optString("assetId") == assetId &&
+                (kind == "start" || kind == "location" || kind == "session")
+            ) event.optJSONObject("locator") else null
         }
     }
 

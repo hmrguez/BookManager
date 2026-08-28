@@ -21,6 +21,8 @@ import {
   type UpNextState,
 } from '../up-next-model'
 import { assertCredentialFree } from '../security'
+import { readerNavigationStateSchema, type ReaderNavigationState } from '../reader/model'
+import { EpubReaderRepository, replaceReaderNavigationStates } from '../reader/repository'
 import {
   CatalogRepository,
   deleteCatalogRecords,
@@ -37,7 +39,7 @@ import { readUpNextState, replaceUpNextState } from './up-next-repository'
 
 export const PORTABLE_ARCHIVE_FORMAT = 'wovenleaf-portable-library'
 export const PORTABLE_ARCHIVE_FORMAT_VERSION = 1
-export const PORTABLE_ARCHIVE_SCHEMA_VERSION = 4
+export const PORTABLE_ARCHIVE_SCHEMA_VERSION = 5
 
 const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/)
 const archiveEntryDescriptorSchema = z.object({
@@ -134,6 +136,7 @@ export type PortableArchiveInspection = {
   readonly organization: LibraryOrganization
   readonly upNext: UpNextState
   readonly smartLists: readonly SavedSmartList[]
+  readonly readerNavigation: readonly ReaderNavigationState[]
   readonly assetContents: readonly PortableAssetContent[]
 }
 
@@ -162,14 +165,23 @@ export class PortableArchiveService {
   }
 
   async create(options: PortableArchiveOptions = {}): Promise<PortableArchiveBundle> {
-    const [catalog, books, organization, upNext, smartLists] = await Promise.all([
+    const [catalog, books, organization, upNext, smartLists, readerNavigation] = await Promise.all([
       new CatalogRepository(this.#database).read(),
       readLibraryBooks(this.#database),
       readLibraryOrganization(this.#database),
       readUpNextState(this.#database),
       readSavedSmartLists(this.#database),
+      new EpubReaderRepository(this.#database).allNavigationStates(),
     ])
-    return createPortableArchive(catalog, books, options, organization, upNext, smartLists)
+    return createPortableArchive(
+      catalog,
+      books,
+      options,
+      organization,
+      upNext,
+      smartLists,
+      readerNavigation,
+    )
   }
 
   async inspect(serializedArchive: string): Promise<PortableArchiveInspection> {
@@ -179,12 +191,14 @@ export class PortableArchiveService {
   async restore(serializedArchive: string): Promise<PortableArchiveInspection> {
     const inspection = await this.inspect(serializedArchive)
     await this.#database.transaction(async (database) => {
+      await replaceReaderNavigationStates(database, [])
       await deleteCatalogRecords(database)
       await replaceLibraryBooks(database, inspection.books)
       await insertCatalogRecords(database, inspection.catalog)
       await replaceOrganization(database, inspection.organization)
       await replaceUpNextState(database, inspection.upNext)
       await replaceSavedSmartLists(database, inspection.smartLists)
+      await replaceReaderNavigationStates(database, inspection.readerNavigation)
     })
     return inspection
   }
@@ -197,6 +211,7 @@ export async function createPortableArchive(
   organizationInput: LibraryOrganization = EMPTY_LIBRARY_ORGANIZATION,
   upNextInput: UpNextState = createDefaultUpNextState(options.createdAt),
   smartListsInput: readonly SavedSmartList[] = [],
+  readerNavigationInput: readonly ReaderNavigationState[] = [],
 ): Promise<PortableArchiveBundle> {
   const includeAnnotations = options.includeAnnotations ?? true
   const includeSourcePayloads = options.includeSourcePayloads ?? false
@@ -209,6 +224,9 @@ export async function createPortableArchive(
   const organization = libraryOrganizationSchema.parse(organizationInput)
   const upNext = upNextStateSchema.parse(upNextInput)
   const smartLists = savedSmartListSchema.array().parse(smartListsInput)
+  const readerNavigation = readerNavigationStateSchema.array().parse(
+    options.includeAnnotations === false ? [] : readerNavigationInput,
+  )
   const portableOrganization = includeAnnotations
     ? organization
     : libraryOrganizationSchema.parse({
@@ -244,6 +262,7 @@ export async function createPortableArchive(
     organization: portableOrganization,
     upNext,
     smartLists,
+    readerNavigation,
   })
 
   const entries: Record<string, string> = {}
@@ -282,6 +301,13 @@ export async function createPortableArchive(
     mediaType: 'application/json',
     fidelity: 'canonical',
     contents: canonicalStringify(smartLists),
+  })
+  await addTextEntry(entries, descriptors, {
+    path: 'data/reader-navigation.json',
+    role: 'annotations',
+    mediaType: 'application/json',
+    fidelity: 'canonical',
+    contents: canonicalStringify(readerNavigation),
   })
   await addTextEntry(entries, descriptors, {
     path: 'annotations/reading.json',
@@ -336,7 +362,7 @@ export async function createPortableArchive(
     },
     exclusions: [
       'credential-vault material',
-      'device-local asset paths, bookmarks, and expired remote links',
+      'device-local asset paths, security-scoped file bookmarks, and expired remote links',
       'SQLite and IndexedDB implementation details',
       'import staging, checkpoints, receipts, and other rebuildable cache',
       'sync marker events and opaque integration cursors',
@@ -452,6 +478,9 @@ export async function inspectPortableArchive(
   const smartLists = archive.manifest.schemaVersion >= 4
     ? parseJsonEntry(archive, 'data/smart-lists.json', savedSmartListSchema.array())
     : []
+  const readerNavigation = archive.manifest.schemaVersion >= 5
+    ? parseJsonEntry(archive, 'data/reader-navigation.json', readerNavigationStateSchema.array())
+    : []
   const catalog = parseCatalogEntries(coreCatalog, annotations.readingEvents)
   const books = mergeLibraryAnnotations(
     libraryData,
@@ -464,8 +493,17 @@ export async function inspectPortableArchive(
     archive.entries,
   )
 
-  assertCredentialFree({ catalog, books, organization, upNext, smartLists })
-  return { manifest: archive.manifest, catalog, books, organization, upNext, smartLists, assetContents }
+  assertCredentialFree({ catalog, books, organization, upNext, smartLists, readerNavigation })
+  return {
+    manifest: archive.manifest,
+    catalog,
+    books,
+    organization,
+    upNext,
+    smartLists,
+    readerNavigation,
+    assetContents,
+  }
 }
 
 function preparePortableCatalog(
