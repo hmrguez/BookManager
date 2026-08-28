@@ -422,7 +422,35 @@ export const STORAGE_MIGRATIONS: readonly StorageMigration[] = [
       await database.execute(epubReaderCheckpointSchemaSql())
     },
   },
+  {
+    version: 12,
+    name: 'paper-aware EPUB reader preferences',
+    kind: 'additive',
+    signature: epubReaderPreferencesSchemaSql(),
+    async up(database) {
+      await database.execute(epubReaderPreferencesSchemaSql())
+    },
+  },
 ]
+
+function epubReaderPreferencesSchemaSql(): string {
+  return `
+CREATE TABLE epub_reader_preferences (
+  scope TEXT NOT NULL CHECK (scope IN ('global', 'book')),
+  book_id TEXT NOT NULL,
+  preferences_json TEXT NOT NULL CHECK (json_valid(preferences_json)),
+  recorded_at TEXT NOT NULL,
+  PRIMARY KEY (scope, book_id),
+  CHECK (
+    (scope = 'global' AND book_id = '')
+    OR (scope = 'book' AND length(book_id) > 0)
+  )
+);
+
+CREATE INDEX idx_epub_reader_preferences_book
+  ON epub_reader_preferences(book_id, scope);
+`
+}
 
 function epubReaderCheckpointSchemaSql(): string {
   return `

@@ -13,13 +13,18 @@ import type { SqlDatabase, SqlRow } from '../storage/database'
 import { readNumber, readText } from '../storage/database'
 import { readLibraryBooks, writeLibraryBook } from '../storage/library-repository'
 import {
+  DEFAULT_READER_PREFERENCES,
   fallbackLocatorForReplacement,
   nativeReaderEventSchema,
+  readerPreferencesSchema,
   readerCheckpointSchema,
   readiumLocatorSchema,
   type EpubReaderCapability,
   type NativeReaderEvent,
   type ReaderCheckpoint,
+  type ReaderPreferences,
+  type ReaderPreferenceScope,
+  type ReaderPreferenceState,
   type ReadiumLocator,
 } from './model'
 
@@ -41,6 +46,14 @@ type CheckpointRow = SqlRow & {
   readonly locator_json: string | null
   readonly recorded_at: string
 }
+
+type PreferenceRow = SqlRow & {
+  readonly scope: ReaderPreferenceScope
+  readonly book_id: string
+  readonly preferences_json: string
+}
+
+type ReadingNativeReaderEvent = Exclude<NativeReaderEvent, { readonly kind: 'preference' }>
 
 export class EpubReaderRepository {
   readonly #database: SqlDatabase
@@ -117,6 +130,54 @@ export class EpubReaderRepository {
     })
   }
 
+  async preferencesForBook(bookId: string): Promise<ReaderPreferenceState> {
+    const rows = await this.#database.query<PreferenceRow>(
+      `SELECT scope, book_id, preferences_json
+       FROM epub_reader_preferences
+       WHERE (scope = 'global' AND book_id = '')
+          OR (scope = 'book' AND book_id = ?)
+       ORDER BY scope`,
+      [bookId],
+    )
+    let global: ReaderPreferences = DEFAULT_READER_PREFERENCES
+    let book: ReaderPreferences | undefined
+    for (const row of rows) {
+      const preferences = readerPreferencesSchema.parse(JSON.parse(readText(row, 'preferences_json')))
+      if (readText(row, 'scope') === 'global') global = preferences
+      else book = preferences
+    }
+    return { global, ...(book ? { book } : {}) }
+  }
+
+  async savePreferences(
+    scope: ReaderPreferenceScope,
+    bookId: string,
+    preferences: ReaderPreferences | null,
+    recordedAt = new Date().toISOString(),
+  ): Promise<void> {
+    if (scope === 'global' && preferences === null) {
+      throw new Error('Global reader preferences cannot be removed.')
+    }
+    const storageBookId = scope === 'global' ? '' : bookId
+    if (preferences === null) {
+      await this.#database.run(
+        "DELETE FROM epub_reader_preferences WHERE scope = 'book' AND book_id = ?",
+        [storageBookId],
+      )
+    } else {
+      const validated = readerPreferencesSchema.parse(preferences)
+      await this.#database.run(
+        `INSERT INTO epub_reader_preferences(scope, book_id, preferences_json, recorded_at)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(scope, book_id) DO UPDATE SET
+           preferences_json = excluded.preferences_json,
+           recorded_at = excluded.recorded_at`,
+        [scope, storageBookId, JSON.stringify(validated), recordedAt],
+      )
+    }
+    await this.#database.persist()
+  }
+
   async ingest(candidate: NativeReaderEvent): Promise<'applied' | 'duplicate' | 'stale'> {
     const event = nativeReaderEventSchema.parse(candidate)
     const [activeImport] = await this.#database.query<{ readonly content_asset_id: string }>(
@@ -133,6 +194,17 @@ export class EpubReaderRepository {
       [event.assetId],
     )
     if (checkpoint && readNumber(checkpoint, 'last_sequence') >= event.sequence) return 'stale'
+
+    if (event.kind === 'preference') {
+      await this.savePreferences(
+        event.preferenceScope,
+        event.bookId,
+        event.preferences,
+        event.emittedAt,
+      )
+      await this.#saveCheckpoint(event)
+      return 'applied'
+    }
 
     const eventId = readingEventId(event.id)
     const [existing] = await this.#database.query('SELECT id FROM reading_events WHERE id = ?', [eventId])
@@ -161,7 +233,8 @@ export class EpubReaderRepository {
   }
 
   async #saveCheckpoint(event: NativeReaderEvent): Promise<void> {
-    const progression = event.locator?.locations.totalProgression
+    const locator = 'locator' in event ? event.locator : undefined
+    const progression = locator?.locations.totalProgression
     await this.#database.run(
       `INSERT INTO epub_reader_checkpoints(
          asset_id, book_id, edition_id, asset_fingerprint, last_sequence,
@@ -181,10 +254,10 @@ export class EpubReaderRepository {
         event.editionId,
         event.assetFingerprint,
         event.sequence,
-        event.locator ? JSON.stringify(event.locator) : null,
+        locator ? JSON.stringify(locator) : null,
         progression ?? null,
-        event.locator?.href ?? null,
-        event.locator?.title ?? null,
+        locator?.href ?? null,
+        locator?.title ?? null,
         event.emittedAt,
       ],
     )
@@ -205,7 +278,10 @@ export class EpubReaderRepository {
   }
 }
 
-function toReadingEvent(event: NativeReaderEvent, id: ReturnType<typeof readingEventId>): ReadingEvent {
+function toReadingEvent(
+  event: ReadingNativeReaderEvent,
+  id: ReturnType<typeof readingEventId>,
+): ReadingEvent {
   const position = event.locator ? toReadingPosition(event) : undefined
   const envelope = {
     id,
@@ -236,7 +312,7 @@ function toReadingEvent(event: NativeReaderEvent, id: ReturnType<typeof readingE
   } as ReadingEvent
 }
 
-function toReadingPosition(event: NativeReaderEvent): ReadingPosition {
+function toReadingPosition(event: ReadingNativeReaderEvent): ReadingPosition {
   const locator = readiumLocatorSchema.parse(event.locator)
   const progression = locator.locations.totalProgression
   return {

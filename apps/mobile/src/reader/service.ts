@@ -3,7 +3,7 @@ import { Directory, Filesystem } from '@capacitor/filesystem'
 import type { ReadingLedgerRepository } from '../storage/catalog-repository'
 import type { SqlDatabase } from '../storage/database'
 import { nativeReader } from './bridge'
-import { EpubReaderError, nativeReaderEventSchema, type ReaderLayout } from './model'
+import { EpubReaderError, nativeReaderEventSchema } from './model'
 import { EpubReaderRepository } from './repository'
 
 export class EpubReaderService {
@@ -13,7 +13,7 @@ export class EpubReaderService {
     this.#repository = new EpubReaderRepository(database, ledger)
   }
 
-  async open(bookId: string, layout: ReaderLayout = 'paginated'): Promise<void> {
+  async open(bookId: string): Promise<void> {
     if (!Capacitor.isNativePlatform()) {
       throw new EpubReaderError('unavailable', 'EPUB reading is available in the iOS and Android app.')
     }
@@ -35,11 +35,13 @@ export class EpubReaderService {
       directory: Directory.LibraryNoCloud,
     })
     const initialLocator = await this.#repository.resumeLocator(capability)
+    const preferences = await this.#repository.preferencesForBook(bookId)
     try {
       await nativeReader.open({
         ...capability,
         fileUri: uri,
-        layout,
+        globalPreferences: preferences.global,
+        ...(preferences.book ? { bookPreferences: preferences.book } : {}),
         ...(initialLocator ? { initialLocator } : {}),
       })
     } catch (error) {

@@ -34,7 +34,11 @@ class WovenleafReaderPlugin : Plugin() {
         val fingerprint = call.getString("assetFingerprint")
         val title = call.getString("title")
         val fileUri = call.getString("fileUri")
-        if (listOf(bookId, editionId, assetId, fingerprint, title, fileUri).any { it.isNullOrBlank() }) {
+        val globalPreferences = call.getObject("globalPreferences")
+        if (
+            listOf(bookId, editionId, assetId, fingerprint, title, fileUri).any { it.isNullOrBlank() }
+            || WovenleafReaderPreferences.fromJson(globalPreferences) == null
+        ) {
             call.reject("The reader capability is invalid.", "INVALID_CAPABILITY")
             return
         }
@@ -56,7 +60,10 @@ class WovenleafReaderPlugin : Plugin() {
             putExtra(ReaderContract.ASSET_FINGERPRINT, fingerprint)
             putExtra(ReaderContract.TITLE, title)
             putExtra(ReaderContract.FILE_PATH, file.path)
-            putExtra(ReaderContract.LAYOUT, call.getString("layout") ?: "paginated")
+            putExtra(ReaderContract.GLOBAL_PREFERENCES, globalPreferences.toString())
+            call.getObject("bookPreferences")?.let {
+                putExtra(ReaderContract.BOOK_PREFERENCES, it.toString())
+            }
             call.getObject("initialLocator")?.let { putExtra(ReaderContract.INITIAL_LOCATOR, it.toString()) }
         }
         activity.startActivity(intent)
@@ -101,7 +108,8 @@ internal object ReaderContract {
     const val ASSET_FINGERPRINT = "reader.assetFingerprint"
     const val TITLE = "reader.title"
     const val FILE_PATH = "reader.filePath"
-    const val LAYOUT = "reader.layout"
+    const val GLOBAL_PREFERENCES = "reader.globalPreferences"
+    const val BOOK_PREFERENCES = "reader.bookPreferences"
     const val INITIAL_LOCATOR = "reader.initialLocator"
 }
 
@@ -111,7 +119,8 @@ internal data class ReaderContext(
     val assetId: String,
     val assetFingerprint: String,
     val title: String,
-    var layout: String,
+    var globalPreferences: WovenleafReaderPreferences,
+    var bookPreferences: WovenleafReaderPreferences?,
 )
 
 internal object ReaderOutbox {
@@ -136,10 +145,13 @@ internal object ReaderOutbox {
         startedAt: String? = null,
         endedAt: String? = null,
         activeDurationMs: Long? = null,
+        preferenceScope: ReaderPreferenceScope? = null,
+        preferences: WovenleafReaderPreferences? = null,
+        removesBookPreferences: Boolean = false,
     ): JSONObject = synchronized(this) {
-        val preferences = preferences(androidContext)
+        val storage = preferences(androidContext)
         val sequenceKey = SEQUENCE_PREFIX + readerContext.assetId
-        val sequence = preferences.getLong(sequenceKey, 0L) + 1L
+        val sequence = storage.getLong(sequenceKey, 0L) + 1L
         val event = JSONObject().apply {
             put("id", "reading-event:reader:${UUID.randomUUID().toString().lowercase()}")
             put("sequence", sequence)
@@ -156,16 +168,37 @@ internal object ReaderOutbox {
             startedAt?.let { put("startedAt", it) }
             endedAt?.let { put("endedAt", it) }
             activeDurationMs?.let { put("activeDurationMs", it) }
+            preferenceScope?.let { put("preferenceScope", it.wireValue) }
+            if (preferenceScope != null) {
+                put("preferences", if (removesBookPreferences) JSONObject.NULL else preferences?.toJson())
+            }
         }
         val pending = JSONArray().apply { events(androidContext).forEach(::put) }
         pending.put(event)
-        preferences.edit()
+        storage.edit()
             .putLong(sequenceKey, sequence)
             .putString(EVENTS_KEY, pending.toString())
             .commit()
         WovenleafReaderPlugin.emit(event)
         event
     }
+
+    fun enqueuePreference(
+        context: Context,
+        readerContext: ReaderContext,
+        sessionId: String,
+        scope: ReaderPreferenceScope,
+        preferences: WovenleafReaderPreferences?,
+    ) = enqueue(
+        context,
+        "preference",
+        readerContext,
+        sessionId,
+        locator = null,
+        preferenceScope = scope,
+        preferences = preferences,
+        removesBookPreferences = scope == ReaderPreferenceScope.BOOK && preferences == null,
+    )
 
     fun acknowledge(context: Context, ids: Set<String>) = synchronized(this) {
         if (ids.isEmpty()) return@synchronized

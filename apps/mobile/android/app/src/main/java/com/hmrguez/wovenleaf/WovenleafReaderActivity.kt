@@ -1,6 +1,9 @@
 package com.hmrguez.wovenleaf
 
 import android.graphics.Color
+import android.graphics.Typeface
+import android.content.res.Configuration
+import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.Gravity
@@ -22,7 +25,6 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 import org.readium.r2.navigator.epub.EpubNavigatorFactory
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
-import org.readium.r2.navigator.epub.EpubPreferences
 import org.readium.r2.shared.ExperimentalReadiumApi
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Publication
@@ -39,15 +41,22 @@ import java.util.UUID
 @OptIn(ExperimentalReadiumApi::class)
 class WovenleafReaderActivity : AppCompatActivity() {
     private lateinit var readerContext: ReaderContext
+    private lateinit var chrome: LinearLayout
+    private lateinit var topChrome: LinearLayout
+    private lateinit var bottomChrome: LinearLayout
     private lateinit var content: FrameLayout
     private lateinit var progress: TextView
-    private lateinit var layoutButton: Button
+    private lateinit var titleView: TextView
+    private lateinit var appearanceButton: Button
     private lateinit var loading: ProgressBar
+    private lateinit var texture: PaperTextureView
     private var publication: Publication? = null
     private var navigator: EpubNavigatorFragment? = null
     private var lastLocator: Locator? = null
     private var locationJob: Job? = null
     private var checkpointJob: Job? = null
+    private var preferenceJob: Job? = null
+    private var pendingPreference: Pair<ReaderPreferenceScope, WovenleafReaderPreferences?>? = null
     private val sessionId = "reading-session:reader:${UUID.randomUUID().toString().lowercase()}"
     private val sessionStartedAt = ReaderOutbox.timestamp()
     private val sessionStartedUptime = SystemClock.elapsedRealtime()
@@ -66,12 +75,20 @@ class WovenleafReaderActivity : AppCompatActivity() {
     }
 
     override fun onPause() {
+        flushPreference()
         flushLocation()
         super.onPause()
     }
 
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        navigator?.submitPreferences(readerPreferences())
+        applyChromePalette()
+    }
+
     override fun onDestroy() {
         checkpointJob?.cancel()
+        preferenceJob?.cancel()
         locationJob?.cancel()
         if (isFinishing) publication?.close()
         super.onDestroy()
@@ -131,6 +148,7 @@ class WovenleafReaderActivity : AppCompatActivity() {
         supportFragmentManager.beginTransaction().replace(content.id, fragment, "epub-navigator").commitNow()
         navigator = fragment
         loading.visibility = View.GONE
+        texture.bringToFront()
 
         ReaderOutbox.enqueue(
             this,
@@ -152,76 +170,81 @@ class WovenleafReaderActivity : AppCompatActivity() {
         }
     }
 
-    private fun readerPreferences() = EpubPreferences(
-        lineHeight = 1.5,
-        pageMargins = 1.15,
-        publisherStyles = false,
-        scroll = readerContext.layout == "scroll",
+    private fun readerPreferences() = effectivePreferences().toReadium(
+        compactWidth = resources.configuration.screenWidthDp < 700,
+        highContrast = isHighContrast(this),
     )
 
     private fun buildReaderChrome() {
-        val paper = Color.rgb(246, 242, 230)
-        val ink = Color.rgb(42, 39, 32)
-        val root = LinearLayout(this).apply {
+        chrome = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(paper)
         }
-        val top = LinearLayout(this).apply {
+        topChrome = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(12), dp(8), dp(12), dp(8))
         }
-        top.addView(textButton("Library") { closeReader() })
-        top.addView(TextView(this).apply {
+        topChrome.addView(textButton("Library") { closeReader() })
+        titleView = TextView(this).apply {
             text = readerContext.title
-            setTextColor(ink)
             textSize = 16f
+            typeface = Typeface.create("serif", Typeface.NORMAL)
             maxLines = 1
             gravity = Gravity.CENTER
-        }, LinearLayout.LayoutParams(0, dp(48), 1f))
-        layoutButton = textButton(if (readerContext.layout == "scroll") "Pages" else "Scroll") {
-            toggleLayout()
         }
-        top.addView(layoutButton)
-        root.addView(top, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(64)))
+        topChrome.addView(titleView, LinearLayout.LayoutParams(0, dp(48), 1f))
+        appearanceButton = textButton("Aa") { showReaderSettings() }
+        appearanceButton.contentDescription = "Reading appearance"
+        appearanceButton.typeface = Typeface.create("serif", Typeface.BOLD)
+        appearanceButton.textSize = 17f
+        topChrome.addView(appearanceButton)
+        chrome.addView(topChrome, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(64)))
 
         content = FrameLayout(this).apply { id = View.generateViewId() }
         loading = ProgressBar(this)
         content.addView(loading, FrameLayout.LayoutParams(dp(32), dp(32), Gravity.CENTER))
-        root.addView(content, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        texture = PaperTextureView(this)
+        content.addView(texture, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT,
+        ))
+        loading.bringToFront()
+        chrome.addView(content, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
 
-        val bottom = LinearLayout(this).apply {
+        bottomChrome = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(12), dp(4), dp(12), dp(8))
         }
-        bottom.addView(textButton("Previous") { navigator?.goBackward(animated = true) })
+        bottomChrome.addView(textButton("Previous") { navigator?.goBackward(animated = true) })
         progress = TextView(this).apply {
             text = "Opening…"
-            setTextColor(Color.rgb(99, 93, 79))
             textSize = 12f
+            typeface = Typeface.MONOSPACE
             gravity = Gravity.CENTER
         }
-        bottom.addView(progress, LinearLayout.LayoutParams(0, dp(48), 1f))
-        bottom.addView(textButton("Next") { navigator?.goForward(animated = true) })
-        root.addView(bottom, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(60)))
-        setContentView(root)
+        bottomChrome.addView(progress, LinearLayout.LayoutParams(0, dp(48), 1f))
+        bottomChrome.addView(textButton("Next") { navigator?.goForward(animated = true) })
+        chrome.addView(bottomChrome, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(60)))
+        setContentView(chrome)
+        applyChromePalette()
     }
 
     private fun textButton(label: String, action: () -> Unit) = Button(this).apply {
         text = label
         textSize = 13f
         isAllCaps = false
-        setTextColor(Color.rgb(42, 39, 32))
         setBackgroundColor(Color.TRANSPARENT)
         setOnClickListener { action() }
     }
 
-    private fun toggleLayout() {
-        readerContext.layout = if (readerContext.layout == "scroll") "paginated" else "scroll"
-        navigator?.submitPreferences(EpubPreferences(scroll = readerContext.layout == "scroll"))
-        layoutButton.text = if (readerContext.layout == "scroll") "Pages" else "Scroll"
-        flushLocation()
+    private fun showReaderSettings() {
+        ReaderSettingsDialog(
+            activity = this,
+            globalPreferences = readerContext.globalPreferences,
+            bookPreferences = readerContext.bookPreferences,
+            compactWidth = resources.configuration.screenWidthDp < 700,
+        ) { scope, preferences -> savePreferences(scope, preferences) }.show()
     }
 
     private fun updateProgress(locator: Locator) {
@@ -238,6 +261,7 @@ class WovenleafReaderActivity : AppCompatActivity() {
     }
 
     private fun closeReader() {
+        flushPreference()
         flushLocation()
         if (!sessionClosed) {
             sessionClosed = true
@@ -271,8 +295,95 @@ class WovenleafReaderActivity : AppCompatActivity() {
         val assetId = intent.getStringExtra(ReaderContract.ASSET_ID) ?: return null
         val fingerprint = intent.getStringExtra(ReaderContract.ASSET_FINGERPRINT) ?: return null
         val title = intent.getStringExtra(ReaderContract.TITLE) ?: return null
-        val layout = intent.getStringExtra(ReaderContract.LAYOUT) ?: "paginated"
-        return ReaderContext(bookId, editionId, assetId, fingerprint, title, layout)
+        val globalPreferences = intent.getStringExtra(ReaderContract.GLOBAL_PREFERENCES)
+            ?.let { runCatching { JSONObject(it) }.getOrNull() }
+            ?.let(WovenleafReaderPreferences::fromJson)
+            ?: return null
+        val bookPreferences = intent.getStringExtra(ReaderContract.BOOK_PREFERENCES)
+            ?.let { runCatching { JSONObject(it) }.getOrNull() }
+            ?.let(WovenleafReaderPreferences::fromJson)
+        return ReaderContext(
+            bookId,
+            editionId,
+            assetId,
+            fingerprint,
+            title,
+            globalPreferences,
+            bookPreferences,
+        )
+    }
+
+    private fun effectivePreferences() = readerContext.bookPreferences ?: readerContext.globalPreferences
+
+    private fun savePreferences(
+        scope: ReaderPreferenceScope,
+        preferences: WovenleafReaderPreferences?,
+    ) {
+        if (pendingPreference?.first != null && pendingPreference?.first != scope) flushPreference()
+        if (scope == ReaderPreferenceScope.GLOBAL && preferences != null) {
+            readerContext.globalPreferences = preferences
+        } else if (scope == ReaderPreferenceScope.BOOK) {
+            readerContext.bookPreferences = preferences
+        }
+        navigator?.submitPreferences(readerPreferences())
+        applyChromePalette()
+        pendingPreference = scope to preferences
+        preferenceJob?.cancel()
+        preferenceJob = lifecycleScope.launch {
+            delay(350)
+            flushPreference()
+        }
+    }
+
+    private fun flushPreference() {
+        preferenceJob?.cancel()
+        preferenceJob = null
+        val pending = pendingPreference ?: return
+        pendingPreference = null
+        ReaderOutbox.enqueuePreference(
+            this,
+            readerContext,
+            sessionId,
+            pending.first,
+            pending.second,
+        )
+    }
+
+    private fun applyChromePalette() {
+        val preferences = effectivePreferences()
+        val palette = ReaderPalette(preferences.theme, isHighContrast(this))
+        chrome.setBackgroundColor(palette.page)
+        topChrome.setBackgroundColor(palette.page)
+        bottomChrome.setBackgroundColor(palette.page)
+        titleView.setTextColor(palette.ink)
+        progress.setTextColor(palette.secondaryInk)
+        recolorButtons(topChrome, palette)
+        recolorButtons(bottomChrome, palette)
+        texture.theme = preferences.theme
+        texture.highContrast = isHighContrast(this)
+        window.statusBarColor = palette.page
+        window.navigationBarColor = palette.page
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val lightBars = android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
+                android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+            window.insetsController?.setSystemBarsAppearance(
+                if (preferences.theme == "graphite") 0 else lightBars,
+                lightBars,
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = if (preferences.theme == "graphite") 0 else
+                View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+        }
+    }
+
+    private fun recolorButtons(root: ViewGroup, palette: ReaderPalette) {
+        for (index in 0 until root.childCount) {
+            when (val child = root.getChildAt(index)) {
+                is Button -> child.setTextColor(palette.ink)
+                is ViewGroup -> recolorButtons(child, palette)
+            }
+        }
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()

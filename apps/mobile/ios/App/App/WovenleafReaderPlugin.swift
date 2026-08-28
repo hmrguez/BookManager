@@ -37,7 +37,8 @@ final class WovenleafReaderPlugin: CAPPlugin, CAPBridgedPlugin {
             let title = call.getString("title"),
             let fileURI = call.getString("fileUri"),
             let fileURL = URL(string: fileURI),
-            let validatedURL = validateManagedURL(fileURL)
+            let validatedURL = validateManagedURL(fileURL),
+            let globalPreferences = WovenleafReaderPreferences(object: call.getObject("globalPreferences"))
         else {
             call.reject("The reader capability is invalid.", "INVALID_CAPABILITY")
             return
@@ -52,10 +53,10 @@ final class WovenleafReaderPlugin: CAPPlugin, CAPBridgedPlugin {
             editionId: editionId,
             assetId: assetId,
             assetFingerprint: fingerprint,
-            title: title,
-            layout: call.getString("layout") == "scroll" ? .scroll : .paginated
+            title: title
         )
         let initialLocator = call.getObject("initialLocator").flatMap(locator(from:))
+        let bookPreferences = WovenleafReaderPreferences(object: call.getObject("bookPreferences"))
 
         Task { @MainActor in
             do {
@@ -81,7 +82,9 @@ final class WovenleafReaderPlugin: CAPPlugin, CAPBridgedPlugin {
                 let reader = try WovenleafReaderViewController(
                     publication: publication,
                     initialLocator: initialLocator,
-                    context: context
+                    context: context,
+                    globalPreferences: globalPreferences,
+                    bookPreferences: bookPreferences
                 )
                 let navigation = UINavigationController(rootViewController: reader)
                 navigation.modalPresentationStyle = .fullScreen
@@ -142,18 +145,12 @@ private final class WovenleafReadium {
     )
 }
 
-enum ReaderLayout: String {
-    case paginated
-    case scroll
-}
-
 struct ReaderContext {
     let bookId: String
     let editionId: String
     let assetId: String
     let assetFingerprint: String
     let title: String
-    var layout: ReaderLayout
 }
 
 enum ReaderOutbox {
@@ -172,7 +169,8 @@ enum ReaderOutbox {
         locator: Locator?,
         startedAt: String? = nil,
         endedAt: String? = nil,
-        activeDurationMs: Int? = nil
+        activeDurationMs: Int? = nil,
+        extra: [String: Any] = [:]
     ) -> [String: Any] {
         let defaults = UserDefaults.standard
         let sequenceKey = sequencePrefix + context.assetId
@@ -195,6 +193,7 @@ enum ReaderOutbox {
         if let startedAt { event["startedAt"] = startedAt }
         if let endedAt { event["endedAt"] = endedAt }
         if let activeDurationMs { event["activeDurationMs"] = activeDurationMs }
+        extra.forEach { event[$0.key] = $0.value }
         var pending = events
         pending.append(event)
         defaults.set(pending, forKey: eventsKey)
@@ -210,6 +209,23 @@ enum ReaderOutbox {
                 return !ids.contains(id)
             },
             forKey: eventsKey
+        )
+    }
+
+    static func enqueuePreference(
+        context: ReaderContext,
+        sessionId: String,
+        scope: ReaderPreferenceScope,
+        preferences: WovenleafReaderPreferences?
+    ) {
+        var extra: [String: Any] = ["preferenceScope": scope.rawValue]
+        extra["preferences"] = preferences?.object ?? NSNull()
+        enqueue(
+            kind: "preference",
+            context: context,
+            sessionId: sessionId,
+            locator: nil,
+            extra: extra
         )
     }
 

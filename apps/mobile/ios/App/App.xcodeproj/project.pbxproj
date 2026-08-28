@@ -18,6 +18,7 @@
 		9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9582B6822FE993A50072D4E8 /* SceneDelegate.swift */; };
 		A13500012FEA000000000001 /* WovenleafReaderPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13500022FEA000000000002 /* WovenleafReaderPlugin.swift */; };
 		A13500032FEA000000000003 /* WovenleafReaderViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13500042FEA000000000004 /* WovenleafReaderViewController.swift */; };
+		A13600012FEF000000000001 /* WovenleafReaderAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13600022FEF000000000002 /* WovenleafReaderAppearance.swift */; };
 		A12600012FEC000000000001 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12600022FEC000000000002 /* ShareViewController.swift */; };
 		A12600062FEC000000000006 /* ShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A12600052FEC000000000005 /* ShareExtension.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
@@ -59,6 +60,7 @@
 		9582B6822FE993A50072D4E8 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		A13500022FEA000000000002 /* WovenleafReaderPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WovenleafReaderPlugin.swift; sourceTree = "<group>"; };
 		A13500042FEA000000000004 /* WovenleafReaderViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WovenleafReaderViewController.swift; sourceTree = "<group>"; };
+		A13600022FEF000000000002 /* WovenleafReaderAppearance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WovenleafReaderAppearance.swift; sourceTree = "<group>"; };
 		A12600022FEC000000000002 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		A12600032FEC000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A12600042FEC000000000004 /* ShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShareExtension.entitlements; sourceTree = "<group>"; };
@@ -109,6 +111,7 @@
 			children = (
 				A13500022FEA000000000002 /* WovenleafReaderPlugin.swift */,
 				A13500042FEA000000000004 /* WovenleafReaderViewController.swift */,
+				A13600022FEF000000000002 /* WovenleafReaderAppearance.swift */,
 				9582B6822FE993A50072D4E8 /* SceneDelegate.swift */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
@@ -248,6 +251,7 @@
 			files = (
 				A13500012FEA000000000001 /* WovenleafReaderPlugin.swift in Sources */,
 				A13500032FEA000000000003 /* WovenleafReaderViewController.swift in Sources */,
+				A13600012FEF000000000001 /* WovenleafReaderAppearance.swift in Sources */,
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
 			);

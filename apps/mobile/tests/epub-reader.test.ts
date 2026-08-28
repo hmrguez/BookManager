@@ -2,9 +2,11 @@ import { describe, expect, test } from 'bun:test'
 import { CatalogRepository } from '../src/storage/catalog-repository'
 import { migrateStorage } from '../src/storage/migrations'
 import {
+  DEFAULT_READER_PREFERENCES,
   MAX_FORCE_QUIT_POSITION_LOSS_MS,
   fallbackLocatorForReplacement,
   nativeReaderEventSchema,
+  readerPreferencesSchema,
   readiumLocatorSchema,
   type EpubReaderCapability,
   type NativeReaderEvent,
@@ -138,6 +140,95 @@ describe('native EPUB resume checkpoints', () => {
       assetId: fixtureIds.assets.translatedEpub,
       locator: { locations: { totalProgression: 0.73 } },
     })
+    await database.close()
+  })
+})
+
+describe('paper-aware reader preferences', () => {
+  test('ships a bounded monochrome reading surface', () => {
+    expect(DEFAULT_READER_PREFERENCES).toMatchObject({
+      fontFamily: 'literary',
+      fontSize: 1,
+      fontWeight: 1,
+      lineHeight: 1.5,
+      textAlign: 'justify',
+      hyphens: true,
+      layout: 'paginated',
+      theme: 'paper',
+      publisherStyles: false,
+    })
+    expect(() => readerPreferencesSchema.parse({
+      ...DEFAULT_READER_PREFERENCES,
+      fontSize: 3,
+    })).toThrow()
+  })
+
+  test('merges a persistent per-book override over the global reading surface', async () => {
+    const database = new BunSqliteDatabase()
+    await migrateStorage(database)
+    const repository = new EpubReaderRepository(database)
+    const global = readerPreferencesSchema.parse({
+      ...DEFAULT_READER_PREFERENCES,
+      theme: 'white',
+      fontSize: 1.1,
+    })
+    const book = readerPreferencesSchema.parse({
+      ...global,
+      theme: 'graphite',
+      fontSize: 1.3,
+      layout: 'scroll',
+    })
+
+    await repository.savePreferences('global', 'ignored', global)
+    await repository.savePreferences('book', 'book:left-hand-reader', book)
+    expect(await repository.preferencesForBook('book:left-hand-reader')).toEqual({ global, book })
+    expect(await repository.preferencesForBook('book:another')).toEqual({ global })
+
+    await repository.savePreferences('book', 'book:left-hand-reader', null)
+    expect(await repository.preferencesForBook('book:left-hand-reader')).toEqual({ global })
+    await database.close()
+  })
+
+  test('ingests native preference mutations without creating reading events', async () => {
+    const database = new BunSqliteDatabase()
+    await migrateStorage(database)
+    await new CatalogRepository(database).replace(representativeCatalog)
+    const repository = new EpubReaderRepository(database)
+    await repository.ingest(readerEvent({ sequence: 1, progression: 0.42, locator: semanticLocator }))
+    const preferences = readerPreferencesSchema.parse({
+      ...DEFAULT_READER_PREFERENCES,
+      fontFamily: 'accessible',
+      publisherStyles: true,
+    })
+    const event = nativeReaderEventSchema.parse({
+      id: 'reading-event:reader:preference-2',
+      sequence: 2,
+      kind: 'preference',
+      preferenceScope: 'book',
+      preferences,
+      bookId: 'book:left-hand-reader',
+      editionId: fixtureIds.editions.leftHandEbook,
+      assetId: fixtureIds.assets.leftHandEpub,
+      assetFingerprint: fingerprint,
+      sessionId: 'reading-session:reader:test',
+      emittedAt: '2026-08-28T12:00:01.000Z',
+      platform: 'ios',
+      toolkitVersion: '3.11.0',
+    })
+
+    expect(await repository.ingest(event)).toBe('applied')
+    expect(await repository.preferencesForBook('book:left-hand-reader')).toEqual({
+      global: DEFAULT_READER_PREFERENCES,
+      book: preferences,
+    })
+    expect(await database.query(
+      "SELECT id FROM reading_events WHERE id = 'reading-event:reader:preference-2'",
+    )).toEqual([])
+    expect(await repository.checkpointForBook('book:left-hand-reader')).toMatchObject({
+      lastSequence: 2,
+      locator: semanticLocator,
+    })
+    expect(await repository.ingest(event)).toBe('stale')
     await database.close()
   })
 })
