@@ -11,6 +11,8 @@
     "gallery:test": "playwright test",
     "gallery:update": "playwright test --update-snapshots",
     "build": "bun run typecheck && vite build",
+    "capacitor:sync:after": "bun scripts/configure-ios-spm.ts",
+    "capacitor:update:after": "bun scripts/configure-ios-spm.ts",
     "lint": "oxlint",
     "typecheck": "tsc -b --pretty false",
     "check": "bun run lint && bun run typecheck",
