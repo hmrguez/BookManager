@@ -50,6 +50,8 @@ dependencies {
     implementation 'org.readium.kotlin-toolkit:readium-shared:3.3.0'
     implementation 'org.readium.kotlin-toolkit:readium-streamer:3.3.0'
     implementation 'org.readium.kotlin-toolkit:readium-navigator:3.3.0'
+    implementation 'androidx.media3:media3-exoplayer:1.11.0'
+    implementation 'androidx.media3:media3-session:1.11.0'
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"

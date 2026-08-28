@@ -1,0 +1,954 @@
+package com.hmrguez.wovenleaf
+
+import android.content.Intent
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
+import android.net.Uri
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.PlaybackParameters
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.LibraryResult
+import androidx.media3.session.CommandButton
+import androidx.media3.session.MediaLibraryService
+import androidx.media3.session.MediaSession
+import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionCommands
+import androidx.media3.session.SessionResult
+import com.getcapacitor.JSObject
+import com.google.common.collect.ImmutableList
+import com.google.common.util.concurrent.Futures
+import com.google.common.util.concurrent.ListenableFuture
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
+import java.security.MessageDigest
+import java.time.Instant
+import java.util.UUID
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
+
+class WovenleafPlaybackService : MediaLibraryService() {
+    private lateinit var player: ExoPlayer
+    private lateinit var session: MediaLibrarySession
+    private lateinit var journal: WovenleafPlaybackJournal
+    private val handler = Handler(Looper.getMainLooper())
+    private val engineEpoch = "android-engine:${UUID.randomUUID().toString().lowercase()}"
+
+    private var manifest: JSONObject? = null
+    private var sources = JSONArray()
+    private var sourceByCapability = emptyMap<String, JSONObject>()
+    private var playbackSessionId: String? = null
+    private var revision = 0L
+    private var sequence = 0L
+    private var transportState = "empty"
+    private var suppressionReason = "none"
+    private var playIntent = false
+    private var rate = 1f
+    private var lastCommandId: String? = null
+    private var playbackError: JSONObject? = null
+    private var previewEnabled = false
+    private var sleepTimer: JSONObject? = null
+    private var sleepRunnable: Runnable? = null
+    private var activeStartedAt: Long? = null
+    private var activeDurationMs = 0L
+    private var lastDurableAt = 0L
+    private var lastDurablePositionMs = 0L
+    private var lastMediaItemIndex = C.INDEX_UNSET
+    private var retainedErrorPositionMs: Long? = null
+
+    private val ticker = object : Runnable {
+        override fun run() {
+            if (manifest != null) {
+                revision += 1
+                updateTransportState()
+                checkpoint(force = false)
+                emitSnapshot()
+            }
+            handler.postDelayed(this, 500)
+        }
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        journal = WovenleafPlaybackJournal(applicationContext)
+        player = ExoPlayer.Builder(this)
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(C.USAGE_MEDIA)
+                    .setContentType(C.AUDIO_CONTENT_TYPE_SPEECH)
+                    .build(),
+                true,
+            )
+            .setHandleAudioBecomingNoisy(true)
+            .setWakeMode(C.WAKE_MODE_LOCAL)
+            .build()
+        player.addListener(PlayerEvents())
+        session = MediaLibrarySession.Builder(this, player, SessionCallback())
+            .setId("wovenleaf-audiobook-session")
+            .setShowPlayButtonIfPlaybackIsSuppressed(true)
+            .setPeriodicPositionUpdateEnabled(true)
+            .setMediaButtonPreferences(mediaButtonPreferences())
+            .build()
+        restorePausedQueue()
+        handler.post(ticker)
+    }
+
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession = session
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        checkpoint(force = true)
+        super.onTaskRemoved(rootIntent)
+    }
+
+    override fun onDestroy() {
+        handler.removeCallbacksAndMessages(null)
+        checkpoint(force = true)
+        session.release()
+        player.release()
+        journal.close()
+        super.onDestroy()
+    }
+
+    private inner class SessionCallback : MediaLibrarySession.Callback {
+        override fun onConnect(
+            mediaSession: MediaSession,
+            controller: MediaSession.ControllerInfo,
+        ): MediaSession.ConnectionResult {
+            if (controller.packageName != packageName && !controller.isTrusted) {
+                return MediaSession.ConnectionResult.reject()
+            }
+            val defaults = if (controller.packageName == packageName) {
+                MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS
+            } else {
+                MediaSession.ConnectionResult.DEFAULT_UNTRUSTED_SESSION_AND_LIBRARY_COMMANDS
+            }
+            val commands = defaults.buildUpon().apply {
+                if (controller.isTrusted || controller.packageName == packageName) {
+                    PlaybackContract.actions.forEach { add(PlaybackContract.command(it)) }
+                }
+            }.build()
+            val playerCommands = (
+                if (controller.isTrusted || controller.packageName == packageName) {
+                    MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS
+                } else {
+                    MediaSession.ConnectionResult.DEFAULT_UNTRUSTED_PLAYER_COMMANDS
+                }
+            ).buildUpon()
+                .remove(Player.COMMAND_SEEK_TO_NEXT)
+                .remove(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+                .remove(Player.COMMAND_SEEK_TO_PREVIOUS)
+                .remove(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
+                .build()
+            return MediaSession.ConnectionResult.AcceptedResultBuilder(mediaSession, controller)
+                .setAvailableSessionCommands(commands)
+                .setAvailablePlayerCommands(playerCommands)
+                .build()
+        }
+
+        override fun onCustomCommand(
+            mediaSession: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            customCommand: SessionCommand,
+            args: Bundle,
+        ): ListenableFuture<SessionResult> {
+            val action = customCommand.customAction.removePrefix(PlaybackContract.PREFIX)
+            if (customCommand.customAction == action || action !in PlaybackContract.actions) {
+                return Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_NOT_SUPPORTED))
+            }
+            val payload = runCatching { JSONObject(args.getString(PlaybackContract.PAYLOAD) ?: "{}") }
+                .getOrElse { return Futures.immediateFuture(errorResult("QUEUE_INVALID", "Playback received invalid command data.")) }
+            if (!payload.has("commandId") && action in PlaybackContract.systemActions) {
+                return Futures.immediateFuture(handleSystemCommand(action))
+            }
+            return Futures.immediateFuture(handleCommand(action, payload))
+        }
+
+        override fun onGetLibraryRoot(
+            session: MediaLibrarySession,
+            browser: MediaSession.ControllerInfo,
+            params: LibraryParams?,
+        ): ListenableFuture<LibraryResult<MediaItem>> {
+            val root = MediaItem.Builder()
+                .setMediaId("wovenleaf-root")
+                .setMediaMetadata(
+                    MediaMetadata.Builder()
+                        .setTitle("Wovenleaf")
+                        .setIsBrowsable(true)
+                        .setIsPlayable(false)
+                        .build(),
+                )
+                .build()
+            return Futures.immediateFuture(LibraryResult.ofItem(root, params))
+        }
+
+        override fun onGetChildren(
+            session: MediaLibrarySession,
+            browser: MediaSession.ControllerInfo,
+            parentId: String,
+            page: Int,
+            pageSize: Int,
+            params: LibraryParams?,
+        ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> {
+            val items = if (parentId == "wovenleaf-root") mediaItems() else emptyList()
+            return Futures.immediateFuture(LibraryResult.ofItemList(items, params))
+        }
+
+        override fun onPlaybackResumption(
+            mediaSession: MediaSession,
+            controller: MediaSession.ControllerInfo,
+        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+            val items = mediaItems()
+            if (items.isEmpty()) return Futures.immediateFailedFuture(IllegalStateException("No saved audiobook queue."))
+            return Futures.immediateFuture(
+                MediaSession.MediaItemsWithStartPosition(items, currentSegmentIndex(), segmentPositionMs()),
+            )
+        }
+    }
+
+    private fun handleCommand(action: String, payload: JSONObject): SessionResult {
+        if (action == PlaybackContract.GET_SNAPSHOT) return successResult(snapshot())
+        if (action == PlaybackContract.DRAIN_JOURNAL) {
+            return SessionResult(
+                SessionResult.RESULT_SUCCESS,
+                Bundle().apply { putString(PlaybackContract.EVENTS, journal.events().toString()) },
+            )
+        }
+        if (action == PlaybackContract.ACK_JOURNAL) {
+            val ids = payload.optJSONArray("ids")?.strings()?.toSet() ?: emptySet()
+            journal.acknowledge(ids)
+            return SessionResult(SessionResult.RESULT_SUCCESS)
+        }
+        if (action == PlaybackContract.SET_PRIVACY) {
+            previewEnabled = payload.optBoolean("previewEnabled", false)
+            revision += 1
+            refreshMetadata()
+            checkpoint(force = true)
+            emitSnapshot()
+            return successResult(snapshot())
+        }
+
+        val commandId = payload.optString("commandId")
+        val expectedRevision = payload.optLong("expectedRevision", -1)
+        if (commandId.isBlank() || expectedRevision < 0) {
+            return errorResult("COMMAND_REJECTED", "The playback command is invalid.")
+        }
+        journal.command(commandId)?.let(::successResult)
+        if (expectedRevision != revision) {
+            return errorResult("STALE_REVISION", "Playback changed before this command arrived.")
+        }
+        return try {
+            lastCommandId = commandId
+            when (action) {
+                PlaybackContract.LOAD_QUEUE -> loadQueue(payload)
+                PlaybackContract.PLAY -> play("user-command")
+                PlaybackContract.PAUSE -> pause("user-command", clearIntent = true)
+                PlaybackContract.STOP -> stop()
+                PlaybackContract.SEEK_ABSOLUTE -> seek(payload.optLong("positionMs", 0), "absolute-seek")
+                PlaybackContract.SEEK_BY -> seek(absolutePositionMs() + payload.optLong("offsetMs", 0), "relative-seek")
+                PlaybackContract.NEXT_CHAPTER -> moveChapter(forward = true)
+                PlaybackContract.PREVIOUS_CHAPTER -> moveChapter(forward = false)
+                PlaybackContract.SKIP_BACK -> seek(
+                    absolutePositionMs() - (manifest?.optJSONObject("skipIntervals")?.optLong("backwardMs") ?: 15_000),
+                    "system-command",
+                )
+                PlaybackContract.SKIP_FORWARD -> seek(
+                    absolutePositionMs() + (manifest?.optJSONObject("skipIntervals")?.optLong("forwardMs") ?: 30_000),
+                    "system-command",
+                )
+                PlaybackContract.SET_RATE -> setRate(payload.optDouble("rate", 1.0).toFloat())
+                PlaybackContract.SET_SLEEP_TIMER -> setSleepTimer(payload)
+                PlaybackContract.CANCEL_SLEEP_TIMER -> cancelSleepTimer()
+                PlaybackContract.ADOPT_POSITION -> adoptPosition(payload)
+            }
+            revision += 1
+            checkpoint(force = true)
+            val result = snapshot()
+            journal.recordCommand(commandId, result, timestamp())
+            emitSnapshot(result)
+            successResult(result)
+        } catch (error: PlaybackCommandException) {
+            recordCommandFailure(error)
+            errorResult(error.code, error.message ?: "Playback rejected this command.")
+        } catch (_: Throwable) {
+            errorResult("COMMAND_REJECTED", "Playback could not apply this command safely.")
+        }
+    }
+
+    private fun handleSystemCommand(action: String): SessionResult = try {
+        lastCommandId = "android-system:${UUID.randomUUID().toString().lowercase()}"
+        when (action) {
+            PlaybackContract.SKIP_BACK -> seek(
+                absolutePositionMs() - (manifest?.optJSONObject("skipIntervals")?.optLong("backwardMs") ?: 15_000),
+                "system-command",
+            )
+            PlaybackContract.SKIP_FORWARD -> seek(
+                absolutePositionMs() + (manifest?.optJSONObject("skipIntervals")?.optLong("forwardMs") ?: 30_000),
+                "system-command",
+            )
+            PlaybackContract.NEXT_CHAPTER -> moveChapter(forward = true)
+            PlaybackContract.PREVIOUS_CHAPTER -> moveChapter(forward = false)
+            else -> return errorResult("COMMAND_REJECTED", "This system playback command is unavailable.")
+        }
+        revision += 1
+        checkpoint(force = true)
+        val result = snapshot()
+        emitSnapshot(result)
+        successResult(result)
+    } catch (error: PlaybackCommandException) {
+        recordCommandFailure(error)
+        errorResult(error.code, error.message ?: "Playback rejected this system command.")
+    }
+
+    private fun loadQueue(payload: JSONObject) {
+        val candidateManifest = payload.optJSONObject("manifest")
+            ?: throw PlaybackCommandException("QUEUE_INVALID", "The audiobook manifest is missing.")
+        val candidateSources = payload.optJSONArray("sources")
+            ?: throw PlaybackCommandException("QUEUE_INVALID", "The audiobook source capabilities are missing.")
+        if (candidateManifest.optInt("schemaVersion") != PlaybackContract.BRIDGE_VERSION) {
+            throw PlaybackCommandException("QUEUE_INVALID", "This audiobook queue version is unsupported.")
+        }
+        val segments = candidateManifest.optJSONArray("segments")
+            ?: throw PlaybackCommandException("QUEUE_INVALID", "The audiobook queue has no segments.")
+        if (segments.length() == 0) throw PlaybackCommandException("QUEUE_INVALID", "The audiobook queue has no segments.")
+        val resolved = candidateSources.objects().associateBy { it.optString("capability") }
+        validateQueue(candidateManifest, resolved)
+        player.pause()
+        manifest = candidateManifest
+        sources = candidateSources
+        sourceByCapability = resolved
+        playbackSessionId = "playback-session:android:${UUID.randomUUID().toString().lowercase()}"
+        playIntent = false
+        suppressionReason = "none"
+        playbackError = null
+        activeDurationMs = 0
+        activeStartedAt = null
+        retainedErrorPositionMs = null
+        rate = candidateManifest.optDouble("rate", 1.0).toFloat().coerceIn(0.5f, 3f)
+        player.playbackParameters = PlaybackParameters(rate, 1f)
+        val initial = candidateManifest.optLong("initialAbsolutePositionMs", 0)
+        val startIndex = segmentIndexForAbsolute(initial)
+        player.setMediaItems(mediaItems(), startIndex, initial - segmentStartMs(startIndex))
+        player.prepare()
+        player.playWhenReady = false
+        lastMediaItemIndex = startIndex
+        transportState = "paused"
+        refreshMetadata()
+    }
+
+    private fun play(reason: String) {
+        if (manifest == null || player.mediaItemCount == 0) {
+            throw PlaybackCommandException("QUEUE_INVALID", "Load an audiobook before playing.")
+        }
+        val wasPlaying = playIntent
+        playIntent = true
+        suppressionReason = "none"
+        playbackError = null
+        player.playbackParameters = PlaybackParameters(rate, 1f)
+        player.play()
+        transportState = if (player.playbackState == Player.STATE_BUFFERING) "buffering" else "playing"
+        if (activeStartedAt == null) activeStartedAt = SystemClock.elapsedRealtime()
+        if (!wasPlaying) enqueue(if (reason == "interruption-ended") "resume" else "play", reason)
+    }
+
+    private fun pause(reason: String, clearIntent: Boolean) {
+        val before = absolutePositionMs()
+        player.pause()
+        closeActiveInterval()
+        if (clearIntent) playIntent = false
+        transportState = if (manifest == null) "empty" else "paused"
+        if (reason == "user-command") suppressionReason = "none"
+        enqueue("pause", reason, before, absolutePositionMs())
+    }
+
+    private fun stop() {
+        pause("stop", clearIntent = true)
+        transportState = if (manifest == null) "empty" else "stopped"
+        suppressionReason = "none"
+        enqueue("stop", "user-command")
+    }
+
+    private fun seek(requestedPositionMs: Long, reason: String) {
+        if (manifest == null) throw PlaybackCommandException("QUEUE_INVALID", "No audiobook queue is loaded.")
+        val before = absolutePositionMs()
+        val target = requestedPositionMs.coerceIn(0, max(0, durationMs() - 1))
+        val segmentIndex = segmentIndexForAbsolute(target)
+        player.seekTo(segmentIndex, target - segmentStartMs(segmentIndex))
+        enqueue("seek", reason, before, target)
+    }
+
+    private fun moveChapter(forward: Boolean) {
+        val chapters = manifest?.optJSONArray("chapters")?.objects() ?: return
+        val position = absolutePositionMs()
+        val target = if (forward) {
+            chapters.firstOrNull { it.optLong("absoluteStartMs") > position + 500 }?.optLong("absoluteStartMs")
+        } else {
+            chapters.lastOrNull { it.optLong("absoluteStartMs") < position - 3_000 }?.optLong("absoluteStartMs") ?: 0
+        }
+        if (target != null) seek(target, if (forward) "next-chapter" else "previous-chapter")
+    }
+
+    private fun setRate(requestedRate: Float) {
+        if (requestedRate !in 0.5f..3f) {
+            throw PlaybackCommandException("COMMAND_REJECTED", "The requested playback speed is unsupported.")
+        }
+        val position = absolutePositionMs()
+        rate = requestedRate
+        player.playbackParameters = PlaybackParameters(rate, 1f)
+        if (sleepTimer?.optString("mode") == "chapter-end") {
+            val remaining = max(1_000, (currentChapter()?.optLong("absoluteEndMs") ?: durationMs()) - absolutePositionMs())
+            scheduleSleepTimer("chapter-end", remaining)
+        }
+        enqueue("rate-change", "user-command", position, position)
+    }
+
+    private fun setSleepTimer(payload: JSONObject) {
+        cancelSleepTimer()
+        val mode = if (payload.optString("mode") == "chapter-end") "chapter-end" else "duration"
+        val remainingMs = if (mode == "chapter-end") {
+            val end = currentChapter()?.optLong("absoluteEndMs") ?: durationMs()
+            max(1_000, end - absolutePositionMs())
+        } else {
+            payload.optLong("durationMs", 0)
+        }
+        if (remainingMs <= 0) throw PlaybackCommandException("COMMAND_REJECTED", "The sleep timer duration is invalid.")
+        scheduleSleepTimer(mode, remainingMs)
+    }
+
+    private fun scheduleSleepTimer(mode: String, remainingMs: Long) {
+        sleepRunnable?.let(handler::removeCallbacks)
+        val wallDelay = if (mode == "chapter-end") (remainingMs / rate).toLong() else remainingMs
+        sleepTimer = JSONObject().apply {
+            put("mode", mode)
+            put("deadline", Instant.now().plusMillis(wallDelay).toString())
+            put("remainingMs", remainingMs)
+        }
+        val runnable = Runnable { expireSleepTimer() }
+        sleepRunnable = runnable
+        handler.postDelayed(runnable, wallDelay)
+    }
+
+    private fun cancelSleepTimer() {
+        sleepRunnable?.let(handler::removeCallbacks)
+        sleepRunnable = null
+        sleepTimer = null
+    }
+
+    private fun expireSleepTimer() {
+        val before = absolutePositionMs()
+        player.pause()
+        closeActiveInterval()
+        playIntent = false
+        transportState = "paused"
+        suppressionReason = "sleep-timer"
+        sleepRunnable = null
+        sleepTimer = null
+        enqueue("sleep-expired", "sleep-timer", before, before)
+        revision += 1
+        checkpoint(force = true)
+        emitSnapshot()
+    }
+
+    private fun recordCommandFailure(commandError: PlaybackCommandException) {
+        val before = absolutePositionMs()
+        player.pause()
+        closeActiveInterval()
+        playIntent = false
+        transportState = "error"
+        suppressionReason = "error"
+        val code = when (commandError.code) {
+            "ENGINE_UNAVAILABLE" -> "engineUnavailable"
+            "UNSUPPORTED_ASSET" -> "unsupportedAsset"
+            "CORRUPT_ASSET" -> "corruptAsset"
+            "RELINK_REQUIRED" -> "relinkRequired"
+            "AUTHENTICATION_REQUIRED" -> "authenticationRequired"
+            "QUEUE_INVALID" -> "queueInvalid"
+            else -> "commandRejected"
+        }
+        playbackError = JSONObject().apply {
+            put("code", code)
+            put("message", commandError.message ?: "Playback rejected this command.")
+            put(
+                "recoverable",
+                code in setOf("engineUnavailable", "relinkRequired", "authenticationRequired", "commandRejected"),
+            )
+        }
+        enqueue("failure", commandError.code.lowercase(), before, absolutePositionMs())
+        revision += 1
+        checkpoint(force = true)
+        emitSnapshot()
+    }
+
+    private fun adoptPosition(payload: JSONObject) {
+        if (playIntent || transportState in setOf("playing", "buffering")) {
+            throw PlaybackCommandException("COMMAND_REJECTED", "Pause playback before adopting another position.")
+        }
+        seek(
+            payload.optLong("positionMs", 0),
+            "adopt:${payload.optString("provenanceEventId", "unknown")}",
+        )
+    }
+
+    private inner class PlayerEvents : Player.Listener {
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            if (isPlaying) {
+                transportState = "playing"
+                if (activeStartedAt == null) activeStartedAt = SystemClock.elapsedRealtime()
+            } else {
+                closeActiveInterval()
+                updateTransportState()
+            }
+            revision += 1
+            checkpoint(force = true)
+            emitSnapshot()
+        }
+
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            updateTransportState()
+            if (playbackState == Player.STATE_ENDED) {
+                closeActiveInterval()
+                playIntent = false
+                transportState = "ended"
+                enqueue("end", "queue-ended", durationMs(), durationMs())
+            }
+            revision += 1
+            checkpoint(force = playbackState == Player.STATE_ENDED)
+            emitSnapshot()
+        }
+
+        override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            when (reason) {
+                Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_BECOMING_NOISY -> {
+                    playIntent = false
+                    suppressionReason = "route-lost"
+                    enqueue("route-loss", "output-removed")
+                }
+                Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_FOCUS_LOSS -> {
+                    playIntent = false
+                    suppressionReason = "audio-focus-loss"
+                    enqueue("interruption", "audio-focus-loss")
+                }
+                Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST,
+                Player.PLAY_WHEN_READY_CHANGE_REASON_REMOTE -> playIntent = playWhenReady
+            }
+            revision += 1
+            checkpoint(force = true)
+            emitSnapshot()
+        }
+
+        override fun onPlaybackSuppressionReasonChanged(playbackSuppressionReason: Int) {
+            if (playbackSuppressionReason != Player.PLAYBACK_SUPPRESSION_REASON_NONE) {
+                suppressionReason = "audio-focus-loss"
+                closeActiveInterval()
+            } else if (suppressionReason == "audio-focus-loss" && playIntent) {
+                suppressionReason = "none"
+            }
+            revision += 1
+            checkpoint(force = true)
+            emitSnapshot()
+        }
+
+        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            val current = player.currentMediaItemIndex
+            if (lastMediaItemIndex != C.INDEX_UNSET && current != lastMediaItemIndex) {
+                enqueue("segment-transition", "file-boundary")
+            }
+            lastMediaItemIndex = current
+            revision += 1
+            checkpoint(force = true)
+            emitSnapshot()
+        }
+
+        override fun onPlayerError(error: PlaybackException) {
+            closeActiveInterval()
+            playIntent = false
+            transportState = "error"
+            suppressionReason = "error"
+            val segment = currentSegment()
+            playbackError = JSONObject().apply {
+                put("code", "playbackFailed")
+                put("message", "Android playback could not continue this segment.")
+                put("recoverable", true)
+                segment?.optString("playableCapability")?.takeIf(String::isNotBlank)?.let { put("capability", it) }
+                segment?.optString("fingerprint")?.takeIf(String::isNotBlank)?.let { put("expectedFingerprint", it) }
+            }
+            enqueue("failure", "decoder-or-source-error")
+            revision += 1
+            checkpoint(force = true)
+            emitSnapshot()
+        }
+    }
+
+    private fun mediaItems(): List<MediaItem> {
+        val segments = manifest?.optJSONArray("segments")?.objects() ?: return emptyList()
+        val title = systemTitle()
+        val contributor = systemContributor()
+        return segments.mapNotNull { segment ->
+            val source = sourceByCapability[segment.optString("playableCapability")] ?: return@mapNotNull null
+            MediaItem.Builder()
+                .setMediaId(segment.optString("id"))
+                .setUri(source.optString("uri"))
+                .setMimeType(segment.optString("mediaType"))
+                .setMediaMetadata(
+                    MediaMetadata.Builder()
+                        .setTitle(title)
+                        .setArtist(contributor)
+                        .setAlbumTitle(if (previewEnabled) previewMetadata()?.optString("series") else null)
+                        .setIsBrowsable(false)
+                        .setIsPlayable(true)
+                        .build(),
+                )
+                .build()
+        }
+    }
+
+    private fun mediaButtonPreferences(): List<CommandButton> = listOf(
+        CommandButton.Builder(CommandButton.ICON_SKIP_BACK_15)
+            .setSessionCommand(PlaybackContract.command(PlaybackContract.SKIP_BACK))
+            .setDisplayName("Back 15 seconds")
+            .setSlots(CommandButton.SLOT_BACK)
+            .build(),
+        CommandButton.Builder(CommandButton.ICON_PREVIOUS)
+            .setSessionCommand(PlaybackContract.command(PlaybackContract.PREVIOUS_CHAPTER))
+            .setDisplayName("Previous chapter")
+            .setSlots(CommandButton.SLOT_BACK_SECONDARY)
+            .build(),
+        CommandButton.Builder(CommandButton.ICON_SKIP_FORWARD_30)
+            .setSessionCommand(PlaybackContract.command(PlaybackContract.SKIP_FORWARD))
+            .setDisplayName("Forward 30 seconds")
+            .setSlots(CommandButton.SLOT_FORWARD)
+            .build(),
+        CommandButton.Builder(CommandButton.ICON_NEXT)
+            .setSessionCommand(PlaybackContract.command(PlaybackContract.NEXT_CHAPTER))
+            .setDisplayName("Next chapter")
+            .setSlots(CommandButton.SLOT_FORWARD_SECONDARY)
+            .build(),
+    )
+
+    private fun refreshMetadata() {
+        if (manifest == null || player.mediaItemCount == 0) return
+        val currentIndex = currentSegmentIndex()
+        val position = player.currentPosition
+        val shouldPlay = player.playWhenReady
+        player.setMediaItems(mediaItems(), currentIndex, position)
+        player.prepare()
+        player.playWhenReady = shouldPlay
+    }
+
+    private fun restorePausedQueue() {
+        val saved = journal.state() ?: return
+        val savedManifest = saved.optJSONObject("manifest") ?: return
+        val savedSources = saved.optJSONArray("sources") ?: return
+        val savedSnapshot = saved.optJSONObject("snapshot") ?: return
+        runCatching {
+            manifest = savedManifest
+            sources = savedSources
+            sourceByCapability = savedSources.objects().associateBy { it.optString("capability") }
+            retainedErrorPositionMs = savedSnapshot.optLong("absolutePositionMs", 0)
+            playbackSessionId = savedSnapshot.optString("playbackSessionId").takeIf(String::isNotBlank)
+            revision = savedSnapshot.optLong("revision", 0) + 1
+            sequence = saved.optLong("sequence", 0)
+            activeDurationMs = saved.optLong("activeDurationMs", 0)
+            previewEnabled = saved.optBoolean("previewEnabled", false)
+            rate = savedSnapshot.optDouble("rate", 1.0).toFloat().coerceIn(0.5f, 3f)
+            validateQueue(savedManifest, sourceByCapability)
+            playIntent = false
+            suppressionReason = "process-recreated"
+            transportState = "paused"
+            player.playbackParameters = PlaybackParameters(rate, 1f)
+            val absolute = savedSnapshot.optLong("absolutePositionMs", 0)
+            val index = segmentIndexForAbsolute(absolute)
+            player.setMediaItems(mediaItems(), index, absolute - segmentStartMs(index))
+            player.prepare()
+            player.playWhenReady = false
+            lastMediaItemIndex = index
+            retainedErrorPositionMs = null
+        }.onFailure {
+            transportState = "error"
+            suppressionReason = "error"
+            playbackError = JSONObject().apply {
+                put("code", "relinkRequired")
+                put("message", "A saved audiobook segment is missing or changed. Progress was preserved.")
+                put("recoverable", true)
+            }
+        }
+    }
+
+    private fun updateTransportState() {
+        transportState = when {
+            manifest == null -> "empty"
+            playbackError != null -> "error"
+            player.playbackState == Player.STATE_ENDED -> "ended"
+            player.playbackState == Player.STATE_BUFFERING && playIntent -> "buffering"
+            player.isPlaying -> "playing"
+            transportState == "stopped" -> "stopped"
+            else -> "paused"
+        }
+    }
+
+    private fun enqueue(
+        kind: String,
+        reason: String,
+        before: Long = absolutePositionMs(),
+        after: Long = absolutePositionMs(),
+    ) {
+        val currentManifest = manifest ?: return
+        val currentSession = playbackSessionId ?: return
+        closeActiveInterval(commitOnly = true)
+        sequence += 1
+        val event = JSONObject().apply {
+            put("bridgeVersion", PlaybackContract.BRIDGE_VERSION)
+            put("id", "playback-event:android:${UUID.randomUUID().toString().lowercase()}")
+            put("sequence", sequence)
+            put("engineEpoch", engineEpoch)
+            put("queueId", currentManifest.optString("queueId"))
+            put("playbackSessionId", currentSession)
+            put("revision", revision + 1)
+            put("kind", kind)
+            put("observedAt", timestamp())
+            put("activeDurationMs", activeDurationMs)
+            put("beforePositionMs", before)
+            put("afterPositionMs", after)
+            put("rate", rate.toDouble())
+            put("reason", reason)
+            put("confidence", 1.0)
+            put("segmentId", currentSegment()?.optString("id") ?: JSONObject.NULL)
+            put("chapterId", currentChapter()?.optString("key") ?: JSONObject.NULL)
+            put("error", playbackError ?: JSONObject.NULL)
+        }
+        journal.enqueue(event, kind in setOf("stop", "end", "failure"))
+        WovenleafPlaybackPlugin.emitEventsAvailable(journal.eventCount())
+    }
+
+    private fun checkpoint(force: Boolean) {
+        val currentManifest = manifest ?: return
+        val now = SystemClock.elapsedRealtime()
+        val position = absolutePositionMs()
+        if (!force && now - lastDurableAt < 10_000 && abs(position - lastDurablePositionMs) < 15_000) return
+        closeActiveInterval(commitOnly = true)
+        lastDurableAt = now
+        lastDurablePositionMs = position
+        journal.saveState(JSONObject().apply {
+            put("manifest", currentManifest)
+            put("sources", sources)
+            put("snapshot", snapshot())
+            put("previewEnabled", previewEnabled)
+            put("sequence", sequence)
+            put("activeDurationMs", activeDurationMs)
+        })
+    }
+
+    private fun closeActiveInterval(commitOnly: Boolean = false) {
+        activeStartedAt?.let { started ->
+            activeDurationMs += max(0, SystemClock.elapsedRealtime() - started)
+            activeStartedAt = if (commitOnly && playIntent && player.isPlaying) SystemClock.elapsedRealtime() else null
+        }
+    }
+
+    private fun snapshot(): JSONObject = JSONObject().apply {
+        put("bridgeVersion", PlaybackContract.BRIDGE_VERSION)
+        put("engineEpoch", engineEpoch)
+        put("queueId", manifest?.optString("queueId") ?: JSONObject.NULL)
+        put("playbackSessionId", playbackSessionId ?: JSONObject.NULL)
+        put("revision", revision)
+        put("state", transportState)
+        put("suppressionReason", suppressionReason)
+        put("playIntent", playIntent)
+        put("segmentId", currentSegment()?.optString("id") ?: JSONObject.NULL)
+        put("chapterId", currentChapter()?.optString("key") ?: JSONObject.NULL)
+        put("absolutePositionMs", absolutePositionMs())
+        put("segmentPositionMs", segmentPositionMs())
+        put("durationMs", durationMs())
+        put("bufferedPositionMs", min(durationMs(), segmentStartMs(currentSegmentIndex()) + player.bufferedPosition))
+        put("rate", rate.toDouble())
+        put("sleepTimer", sleepTimerSnapshot() ?: JSONObject.NULL)
+        put("route", routeSummary())
+        put("capabilities", PlaybackContract.capabilities())
+        put("lastCommandId", lastCommandId ?: JSONObject.NULL)
+        put("error", playbackError ?: JSONObject.NULL)
+        put("observedAt", timestamp())
+    }
+
+    private fun emitSnapshot(value: JSONObject = snapshot()) {
+        WovenleafPlaybackPlugin.emitSnapshot(JSObject(value.toString()))
+    }
+
+    private fun routeSummary(): JSONObject {
+        val audio = getSystemService(AudioManager::class.java)
+        val route = audio.getDevices(AudioManager.GET_DEVICES_OUTPUTS).minByOrNull { routePriority(it.type) }
+        val remote = player.deviceInfo.playbackType == androidx.media3.common.DeviceInfo.PLAYBACK_TYPE_REMOTE
+        val kind = when {
+            remote -> "cast"
+            route?.type in setOf(
+                AudioDeviceInfo.TYPE_WIRED_HEADSET,
+                AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+                AudioDeviceInfo.TYPE_USB_HEADSET,
+                AudioDeviceInfo.TYPE_USB_DEVICE,
+                AudioDeviceInfo.TYPE_USB_ACCESSORY,
+                AudioDeviceInfo.TYPE_LINE_ANALOG,
+                AudioDeviceInfo.TYPE_LINE_DIGITAL,
+                AudioDeviceInfo.TYPE_AUX_LINE,
+            ) -> "wired"
+            route?.type in setOf(
+                AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+                AudioDeviceInfo.TYPE_BLE_HEADSET,
+                AudioDeviceInfo.TYPE_BLE_SPEAKER,
+                AudioDeviceInfo.TYPE_HEARING_AID,
+            ) -> "bluetooth"
+            route?.type in setOf(AudioDeviceInfo.TYPE_BUILTIN_SPEAKER, AudioDeviceInfo.TYPE_BUILTIN_EARPIECE) -> "built-in"
+            else -> if (remote) "cast" else "unknown"
+        }
+        val external = kind !in setOf("built-in", "unknown")
+        return JSONObject().apply {
+            put("kind", kind)
+            put("name", route?.productName?.toString()?.takeIf(String::isNotBlank) ?: "Android audio")
+            put("external", external)
+        }
+    }
+
+    private fun routePriority(type: Int): Int = when (type) {
+        AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+        AudioDeviceInfo.TYPE_BLE_HEADSET,
+        AudioDeviceInfo.TYPE_BLE_SPEAKER,
+        AudioDeviceInfo.TYPE_HEARING_AID,
+        AudioDeviceInfo.TYPE_WIRED_HEADSET,
+        AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+        AudioDeviceInfo.TYPE_USB_HEADSET,
+        AudioDeviceInfo.TYPE_USB_DEVICE,
+        AudioDeviceInfo.TYPE_USB_ACCESSORY,
+        AudioDeviceInfo.TYPE_LINE_ANALOG,
+        AudioDeviceInfo.TYPE_LINE_DIGITAL,
+        AudioDeviceInfo.TYPE_AUX_LINE -> 0
+        AudioDeviceInfo.TYPE_BUILTIN_SPEAKER,
+        AudioDeviceInfo.TYPE_BUILTIN_EARPIECE -> 1
+        else -> 2
+    }
+
+    private fun sleepTimerSnapshot(): JSONObject? {
+        val current = sleepTimer ?: return null
+        val deadline = runCatching { Instant.parse(current.optString("deadline")) }.getOrNull() ?: return current
+        return JSONObject(current.toString()).apply {
+            put("remainingMs", max(0, deadline.toEpochMilli() - Instant.now().toEpochMilli()))
+        }
+    }
+
+    private fun absolutePositionMs(): Long = retainedErrorPositionMs ?: min(
+        durationMs(),
+        max(0, segmentStartMs(currentSegmentIndex()) + player.currentPosition),
+    )
+
+    private fun segmentPositionMs(): Long = retainedErrorPositionMs?.let {
+        max(0, it - segmentStartMs(segmentIndexForAbsolute(it)))
+    } ?: max(0, player.currentPosition)
+
+    private fun durationMs(): Long = manifest
+        ?.optJSONArray("segments")
+        ?.optJSONObject((manifest?.optJSONArray("segments")?.length() ?: 1) - 1)
+        ?.optLong("absoluteEndMs")
+        ?: 0
+
+    private fun currentSegmentIndex(): Int = player.currentMediaItemIndex.takeIf { it >= 0 } ?: 0
+
+    private fun segmentStartMs(index: Int): Long = manifest
+        ?.optJSONArray("segments")
+        ?.optJSONObject(index.coerceAtLeast(0))
+        ?.optLong("absoluteStartMs")
+        ?: 0
+
+    private fun segmentIndexForAbsolute(positionMs: Long): Int {
+        val segments = manifest?.optJSONArray("segments")?.objects() ?: return 0
+        return segments.indexOfFirst {
+            positionMs >= it.optLong("absoluteStartMs") && positionMs < it.optLong("absoluteEndMs")
+        }.takeIf { it >= 0 } ?: max(0, segments.size - 1)
+    }
+
+    private fun currentSegment(): JSONObject? = manifest
+        ?.optJSONArray("segments")
+        ?.optJSONObject(currentSegmentIndex())
+
+    private fun currentChapter(): JSONObject? {
+        val position = absolutePositionMs()
+        return manifest?.optJSONArray("chapters")?.objects()?.firstOrNull {
+            position >= it.optLong("absoluteStartMs") && position < it.optLong("absoluteEndMs")
+        }
+    }
+
+    private fun previewMetadata(): JSONObject? = manifest?.optJSONObject("systemSurfaceMetadata")?.optJSONObject("preview")
+    private fun privateMetadata(): JSONObject? = manifest?.optJSONObject("systemSurfaceMetadata")?.optJSONObject("private")
+    private fun systemTitle() = if (previewEnabled) previewMetadata()?.optString("title") else privateMetadata()?.optString("title")
+    private fun systemContributor() = if (previewEnabled) previewMetadata()?.optString("contributor") else privateMetadata()?.optString("subtitle")
+
+    private fun managedFile(rawUri: String): File? {
+        val uri = runCatching { Uri.parse(rawUri) }.getOrNull() ?: return null
+        if (uri.scheme != "file") return null
+        val candidate = runCatching { File(requireNotNull(uri.path)).canonicalFile }.getOrNull() ?: return null
+        val root = filesDir.canonicalFile
+        return candidate.takeIf { it.path.startsWith(root.path + File.separator) }
+    }
+
+    private fun validateQueue(candidateManifest: JSONObject, resolved: Map<String, JSONObject>) {
+        val segments = candidateManifest.optJSONArray("segments")?.objects()
+            ?: throw PlaybackCommandException("QUEUE_INVALID", "The audiobook queue has no segments.")
+        segments.forEach { segment ->
+            val capability = segment.optString("playableCapability")
+            val source = resolved[capability]
+                ?: throw PlaybackCommandException("RELINK_REQUIRED", "A managed audiobook segment is unavailable.")
+            val file = managedFile(source.optString("uri"))
+            if (
+                source.optString("fingerprint") != segment.optString("fingerprint") ||
+                source.optString("mediaType") != segment.optString("mediaType") ||
+                file == null || !file.isFile || !file.canRead() ||
+                file.length() != source.optLong("byteSize") || sha256(file) != source.optString("fingerprint")
+            ) {
+                throw PlaybackCommandException("RELINK_REQUIRED", "A managed audiobook segment is missing or changed.")
+            }
+        }
+    }
+
+    private fun sha256(file: File): String = runCatching {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().buffered().use { input ->
+            val buffer = ByteArray(1_048_576)
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                digest.update(buffer, 0, count)
+            }
+        }
+        digest.digest().joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
+    }.getOrElse { "" }
+
+    private fun successResult(snapshot: JSONObject) = SessionResult(
+        SessionResult.RESULT_SUCCESS,
+        Bundle().apply { putString(PlaybackContract.SNAPSHOT, snapshot.toString()) },
+    )
+
+    private fun errorResult(code: String, message: String) = SessionResult(
+        SessionResult.RESULT_ERROR_BAD_VALUE,
+        Bundle().apply {
+            putString(PlaybackContract.ERROR_CODE, code)
+            putString(PlaybackContract.ERROR_MESSAGE, message)
+        },
+    )
+
+    private class PlaybackCommandException(val code: String, message: String) : IllegalStateException(message)
+}
+
+private fun JSONArray.objects(): List<JSONObject> = buildList {
+    for (index in 0 until length()) optJSONObject(index)?.let(::add)
+}
+
+private fun JSONArray.strings(): List<String> = buildList {
+    for (index in 0 until length()) optString(index).takeIf(String::isNotBlank)?.let(::add)
+}
+
+private fun timestamp(): String = Instant.now().toString()
