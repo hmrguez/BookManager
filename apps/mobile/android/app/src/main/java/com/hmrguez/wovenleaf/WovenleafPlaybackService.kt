@@ -356,7 +356,6 @@ class WovenleafPlaybackService : MediaLibraryService() {
         player.playbackParameters = PlaybackParameters(rate, 1f)
         player.play()
         transportState = if (player.playbackState == Player.STATE_BUFFERING) "buffering" else "playing"
-        if (activeStartedAt == null) activeStartedAt = SystemClock.elapsedRealtime()
         if (!wasPlaying) enqueue(if (reason == "interruption-ended") "resume" else "play", reason)
     }
 
@@ -769,6 +768,7 @@ class WovenleafPlaybackService : MediaLibraryService() {
         put("segmentPositionMs", segmentPositionMs())
         put("durationMs", durationMs())
         put("bufferedPositionMs", min(durationMs(), segmentStartMs(currentSegmentIndex()) + player.bufferedPosition))
+        put("activeDurationMs", currentActiveDurationMs())
         put("rate", rate.toDouble())
         put("sleepTimer", sleepTimerSnapshot() ?: JSONObject.NULL)
         put("route", routeSummary())
@@ -780,6 +780,11 @@ class WovenleafPlaybackService : MediaLibraryService() {
 
     private fun emitSnapshot(value: JSONObject = snapshot()) {
         WovenleafPlaybackPlugin.emitSnapshot(JSObject(value.toString()))
+    }
+
+    private fun currentActiveDurationMs(): Long {
+        val started = activeStartedAt ?: return activeDurationMs
+        return activeDurationMs + max(0, SystemClock.elapsedRealtime() - started)
     }
 
     private fun routeSummary(): JSONObject {

@@ -12,6 +12,7 @@ import {
   type PlaybackSnapshot,
 } from '../src/playback/model'
 import { AudiobookPlaybackService } from '../src/playback/service'
+import { migrateStorage } from '../src/storage/migrations'
 import { BunSqliteDatabase } from './storage-test-database'
 
 const fingerprint = 'a'.repeat(64)
@@ -32,6 +33,7 @@ function snapshot(overrides: Partial<PlaybackSnapshot> = {}): PlaybackSnapshot {
     segmentPositionMs: 1_000,
     durationMs: 60_000,
     bufferedPositionMs: 60_000,
+    activeDurationMs: 0,
     rate: 1,
     sleepTimer: null,
     route: { kind: 'built-in', name: 'Device', external: false },
@@ -267,6 +269,7 @@ describe('native audiobook playback contract', () => {
 
   test('refreshes the authoritative state when a system surface wins a command race', async () => {
     const database = new BunSqliteDatabase()
+    await migrateStorage(database)
     const fake = fakePlugin()
     const service = new AudiobookPlaybackService(database as SqlDatabase, { plugin: fake.plugin })
     await service.connect()
@@ -280,6 +283,7 @@ describe('native audiobook playback contract', () => {
 
   test('acknowledges only journal rows accepted by the durable event consumer', async () => {
     const database = new BunSqliteDatabase()
+    await migrateStorage(database)
     const fake = fakePlugin()
     fake.journal.push(event('event:one'), { ...event('event:two'), id: 'event:two', sequence: 2 })
     const service = new AudiobookPlaybackService(database as SqlDatabase, {
@@ -296,6 +300,7 @@ describe('native audiobook playback contract', () => {
 
   test('preserves a typed recoverable source error from the authoritative engine', async () => {
     const database = new BunSqliteDatabase()
+    await migrateStorage(database)
     const fake = fakePlugin()
     const service = new AudiobookPlaybackService(database as SqlDatabase, { plugin: fake.plugin })
     await service.connect()

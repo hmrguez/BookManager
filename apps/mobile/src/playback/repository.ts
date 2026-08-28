@@ -4,6 +4,7 @@ import type { PlaybackManifest } from '../audiobooks/model'
 import type { SqlDatabase, SqlRow } from '../storage/database'
 import { readNumber, readText } from '../storage/database'
 import { AudiobookPlaybackError, playbackQueueRequestSchema, type PlaybackQueueRequest } from './model'
+import { AudiobookProgressRepository } from './progress'
 
 type PlaybackImportRow = SqlRow & {
   readonly manifest_json: string
@@ -19,9 +20,11 @@ type PlaybackFileRow = SqlRow & {
 
 export class AudiobookPlaybackRepository {
   readonly #database: SqlDatabase
+  readonly #progress: AudiobookProgressRepository
 
   constructor(database: SqlDatabase) {
     this.#database = database
+    this.#progress = new AudiobookProgressRepository(database)
   }
 
   async queueForBook(bookId: string): Promise<PlaybackQueueRequest | undefined> {
@@ -34,7 +37,22 @@ export class AudiobookPlaybackRepository {
       [bookId],
     )
     if (!row) return undefined
-    return this.#resolve(immutablePlaybackManifest(JSON.parse(readText(row, 'manifest_json'))))
+    const queue = await this.#resolve(immutablePlaybackManifest(JSON.parse(readText(row, 'manifest_json'))))
+    const [resolution, checkpoint] = await Promise.all([
+      this.#progress.resolvePositionForBook(bookId),
+      this.#progress.checkpointForBook(bookId),
+    ])
+    if (resolution?.status !== 'resolved' && !checkpoint) return queue
+    return playbackQueueRequestSchema.parse({
+      ...queue,
+      manifest: {
+        ...queue.manifest,
+        initialAbsolutePositionMs: resolution?.status === 'resolved'
+          ? resolution.positionMs
+          : checkpoint?.absolutePositionMs ?? queue.manifest.initialAbsolutePositionMs,
+        rate: checkpoint?.rate ?? queue.manifest.rate,
+      },
+    })
   }
 
   async queueForAsset(assetId: string): Promise<PlaybackQueueRequest | undefined> {

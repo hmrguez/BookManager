@@ -431,7 +431,52 @@ export const STORAGE_MIGRATIONS: readonly StorageMigration[] = [
       await database.execute(epubReaderPreferencesSchemaSql())
     },
   },
+  {
+    version: 13,
+    name: 'durable audiobook progress checkpoints',
+    kind: 'additive',
+    signature: audiobookPlaybackCheckpointSchemaSql(),
+    async up(database) {
+      await database.execute(audiobookPlaybackCheckpointSchemaSql())
+    },
+  },
 ]
+
+function audiobookPlaybackCheckpointSchemaSql(): string {
+  return `
+CREATE TABLE audiobook_playback_checkpoints (
+  playback_session_id TEXT PRIMARY KEY NOT NULL,
+  engine_epoch TEXT NOT NULL,
+  queue_id TEXT NOT NULL,
+  book_id TEXT NOT NULL,
+  edition_id TEXT NOT NULL,
+  asset_id TEXT NOT NULL,
+  last_sequence INTEGER NOT NULL CHECK (last_sequence >= 0),
+  last_revision INTEGER NOT NULL CHECK (last_revision >= 0),
+  absolute_position_ms INTEGER NOT NULL CHECK (absolute_position_ms >= 0),
+  chapter_id TEXT,
+  segment_id TEXT,
+  active_duration_ms INTEGER NOT NULL CHECK (active_duration_ms >= 0),
+  rate REAL NOT NULL CHECK (rate > 0),
+  transport_state TEXT NOT NULL,
+  observed_at TEXT NOT NULL,
+  recorded_at TEXT NOT NULL,
+  interval_started_at TEXT,
+  interval_start_position_ms INTEGER CHECK (interval_start_position_ms >= 0),
+  interval_start_chapter_id TEXT,
+  interval_start_active_duration_ms INTEGER CHECK (interval_start_active_duration_ms >= 0),
+  FOREIGN KEY (edition_id) REFERENCES editions(id) ON DELETE RESTRICT,
+  FOREIGN KEY (asset_id) REFERENCES assets(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX idx_audiobook_playback_checkpoints_book
+  ON audiobook_playback_checkpoints(book_id, observed_at DESC, playback_session_id);
+CREATE INDEX idx_audiobook_playback_checkpoints_edition
+  ON audiobook_playback_checkpoints(edition_id, observed_at DESC, playback_session_id);
+CREATE INDEX idx_audiobook_playback_checkpoints_queue
+  ON audiobook_playback_checkpoints(queue_id, observed_at DESC, playback_session_id);
+`
+}
 
 function epubReaderPreferencesSchemaSql(): string {
   return `

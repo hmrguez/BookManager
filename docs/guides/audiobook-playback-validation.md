@@ -2,6 +2,9 @@
 
 This runbook is the release gate for the native audiobook engine introduced by QUI-44. Run the matrix on at least one currently supported physical iPhone and one currently supported physical Android phone. Simulators and emulators do not provide reliable audio-focus, route, lock-screen, or process-recreation evidence.
 
+Use [Audiobook progress and listening-time semantics](audiobook-progress.md) when validating the
+canonical checkpoint, session-duration, seek, speed, and provenance behavior added by QUI-43.
+
 ## Invariants
 
 - The native snapshot is authoritative. Every accepted command or external transition increments `revision`; React converges to the same snapshot within 1 second.
@@ -53,4 +56,8 @@ This runbook is the release gate for the native audiobook engine introduced by Q
 
 For each checked cell, record device model, OS version, build commit, route, audiobook format and fixture fingerprint, wall-clock timestamp, starting and ending revisions, measured React convergence time, maximum recovered-position delta, CPU, battery, thermal state, memory, journal size/write rate, and log/screen-recording location. A row passes only when the required result and all invariants hold. File a follow-up issue for every exception; do not reinterpret an exception as platform behavior without updating the architecture decision.
 
-Automated contract tests cover schema validation, snapshot ordering, command-race recovery, and at-least-once journal acknowledgement. The physical matrix remains mandatory before release because CI cannot faithfully generate calls, alarms, route loss, or OS process termination.
+Automated contract tests cover schema validation, snapshot ordering, command-race recovery,
+at-least-once journal acknowledgement, checkpoint throttling, process-loss reconstruction,
+buffering exclusion, seek/speed semantics, and stale external-progress precedence. The physical
+matrix remains mandatory before release because CI cannot faithfully generate calls, alarms, route
+loss, or OS process termination.

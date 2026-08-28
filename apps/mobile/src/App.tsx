@@ -207,6 +207,31 @@ function App() {
     }
   }, [reload])
 
+  useEffect(() => {
+    let disposed = false
+    let disconnect: (() => Promise<void>) | undefined
+    let removeLifecycleListener: (() => Promise<void>) | undefined
+    void getStorageRuntime().then(async (runtime) => {
+      await runtime.playback.connect()
+      disconnect = () => runtime.playback.disconnect()
+      const handle = await CapacitorApp.addListener('appStateChange', ({ isActive }) => {
+        if (!isActive) void runtime.playback.flush().catch(() => undefined)
+      })
+      removeLifecycleListener = () => handle.remove()
+      if (disposed) {
+        await removeLifecycleListener()
+        await disconnect()
+      }
+    }).catch(() => {
+      // Native playback keeps its recovery journal and retries reconciliation next launch.
+    })
+    return () => {
+      disposed = true
+      if (removeLifecycleListener) void removeLifecycleListener().catch(() => undefined)
+      if (disconnect) void disconnect().catch(() => undefined)
+    }
+  }, [])
+
   const prepareAudiobookSources = async (
     loadSources: () => Promise<readonly AudiobookImportSource[]>,
   ) => {

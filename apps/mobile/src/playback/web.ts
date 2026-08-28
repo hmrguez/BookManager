@@ -54,6 +54,8 @@ export class WovenleafPlaybackWeb extends WebPlugin implements WovenleafPlayback
   #sleepTimer: PlaybackSleepTimer | null = null
   #sleepTimeout?: number
   #previewEnabled = false
+  #activeStartedAt?: number
+  #activeDurationMs = 0
 
   constructor() {
     super()
@@ -80,6 +82,8 @@ export class WovenleafPlaybackWeb extends WebPlugin implements WovenleafPlayback
       this.#suppression = 'none'
       this.#playIntent = false
       this.#error = null
+      this.#activeStartedAt = undefined
+      this.#activeDurationMs = 0
       this.#createAudio(options.manifest.initialAbsolutePositionMs)
       this.#state = 'paused'
       this.#updateMediaSession()
@@ -93,6 +97,7 @@ export class WovenleafPlaybackWeb extends WebPlugin implements WovenleafPlayback
       this.#suppression = 'none'
       await this.#audio.play()
       this.#state = 'playing'
+      this.#startActiveInterval()
       this.#journal('play', 'user-command')
     })
   }
@@ -100,6 +105,7 @@ export class WovenleafPlaybackWeb extends WebPlugin implements WovenleafPlayback
   async pause(options: PlaybackCommand): Promise<PlaybackSnapshot> {
     return this.#command(options, () => {
       this.#audio?.pause()
+      this.#closeActiveInterval()
       this.#playIntent = false
       this.#state = this.#audio ? 'paused' : 'empty'
       this.#journal('pause', 'user-command')
@@ -109,6 +115,7 @@ export class WovenleafPlaybackWeb extends WebPlugin implements WovenleafPlayback
   async stop(options: PlaybackCommand): Promise<PlaybackSnapshot> {
     return this.#command(options, () => {
       this.#audio?.pause()
+      this.#closeActiveInterval()
       this.#playIntent = false
       this.#state = this.#audio ? 'stopped' : 'empty'
       this.#journal('stop', 'user-command')
@@ -238,15 +245,18 @@ export class WovenleafPlaybackWeb extends WebPlugin implements WovenleafPlayback
     audio.currentTime = Math.max(0, absolutePositionMs - segment.absoluteStartMs) / 1_000
     audio.addEventListener('waiting', () => {
       if (this.#state === 'playing') {
+        this.#closeActiveInterval()
         this.#state = 'buffering'
         void this.#emitSnapshot()
       }
     })
     audio.addEventListener('playing', () => {
       this.#state = 'playing'
+      this.#startActiveInterval()
       void this.#emitSnapshot()
     })
     audio.addEventListener('pause', () => {
+      this.#closeActiveInterval()
       if (this.#state !== 'stopped' && this.#state !== 'ended') this.#state = 'paused'
       void this.#emitSnapshot()
     })
@@ -257,6 +267,7 @@ export class WovenleafPlaybackWeb extends WebPlugin implements WovenleafPlayback
       void this.#advanceSegment()
     })
     audio.addEventListener('error', () => {
+      this.#closeActiveInterval()
       this.#playIntent = false
       this.#state = 'error'
       this.#suppression = 'error'
@@ -277,6 +288,7 @@ export class WovenleafPlaybackWeb extends WebPlugin implements WovenleafPlayback
     if (!this.#manifest) return
     const before = this.#absolutePosition()
     if (this.#segmentIndex >= this.#manifest.segments.length - 1) {
+      this.#closeActiveInterval()
       this.#state = 'ended'
       this.#playIntent = false
       this.#journal('end', 'queue-ended', before, this.#duration())
@@ -311,6 +323,7 @@ export class WovenleafPlaybackWeb extends WebPlugin implements WovenleafPlayback
   async #pauseForForegroundBoundary(): Promise<void> {
     const before = this.#absolutePosition()
     this.#audio?.pause()
+    this.#closeActiveInterval()
     this.#playIntent = false
     this.#state = 'paused'
     this.#suppression = 'process-recreated'
@@ -321,6 +334,7 @@ export class WovenleafPlaybackWeb extends WebPlugin implements WovenleafPlayback
   #expireSleepTimer(): void {
     const before = this.#absolutePosition()
     this.#audio?.pause()
+    this.#closeActiveInterval()
     this.#playIntent = false
     this.#state = 'paused'
     this.#suppression = 'sleep-timer'
@@ -336,6 +350,7 @@ export class WovenleafPlaybackWeb extends WebPlugin implements WovenleafPlayback
     afterPositionMs = this.#absolutePosition(),
   ): void {
     if (!this.#manifest || !this.#sessionId) return
+    this.#closeActiveInterval(true)
     const event: NativePlaybackEvent = {
       bridgeVersion: AUDIOBOOK_PLAYBACK_BRIDGE_VERSION,
       id: `playback-event:web:${crypto.randomUUID()}`,
@@ -346,7 +361,7 @@ export class WovenleafPlaybackWeb extends WebPlugin implements WovenleafPlayback
       revision: this.#revision + 1,
       kind,
       observedAt: new Date().toISOString(),
-      activeDurationMs: 0,
+      activeDurationMs: this.#activeDurationMs,
       beforePositionMs,
       afterPositionMs,
       rate: this.#rate,
@@ -384,6 +399,7 @@ export class WovenleafPlaybackWeb extends WebPlugin implements WovenleafPlayback
       segmentPositionMs: Math.max(0, Math.round((this.#audio?.currentTime ?? 0) * 1_000)),
       durationMs: this.#duration(),
       bufferedPositionMs: this.#bufferedAbsolutePosition(),
+      activeDurationMs: this.#currentActiveDurationMs(),
       rate: this.#rate,
       sleepTimer: this.#sleepTimerSnapshot(),
       route: this.#route(),
@@ -397,6 +413,25 @@ export class WovenleafPlaybackWeb extends WebPlugin implements WovenleafPlayback
   #absolutePosition(): number {
     const start = this.#currentSegment()?.absoluteStartMs ?? 0
     return Math.max(0, Math.min(this.#duration(), start + Math.round((this.#audio?.currentTime ?? 0) * 1_000)))
+  }
+
+  #startActiveInterval(): void {
+    this.#activeStartedAt ??= performance.now()
+  }
+
+  #closeActiveInterval(restart = false): void {
+    if (this.#activeStartedAt !== undefined) {
+      this.#activeDurationMs += Math.max(0, Math.round(performance.now() - this.#activeStartedAt))
+    }
+    this.#activeStartedAt = restart && this.#playIntent && this.#state === 'playing'
+      ? performance.now()
+      : undefined
+  }
+
+  #currentActiveDurationMs(): number {
+    return this.#activeDurationMs + (this.#activeStartedAt === undefined
+      ? 0
+      : Math.max(0, Math.round(performance.now() - this.#activeStartedAt)))
   }
 
   #bufferedAbsolutePosition(): number {

@@ -157,6 +157,10 @@ export const DEFAULT_PRECEDENCE_RULES: readonly PrecedenceRule[] = precedenceRul
     rationale: 'Explicit finish, DNF, and correction actions are durable reading-history decisions.',
   },
   {
+    domain: 'progress', field: 'reading-state.*', source: 'local-manual', evidence: 'user-corrected', priority: 100, automatic: true,
+    rationale: 'An explicit reader-entered position is a durable correction for that Edition.',
+  },
+  {
     domain: 'deletion', field: '*', source: 'local-manual', evidence: 'user-corrected', priority: 100, automatic: true,
     rationale: 'Only an explicit local delete is automatically destructive; remote absence is not deletion.',
   },

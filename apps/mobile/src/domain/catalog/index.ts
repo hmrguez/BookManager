@@ -82,6 +82,7 @@ export { accessStateAt, reparentEditionsForWorkMerge } from './operations'
 export type { AccessState } from './operations'
 export {
   READING_EVENT_KINDS,
+  activeReadingEvents,
   deriveReadingState,
   integrationCheckpointSchema,
   progressSnapshotSchema,

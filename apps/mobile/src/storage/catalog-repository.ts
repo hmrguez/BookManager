@@ -12,6 +12,7 @@ import type { SqlDatabase, SqlValue } from './database'
 import { readText } from './database'
 
 const CATALOG_TABLES_IN_DELETE_ORDER = [
+  'audiobook_playback_checkpoints',
   'audiobook_files',
   'audiobook_imports',
   'reading_event_references',
@@ -138,41 +139,50 @@ export class ReadingLedgerRepository {
   }
 
   async read(): Promise<ReadingLedger> {
-    return readingLedgerSchema.parse({
-      integrationCheckpoints: await readPayloads(this.#database, 'integration_checkpoints'),
-      events: await readPayloads(this.#database, 'reading_events'),
-    })
+    return readReadingLedger(this.#database)
   }
 
   async append(batch: ReadingLedgerBatch): Promise<void> {
-    const checkpoints = batch.integrationCheckpoints ?? []
-    const snapshots = (batch.snapshots ?? []).map((snapshot) => progressSnapshotSchema.parse(snapshot))
-    const current = await this.read()
-    const ledger = readingLedgerSchema.parse({
-      integrationCheckpoints: [...current.integrationCheckpoints, ...checkpoints],
-      events: [...current.events, ...batch.events],
-    })
-    const checkpointIds = new Set(checkpoints.map(({ id }) => id))
-    const eventIds = new Set(batch.events.map(({ id }) => id))
-
-    await validateAssetScopes(this.#database, batch.events, snapshots)
-    await this.#database.transaction(async (database) => {
-      for (const checkpoint of ledger.integrationCheckpoints) {
-        if (checkpointIds.has(checkpoint.id)) await insertCheckpoint(database, checkpoint)
-      }
-      for (const event of ledger.events) {
-        if (!eventIds.has(event.id)) continue
-        await insertReadingEvent(database, event)
-      }
-      for (const event of ledger.events) {
-        if (!eventIds.has(event.id)) continue
-        await insertReadingEventReferences(database, event)
-      }
-      for (const snapshot of snapshots) {
-        await insertProgressSnapshot(database, snapshot)
-      }
-    })
+    await this.#database.transaction((database) => appendReadingLedgerBatch(database, batch))
   }
+}
+
+export async function appendReadingLedgerBatch(
+  database: SqlDatabase,
+  batch: ReadingLedgerBatch,
+): Promise<void> {
+  const checkpoints = batch.integrationCheckpoints ?? []
+  const snapshots = (batch.snapshots ?? []).map((snapshot) => progressSnapshotSchema.parse(snapshot))
+  const current = await readReadingLedger(database)
+  const ledger = readingLedgerSchema.parse({
+    integrationCheckpoints: [...current.integrationCheckpoints, ...checkpoints],
+    events: [...current.events, ...batch.events],
+  })
+  const checkpointIds = new Set(checkpoints.map(({ id }) => id))
+  const eventIds = new Set(batch.events.map(({ id }) => id))
+
+  await validateAssetScopes(database, batch.events, snapshots)
+  for (const checkpoint of ledger.integrationCheckpoints) {
+    if (checkpointIds.has(checkpoint.id)) await insertCheckpoint(database, checkpoint)
+  }
+  for (const event of ledger.events) {
+    if (!eventIds.has(event.id)) continue
+    await insertReadingEvent(database, event)
+  }
+  for (const event of ledger.events) {
+    if (!eventIds.has(event.id)) continue
+    await insertReadingEventReferences(database, event)
+  }
+  for (const snapshot of snapshots) {
+    await insertProgressSnapshot(database, snapshot)
+  }
+}
+
+async function readReadingLedger(database: SqlDatabase): Promise<ReadingLedger> {
+  return readingLedgerSchema.parse({
+    integrationCheckpoints: await readPayloads(database, 'integration_checkpoints'),
+    events: await readPayloads(database, 'reading_events'),
+  })
 }
 
 async function insertCatalog(database: SqlDatabase, catalog: Catalog): Promise<void> {

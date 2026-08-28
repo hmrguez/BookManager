@@ -42,7 +42,12 @@ export const readingLocatorSchema = z.discriminatedUnion('kind', [
       version: z.string().min(1),
     }).optional(),
   }),
-  z.object({ kind: z.literal('audio-time'), positionMs: z.number().int().nonnegative() }),
+  z.object({
+    kind: z.literal('audio-time'),
+    positionMs: z.number().int().nonnegative(),
+    chapterKey: z.string().min(1).optional(),
+    segmentId: z.string().min(1).optional(),
+  }),
   z.object({
     kind: z.literal('chapter'),
     chapterKey: z.string().min(1),
@@ -823,6 +828,17 @@ export function deriveReadingState(
     left.sourceEventId.localeCompare(right.sourceEventId),
   )
   return state
+}
+
+/** Returns correction-aware evidence in deterministic semantic order for reconciliation adapters. */
+export function activeReadingEvents(
+  editionId: EditionId,
+  events: readonly ReadingEvent[],
+): readonly ReadingEvent[] {
+  validateProjectionEvents(events)
+  const candidates = events.filter((event) => event.editionId === editionId)
+  const activeIds = resolveActiveEventIds(candidates)
+  return candidates.filter((event) => activeIds.has(event.id)).sort(compareReadingEvents)
 }
 
 export function toProgressSnapshot(

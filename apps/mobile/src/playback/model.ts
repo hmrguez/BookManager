@@ -92,6 +92,7 @@ export const playbackSnapshotSchema = z.object({
   segmentPositionMs: positionSchema,
   durationMs: positionSchema,
   bufferedPositionMs: positionSchema,
+  activeDurationMs: positionSchema,
   rate: z.number().positive(),
   sleepTimer: playbackSleepTimerSchema.nullable(),
   route: playbackRouteSchema,

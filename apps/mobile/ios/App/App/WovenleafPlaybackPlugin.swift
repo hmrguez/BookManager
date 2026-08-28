@@ -257,7 +257,7 @@ private final class WovenleafPlaybackEngine: NSObject {
     private var lastDurableAt = Date.distantPast
     private var lastDurablePositionMs = 0
     private var lastObservedSegmentIndex = 0
-    private var activeStartedAt: Date?
+    private var activeStartedAt: TimeInterval?
     private var activeDurationMs = 0
     private var retainedErrorPositionMs: Int?
 
@@ -286,6 +286,7 @@ private final class WovenleafPlaybackEngine: NSObject {
             "segmentPositionMs": segmentPosition,
             "durationMs": durationMs,
             "bufferedPositionMs": buffered,
+            "activeDurationMs": currentActiveDurationMs,
             "rate": Double(rate),
             "sleepTimer": currentSleepTimerPayload ?? NSNull(),
             "route": routeSummary,
@@ -297,6 +298,13 @@ private final class WovenleafPlaybackEngine: NSObject {
     }
 
     private var durationMs: Int { manifest?.segments.last?.absoluteEndMs ?? 0 }
+    private var currentActiveDurationMs: Int {
+        guard let activeStartedAt else { return activeDurationMs }
+        return activeDurationMs + max(
+            0,
+            Int((ProcessInfo.processInfo.systemUptime - activeStartedAt) * 1_000)
+        )
+    }
     private var currentSegment: PlaybackManifest.Segment? { manifest?.segments[safe: segmentIndex] }
     private var currentChapter: PlaybackManifest.Chapter? {
         manifest?.chapters.first { absolutePositionMs >= $0.absoluteStartMs && absolutePositionMs < $0.absoluteEndMs }
@@ -412,7 +420,9 @@ private final class WovenleafPlaybackEngine: NSObject {
         self.error = nil
         player.playImmediately(atRate: rate)
         state = player.timeControlStatus == .waitingToPlayAtSpecifiedRate ? "buffering" : "playing"
-        if activeStartedAt == nil { activeStartedAt = Date() }
+        if state == "playing", activeStartedAt == nil {
+            activeStartedAt = ProcessInfo.processInfo.systemUptime
+        }
         if wasPaused { enqueue(kind: reason == "interruption-ended" ? "resume" : "play", reason: reason) }
         updateNowPlaying()
     }
@@ -553,7 +563,7 @@ private final class WovenleafPlaybackEngine: NSObject {
         if autoplay {
             player.playImmediately(atRate: rate)
             state = "playing"
-            if activeStartedAt == nil { activeStartedAt = Date() }
+            if activeStartedAt == nil { activeStartedAt = ProcessInfo.processInfo.systemUptime }
         } else {
             state = "paused"
         }
@@ -646,7 +656,7 @@ private final class WovenleafPlaybackEngine: NSObject {
                 state = "buffering"
             } else if player.timeControlStatus == .playing {
                 state = "playing"
-                if activeStartedAt == nil { activeStartedAt = Date() }
+                if activeStartedAt == nil { activeStartedAt = ProcessInfo.processInfo.systemUptime }
             }
         }
         revision += 1
@@ -836,8 +846,13 @@ private final class WovenleafPlaybackEngine: NSObject {
 
     private func closeActiveInterval(commitOnly: Bool = false) {
         if let activeStartedAt {
-            activeDurationMs += max(0, Int(Date().timeIntervalSince(activeStartedAt) * 1_000))
-            self.activeStartedAt = commitOnly && playIntent && state == "playing" ? Date() : nil
+            activeDurationMs += max(
+                0,
+                Int((ProcessInfo.processInfo.systemUptime - activeStartedAt) * 1_000)
+            )
+            self.activeStartedAt = commitOnly && playIntent && state == "playing"
+                ? ProcessInfo.processInfo.systemUptime
+                : nil
         }
     }
 

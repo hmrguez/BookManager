@@ -33,5 +33,13 @@ export type {
   PlaybackTransportState,
 } from './model'
 export { AudiobookPlaybackRepository } from './repository'
+export {
+  AudiobookProgressRepository,
+  PLAYBACK_CHECKPOINT_WALL_THROTTLE_MS,
+} from './progress'
+export type {
+  AudiobookPositionResolution,
+  AudiobookProgressCheckpoint,
+} from './progress'
 export { AudiobookPlaybackService } from './service'
 export type { PlaybackJournalConsumer } from './service'

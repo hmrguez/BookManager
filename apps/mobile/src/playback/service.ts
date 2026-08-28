@@ -3,6 +3,7 @@ import type { SqlDatabase } from '../storage/database'
 import { nativePlayback, type WovenleafPlaybackPlugin } from './bridge'
 import {
   AudiobookPlaybackError,
+  PLAYBACK_RECOVERY_POSITION_BOUND_MS,
   commandId,
   isNewerPlaybackSnapshot,
   nativePlaybackEventSchema,
@@ -13,6 +14,10 @@ import {
   type PlaybackSnapshot,
 } from './model'
 import { AudiobookPlaybackRepository } from './repository'
+import {
+  AudiobookProgressRepository,
+  PLAYBACK_CHECKPOINT_WALL_THROTTLE_MS,
+} from './progress'
 
 export type PlaybackJournalConsumer = (
   events: readonly NativePlaybackEvent[],
@@ -20,21 +25,26 @@ export type PlaybackJournalConsumer = (
 
 export class AudiobookPlaybackService {
   readonly #repository: AudiobookPlaybackRepository
+  readonly #progress: AudiobookProgressRepository
   readonly #plugin: WovenleafPlaybackPlugin
   readonly #listeners = new Set<(snapshot: PlaybackSnapshot) => void>()
   #snapshot?: PlaybackSnapshot
   #handles: PluginListenerHandle[] = []
   #journalConsumer?: PlaybackJournalConsumer
   #draining?: Promise<void>
+  #progressQueue: Promise<void> = Promise.resolve()
+  #queuedCheckpoints = new Map<string, Pick<PlaybackSnapshot, 'absolutePositionMs' | 'observedAt'>>()
 
   constructor(
     database: SqlDatabase,
     options: {
       readonly plugin?: WovenleafPlaybackPlugin
       readonly journalConsumer?: PlaybackJournalConsumer
+      readonly progressRepository?: AudiobookProgressRepository
     } = {},
   ) {
     this.#repository = new AudiobookPlaybackRepository(database)
+    this.#progress = options.progressRepository ?? new AudiobookProgressRepository(database)
     this.#plugin = options.plugin ?? nativePlayback
     this.#journalConsumer = options.journalConsumer
   }
@@ -53,7 +63,10 @@ export class AudiobookPlaybackService {
     if (!this.#handles.length) {
       this.#handles = [
         await this.#plugin.addListener('snapshotChanged', (candidate) => {
-          this.#accept(candidate)
+          const snapshot = this.#accept(candidate)
+          void this.#checkpoint(snapshot).catch(() => {
+            // The native journal remains authoritative and will retry on the next drain/connect.
+          })
         }),
         await this.#plugin.addListener('eventsAvailable', () => {
           void this.drainJournal()
@@ -62,10 +75,12 @@ export class AudiobookPlaybackService {
     }
     const snapshot = this.#accept(await this.#plugin.getSnapshot(), true)
     await this.drainJournal()
+    await this.#checkpoint(snapshot, true)
     return snapshot
   }
 
   async disconnect(): Promise<void> {
+    await this.flush()
     const handles = this.#handles
     this.#handles = []
     await Promise.all(handles.map((handle) => handle.remove()))
@@ -144,6 +159,12 @@ export class AudiobookPlaybackService {
     )
   }
 
+  async flush(): Promise<void> {
+    const snapshot = this.#accept(await this.#plugin.getSnapshot(), true)
+    await this.drainJournal()
+    await this.#checkpoint(snapshot, true)
+  }
+
   setSystemSurfacePrivacy(previewEnabled: boolean): Promise<PlaybackSnapshot> {
     return this.#plugin.setSystemSurfacePrivacy({ previewEnabled }).then((snapshot) => this.#accept(snapshot, true))
   }
@@ -159,13 +180,19 @@ export class AudiobookPlaybackService {
   }
 
   async #drainJournal(): Promise<void> {
-    if (!this.#journalConsumer) return
-    const { events: candidates } = await this.#plugin.drainJournal()
-    const events = candidates.map((event) => nativePlaybackEventSchema.parse(event))
-    if (!events.length) return
-    const consumed = await this.#journalConsumer(events)
-    const ids = consumed ?? events.map(({ id }) => id)
-    if (ids.length) await this.#plugin.acknowledgeJournal({ ids })
+    while (true) {
+      const { events: candidates } = await this.#plugin.drainJournal()
+      const events = candidates.map((event) => nativePlaybackEventSchema.parse(event))
+      if (!events.length) return
+      const consumed = this.#journalConsumer
+        ? await this.#journalConsumer(events)
+        : await this.#runProgress(() => this.#progress.ingestJournal(events))
+      const availableIds = new Set(events.map(({ id }) => id))
+      const ids = [...new Set(consumed ?? availableIds)].filter((id) => availableIds.has(id))
+      if (!ids.length) return
+      await this.#plugin.acknowledgeJournal({ ids })
+      if (ids.length < events.length) return
+    }
   }
 
   async #run(
@@ -176,7 +203,10 @@ export class AudiobookPlaybackService {
     const expectedRevision = this.#snapshot?.revision ?? 0
     try {
       const result = await invoke({ commandId: commandId(`playback-${prefix}`), expectedRevision })
-      return this.#accept(result, true)
+      const snapshot = this.#accept(result, true)
+      await this.drainJournal()
+      await this.#checkpoint(snapshot, true)
+      return snapshot
     } catch (error) {
       const current = this.#accept(await this.#plugin.getSnapshot(), true)
       if (current.error) {
@@ -203,5 +233,27 @@ export class AudiobookPlaybackService {
       this.#listeners.forEach((listener) => listener(snapshot))
     }
     return this.#snapshot ?? snapshot
+  }
+
+  #runProgress<Result>(work: () => Promise<Result>): Promise<Result> {
+    const result = this.#progressQueue.then(work)
+    this.#progressQueue = result.then(() => undefined, () => undefined)
+    return result
+  }
+
+  #checkpoint(snapshot: PlaybackSnapshot, force = false): Promise<unknown> {
+    if (!snapshot.playbackSessionId) return Promise.resolve('ignored')
+    const previous = this.#queuedCheckpoints.get(snapshot.playbackSessionId)
+    if (
+      !force &&
+      previous &&
+      Date.parse(snapshot.observedAt) - Date.parse(previous.observedAt) < PLAYBACK_CHECKPOINT_WALL_THROTTLE_MS &&
+      Math.abs(snapshot.absolutePositionMs - previous.absolutePositionMs) < PLAYBACK_RECOVERY_POSITION_BOUND_MS
+    ) return Promise.resolve('throttled')
+    this.#queuedCheckpoints.set(snapshot.playbackSessionId, {
+      absolutePositionMs: snapshot.absolutePositionMs,
+      observedAt: snapshot.observedAt,
+    })
+    return this.#runProgress(() => this.#progress.checkpointSnapshot(snapshot, force))
   }
 }

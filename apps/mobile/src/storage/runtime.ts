@@ -25,6 +25,7 @@ import { RecoveryService, type RecoveryLaunchResult } from './recovery'
 import { SmartListRepository } from './smart-list-repository'
 import { UpNextRepository } from './up-next-repository'
 import { EpubReaderService } from '../reader'
+import { AudiobookPlaybackService } from '../playback'
 
 export type StorageRuntime = {
   readonly database: SqlDatabase
@@ -40,6 +41,7 @@ export type StorageRuntime = {
   readonly audiobooks: AudiobookImportService
   readonly epubs: EpubImportService
   readonly reader: EpubReaderService
+  readonly playback: AudiobookPlaybackService
   readonly portableArchives: PortableArchiveService
   readonly recovery: RecoveryService
   readonly recoveryLaunch: RecoveryLaunchResult
@@ -102,6 +104,7 @@ async function initializeStorageRuntime(): Promise<StorageRuntime> {
     audiobooks: new AudiobookImportService(database),
     epubs: new EpubImportService(database),
     reader: new EpubReaderService(database, readingLedger),
+    playback: new AudiobookPlaybackService(database),
     portableArchives: new PortableArchiveService(database),
     recovery,
     recoveryLaunch,
