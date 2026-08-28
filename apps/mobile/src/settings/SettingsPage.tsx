@@ -14,6 +14,7 @@ import {
   Headphones,
   Library,
   Palette,
+  RotateCcw,
   Search,
   ShieldCheck,
   Table2,
@@ -41,6 +42,7 @@ import type {
   AudiobookImportResult,
   AudiobookImportReview,
 } from '../audiobooks'
+import type { RecoveryBackupPreview } from '../storage'
 
 export type EpubImportViewState = {
   readonly progress?: EpubImportProgress
@@ -52,6 +54,13 @@ export type AudiobookImportViewState = {
   readonly progress?: AudiobookImportProgress
   readonly draft?: AudiobookImportDraft
   readonly result?: AudiobookImportResult
+  readonly error?: string
+}
+
+export type RecoveryViewState = {
+  readonly snapshots: readonly RecoveryBackupPreview[]
+  readonly preview?: RecoveryBackupPreview
+  readonly busy: boolean
   readonly error?: string
 }
 
@@ -68,6 +77,7 @@ export function SettingsPage({
   audiobookBusy,
   exportBusy,
   exportError,
+  recovery,
   onBack,
   onAppearanceChange,
   onSearchPreferencesChange,
@@ -81,6 +91,9 @@ export function SettingsPage({
   onDismissAudiobookImport,
   onUndoImport,
   onExport,
+  onRecoveryFile,
+  onCreateRecoveryPoint,
+  onRestoreBackup,
 }: {
   books: LibraryBook[]
   appearance: AppearancePreferences
@@ -94,6 +107,7 @@ export function SettingsPage({
   audiobookBusy: boolean
   exportBusy: boolean
   exportError?: string
+  recovery: RecoveryViewState
   onBack: () => void
   onAppearanceChange: (preferences: AppearancePreferences) => void
   onSearchPreferencesChange: (preferences: SearchPreferences) => void
@@ -107,6 +121,9 @@ export function SettingsPage({
   onDismissAudiobookImport: () => void
   onUndoImport: (batchId: string) => void
   onExport: (format: ExportFormat, includeAnnotations: boolean) => void
+  onRecoveryFile: (file: File) => void
+  onCreateRecoveryPoint: () => void
+  onRestoreBackup: () => void
 }) {
   const [includeExportAnnotations, setIncludeExportAnnotations] = useState(true)
   const [epubDropActive, setEpubDropActive] = useState(false)
@@ -509,6 +526,88 @@ export function SettingsPage({
           {exportError && <p className={tw('settings-hint settings-hint--error export-error')} role="alert">{exportError}</p>}
         </section>
 
+        <section className={tw('settings-card settings-card--recovery')}>
+          <div className={tw('settings-card__icon')}><RotateCcw aria-hidden="true" /></div>
+          <div className={tw('settings-card__heading')}>
+            <span>Backup & restore · Three-point rotation</span><h2>A quiet return point.</h2>
+            <p>Wovenleaf checks the whole backup in a separate staging area, keeps the current library as rollback, and only then swaps the catalog.</p>
+          </div>
+
+          {recovery.snapshots.length > 0 && (
+            <div className={tw('recovery-points')} role="region" aria-label="Local recovery points">
+              <div className={tw('recovery-points__heading')}>
+                <History aria-hidden="true" /><span>Local recovery points</span><strong>{recovery.snapshots.length} / 3</strong>
+              </div>
+              {recovery.snapshots.slice(0, 3).map((snapshot) => (
+                <div className={tw('recovery-point')} key={snapshot.artifactId}>
+                  <span>
+                    <strong>{formatBackupDate(snapshot.createdAt)}</strong>
+                    <small>Contract {snapshot.formatVersion ?? '—'} · Schema {snapshot.schemaVersion ?? '—'} · {formatBackupSize(snapshot.byteSize)}</small>
+                  </span>
+                  <span className={tw(`recovery-validation is-${snapshot.validation.status}`)}>
+                    {snapshot.validation.status === 'invalid' ? 'Needs attention' : 'Verified'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className={tw('recovery-actions')}>
+            <label className={tw(`settings-action import-file-picker recovery-picker${recovery.busy ? ' is-busy' : ''}`)}>
+              <FileUp aria-hidden="true" />
+              <span><strong>{recovery.busy ? 'Checking in staging…' : 'Choose a Wovenleaf backup'}</strong><small>Nothing is replaced during preview</small></span>
+              <ChevronRight aria-hidden="true" />
+              <input
+                type="file"
+                accept=".json,.wovenleaf.json,application/json"
+                disabled={recovery.busy}
+                onChange={(event) => {
+                  const file = event.currentTarget.files?.[0]
+                  if (file) onRecoveryFile(file)
+                  event.currentTarget.value = ''
+                }}
+              />
+            </label>
+            <button className={tw('settings-action recovery-save')} type="button" disabled={recovery.busy} onClick={onCreateRecoveryPoint}>
+              <Archive aria-hidden="true" />
+              <span><strong>Save a recovery point now</strong><small>Private local rotation · oldest point retires first</small></span>
+              <ChevronRight aria-hidden="true" />
+            </button>
+          </div>
+
+          {recovery.preview && (
+            <div
+              className={tw(`recovery-preview is-${recovery.preview.validation.status}`)}
+              role={recovery.preview.validation.status === 'invalid' ? 'alert' : 'status'}
+              aria-live="polite"
+            >
+              <div className={tw('recovery-preview__mark')}>
+                {recovery.preview.validation.status === 'invalid' ? <X aria-hidden="true" /> : <CheckCircle2 aria-hidden="true" />}
+              </div>
+              <div className={tw('recovery-preview__title')}>
+                <span>Restore preview</span>
+                <strong>{recovery.preview.validation.status === 'invalid' ? 'This backup stays outside your library.' : 'Ready for an atomic restore.'}</strong>
+                <small>{recovery.preview.validation.message}</small>
+              </div>
+              <dl className={tw('recovery-preview__ledger')}>
+                <div><dt>Backup date</dt><dd>{formatBackupDate(recovery.preview.createdAt)}</dd></div>
+                <div><dt>Version</dt><dd>Contract {recovery.preview.formatVersion ?? '—'} · Schema {recovery.preview.schemaVersion ?? '—'}</dd></div>
+                <div><dt>Size</dt><dd>{formatBackupSize(recovery.preview.byteSize)}</dd></div>
+                <div><dt>Included assets</dt><dd>{recovery.preview.includedAssetCount} files · {recovery.preview.relinkAssetCount} to relink</dd></div>
+                <div><dt>Library</dt><dd>{recovery.preview.bookCount ?? '—'} books</dd></div>
+                <div><dt>Validation</dt><dd>{recovery.preview.validation.status === 'warning' ? 'Valid with review' : recovery.preview.validation.status}</dd></div>
+              </dl>
+              {recovery.preview.canRestore && (
+                <button className={tw('recovery-restore')} type="button" disabled={recovery.busy} onClick={onRestoreBackup}>
+                  <RotateCcw aria-hidden="true" />
+                  {recovery.preview.validation.code === 'stale' ? 'Restore this older backup' : 'Restore this backup'}
+                </button>
+              )}
+            </div>
+          )}
+          {recovery.error && <p className={tw('settings-hint settings-hint--error recovery-error')} role="alert">{recovery.error}</p>}
+        </section>
+
         <section className={tw('settings-card settings-card--import')}>
           <div className={tw('settings-card__icon')}><FileUp aria-hidden="true" /></div>
           <div className={tw('settings-card__heading')}>
@@ -583,4 +682,20 @@ export function SettingsPage({
       </div>
     </main>
   )
+}
+
+function formatBackupDate(value?: string): string {
+  if (!value) return 'Unavailable'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Unavailable'
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date)
+}
+
+function formatBackupSize(bytes: number): string {
+  if (bytes < 1_024) return `${bytes} B`
+  if (bytes < 1_048_576) return `${Math.ceil(bytes / 1_024)} KB`
+  return `${(bytes / 1_048_576).toFixed(1)} MB`
 }

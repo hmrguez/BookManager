@@ -138,6 +138,15 @@ export function useUpNext() {
     }))
   }, [changeState])
 
+  const reloadUpNext = useCallback(async () => {
+    await persistenceTailRef.current
+    const stored = await (await getStorageRuntime()).upNext.read()
+    hasMutatedRef.current = false
+    showState(stored)
+    setUpNextError(undefined)
+    return stored
+  }, [showState])
+
   return {
     upNext,
     upNextError,
@@ -149,5 +158,6 @@ export function useUpNext() {
     setReasonState,
     dismissSuggestion,
     restoreSuggestion,
+    reloadUpNext,
   }
 }

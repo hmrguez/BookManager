@@ -56,6 +56,9 @@ correction, checkpoint, and privacy/export rules are recorded in
 The threat model, native credential vault, least-privilege capabilities, redaction boundary,
 screen/lock behavior, and backup/encryption stance are recorded in
 [`docs/architecture/decisions/0004-private-data-and-integration-credentials.md`](docs/architecture/decisions/0004-private-data-and-integration-credentials.md).
+Staged backup validation, three-point local rotation, atomic restore, and failed-launch rollback are
+defined in [`docs/architecture/decisions/0014-staged-backup-and-recovery.md`](docs/architecture/decisions/0014-staged-backup-and-recovery.md), with a privacy-safe
+[support runbook](docs/guides/recovery.md).
 
 Source trust and reconciliation are field-scoped: newer data is not inherently better, exact user
 choices do not freeze unrelated fields, and Work merge/split/Edition reassignment are journaled and

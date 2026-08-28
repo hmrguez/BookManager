@@ -42,6 +42,32 @@ export type {
   PortableAssetContent,
 } from './portable-archive'
 export {
+  RECOVERY_ROTATION_LIMIT,
+  RECOVERY_SNAPSHOT_INTERVAL_MS,
+  RecoveryError,
+  RecoveryService,
+} from './recovery'
+export type {
+  RecoveryBackupPreview,
+  RecoveryLaunchResult,
+  RecoveryRestoreResult,
+  RecoveryServiceOptions,
+  RecoverySupportReport,
+  RecoveryValidation,
+  RecoveryValidationCode,
+} from './recovery'
+export {
+  createRecoveryArtifactStore,
+  MemoryRecoveryArtifactStore,
+} from './recovery-store'
+export type {
+  PendingRestore,
+  RecoveryArtifactKind,
+  RecoveryArtifactMetadata,
+  RecoveryArtifactStore,
+  StoredRecoveryArtifact,
+} from './recovery-store'
+export {
   createLegacyLibraryRecoveryFile,
   LEGACY_LIBRARY_MIGRATION_KEY,
   LEGACY_LIBRARY_STORAGE_KEYS,

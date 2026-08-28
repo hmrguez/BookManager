@@ -45,6 +45,7 @@ import {
   SettingsPage,
   type AudiobookImportViewState,
   type EpubImportViewState,
+  type RecoveryViewState,
 } from './settings/SettingsPage'
 import { DetailSheet } from './work-detail/DetailSheet'
 import { tw } from './tailwind/styles'
@@ -86,6 +87,7 @@ function App() {
     setBookMemberships,
     setBookTags,
     removeShelf,
+    reloadOrganization,
   } = useOrganization()
   const {
     smartLists,
@@ -93,6 +95,7 @@ function App() {
     saveSmartList,
     saveStoredSmartList,
     removeSmartList,
+    reloadSmartLists,
   } = useSmartLists()
   const {
     upNext,
@@ -105,6 +108,7 @@ function App() {
     setReasonState,
     dismissSuggestion,
     restoreSuggestion,
+    reloadUpNext,
   } = useUpNext()
 
   const [sheet, setSheet] = useState<SheetState>(null)
@@ -130,11 +134,13 @@ function App() {
   const [audiobookBusy, setAudiobookBusy] = useState(false)
   const [exportBusy, setExportBusy] = useState(false)
   const [exportError, setExportError] = useState<string>()
+  const [recovery, setRecovery] = useState<RecoveryViewState>({ snapshots: [], busy: false })
   const [smartListCatalog, setSmartListCatalog] = useState<Catalog>()
   const sheetTriggerRef = useRef<HTMLElement | null>(null)
   const epubAbortRef = useRef<AbortController | undefined>(undefined)
   const audiobookAbortRef = useRef<AbortController | undefined>(undefined)
   const audiobookSourcesRef = useRef<readonly AudiobookImportSource[]>([])
+  const recoveryArchiveRef = useRef<string | undefined>(undefined)
 
   const libraryViewModel = useLibraryViewModel({
     books,
@@ -317,6 +323,7 @@ function App() {
   const showSettings = () => {
     setView('settings')
     void refreshImportHistory()
+    void refreshRecovery()
     window.scrollTo({ top: 0, behavior: motionScrollBehavior(appearance.motion) })
   }
 
@@ -325,6 +332,23 @@ function App() {
       setImportHistory(await (await getStorageRuntime()).imports.listRecentBatches())
     } catch (error) {
       setImportError(error instanceof Error ? error.message : String(error))
+    }
+  }
+
+  const refreshRecovery = async () => {
+    try {
+      const runtime = await getStorageRuntime()
+      const snapshots = await runtime.recovery.listSnapshots()
+      setRecovery((current) => ({
+        ...current,
+        snapshots,
+        error: current.error ?? runtime.recoveryWarning,
+      }))
+    } catch (error) {
+      setRecovery((current) => ({
+        ...current,
+        error: error instanceof Error ? error.message : String(error),
+      }))
     }
   }
 
@@ -450,6 +474,64 @@ function App() {
       setToast({ message })
     } finally {
       setExportBusy(false)
+    }
+  }
+
+  const handleRecoveryFile = async (file: File) => {
+    setRecovery((current) => ({ ...current, busy: true, error: undefined, preview: undefined }))
+    try {
+      const archive = await file.text()
+      const preview = await (await getStorageRuntime()).recovery.inspectArchive(archive)
+      recoveryArchiveRef.current = archive
+      setRecovery((current) => ({ ...current, busy: false, preview }))
+    } catch (error) {
+      recoveryArchiveRef.current = undefined
+      setRecovery((current) => ({
+        ...current,
+        busy: false,
+        error: error instanceof Error ? error.message : String(error),
+      }))
+    }
+  }
+
+  const createRecoveryPoint = async () => {
+    setRecovery((current) => ({ ...current, busy: true, error: undefined }))
+    try {
+      await Promise.all([reload(), reloadOrganization(), reloadSmartLists(), reloadUpNext()])
+      await (await getStorageRuntime()).recovery.createSnapshot('manual')
+      await refreshRecovery()
+      setToast({ message: 'Verified local recovery point saved' })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      setRecovery((current) => ({ ...current, error: message }))
+      setToast({ message })
+    } finally {
+      setRecovery((current) => ({ ...current, busy: false }))
+    }
+  }
+
+  const restoreBackup = async () => {
+    const archive = recoveryArchiveRef.current
+    if (!archive || !recovery.preview?.canRestore) return
+    setRecovery((current) => ({ ...current, busy: true, error: undefined }))
+    try {
+      await Promise.all([reload(), reloadOrganization(), reloadSmartLists(), reloadUpNext()])
+      const runtime = await getStorageRuntime()
+      await runtime.recovery.restore(archive, {
+        allowStale: recovery.preview.validation.code === 'stale',
+      })
+      await Promise.all([reload(), reloadOrganization(), reloadSmartLists(), reloadUpNext()])
+      setSmartListCatalog(await runtime.catalog.read())
+      recoveryArchiveRef.current = undefined
+      await refreshRecovery()
+      setView('library')
+      setToast({ message: 'Backup restored; the previous library remains available for rollback' })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      setRecovery((current) => ({ ...current, error: message }))
+      setToast({ message })
+    } finally {
+      setRecovery((current) => ({ ...current, busy: false }))
     }
   }
 
@@ -719,6 +801,7 @@ function App() {
             audiobookBusy={audiobookBusy}
             exportBusy={exportBusy}
             exportError={exportError}
+            recovery={recovery}
             onBack={showLibrary}
             onAppearanceChange={setAppearance}
             onSearchPreferencesChange={setSearchPreferences}
@@ -734,6 +817,9 @@ function App() {
             onDismissAudiobookImport={dismissAudiobookImport}
             onUndoImport={(batchId) => { void undoImportBatch(batchId) }}
             onExport={(format, includeAnnotations) => { void handleExport(format, includeAnnotations) }}
+            onRecoveryFile={(file) => { void handleRecoveryFile(file) }}
+            onCreateRecoveryPoint={() => { void createRecoveryPoint() }}
+            onRestoreBackup={() => { void restoreBackup() }}
           />
         )}
 

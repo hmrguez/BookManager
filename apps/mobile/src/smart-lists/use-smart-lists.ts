@@ -98,11 +98,21 @@ export function useSmartLists() {
     enqueuePersistence((repository) => repository.remove(id))
   }, [enqueuePersistence, showSmartLists])
 
+  const reloadSmartLists = useCallback(async () => {
+    await persistenceTailRef.current
+    const stored = await (await getStorageRuntime()).smartLists.read()
+    hasMutatedRef.current = false
+    showSmartLists(stored)
+    setSmartListError(undefined)
+    return stored
+  }, [showSmartLists])
+
   return {
     smartLists,
     smartListError,
     saveSmartList,
     saveStoredSmartList,
     removeSmartList,
+    reloadSmartLists,
   }
 }

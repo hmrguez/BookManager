@@ -21,6 +21,7 @@ import { migrateStorage } from './migrations'
 import { OrganizationRepository } from './organization-repository'
 import { PortableArchiveService } from './portable-archive'
 import { CatalogQueryService } from './query-services'
+import { RecoveryService, type RecoveryLaunchResult } from './recovery'
 import { SmartListRepository } from './smart-list-repository'
 import { UpNextRepository } from './up-next-repository'
 
@@ -38,6 +39,9 @@ export type StorageRuntime = {
   readonly audiobooks: AudiobookImportService
   readonly epubs: EpubImportService
   readonly portableArchives: PortableArchiveService
+  readonly recovery: RecoveryService
+  readonly recoveryLaunch: RecoveryLaunchResult
+  readonly recoveryWarning?: string
   readonly queries: CatalogQueryService
   readonly legacyMigration: LegacyLibraryMigrationResult
   exportLegacyLibraryRecovery(): Promise<LegacyLibraryRecoveryFile | undefined>
@@ -52,6 +56,8 @@ export function getStorageRuntime(): Promise<StorageRuntime> {
 
 async function initializeStorageRuntime(): Promise<StorageRuntime> {
   const database = await openCapacitorDatabase()
+  const recovery = new RecoveryService(database)
+  const recoveryLaunch = await recovery.beginPendingLaunch()
   await migrateStorage(database, { backupStore: createMigrationBackupStore() })
   const library = new LibraryRepository(database)
   const legacyStorage = getLegacyLibraryStorage()
@@ -62,7 +68,22 @@ async function initializeStorageRuntime(): Promise<StorageRuntime> {
     await library.seedIfEmpty(createStarterLibrary())
   }
   const queries = new CatalogQueryService(database)
-  installDevelopmentInspector(database, queries)
+  installDevelopmentInspector(database, queries, recovery)
+
+  await Promise.all([
+    new CatalogRepository(database).read(),
+    library.list(),
+    new OrganizationRepository(database).read(),
+    new SmartListRepository(database).read(),
+    new UpNextRepository(database).read(),
+  ])
+  await recovery.confirmPendingLaunch()
+  let recoveryWarning: string | undefined
+  try {
+    await recovery.ensureAutomaticSnapshot()
+  } catch (error) {
+    recoveryWarning = error instanceof Error ? error.message : String(error)
+  }
 
   return {
     database,
@@ -78,6 +99,9 @@ async function initializeStorageRuntime(): Promise<StorageRuntime> {
     audiobooks: new AudiobookImportService(database),
     epubs: new EpubImportService(database),
     portableArchives: new PortableArchiveService(database),
+    recovery,
+    recoveryLaunch,
+    ...(recoveryWarning ? { recoveryWarning } : {}),
     queries,
     legacyMigration,
     exportLegacyLibraryRecovery: () =>

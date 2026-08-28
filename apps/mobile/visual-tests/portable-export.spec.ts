@@ -46,5 +46,13 @@ test('portable export explains its boundary and downloads a valid local archive'
     expect.objectContaining({ path: 'views/library.csv', fidelity: 'lossy' }),
   ]))
   await expect(page.getByRole('status')).toContainText('Portable archive verified and ready')
+
+  await page.locator('.recovery-picker input').setInputFiles(path!)
+  await expect(page.getByText('Ready for an atomic restore.')).toBeVisible()
+  await expect(page.getByText('Checksums, schema, relationships, and redaction boundary are valid.')).toBeVisible()
+  await expect(page.getByText('Contract 1 · Schema 4', { exact: true })).toBeVisible()
+  await expect(page.getByText('0 files · 0 to relink')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Restore this backup' })).toBeEnabled()
+  await expect(page.getByLabel('Local recovery points')).toBeVisible()
   expect(consoleErrors).toEqual([])
 })

@@ -1,6 +1,7 @@
 import type { SqlDatabase, SqlRow } from './database'
 import { readNumber, readText } from './database'
 import type { CatalogQueryService, QueryPlanStep } from './query-services'
+import type { RecoveryService, RecoverySupportReport } from './recovery'
 
 const DOMAIN_TABLES = [
   'works',
@@ -88,12 +89,17 @@ export async function inspectStorage(
 export function installDevelopmentInspector(
   database: SqlDatabase,
   queries: CatalogQueryService,
+  recovery?: RecoveryService,
 ): void {
   if (!import.meta.env.DEV) return
   const target = window as Window & {
-    __wovenleafStorage?: { inspect(): Promise<StorageInspection> }
+    __wovenleafStorage?: {
+      inspect(): Promise<StorageInspection>
+      recoveryReport?(): Promise<RecoverySupportReport>
+    }
   }
   target.__wovenleafStorage = {
     inspect: () => inspectStorage(database, queries),
+    ...(recovery ? { recoveryReport: () => recovery.createSupportReport() } : {}),
   }
 }
