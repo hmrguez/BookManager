@@ -68,6 +68,8 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Wovenleaf uses the camera only while you scan an ISBN barcode.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Wovenleaf uses the microphone only while you record a private voice note. Audiobook playback pauses first and is never recorded.</string>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<false/>
 	<key>UIApplicationSceneManifest</key>

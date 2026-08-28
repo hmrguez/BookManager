@@ -518,6 +518,9 @@ function ReadingPanel({
           {book.format?.toLocaleUpperCase() === 'EPUB' && (
             <button type="button" onClick={onRead}><BookOpen aria-hidden="true" />{book.progress > 0 ? 'Continue reading' : 'Start reading'}</button>
           )}
+          {book.format?.toLocaleUpperCase() === 'AUDIOBOOK' && (
+            <button type="button" onClick={onRead}><Headphones aria-hidden="true" />{book.progress > 0 ? 'Continue listening' : 'Start listening'}</button>
+          )}
           <button type="button" onClick={onProgress} disabled={book.shelf === 'finished'}>Update progress</button>
           {book.shelf !== 'finished' && <button type="button" onClick={onFinish}><BookCheck aria-hidden="true" /> Mark finished</button>}
         </div>

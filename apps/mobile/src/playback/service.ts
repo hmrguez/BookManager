@@ -1,4 +1,6 @@
 import type { PluginListenerHandle } from '@capacitor/core'
+import { Capacitor } from '@capacitor/core'
+import { Directory, Filesystem } from '@capacitor/filesystem'
 import type { SqlDatabase } from '../storage/database'
 import { nativePlayback, type WovenleafPlaybackPlugin } from './bridge'
 import {
@@ -18,17 +20,40 @@ import {
   AudiobookProgressRepository,
   PLAYBACK_CHECKPOINT_WALL_THROTTLE_MS,
 } from './progress'
+import {
+  AudiobookControlsRepository,
+  type AudiobookAnnotation,
+  type AudiobookControlPreferenceScope,
+  type AudiobookControlPreferenceState,
+  type AudiobookPlaybackContext,
+} from './controls'
 
 export type PlaybackJournalConsumer = (
   events: readonly NativePlaybackEvent[],
 ) => Promise<readonly string[] | void>
 
+export type PlaybackSeekUndo = {
+  readonly eventId: string
+  readonly playbackSessionId: string
+  readonly beforePositionMs: number
+  readonly afterPositionMs: number
+}
+
+export type VoiceNotePoint = {
+  readonly bookId: string
+  readonly snapshot: PlaybackSnapshot
+}
+
 export class AudiobookPlaybackService {
   readonly #repository: AudiobookPlaybackRepository
   readonly #progress: AudiobookProgressRepository
+  readonly #controls: AudiobookControlsRepository
   readonly #plugin: WovenleafPlaybackPlugin
   readonly #listeners = new Set<(snapshot: PlaybackSnapshot) => void>()
+  readonly #seekListeners = new Set<(seek: PlaybackSeekUndo | undefined) => void>()
   #snapshot?: PlaybackSnapshot
+  #currentBookId?: string
+  #lastSeekUndo?: PlaybackSeekUndo
   #handles: PluginListenerHandle[] = []
   #journalConsumer?: PlaybackJournalConsumer
   #draining?: Promise<void>
@@ -45,6 +70,7 @@ export class AudiobookPlaybackService {
   ) {
     this.#repository = new AudiobookPlaybackRepository(database)
     this.#progress = options.progressRepository ?? new AudiobookProgressRepository(database)
+    this.#controls = new AudiobookControlsRepository(database)
     this.#plugin = options.plugin ?? nativePlayback
     this.#journalConsumer = options.journalConsumer
   }
@@ -74,6 +100,9 @@ export class AudiobookPlaybackService {
       ]
     }
     const snapshot = this.#accept(await this.#plugin.getSnapshot(), true)
+    if (snapshot.queueId) {
+      this.#currentBookId = (await this.#controls.contextForQueue(snapshot.queueId))?.bookId
+    }
     await this.drainJournal()
     await this.#checkpoint(snapshot, true)
     return snapshot
@@ -93,7 +122,9 @@ export class AudiobookPlaybackService {
   async loadBook(bookId: string): Promise<PlaybackSnapshot> {
     const queue = await this.#repository.queueForBook(bookId)
     if (!queue) throw new AudiobookPlaybackError('notFound', 'No playable audiobook is attached to this book.')
-    return this.#run((command) => this.#plugin.loadQueue({ ...queue, ...command }), 'load')
+    const snapshot = await this.#run((command) => this.#plugin.loadQueue({ ...queue, ...command }), 'load')
+    this.#currentBookId = bookId
+    return snapshot
   }
 
   play(): Promise<PlaybackSnapshot> {
@@ -124,8 +155,21 @@ export class AudiobookPlaybackService {
     return this.#run((command) => this.#plugin.previousChapter(command), 'previous-chapter')
   }
 
-  setRate(rate: number): Promise<PlaybackSnapshot> {
-    return this.#run((command) => this.#plugin.setRate({ ...command, rate }), 'rate')
+  async setRate(
+    rate: number,
+    scope: AudiobookControlPreferenceScope = 'book',
+  ): Promise<PlaybackSnapshot> {
+    const snapshot = await this.#run((command) => this.#plugin.setRate({ ...command, rate }), 'rate')
+    const bookId = await this.#resolveCurrentBookId()
+    if (bookId) await this.#controls.saveRate(bookId, snapshot.rate, scope)
+    return snapshot
+  }
+
+  async useGlobalRate(): Promise<PlaybackSnapshot> {
+    const bookId = await this.#requireCurrentBookId()
+    await this.#controls.clearBookRate(bookId)
+    const { global } = await this.#controls.preferencesForBook(bookId)
+    return this.#run((command) => this.#plugin.setRate({ ...command, rate: global.rate }), 'rate')
   }
 
   setSleepTimer(durationMs: number): Promise<PlaybackSnapshot> {
@@ -152,6 +196,16 @@ export class AudiobookPlaybackService {
     return this.#run((command) => this.#plugin.cancelSleepTimer(command), 'cancel-sleep-timer')
   }
 
+  async extendSleepTimer(extensionMs: number): Promise<PlaybackSnapshot> {
+    const snapshot = await this.#authoritativeSnapshot()
+    if (!snapshot.sleepTimer) {
+      throw new AudiobookPlaybackError('commandRejected', 'There is no sleep timer to extend.', {
+        recoverable: true,
+      })
+    }
+    return this.setSleepTimer(Math.max(1_000, snapshot.sleepTimer.remainingMs) + extensionMs)
+  }
+
   adoptPosition(positionMs: number, provenanceEventId: string): Promise<PlaybackSnapshot> {
     return this.#run(
       (command) => this.#plugin.adoptPosition({ ...command, positionMs, provenanceEventId }),
@@ -169,6 +223,144 @@ export class AudiobookPlaybackService {
     return this.#plugin.setSystemSurfacePrivacy({ previewEnabled }).then((snapshot) => this.#accept(snapshot, true))
   }
 
+  subscribeSeekUndo(listener: (seek: PlaybackSeekUndo | undefined) => void): () => void {
+    this.#seekListeners.add(listener)
+    listener(this.#lastSeekUndo)
+    return () => this.#seekListeners.delete(listener)
+  }
+
+  async undoLastSeek(): Promise<PlaybackSnapshot> {
+    const undo = this.#lastSeekUndo
+    const snapshot = await this.#authoritativeSnapshot()
+    if (!undo || snapshot.playbackSessionId !== undo.playbackSessionId) {
+      throw new AudiobookPlaybackError('commandRejected', 'The previous seek is no longer available.', {
+        recoverable: true,
+      })
+    }
+    const result = await this.seekToAbsolute(undo.beforePositionMs)
+    this.#setSeekUndo(undefined)
+    return result
+  }
+
+  contextForBook(bookId: string): Promise<AudiobookPlaybackContext | undefined> {
+    return this.#controls.contextForBook(bookId)
+  }
+
+  preferencesForBook(bookId: string): Promise<AudiobookControlPreferenceState> {
+    return this.#controls.preferencesForBook(bookId)
+  }
+
+  async saveGlobalControls(
+    bookId: string,
+    changes: Parameters<AudiobookControlsRepository['saveGlobalControls']>[1],
+  ): Promise<AudiobookControlPreferenceState> {
+    await this.#controls.saveGlobalControls(bookId, changes)
+    return this.#controls.preferencesForBook(bookId)
+  }
+
+  async seekByConfigured(bookId: string, direction: 'forward' | 'backward'): Promise<PlaybackSnapshot> {
+    const { effective } = await this.#controls.preferencesForBook(bookId)
+    return this.seekBy(direction === 'forward' ? effective.forwardSkipMs : -effective.backwardSkipMs)
+  }
+
+  annotationsForBook(bookId: string): Promise<AudiobookAnnotation[]> {
+    return this.#controls.annotationsForBook(bookId)
+  }
+
+  async addBookmark(bookId: string, note = ''): Promise<AudiobookAnnotation> {
+    return this.#controls.createAnnotation({
+      bookId,
+      snapshot: await this.#authoritativeSnapshot(),
+      kind: 'bookmark',
+      note,
+    })
+  }
+
+  async addTextNote(bookId: string, note: string): Promise<AudiobookAnnotation> {
+    if (!note.trim()) {
+      throw new AudiobookPlaybackError('commandRejected', 'Write a note before saving it.', {
+        recoverable: true,
+      })
+    }
+    return this.#controls.createAnnotation({
+      bookId,
+      snapshot: await this.#authoritativeSnapshot(),
+      kind: 'text-note',
+      note,
+    })
+  }
+
+  async prepareVoiceNote(bookId: string): Promise<VoiceNotePoint> {
+    let snapshot = await this.#authoritativeSnapshot()
+    if (snapshot.state === 'playing' || snapshot.state === 'buffering' || snapshot.playIntent) {
+      snapshot = await this.pause()
+    }
+    return { bookId, snapshot }
+  }
+
+  async saveVoiceNote(
+    point: VoiceNotePoint,
+    recording: Blob,
+    durationMs: number,
+    note = '',
+  ): Promise<AudiobookAnnotation> {
+    if (!recording.size) {
+      throw new AudiobookPlaybackError('commandRejected', 'The microphone recording was empty.', {
+        recoverable: true,
+      })
+    }
+    const id = `audiobook-voice-note:${crypto.randomUUID()}`
+    const extension = recording.type.includes('mp4') ? 'm4a' : recording.type.includes('ogg') ? 'ogg' : 'webm'
+    const voiceRelativePath = `annotations/audiobooks/${id}.${extension}`
+    await Filesystem.writeFile({
+      path: voiceRelativePath,
+      directory: Directory.LibraryNoCloud,
+      data: await blobBase64(recording),
+      recursive: true,
+    })
+    try {
+      return await this.#controls.createAnnotation({
+        id,
+        bookId: point.bookId,
+        snapshot: point.snapshot,
+        kind: 'voice-note',
+        note,
+        voiceRelativePath,
+        voiceDurationMs: Math.max(0, Math.round(durationMs)),
+      })
+    } catch (error) {
+      await Filesystem.deleteFile({ path: voiceRelativePath, directory: Directory.LibraryNoCloud }).catch(() => undefined)
+      throw error
+    }
+  }
+
+  updateAnnotationNote(id: string, note: string): Promise<AudiobookAnnotation | undefined> {
+    return this.#controls.updateAnnotationNote(id, note)
+  }
+
+  async deleteAnnotation(id: string): Promise<void> {
+    const voiceRelativePath = await this.#controls.deleteAnnotation(id)
+    if (voiceRelativePath) {
+      await Filesystem.deleteFile({
+        path: voiceRelativePath,
+        directory: Directory.LibraryNoCloud,
+      }).catch(() => undefined)
+    }
+  }
+
+  async voiceNoteUrl(annotation: AudiobookAnnotation): Promise<string | undefined> {
+    if (!annotation.voiceRelativePath) return undefined
+    const { uri } = await Filesystem.getUri({
+      path: annotation.voiceRelativePath,
+      directory: Directory.LibraryNoCloud,
+    })
+    return Capacitor.convertFileSrc(uri)
+  }
+
+  exportAnnotationsMarkdown(bookId: string): Promise<string> {
+    return this.#controls.exportAnnotationsMarkdown(bookId)
+  }
+
   async drainJournal(): Promise<void> {
     if (this.#draining) return this.#draining
     this.#draining = this.#drainJournal()
@@ -184,6 +376,22 @@ export class AudiobookPlaybackService {
       const { events: candidates } = await this.#plugin.drainJournal()
       const events = candidates.map((event) => nativePlaybackEventSchema.parse(event))
       if (!events.length) return
+      for (const event of events) {
+        if (
+          event.kind === 'seek' &&
+          event.playbackSessionId === this.#snapshot?.playbackSessionId &&
+          event.beforePositionMs !== undefined &&
+          event.afterPositionMs !== undefined &&
+          event.beforePositionMs !== event.afterPositionMs
+        ) {
+          this.#setSeekUndo({
+            eventId: event.id,
+            playbackSessionId: event.playbackSessionId,
+            beforePositionMs: event.beforePositionMs,
+            afterPositionMs: event.afterPositionMs,
+          })
+        }
+      }
       const consumed = this.#journalConsumer
         ? await this.#journalConsumer(events)
         : await this.#runProgress(() => this.#progress.ingestJournal(events))
@@ -229,7 +437,11 @@ export class AudiobookPlaybackService {
   #accept(candidate: PlaybackSnapshot, force = false): PlaybackSnapshot {
     const snapshot = playbackSnapshotSchema.parse(candidate)
     if (force || isNewerPlaybackSnapshot(this.#snapshot, snapshot)) {
+      const previousSessionId = this.#snapshot?.playbackSessionId
       this.#snapshot = snapshot
+      if (previousSessionId && previousSessionId !== snapshot.playbackSessionId) {
+        this.#setSeekUndo(undefined)
+      }
       this.#listeners.forEach((listener) => listener(snapshot))
     }
     return this.#snapshot ?? snapshot
@@ -239,6 +451,31 @@ export class AudiobookPlaybackService {
     const result = this.#progressQueue.then(work)
     this.#progressQueue = result.then(() => undefined, () => undefined)
     return result
+  }
+
+  async #authoritativeSnapshot(): Promise<PlaybackSnapshot> {
+    const snapshot = this.#accept(await this.#plugin.getSnapshot(), true)
+    await this.#checkpoint(snapshot, true)
+    return snapshot
+  }
+
+  async #resolveCurrentBookId(): Promise<string | undefined> {
+    if (this.#currentBookId) return this.#currentBookId
+    const queueId = this.#snapshot?.queueId
+    if (!queueId) return undefined
+    this.#currentBookId = (await this.#controls.contextForQueue(queueId))?.bookId
+    return this.#currentBookId
+  }
+
+  async #requireCurrentBookId(): Promise<string> {
+    const bookId = await this.#resolveCurrentBookId()
+    if (!bookId) throw new AudiobookPlaybackError('notFound', 'No audiobook is loaded.')
+    return bookId
+  }
+
+  #setSeekUndo(seek: PlaybackSeekUndo | undefined): void {
+    this.#lastSeekUndo = seek
+    this.#seekListeners.forEach((listener) => listener(seek))
   }
 
   #checkpoint(snapshot: PlaybackSnapshot, force = false): Promise<unknown> {
@@ -256,4 +493,14 @@ export class AudiobookPlaybackService {
     })
     return this.#runProgress(() => this.#progress.checkpointSnapshot(snapshot, force))
   }
+}
+
+async function blobBase64(blob: Blob): Promise<string> {
+  const bytes = new Uint8Array(await blob.arrayBuffer())
+  let binary = ''
+  const chunkSize = 32_768
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize))
+  }
+  return btoa(binary)
 }

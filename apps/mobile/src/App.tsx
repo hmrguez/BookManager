@@ -49,6 +49,7 @@ import {
   type RecoveryViewState,
 } from './settings/SettingsPage'
 import { DetailSheet } from './work-detail/DetailSheet'
+import { AudiobookPlayer } from './playback/AudiobookPlayer'
 import { tw } from './tailwind/styles'
 import { motionStyles } from './tailwind/motion'
 import {
@@ -498,6 +499,14 @@ function App() {
     } finally {
       setReaderBusyBookId(undefined)
     }
+  }
+
+  const openBookMedia = (book: typeof books[number]) => {
+    if (book.format?.toLocaleUpperCase() === 'AUDIOBOOK') {
+      openSheet({ kind: 'audiobook-player', bookId: book.id })
+      return
+    }
+    void openReader(book.id)
   }
 
   const openSharedIsbn = useEffectEvent((isbn: NonNullable<ReturnType<typeof extractValidIsbn>>) => {
@@ -1022,7 +1031,7 @@ function App() {
             }
           }}
           onProgress={() => openSheet({ kind: 'progress', bookId: selectedBook.id })}
-          onRead={() => void openReader(selectedBook.id)}
+          onRead={() => openBookMedia(selectedBook)}
           onFinish={() => handleFinish(selectedBook.id)}
           onRate={(rating) => updateBook(selectedBook.id, { rating })}
           onNotes={(notes) => updateBook(selectedBook.id, { notes })}
@@ -1047,6 +1056,11 @@ function App() {
             setToast({ message: 'Removed from your library' })
           }}
         />
+      )}
+      {sheet?.kind === 'audiobook-player' && selectedBook && (
+        <Sheet title="Audiobook player" onClose={closeSheet} tall>
+          <AudiobookPlayer key={selectedBook.id} bookId={selectedBook.id} />
+        </Sheet>
       )}
       {sheet?.kind === 'custom-shelf' && (
         <CustomShelfEditorSheet

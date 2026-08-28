@@ -316,4 +316,56 @@ describe('native audiobook playback contract', () => {
     await service.disconnect()
     await database.close()
   })
+
+  test('offers one-tap return from the latest durable seek discontinuity', async () => {
+    const database = new BunSqliteDatabase()
+    await migrateStorage(database)
+    const fake = fakePlugin(snapshot({ absolutePositionMs: 42_000, segmentPositionMs: 42_000 }))
+    fake.journal.push({
+      ...event('event:seek'),
+      sequence: 2,
+      kind: 'seek',
+      beforePositionMs: 1_000,
+      afterPositionMs: 42_000,
+      reason: 'absolute-seek',
+    })
+    const service = new AudiobookPlaybackService(database as SqlDatabase, {
+      plugin: fake.plugin,
+      journalConsumer: async (events) => events.map(({ id }) => id),
+    })
+    let availableReturn: number | undefined
+    service.subscribeSeekUndo((seek) => { availableReturn = seek?.beforePositionMs })
+
+    await service.connect()
+    expect(availableReturn).toBe(1_000)
+    await service.undoLastSeek()
+    expect(service.snapshot?.absolutePositionMs).toBe(1_000)
+    expect(availableReturn).toBeUndefined()
+    await service.disconnect()
+    await database.close()
+  })
+
+  test('does not offer seek history from an earlier playback session', async () => {
+    const database = new BunSqliteDatabase()
+    await migrateStorage(database)
+    const fake = fakePlugin()
+    fake.journal.push({
+      ...event('event:stale-seek'),
+      playbackSessionId: 'session:old',
+      kind: 'seek',
+      beforePositionMs: 7_000,
+      afterPositionMs: 21_000,
+    })
+    const service = new AudiobookPlaybackService(database as SqlDatabase, {
+      plugin: fake.plugin,
+      journalConsumer: async (events) => events.map(({ id }) => id),
+    })
+    let availableReturn: number | undefined
+    service.subscribeSeekUndo((seek) => { availableReturn = seek?.beforePositionMs })
+
+    await service.connect()
+    expect(availableReturn).toBeUndefined()
+    await service.disconnect()
+    await database.close()
+  })
 })

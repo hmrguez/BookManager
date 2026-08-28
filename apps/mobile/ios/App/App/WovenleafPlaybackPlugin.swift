@@ -253,6 +253,7 @@ private final class WovenleafPlaybackEngine: NSObject {
     private var sleepTimer: Timer?
     private var sleepTimerPayload: JSObject?
     private var sleepDeadline: Date?
+    private var sleepChapterEndMs: Int?
     private var periodicObserver: Any?
     private var lastDurableAt = Date.distantPast
     private var lastDurablePositionMs = 0
@@ -477,10 +478,6 @@ private final class WovenleafPlaybackEngine: NSObject {
         let position = absolutePositionMs
         rate = requestedRate
         if playIntent { player.rate = rate }
-        if (sleepTimerPayload?["mode"] as? String) == "chapter-end" {
-            let remaining = max(1_000, (currentChapter?.absoluteEndMs ?? durationMs) - absolutePositionMs)
-            scheduleSleepTimer(mode: "chapter-end", remainingMs: remaining)
-        }
         enqueue(kind: "rate-change", reason: "user-command", before: position, after: position)
         updateNowPlaying()
     }
@@ -489,7 +486,7 @@ private final class WovenleafPlaybackEngine: NSObject {
         cancelSleepTimer()
         let remaining: Int
         if mode == "chapter-end" {
-            remaining = max(1_000, (currentChapter?.absoluteEndMs ?? self.durationMs) - absolutePositionMs)
+            remaining = (currentChapter?.absoluteEndMs ?? self.durationMs) - absolutePositionMs
         } else {
             remaining = durationMs ?? 0
         }
@@ -501,15 +498,25 @@ private final class WovenleafPlaybackEngine: NSObject {
 
     private func scheduleSleepTimer(mode: String, remainingMs: Int) {
         sleepTimer?.invalidate()
-        let wallDelay = mode == "chapter-end" ? Double(remainingMs) / Double(rate) : Double(remainingMs)
-        let deadline = Date().addingTimeInterval(wallDelay / 1_000)
+        sleepTimer = nil
+        if mode == "chapter-end" {
+            sleepDeadline = nil
+            sleepChapterEndMs = absolutePositionMs + remainingMs
+            sleepTimerPayload = [
+                "mode": mode,
+                "remainingMs": remainingMs,
+            ]
+            return
+        }
+        sleepChapterEndMs = nil
+        let deadline = Date().addingTimeInterval(Double(remainingMs) / 1_000)
         sleepDeadline = deadline
         sleepTimerPayload = [
             "mode": mode,
             "deadline": Self.timestamp(deadline),
             "remainingMs": remainingMs,
         ]
-        sleepTimer = Timer.scheduledTimer(withTimeInterval: wallDelay / 1_000, repeats: false) { [weak self] _ in
+        sleepTimer = Timer.scheduledTimer(withTimeInterval: Double(remainingMs) / 1_000, repeats: false) { [weak self] _ in
             Task { @MainActor in self?.expireSleepTimer() }
         }
     }
@@ -519,6 +526,7 @@ private final class WovenleafPlaybackEngine: NSObject {
         sleepTimer = nil
         sleepTimerPayload = nil
         sleepDeadline = nil
+        sleepChapterEndMs = nil
     }
 
     func adoptPosition(_ positionMs: Int, provenance: String) throws {
@@ -637,6 +645,14 @@ private final class WovenleafPlaybackEngine: NSObject {
 
     private func observePlayer() {
         guard manifest != nil else { return }
+        if let sleepDeadline, sleepDeadline <= Date() {
+            expireSleepTimer()
+            return
+        }
+        if let sleepChapterEndMs, absolutePositionMs >= sleepChapterEndMs {
+            expireSleepTimer()
+            return
+        }
         if player.currentItem?.status == .failed {
             failPlayback(reason: "decoder-or-source-error")
             return
@@ -809,6 +825,7 @@ private final class WovenleafPlaybackEngine: NSObject {
         sleepTimer = nil
         sleepTimerPayload = nil
         sleepDeadline = nil
+        sleepChapterEndMs = nil
         enqueue(kind: "sleep-expired", reason: "sleep-timer", before: before, after: absolutePositionMs)
         revision += 1
         checkpoint(force: true)
@@ -936,8 +953,12 @@ private final class WovenleafPlaybackEngine: NSObject {
     }
 
     private var currentSleepTimerPayload: JSObject? {
-        guard var payload = sleepTimerPayload, let sleepDeadline else { return nil }
-        payload["remainingMs"] = max(0, Int((sleepDeadline.timeIntervalSinceNow * 1_000).rounded()))
+        guard var payload = sleepTimerPayload else { return nil }
+        if let sleepChapterEndMs {
+            payload["remainingMs"] = max(0, sleepChapterEndMs - absolutePositionMs)
+        } else if let sleepDeadline {
+            payload["remainingMs"] = max(0, Int((sleepDeadline.timeIntervalSinceNow * 1_000).rounded()))
+        }
         return payload
     }
 

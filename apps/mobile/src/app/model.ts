@@ -11,6 +11,7 @@ export type SheetState =
   | { kind: 'detail'; bookId: string }
   | { kind: 'progress'; bookId: string }
   | { kind: 'finished'; bookId: string }
+  | { kind: 'audiobook-player'; bookId: string }
   | { kind: 'custom-shelf'; shelfId?: string }
   | { kind: 'smart-list'; smartListId?: string }
   | { kind: 'up-next' }

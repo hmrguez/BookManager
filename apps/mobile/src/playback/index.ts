@@ -34,6 +34,20 @@ export type {
 } from './model'
 export { AudiobookPlaybackRepository } from './repository'
 export {
+  DEFAULT_AUDIOBOOK_CONTROL_PREFERENCES,
+  AudiobookControlsRepository,
+  audiobookAnnotationSchema,
+  audiobookControlPreferencesSchema,
+  formatAudioTime,
+} from './controls'
+export type {
+  AudiobookAnnotation,
+  AudiobookControlPreferenceScope,
+  AudiobookControlPreferenceState,
+  AudiobookControlPreferences,
+  AudiobookPlaybackContext,
+} from './controls'
+export {
   AudiobookProgressRepository,
   PLAYBACK_CHECKPOINT_WALL_THROTTLE_MS,
 } from './progress'
@@ -42,4 +56,8 @@ export type {
   AudiobookProgressCheckpoint,
 } from './progress'
 export { AudiobookPlaybackService } from './service'
-export type { PlaybackJournalConsumer } from './service'
+export type {
+  PlaybackJournalConsumer,
+  PlaybackSeekUndo,
+  VoiceNotePoint,
+} from './service'

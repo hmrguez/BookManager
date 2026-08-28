@@ -449,7 +449,65 @@ export const STORAGE_MIGRATIONS: readonly StorageMigration[] = [
       await database.execute(epubReaderNavigationSchemaSql())
     },
   },
+  {
+    version: 15,
+    name: 'audiobook listening controls and annotations',
+    kind: 'additive',
+    signature: audiobookListeningControlsSchemaSql(),
+    async up(database) {
+      await database.execute(audiobookListeningControlsSchemaSql())
+    },
+  },
 ]
+
+function audiobookListeningControlsSchemaSql(): string {
+  return `
+CREATE TABLE audiobook_playback_preferences (
+  scope TEXT NOT NULL CHECK (scope IN ('global', 'book')),
+  book_id TEXT NOT NULL,
+  preferences_json TEXT NOT NULL CHECK (json_valid(preferences_json)),
+  recorded_at TEXT NOT NULL,
+  PRIMARY KEY (scope, book_id),
+  CHECK (
+    (scope = 'global' AND book_id = '')
+    OR (scope = 'book' AND length(book_id) > 0)
+  )
+);
+
+CREATE INDEX idx_audiobook_playback_preferences_book
+  ON audiobook_playback_preferences(book_id, scope);
+
+CREATE TABLE audiobook_annotations (
+  id TEXT PRIMARY KEY NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('bookmark', 'text-note', 'voice-note')),
+  book_id TEXT NOT NULL,
+  edition_id TEXT NOT NULL,
+  asset_id TEXT NOT NULL,
+  queue_id TEXT NOT NULL,
+  playback_session_id TEXT NOT NULL,
+  snapshot_revision INTEGER NOT NULL CHECK (snapshot_revision >= 0),
+  absolute_position_ms INTEGER NOT NULL CHECK (absolute_position_ms >= 0),
+  chapter_id TEXT,
+  note TEXT NOT NULL DEFAULT '',
+  voice_relative_path TEXT,
+  voice_duration_ms INTEGER CHECK (voice_duration_ms IS NULL OR voice_duration_ms >= 0),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  CHECK (
+    (kind = 'voice-note' AND voice_relative_path IS NOT NULL AND length(voice_relative_path) > 0)
+    OR (kind != 'voice-note' AND voice_relative_path IS NULL AND voice_duration_ms IS NULL)
+  ),
+  FOREIGN KEY (book_id) REFERENCES library_books(id) ON DELETE RESTRICT,
+  FOREIGN KEY (edition_id) REFERENCES editions(id) ON DELETE RESTRICT,
+  FOREIGN KEY (asset_id) REFERENCES assets(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX idx_audiobook_annotations_book
+  ON audiobook_annotations(book_id, absolute_position_ms, created_at, id);
+CREATE INDEX idx_audiobook_annotations_asset
+  ON audiobook_annotations(asset_id, absolute_position_ms, id);
+`
+}
 
 function epubReaderNavigationSchemaSql(): string {
   return `

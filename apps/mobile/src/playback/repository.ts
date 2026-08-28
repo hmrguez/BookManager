@@ -5,6 +5,7 @@ import type { SqlDatabase, SqlRow } from '../storage/database'
 import { readNumber, readText } from '../storage/database'
 import { AudiobookPlaybackError, playbackQueueRequestSchema, type PlaybackQueueRequest } from './model'
 import { AudiobookProgressRepository } from './progress'
+import { AudiobookControlsRepository } from './controls'
 
 type PlaybackImportRow = SqlRow & {
   readonly manifest_json: string
@@ -21,10 +22,12 @@ type PlaybackFileRow = SqlRow & {
 export class AudiobookPlaybackRepository {
   readonly #database: SqlDatabase
   readonly #progress: AudiobookProgressRepository
+  readonly #controls: AudiobookControlsRepository
 
   constructor(database: SqlDatabase) {
     this.#database = database
     this.#progress = new AudiobookProgressRepository(database)
+    this.#controls = new AudiobookControlsRepository(database)
   }
 
   async queueForBook(bookId: string): Promise<PlaybackQueueRequest | undefined> {
@@ -38,11 +41,11 @@ export class AudiobookPlaybackRepository {
     )
     if (!row) return undefined
     const queue = await this.#resolve(immutablePlaybackManifest(JSON.parse(readText(row, 'manifest_json'))))
-    const [resolution, checkpoint] = await Promise.all([
+    const [resolution, checkpoint, preferences] = await Promise.all([
       this.#progress.resolvePositionForBook(bookId),
       this.#progress.checkpointForBook(bookId),
+      this.#controls.preferencesForBook(bookId),
     ])
-    if (resolution?.status !== 'resolved' && !checkpoint) return queue
     return playbackQueueRequestSchema.parse({
       ...queue,
       manifest: {
@@ -50,7 +53,11 @@ export class AudiobookPlaybackRepository {
         initialAbsolutePositionMs: resolution?.status === 'resolved'
           ? resolution.positionMs
           : checkpoint?.absolutePositionMs ?? queue.manifest.initialAbsolutePositionMs,
-        rate: checkpoint?.rate ?? queue.manifest.rate,
+        rate: preferences.effective.rate,
+        skipIntervals: {
+          forwardMs: preferences.effective.forwardSkipMs,
+          backwardMs: preferences.effective.backwardSkipMs,
+        },
       },
     })
   }

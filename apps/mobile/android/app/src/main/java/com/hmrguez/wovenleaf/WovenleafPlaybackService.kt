@@ -59,6 +59,7 @@ class WovenleafPlaybackService : MediaLibraryService() {
     private var previewEnabled = false
     private var sleepTimer: JSONObject? = null
     private var sleepRunnable: Runnable? = null
+    private var sleepChapterEndMs: Long? = null
     private var activeStartedAt: Long? = null
     private var activeDurationMs = 0L
     private var lastDurableAt = 0L
@@ -69,6 +70,22 @@ class WovenleafPlaybackService : MediaLibraryService() {
     private val ticker = object : Runnable {
         override fun run() {
             if (manifest != null) {
+                val sleepDeadlineReached = sleepTimer
+                    ?.optString("deadline")
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { runCatching { Instant.parse(it) }.getOrNull() }
+                    ?.let { !it.isAfter(Instant.now()) }
+                    ?: false
+                if (sleepDeadlineReached) {
+                    expireSleepTimer()
+                    handler.postDelayed(this, 500)
+                    return
+                }
+                if (sleepChapterEndMs?.let { absolutePositionMs() >= it } == true) {
+                    expireSleepTimer()
+                    handler.postDelayed(this, 500)
+                    return
+                }
                 revision += 1
                 updateTransportState()
                 checkpoint(force = false)
@@ -403,10 +420,6 @@ class WovenleafPlaybackService : MediaLibraryService() {
         val position = absolutePositionMs()
         rate = requestedRate
         player.playbackParameters = PlaybackParameters(rate, 1f)
-        if (sleepTimer?.optString("mode") == "chapter-end") {
-            val remaining = max(1_000, (currentChapter()?.optLong("absoluteEndMs") ?: durationMs()) - absolutePositionMs())
-            scheduleSleepTimer("chapter-end", remaining)
-        }
         enqueue("rate-change", "user-command", position, position)
     }
 
@@ -415,7 +428,7 @@ class WovenleafPlaybackService : MediaLibraryService() {
         val mode = if (payload.optString("mode") == "chapter-end") "chapter-end" else "duration"
         val remainingMs = if (mode == "chapter-end") {
             val end = currentChapter()?.optLong("absoluteEndMs") ?: durationMs()
-            max(1_000, end - absolutePositionMs())
+            end - absolutePositionMs()
         } else {
             payload.optLong("durationMs", 0)
         }
@@ -425,20 +438,30 @@ class WovenleafPlaybackService : MediaLibraryService() {
 
     private fun scheduleSleepTimer(mode: String, remainingMs: Long) {
         sleepRunnable?.let(handler::removeCallbacks)
-        val wallDelay = if (mode == "chapter-end") (remainingMs / rate).toLong() else remainingMs
+        sleepRunnable = null
+        if (mode == "chapter-end") {
+            sleepChapterEndMs = absolutePositionMs() + remainingMs
+            sleepTimer = JSONObject().apply {
+                put("mode", mode)
+                put("remainingMs", remainingMs)
+            }
+            return
+        }
+        sleepChapterEndMs = null
         sleepTimer = JSONObject().apply {
             put("mode", mode)
-            put("deadline", Instant.now().plusMillis(wallDelay).toString())
+            put("deadline", Instant.now().plusMillis(remainingMs).toString())
             put("remainingMs", remainingMs)
         }
         val runnable = Runnable { expireSleepTimer() }
         sleepRunnable = runnable
-        handler.postDelayed(runnable, wallDelay)
+        handler.postDelayed(runnable, remainingMs)
     }
 
     private fun cancelSleepTimer() {
         sleepRunnable?.let(handler::removeCallbacks)
         sleepRunnable = null
+        sleepChapterEndMs = null
         sleepTimer = null
     }
 
@@ -450,6 +473,7 @@ class WovenleafPlaybackService : MediaLibraryService() {
         transportState = "paused"
         suppressionReason = "sleep-timer"
         sleepRunnable = null
+        sleepChapterEndMs = null
         sleepTimer = null
         enqueue("sleep-expired", "sleep-timer", before, before)
         revision += 1
@@ -840,6 +864,11 @@ class WovenleafPlaybackService : MediaLibraryService() {
 
     private fun sleepTimerSnapshot(): JSONObject? {
         val current = sleepTimer ?: return null
+        sleepChapterEndMs?.let { chapterEnd ->
+            return JSONObject(current.toString()).apply {
+                put("remainingMs", max(0, chapterEnd - absolutePositionMs()))
+            }
+        }
         val deadline = runCatching { Instant.parse(current.optString("deadline")) }.getOrNull() ?: return current
         return JSONObject(current.toString()).apply {
             put("remainingMs", max(0, deadline.toEpochMilli() - Instant.now().toEpochMilli()))

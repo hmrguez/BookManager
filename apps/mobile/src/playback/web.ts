@@ -53,6 +53,7 @@ export class WovenleafPlaybackWeb extends WebPlugin implements WovenleafPlayback
   #error: PlaybackError | null = null
   #sleepTimer: PlaybackSleepTimer | null = null
   #sleepTimeout?: number
+  #sleepChapterEndMs?: number
   #previewEnabled = false
   #activeStartedAt?: number
   #activeDurationMs = 0
@@ -154,13 +155,6 @@ export class WovenleafPlaybackWeb extends WebPlugin implements WovenleafPlayback
       const before = this.#absolutePosition()
       this.#rate = options.rate
       if (this.#audio) this.#audio.playbackRate = options.rate
-      if (this.#sleepTimer?.mode === 'chapter-end') {
-        const remainingMs = Math.max(
-          1_000,
-          (this.#currentChapter()?.absoluteEndMs ?? this.#duration()) - this.#absolutePosition(),
-        )
-        this.#scheduleSleepTimer('chapter-end', remainingMs)
-      }
       this.#journal('rate-change', 'user-command', before, before)
     })
   }
@@ -172,7 +166,7 @@ export class WovenleafPlaybackWeb extends WebPlugin implements WovenleafPlayback
       this.#clearSleepTimeout()
       const remainingMs = options.mode === 'duration'
         ? options.durationMs ?? 0
-        : Math.max(1_000, (this.#currentChapter()?.absoluteEndMs ?? this.#duration()) - this.#absolutePosition())
+        : (this.#currentChapter()?.absoluteEndMs ?? this.#duration()) - this.#absolutePosition()
       if (remainingMs <= 0) throw new Error('The sleep timer duration is invalid.')
       this.#scheduleSleepTimer(options.mode, remainingMs)
     })
@@ -261,6 +255,10 @@ export class WovenleafPlaybackWeb extends WebPlugin implements WovenleafPlayback
       void this.#emitSnapshot()
     })
     audio.addEventListener('timeupdate', () => {
+      if (this.#sleepChapterEndMs !== undefined && this.#absolutePosition() >= this.#sleepChapterEndMs) {
+        this.#expireSleepTimer()
+        return
+      }
       void this.#emitSnapshot()
     })
     audio.addEventListener('ended', () => {
@@ -339,6 +337,7 @@ export class WovenleafPlaybackWeb extends WebPlugin implements WovenleafPlayback
     this.#state = 'paused'
     this.#suppression = 'sleep-timer'
     this.#sleepTimer = null
+    this.#sleepChapterEndMs = undefined
     this.#journal('sleep-expired', 'sleep-timer', before, before)
     void this.#emitSnapshot()
   }
@@ -502,18 +501,26 @@ export class WovenleafPlaybackWeb extends WebPlugin implements WovenleafPlayback
   #clearSleepTimeout(): void {
     if (this.#sleepTimeout !== undefined) window.clearTimeout(this.#sleepTimeout)
     this.#sleepTimeout = undefined
+    this.#sleepChapterEndMs = undefined
   }
 
   #scheduleSleepTimer(mode: 'duration' | 'chapter-end', remainingMs: number): void {
     this.#clearSleepTimeout()
-    const wallDelay = mode === 'chapter-end' ? remainingMs / this.#rate : remainingMs
-    const deadline = new Date(Date.now() + wallDelay).toISOString()
+    if (mode === 'chapter-end') {
+      this.#sleepChapterEndMs = this.#absolutePosition() + remainingMs
+      this.#sleepTimer = { mode, remainingMs }
+      return
+    }
+    const deadline = new Date(Date.now() + remainingMs).toISOString()
     this.#sleepTimer = { mode, deadline, remainingMs }
-    this.#sleepTimeout = window.setTimeout(() => this.#expireSleepTimer(), wallDelay)
+    this.#sleepTimeout = window.setTimeout(() => this.#expireSleepTimer(), remainingMs)
   }
 
   #sleepTimerSnapshot(): PlaybackSleepTimer | null {
     const timer = this.#sleepTimer
+    if (timer?.mode === 'chapter-end' && this.#sleepChapterEndMs !== undefined) {
+      return { ...timer, remainingMs: Math.max(0, this.#sleepChapterEndMs - this.#absolutePosition()) }
+    }
     if (!timer?.deadline) return timer
     return { ...timer, remainingMs: Math.max(0, Date.parse(timer.deadline) - Date.now()) }
   }
