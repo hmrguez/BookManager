@@ -17,6 +17,8 @@ import {
   History,
   Library,
   Pin,
+  Pencil,
+  RefreshCw,
   RotateCcw,
   Scissors,
   ShieldCheck,
@@ -39,6 +41,7 @@ import {
 } from './model'
 import { tw } from '../tailwind/styles'
 import { motionStyles } from '../tailwind/motion'
+import { applyManualBookEdits, inspectIsbnInput } from '../capture'
 
 type WorkDetailExperienceProps = {
   readonly book: LibraryBook
@@ -51,6 +54,8 @@ type WorkDetailExperienceProps = {
   readonly onFinish: () => void
   readonly onRate: (rating: number) => void
   readonly onNotes: (notes: string) => void
+  readonly onMetadata: (changes: Partial<LibraryBook>) => void
+  readonly onEnrich: () => Promise<boolean>
   readonly onCustomShelves: (shelfIds: readonly string[]) => void
   readonly onTags: (tags: readonly string[]) => void
   readonly onRemove: () => void
@@ -92,6 +97,8 @@ export function WorkDetailExperience({
   onFinish,
   onRate,
   onNotes,
+  onMetadata,
+  onEnrich,
   onCustomShelves,
   onTags,
   onRemove,
@@ -223,10 +230,13 @@ export function WorkDetailExperience({
       >
         {activeSection === 'overview' && (
           <EditionOverview
+            book={book}
             edition={selectedEdition}
             preferred={preferredEditionId === selectedEdition.id}
             separated={separatedEditionIds.includes(selectedEdition.id)}
             onPrefer={() => openIdentityPreview('preferred')}
+            onMetadata={onMetadata}
+            onEnrich={onEnrich}
           />
         )}
         {activeSection === 'reading' && (
@@ -276,16 +286,27 @@ export function WorkDetailExperience({
 }
 
 function EditionOverview({
+  book,
   edition,
   preferred,
   separated,
   onPrefer,
+  onMetadata,
+  onEnrich,
 }: {
+  readonly book: LibraryBook
   readonly edition: WorkEditionDetail
   readonly preferred: boolean
   readonly separated: boolean
   readonly onPrefer: () => void
+  readonly onMetadata: (changes: Partial<LibraryBook>) => void
+  readonly onEnrich: () => Promise<boolean>
 }) {
+  const capture = book.capture ?? (book.id.startsWith('manual-') ? {
+    method: 'manual-entry' as const,
+    capturedAt: book.addedAt,
+    manualOverrides: ['title'] as const,
+  } : undefined)
   return (
     <div className={tw("edition-overview")} id="selected-edition-panel">
       <header className={tw("panel-heading")}>
@@ -313,6 +334,15 @@ function EditionOverview({
           <small>{edition.progressLabel}</small>
         </div>
       </section>
+
+      {capture && (
+        <CaptureMetadataPanel
+          book={book}
+          capture={capture}
+          onMetadata={onMetadata}
+          onEnrich={onEnrich}
+        />
+      )}
 
       <div className={tw("edition-overview__split")}>
         <section className={tw("edition-facts")} aria-labelledby="edition-facts-title">
@@ -363,6 +393,93 @@ function EditionOverview({
         {preferred ? <Check aria-hidden="true" /> : <ChevronRight aria-hidden="true" />}
       </button>
     </div>
+  )
+}
+
+function CaptureMetadataPanel({
+  book,
+  capture,
+  onMetadata,
+  onEnrich,
+}: {
+  readonly book: LibraryBook
+  readonly capture: NonNullable<LibraryBook['capture']>
+  readonly onMetadata: (changes: Partial<LibraryBook>) => void
+  readonly onEnrich: () => Promise<boolean>
+}) {
+  const [editing, setEditing] = useState(false)
+  const [title, setTitle] = useState(book.title)
+  const [author, setAuthor] = useState(book.authors.join(', '))
+  const [pageCount, setPageCount] = useState(book.pageCount ? String(book.pageCount) : '')
+  const [isbn, setIsbn] = useState(book.identifiers?.[0] ?? '')
+  const [issue, setIssue] = useState<string>()
+  const [enriching, setEnriching] = useState(false)
+
+  const save = (event: FormEvent) => {
+    event.preventDefault()
+    if (!title.trim()) return
+    const inspection = inspectIsbnInput(isbn)
+    if (isbn.trim() && inspection.state !== 'valid') {
+      setIssue(inspection.state === 'invalid' ? inspection.message : 'Enter a valid ISBN.')
+      return
+    }
+    onMetadata(applyManualBookEdits(book, {
+      title,
+      author,
+      pageCount: Number.parseInt(pageCount, 10) || 0,
+      isbn: inspection.state === 'valid' ? inspection.isbn : undefined,
+    }))
+    setIssue(undefined)
+    setEditing(false)
+  }
+
+  const enrich = async () => {
+    if (enriching) return
+    setEnriching(true)
+    setIssue(undefined)
+    const enriched = await onEnrich()
+    if (!enriched) setIssue('No saved or live catalog match was found. Your local details are unchanged.')
+    setEnriching(false)
+  }
+
+  return (
+    <section className={tw('capture-metadata')} aria-labelledby="capture-metadata-title">
+      <header>
+        <div>
+          <span>Local capture · reader-owned fields win</span>
+          <h5 id="capture-metadata-title">Personal record</h5>
+        </div>
+        <small>{capture.enrichedAt ? 'Enriched' : 'Awaiting enrichment'}</small>
+      </header>
+      {editing ? (
+        <form className={tw('capture-metadata__form')} onSubmit={save}>
+          <label><span>Title</span><input required value={title} onChange={(event) => setTitle(event.target.value)} /></label>
+          <label><span>Author</span><input value={author} onChange={(event) => setAuthor(event.target.value)} placeholder="Unknown author" /></label>
+          <label><span>ISBN</span><input value={isbn} onChange={(event) => setIsbn(event.target.value)} placeholder="978-…" inputMode="numeric" /></label>
+          <label><span>Pages</span><input value={pageCount} onChange={(event) => setPageCount(event.target.value)} type="number" min="0" inputMode="numeric" /></label>
+          {issue && <p role="alert">{issue}</p>}
+          <div>
+            <button type="button" onClick={() => setEditing(false)}>Cancel</button>
+            <button type="submit">Save local details</button>
+          </div>
+        </form>
+      ) : (
+        <>
+          <p>
+            {capture.manualOverrides.length
+              ? `${capture.manualOverrides.length} local ${capture.manualOverrides.length === 1 ? 'field is' : 'fields are'} protected. Catalog updates fill only the gaps.`
+              : 'Catalog details can refresh without changing your reading history or edition identity.'}
+          </p>
+          {issue && <p className={tw('capture-metadata__issue')} role="status">{issue}</p>}
+          <div className={tw('capture-metadata__actions')}>
+            <button type="button" onClick={() => setEditing(true)}><Pencil aria-hidden="true" /> Edit local details</button>
+            <button type="button" onClick={() => { void enrich() }} disabled={enriching}>
+              <RefreshCw aria-hidden="true" /> {enriching ? 'Checking catalogs…' : 'Enrich now'}
+            </button>
+          </div>
+        </>
+      )}
+    </section>
   )
 }
 

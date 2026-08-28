@@ -1,7 +1,13 @@
 import type { ShelfId } from '../library'
+import type { ValidIsbn } from '../capture'
 
 export type SheetState =
-  | { kind: 'search'; shelf: ShelfId; manual?: boolean }
+  | {
+      kind: 'search'
+      shelf: ShelfId
+      manual?: boolean
+      initialCapture?: { readonly isbn: ValidIsbn; readonly method: 'share-sheet' }
+    }
   | { kind: 'detail'; bookId: string }
   | { kind: 'progress'; bookId: string }
   | { kind: 'finished'; bookId: string }

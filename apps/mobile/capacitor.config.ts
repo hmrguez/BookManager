@@ -8,6 +8,9 @@ const config: CapacitorConfig = {
     CapacitorSQLite: {
       iosDatabaseLocation: 'Library/CapacitorDatabase',
     },
+    CapacitorShareTarget: {
+      appGroupId: 'group.com.hmrguez.wovenleaf',
+    },
   },
 }
 

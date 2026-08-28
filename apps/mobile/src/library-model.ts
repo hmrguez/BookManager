@@ -4,6 +4,7 @@ import {
   metadataSelectionSchema,
   type MetadataSelection,
 } from './metadata/model'
+import { bookCaptureSchema, type BookCapture } from './capture/model'
 
 export const shelfIdSchema = z.enum(['tbr', 'next', 'reading', 'finished'])
 
@@ -24,6 +25,7 @@ export const libraryBookSchema = z.object({
   tags: z.array(z.string().min(1)).optional(),
   listNames: z.array(z.string().min(1)).optional(),
   sourceNames: z.array(z.string().min(1)).optional(),
+  capture: bookCaptureSchema.optional(),
   metadataSelection: metadataSelectionSchema.optional(),
   editionTitle: z.string().min(1).optional(),
   format: z.string().min(1).optional(),
@@ -51,11 +53,13 @@ export type BookSearchResult = Pick<
   | 'authors'
   | 'identifiers'
   | 'sourceNames'
+  | 'capture'
   | 'thumbnail'
   | 'pageCount'
 > & {
   readonly editionTitle?: string
   readonly metadataSelection?: MetadataSelection
+  readonly capture?: BookCapture
 }
 
 export function findLibraryBookForSearchResult(
@@ -70,8 +74,16 @@ export function findLibraryBookForSearchResult(
       identifiers.flatMap(({ normalizedValue }) => canonicalEditionIsbn(normalizedValue) ?? []),
     ) ?? [],
   )
+  for (const identifier of result.identifiers ?? []) {
+    const canonical = canonicalEditionIsbn(identifier)
+    if (canonical) editionIsbns.add(canonical)
+  }
 
   return books.find((book) => {
+    if (book.identifiers?.some((identifier) => {
+      const canonical = canonicalEditionIsbn(identifier)
+      return canonical ? editionIsbns.has(canonical) : false
+    })) return true
     if (!result.metadataSelection) return book.id === result.id
     const matchesLegacyProviderId = result.metadataSelection.variants.some(
       ({ externalKey, providerName }) =>
@@ -82,10 +94,6 @@ export function findLibraryBookForSearchResult(
       providerKeys.has(`${provider}:${externalKey}`),
     )
     if (matchingProviderRecord) return true
-    if (book.identifiers?.some((identifier) => {
-      const canonical = canonicalEditionIsbn(identifier)
-      return canonical ? editionIsbns.has(canonical) : false
-    })) return true
     return book.metadataSelection?.variants.some(({ identifiers }) =>
       identifiers.some(({ normalizedValue }) => {
         const canonical = canonicalEditionIsbn(normalizedValue)

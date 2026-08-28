@@ -63,6 +63,9 @@ import {
   type AudiobookImportReview,
   type AudiobookImportSource,
 } from './audiobooks'
+import { extractValidIsbn, listenForSharedIsbn } from './capture'
+import { enrichCapturedBook } from './capture'
+import { getMetadataSearchService } from './metadata'
 
 function App() {
   const {
@@ -427,7 +430,18 @@ function App() {
     }
   }
 
+  const openSharedIsbn = useEffectEvent((isbn: NonNullable<ReturnType<typeof extractValidIsbn>>) => {
+    setView('library')
+    setSheet({ kind: 'search', shelf: 'tbr', initialCapture: { isbn, method: 'share-sheet' } })
+    setToast({ message: 'Shared ISBN received · checking your library first' })
+  })
+
   const onIncomingBookFile = useEffectEvent((url: string) => {
+    if (/^wovenleaf:\/\/(?:share|add)/i.test(url)) {
+      const isbn = extractValidIsbn(url)
+      if (isbn) openSharedIsbn(isbn)
+      return
+    }
     if (!/^(?:file|content):/i.test(url)) return
     showSettings()
     void routeIncomingBookFile(url)
@@ -440,6 +454,23 @@ function App() {
       .then((handle) => {
         if (disposed) void handle.remove()
         else removeListener = () => handle.remove()
+      })
+    return () => {
+      disposed = true
+      if (removeListener) void removeListener()
+    }
+  }, [])
+
+  useEffect(() => {
+    let disposed = false
+    let removeListener: (() => Promise<void>) | undefined
+    void listenForSharedIsbn((isbn) => openSharedIsbn(isbn))
+      .then((remove) => {
+        if (disposed) void remove()
+        else removeListener = remove
+      })
+      .catch(() => {
+        // Deep-link and paste capture remain available if a platform share target is unavailable.
       })
     return () => {
       disposed = true
@@ -640,6 +671,34 @@ function App() {
     else removeQueueBook(bookId)
     setMovingBookId(bookId)
     setToast({ message: previous ? `Already in ${shelfCopy[shelf].label}` : `Added to ${shelfCopy[shelf].label}` })
+  }
+
+  const enrichBook = async (book: typeof books[number]): Promise<boolean> => {
+    const capturedIsbn = extractValidIsbn(book.identifiers?.join(' ') ?? '')
+    const query = capturedIsbn?.normalized ?? book.title
+    try {
+      const response = await (await getMetadataSearchService()).search({
+        query,
+        locale: navigator.language || 'en',
+        limit: 16,
+      }, { includeSecondary: true, refresh: true })
+      const result = capturedIsbn
+        ? response.results.find((candidate) =>
+            extractValidIsbn(candidate.identifiers?.join(' ') ?? '')?.canonical === capturedIsbn.canonical,
+          ) ?? response.results[0]
+        : response.results[0]
+      if (!result) return false
+
+      updateBook(book.id, enrichCapturedBook(book, result))
+      setToast({
+        message: book.capture?.manualOverrides.length
+          ? 'Catalog gaps filled · your local overrides were preserved'
+          : 'Book details enriched from the catalog',
+      })
+      return true
+    } catch {
+      return false
+    }
   }
 
   const handleStart = (id: string) => {
@@ -844,7 +903,16 @@ function App() {
       </div>
 
       {sheet?.kind === 'search' && (
-        <SearchSheet shelf={sheet.shelf} books={books} onAdd={handleAdd} onClose={closeSheet} initialManual={sheet.manual} />
+        <SearchSheet
+          key={sheet.initialCapture?.isbn.normalized ?? `${sheet.shelf}-${sheet.manual ? 'manual' : 'search'}`}
+          shelf={sheet.shelf}
+          books={books}
+          onAdd={handleAdd}
+          onOpenBook={(bookId) => setSheet({ kind: 'detail', bookId })}
+          onClose={closeSheet}
+          initialManual={sheet.manual}
+          initialCapture={sheet.initialCapture}
+        />
       )}
       {sheet?.kind === 'progress' && selectedBook && (
         <ProgressSheet
@@ -882,6 +950,11 @@ function App() {
           onFinish={() => handleFinish(selectedBook.id)}
           onRate={(rating) => updateBook(selectedBook.id, { rating })}
           onNotes={(notes) => updateBook(selectedBook.id, { notes })}
+          onMetadata={(changes) => {
+            updateBook(selectedBook.id, changes)
+            setToast({ message: 'Local book details saved as your preferred values' })
+          }}
+          onEnrich={() => enrichBook(selectedBook)}
           onCustomShelves={(activeShelfIds) => {
             const archivedMemberships = organization.entries
               .filter((entry) => entry.bookId === selectedBook.id

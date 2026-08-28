@@ -41,10 +41,13 @@ export function selectMetadataVariant(
   const selection = result.metadataSelection
   const variant = selection?.variants.find((candidate) => candidate.provider === provider)
   if (!selection || !variant) return result
-  return resultFromVariant(result.id, variant, {
-    ...selection,
-    selectedProvider: provider,
-  })
+  return {
+    ...resultFromVariant(result.id, variant, {
+      ...selection,
+      selectedProvider: provider,
+    }),
+    capture: result.capture,
+  }
 }
 
 export function metadataConfidenceLabel(confidence: number): string {

@@ -1,12 +1,18 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import {
+  AlertTriangle,
   BookOpen,
   BookPlus,
+  Camera,
   Check,
   ChevronRight,
+  ClipboardPaste,
   Database,
+  Flashlight,
+  Library,
   Plus,
   RefreshCw,
+  ScanLine,
   Search,
   X,
 } from 'lucide-react'
@@ -14,14 +20,35 @@ import { ActionButton, BookCover } from '../design-system'
 import type { BookSearchResult, LibraryBook, ShelfId } from '../library'
 import { findLibraryBookForSearchResult } from '../library-model'
 import {
+  createManualBookResult,
+  inspectIsbnInput,
+  proposeCaptureDuplicate,
+  readClipboardIsbn,
+  scanIsbnBarcode,
+  type CaptureMethod,
+  type DuplicateProposal,
+  type ValidIsbn,
+} from '../capture'
+import {
   getMetadataSearchService,
   metadataConfidenceLabel,
   selectMetadataVariant,
+  type MetadataSearchResponse,
   type ProviderSearchState,
 } from '../metadata'
 import { shelfCopy } from '../app/config'
 import { Sheet } from '../app/components/Sheet'
 import { tw } from '../tailwind/styles'
+
+type InitialCapture = {
+  readonly isbn: ValidIsbn
+  readonly method: Extract<CaptureMethod, 'share-sheet'>
+}
+
+type CaptureReview = {
+  readonly candidate: BookSearchResult
+  readonly proposal: DuplicateProposal
+}
 
 function authorLine(authors: string[]) {
   return authors.join(', ')
@@ -31,14 +58,18 @@ export function SearchSheet({
   shelf,
   books,
   onAdd,
+  onOpenBook,
   onClose,
   initialManual = false,
+  initialCapture,
 }: {
   shelf: ShelfId
   books: LibraryBook[]
   onAdd: (book: BookSearchResult, shelf: ShelfId) => void
+  onOpenBook: (bookId: string) => void
   onClose: () => void
   initialManual?: boolean
+  initialCapture?: InitialCapture
 }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<readonly BookSearchResult[]>([])
@@ -50,13 +81,23 @@ export function SearchSheet({
   const [manualTitle, setManualTitle] = useState('')
   const [manualAuthor, setManualAuthor] = useState('')
   const [manualPages, setManualPages] = useState('')
+  const [isbnInput, setIsbnInput] = useState(initialCapture?.isbn.normalized ?? '')
+  const [captureMethod, setCaptureMethod] = useState<CaptureMethod>(
+    initialCapture?.method ?? 'manual-entry',
+  )
+  const [captureBusy, setCaptureBusy] = useState(false)
+  const [captureIssue, setCaptureIssue] = useState<string>()
+  const [captureReview, setCaptureReview] = useState<CaptureReview>()
   const requestIdRef = useRef(0)
+  const skipQueryEffectRef = useRef<string | undefined>(undefined)
+  const initialCaptureHandledRef = useRef(false)
+  const isbnInputRef = useRef<HTMLInputElement>(null)
 
   const performSearch = useCallback(async (
     cleanQuery: string,
     options: { readonly includeSecondary?: boolean; readonly refresh?: boolean } = {},
     signal?: AbortSignal,
-  ) => {
+  ): Promise<MetadataSearchResponse<BookSearchResult> | undefined> => {
     const requestId = ++requestIdRef.current
     setStatus('loading')
     try {
@@ -66,7 +107,7 @@ export function SearchSheet({
         locale: navigator.language || 'en',
         limit: 16,
       }, { ...options, signal })
-      if (requestId !== requestIdRef.current) return
+      if (requestId !== requestIdRef.current) return undefined
       setResults(response.results)
       setProviderStates(response.providers)
       setCanBroaden(response.canBroaden)
@@ -75,15 +116,21 @@ export function SearchSheet({
         state === 'live' || state === 'saved' || state === 'empty',
       )
       setStatus(available ? 'ready' : 'error')
+      return response
     } catch (error) {
-      if (requestId !== requestIdRef.current || isAbortError(error)) return
+      if (requestId !== requestIdRef.current || isAbortError(error)) return undefined
       setStatus('error')
+      return undefined
     }
   }, [])
 
   useEffect(() => {
     const cleanQuery = query.trim()
     if (cleanQuery.length < 2) return
+    if (skipQueryEffectRef.current === cleanQuery) {
+      skipQueryEffectRef.current = undefined
+      return
+    }
 
     const controller = new AbortController()
     const timer = window.setTimeout(() => {
@@ -95,6 +142,52 @@ export function SearchSheet({
       window.clearTimeout(timer)
     }
   }, [performSearch, query])
+
+  const acceptCapturedIsbn = useCallback(async (isbn: ValidIsbn, method: CaptureMethod) => {
+    setCaptureBusy(true)
+    setCaptureIssue(undefined)
+    setCaptureMethod(method)
+    setIsbnInput(isbn.normalized)
+    skipQueryEffectRef.current = isbn.normalized
+    setQuery(isbn.normalized)
+    try {
+      const response = await performSearch(isbn.normalized)
+      const result = response?.results.find((candidate) => candidateHasIsbn(candidate, isbn))
+        ?? response?.results[0]
+      if (!result) {
+        setManualMode(true)
+        setManualTitle('')
+        setCaptureIssue(
+          'ISBN saved locally. Catalog details are unavailable, so add a title now and enrich this record later.',
+        )
+        window.setTimeout(() => isbnInputRef.current?.focus(), 0)
+        return
+      }
+
+      const capturedCandidate: BookSearchResult = {
+        ...result,
+        capture: {
+          method,
+          capturedAt: new Date().toISOString(),
+          manualOverrides: [],
+        },
+      }
+      setResults((current) => current.map((candidate) =>
+        candidate.id === result.id ? capturedCandidate : candidate,
+      ))
+      setManualMode(false)
+      const proposal = proposeCaptureDuplicate(books, capturedCandidate)
+      if (proposal) setCaptureReview({ candidate: capturedCandidate, proposal })
+    } finally {
+      setCaptureBusy(false)
+    }
+  }, [books, performSearch])
+
+  useEffect(() => {
+    if (!initialCapture || initialCaptureHandledRef.current) return
+    initialCaptureHandledRef.current = true
+    void acceptCapturedIsbn(initialCapture.isbn, initialCapture.method)
+  }, [acceptCapturedIsbn, initialCapture])
 
   const addFirstResult = (event: FormEvent) => {
     event.preventDefault()
@@ -114,7 +207,14 @@ export function SearchSheet({
   }
 
   const openManualEntry = () => {
-    setManualTitle(query.trim())
+    const inspection = inspectIsbnInput(query)
+    if (inspection.state === 'valid') {
+      setIsbnInput(inspection.isbn.normalized)
+      setCaptureMethod('manual-entry')
+    } else {
+      setManualTitle(query.trim())
+    }
+    setCaptureIssue(undefined)
     setManualMode(true)
   }
 
@@ -123,19 +223,68 @@ export function SearchSheet({
     const cleanTitle = manualTitle.trim()
     if (!cleanTitle) return
 
-    const generatedId = typeof crypto.randomUUID === 'function'
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(16).slice(2)}`
-    onAdd(
-      {
-        id: `manual-${generatedId}`,
-        title: cleanTitle,
-        authors: [manualAuthor.trim() || 'Unknown author'],
-        pageCount: Math.max(0, Number.parseInt(manualPages, 10) || 0),
-      },
-      shelf,
-    )
+    const inspection = inspectIsbnInput(isbnInput)
+    if (isbnInput.trim() && inspection.state !== 'valid') {
+      setCaptureIssue(inspection.state === 'invalid' ? inspection.message : 'Enter a valid ISBN.')
+      isbnInputRef.current?.focus()
+      return
+    }
+    const candidate = createManualBookResult({
+      title: cleanTitle,
+      author: manualAuthor,
+      pageCount: Number.parseInt(manualPages, 10) || 0,
+      isbn: inspection.state === 'valid' ? inspection.isbn : undefined,
+      method: captureMethod,
+    })
+    const proposal = inspection.state === 'valid'
+      ? proposeCaptureDuplicate(books, candidate)
+      : undefined
+    if (proposal) {
+      setCaptureReview({ candidate, proposal })
+      return
+    }
+
+    onAdd(candidate, shelf)
     onClose()
+  }
+
+  const submitIsbn = (event: FormEvent) => {
+    event.preventDefault()
+    const inspection = inspectIsbnInput(isbnInput)
+    if (inspection.state !== 'valid') {
+      setCaptureIssue(inspection.state === 'invalid' ? inspection.message : 'Enter an ISBN first.')
+      return
+    }
+    void acceptCapturedIsbn(inspection.isbn, 'manual-entry')
+  }
+
+  const scanBarcode = async () => {
+    setCaptureBusy(true)
+    setCaptureIssue(undefined)
+    const result = await scanIsbnBarcode()
+    if (result.state === 'scanned') {
+      await acceptCapturedIsbn(result.isbn, 'isbn-camera')
+    } else if (result.state !== 'cancelled') {
+      setCaptureIssue(result.message)
+      if (result.state === 'denied' || result.state === 'unavailable') {
+        setManualMode(true)
+        window.setTimeout(() => isbnInputRef.current?.focus(), 0)
+      }
+    }
+    setCaptureBusy(false)
+  }
+
+  const pasteIsbn = async () => {
+    setCaptureBusy(true)
+    setCaptureIssue(undefined)
+    const inspection = await readClipboardIsbn()
+    if (inspection.state === 'valid') {
+      await acceptCapturedIsbn(inspection.isbn, 'isbn-paste')
+    } else {
+      setCaptureIssue(inspection.state === 'invalid' ? inspection.message : 'The clipboard is empty.')
+      window.setTimeout(() => isbnInputRef.current?.focus(), 0)
+    }
+    setCaptureBusy(false)
   }
 
   const broadenSearch = () => {
@@ -150,6 +299,23 @@ export function SearchSheet({
 
   const hasSavedResults = providerStates.some(({ state }) => state === 'saved')
 
+  if (captureReview) {
+    return (
+      <Sheet title="Check this edition" onClose={onClose} tall>
+        <CaptureDuplicateReview
+          review={captureReview}
+          shelf={shelf}
+          onAdd={() => {
+            onAdd(captureReview.candidate, shelf)
+            onClose()
+          }}
+          onOpen={() => onOpenBook(captureReview.proposal.book.id)}
+          onCancel={() => setCaptureReview(undefined)}
+        />
+      </Sheet>
+    )
+  }
+
   return (
     <Sheet title={manualMode ? 'Add a book manually' : `Add to ${shelfCopy[shelf].label}`} onClose={onClose} tall>
       {manualMode ? (
@@ -157,10 +323,11 @@ export function SearchSheet({
           <div className={tw('manual-notice')}>
             <BookPlus aria-hidden="true" />
             <p>
-              <strong>A personal record</strong>
-              This book stays on your device. You can enrich its metadata later.
+              <strong>Saved here first</strong>
+              Title is enough, even offline. ISBN and other details can be added now or enriched later.
             </p>
           </div>
+          {captureIssue && <CaptureIssue message={captureIssue} />}
           <label>
             <span>Book title</span>
             <input
@@ -172,12 +339,28 @@ export function SearchSheet({
             />
           </label>
           <label>
-            <span>Author</span>
+            <span>Author <i>optional</i></span>
             <input
               value={manualAuthor}
               onChange={(event) => setManualAuthor(event.target.value)}
               placeholder="Unknown author"
             />
+          </label>
+          <label>
+            <span>ISBN-10 or ISBN-13 <i>optional</i></span>
+            <span className={tw('manual-isbn-field')}>
+              <input
+                ref={isbnInputRef}
+                value={isbnInput}
+                onChange={(event) => setIsbnInput(event.target.value)}
+                placeholder="978-…"
+                inputMode="numeric"
+                autoCapitalize="characters"
+              />
+              <button type="button" onClick={() => { void pasteIsbn() }} disabled={captureBusy}>
+                <ClipboardPaste aria-hidden="true" /> Paste
+              </button>
+            </span>
           </label>
           <label>
             <span>Page count <i>optional</i></span>
@@ -190,6 +373,13 @@ export function SearchSheet({
               placeholder="0"
             />
           </label>
+          <p className={tw('capture-provenance')}>
+            <Database aria-hidden="true" />
+            {captureMethod === 'isbn-camera' && 'ISBN captured by camera · fields stay editable'}
+            {captureMethod === 'isbn-paste' && 'ISBN pasted from your clipboard · fields stay editable'}
+            {captureMethod === 'share-sheet' && 'ISBN received from the share sheet · fields stay editable'}
+            {captureMethod === 'manual-entry' && 'Personal record · fields stay editable'}
+          </p>
           <div className={tw('manual-form-actions')}>
             {!initialManual && (
               <ActionButton type="button" variant="secondary" onClick={() => setManualMode(false)}>
@@ -203,10 +393,46 @@ export function SearchSheet({
         </form>
       ) : (
         <>
+          <section className={tw('capture-desk')} aria-labelledby="capture-desk-title">
+            <header>
+              <span><ScanLine aria-hidden="true" /></span>
+              <div>
+                <h3 id="capture-desk-title">Capture an ISBN</h3>
+                <p>Scan the back cover or use a number you copied.</p>
+              </div>
+              <small>Works offline</small>
+            </header>
+            <div className={tw('capture-desk__actions')}>
+              <button type="button" onClick={() => { void scanBarcode() }} disabled={captureBusy}>
+                <Camera aria-hidden="true" /><span><strong>Scan barcode</strong><small>Camera · ISBN-10/13</small></span>
+              </button>
+              <button type="button" onClick={() => { void pasteIsbn() }} disabled={captureBusy}>
+                <ClipboardPaste aria-hidden="true" /><span><strong>Paste ISBN</strong><small>From clipboard</small></span>
+              </button>
+            </div>
+            <p className={tw('capture-torch-note')}>
+              <Flashlight aria-hidden="true" /> Camera opens full screen. Use the torch control when the cover is dark or glossy.
+            </p>
+            <form className={tw('capture-isbn-entry')} onSubmit={submitIsbn}>
+              <input
+                ref={isbnInputRef}
+                value={isbnInput}
+                onChange={(event) => setIsbnInput(event.target.value)}
+                placeholder="Type ISBN-10 or ISBN-13"
+                aria-label="ISBN-10 or ISBN-13"
+                inputMode="numeric"
+                autoCapitalize="characters"
+              />
+              <button type="submit" disabled={captureBusy || !isbnInput.trim()}>Use ISBN</button>
+            </form>
+          </section>
+
+          {captureIssue && <CaptureIssue message={captureIssue} />}
+
           <form className={tw('book-search')} onSubmit={addFirstResult}>
             <Search aria-hidden="true" />
             <input
-              autoFocus
+              autoFocus={!isbnInput}
               type="search"
               value={query}
               onChange={(event) => updateQuery(event.target.value)}
@@ -254,8 +480,8 @@ export function SearchSheet({
           <button className={tw('manual-entry-trigger')} type="button" onClick={openManualEntry}>
             <BookPlus aria-hidden="true" />
             <span>
-              <strong>{query.trim() ? `Can't find “${query.trim()}”?` : 'Know exactly what belongs here?'}</strong>
-              Add a personal record on this device
+              <strong>{query.trim() ? `Can't find “${query.trim()}”?` : 'No ISBN? No problem.'}</strong>
+              Add a title-first personal record on this device
             </span>
             <ChevronRight aria-hidden="true" />
           </button>
@@ -335,6 +561,79 @@ export function SearchSheet({
       )}
     </Sheet>
   )
+}
+
+function CaptureIssue({ message }: { readonly message: string }) {
+  return (
+    <div className={tw('capture-issue')} role="alert">
+      <AlertTriangle aria-hidden="true" />
+      <p><strong>Keep going without the camera</strong>{message}</p>
+    </div>
+  )
+}
+
+function CaptureDuplicateReview({
+  review,
+  shelf,
+  onAdd,
+  onOpen,
+  onCancel,
+}: {
+  readonly review: CaptureReview
+  readonly shelf: ShelfId
+  readonly onAdd: () => void
+  readonly onOpen: () => void
+  readonly onCancel: () => void
+}) {
+  const exact = review.proposal.kind === 'exact-edition'
+  const existing = review.proposal.book
+  const isbn = review.candidate.identifiers?.[0]
+  return (
+    <div className={tw('capture-review')}>
+      <header>
+        <span className={tw('capture-review__mark')}>
+          {exact ? <Check aria-hidden="true" /> : <Library aria-hidden="true" />}
+        </span>
+        <div>
+          <span>{exact ? 'Exact edition found' : 'Related edition found'}</span>
+          <h3>{exact ? 'This ISBN is already in your library' : 'This may be another edition of the same Work'}</h3>
+          <p>
+            {exact
+              ? 'Wovenleaf will not create a second copy or move it without your review.'
+              : 'The ISBN is different, so it can stay separate while sharing the same Work history.'}
+          </p>
+        </div>
+      </header>
+      <article className={tw('capture-review__book')}>
+        <BookCover book={existing} />
+        <div>
+          <strong>{existing.title}</strong>
+          <span>{existing.authors.join(', ')}</span>
+          <small>{isbn ? `Scanned ${isbn}` : 'Title and author match'} · Currently in {shelfCopy[existing.shelf].label}</small>
+        </div>
+      </article>
+      <div className={tw('capture-review__ledger')}>
+        <span>{exact ? 'Same ISBN' : 'Different ISBN'}</span>
+        <p>{exact ? 'Use the existing edition and keep its reading data intact.' : 'Add a separate edition only after reviewing the existing one.'}</p>
+      </div>
+      <div className={tw('capture-review__actions')}>
+        <ActionButton type="button" variant="secondary" onClick={onCancel}>Back</ActionButton>
+        <ActionButton type="button" variant="secondary" onClick={onOpen}>Review existing</ActionButton>
+        {(!exact || existing.shelf !== shelf) && (
+          <ActionButton type="button" onClick={onAdd}>
+            {exact ? `Move to ${shelfCopy[shelf].label}` : 'Add separate edition'}
+          </ActionButton>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function candidateHasIsbn(candidate: BookSearchResult, isbn: ValidIsbn): boolean {
+  return candidate.identifiers?.some((value) => {
+    const inspection = inspectIsbnInput(value)
+    return inspection.state === 'valid' && inspection.isbn.canonical === isbn.canonical
+  }) ?? false
 }
 
 function isAbortError(error: unknown): boolean {

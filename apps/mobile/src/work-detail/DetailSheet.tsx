@@ -15,6 +15,8 @@ export function DetailSheet({
   onFinish,
   onRate,
   onNotes,
+  onMetadata,
+  onEnrich,
   onCustomShelves,
   onTags,
   onRemove,
@@ -30,6 +32,8 @@ export function DetailSheet({
   onFinish: () => void
   onRate: (rating: number) => void
   onNotes: (notes: string) => void
+  onMetadata: (changes: Partial<LibraryBook>) => void
+  onEnrich: () => Promise<boolean>
   onCustomShelves: (shelfIds: readonly string[]) => void
   onTags: (tags: readonly string[]) => void
   onRemove: () => void
@@ -48,6 +52,8 @@ export function DetailSheet({
         onFinish={onFinish}
         onRate={onRate}
         onNotes={onNotes}
+        onMetadata={onMetadata}
+        onEnrich={onEnrich}
         onCustomShelves={onCustomShelves}
         onTags={onTags}
         onRemove={onRemove}
