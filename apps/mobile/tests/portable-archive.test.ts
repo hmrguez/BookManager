@@ -8,7 +8,11 @@ import { LibraryRepository } from '../src/storage/library-repository'
 import { migrateStorage } from '../src/storage/migrations'
 import { OrganizationRepository } from '../src/storage/organization-repository'
 import { UpNextRepository } from '../src/storage/up-next-repository'
-import { readerNavigationStateSchema, readiumLocatorSchema } from '../src/reader/model'
+import {
+  readerAnnotationStateSchema,
+  readerNavigationStateSchema,
+  readiumLocatorSchema,
+} from '../src/reader/model'
 import { EpubReaderRepository } from '../src/reader/repository'
 import {
   createPortableArchive,
@@ -65,6 +69,41 @@ const representativeUpNext = {
   dismissedCriteria: ['format'] as const,
   dismissedSuggestions: [{ bookId: representativeLibrary[1].id, dismissedAt: exportedAt }],
 }
+const representativeReaderAnnotations = [readerAnnotationStateSchema.parse({
+  version: 1,
+  bookId: representativeLibrary[0].id,
+  editionId: representativeCatalog.editions[0].id,
+  annotations: [{
+    id: 'reader-annotation:portable',
+    bookId: representativeLibrary[0].id,
+    editionId: representativeCatalog.editions[0].id,
+    assetId: representativeCatalog.assets[0].id,
+    assetFingerprint: 'a'.repeat(64),
+    locator: readiumLocatorSchema.parse({
+      href: 'Text/chapter-08.xhtml',
+      type: 'application/xhtml+xml',
+      title: 'Chapter Eight',
+      locations: { fragments: ['epubcfi(/6/24!/4/2/14)'], totalProgression: 0.42 },
+      text: {
+        before: 'The wind had fallen.',
+        highlight: 'Estraven looked east.',
+        after: 'Dawn found them awake.',
+      },
+    }),
+    quote: 'Estraven looked east.',
+    prefix: 'The wind had fallen.',
+    suffix: 'Dawn found them awake.',
+    chapter: 'Chapter Eight',
+    color: 'ochre',
+    note: 'A private passage note.',
+    tags: ['Character', 'Revisit'],
+    createdAt: exportedAt,
+    updatedAt: exportedAt,
+    anchor: { status: 'exact' },
+    provenance: { source: 'epub-reader', platform: 'ios', toolkitVersion: '3.11.0' },
+  }],
+  updatedAt: exportedAt,
+})]
 
 describe('portable archive contract', () => {
   test('reconstructs a representative library on a clean install after validating every entry', async () => {
@@ -92,6 +131,7 @@ describe('portable archive contract', () => {
       updatedAt: exportedAt,
     })
     await new EpubReaderRepository(source).replaceNavigationStates([readerNavigation])
+    await new EpubReaderRepository(source).replaceAnnotationStates(representativeReaderAnnotations)
 
     const bundle = await new PortableArchiveService(source).create({
       createdAt: exportedAt,
@@ -106,10 +146,12 @@ describe('portable archive contract', () => {
     expect(await new OrganizationRepository(target).read()).toEqual(representativeOrganization)
     expect(await new UpNextRepository(target).read()).toEqual(representativeUpNext)
     expect(await new EpubReaderRepository(target).allNavigationStates()).toEqual([readerNavigation])
+    expect(await new EpubReaderRepository(target).allAnnotationStates())
+      .toEqual(representativeReaderAnnotations)
     expect(restored.manifest).toMatchObject({
       format: 'wovenleaf-portable-library',
       formatVersion: 1,
-      schemaVersion: 5,
+      schemaVersion: 6,
       scope: { kind: 'complete-library', bookCount: 3 },
       redactions: {
         privateAnnotations: 'included',
@@ -119,6 +161,9 @@ describe('portable archive contract', () => {
     })
     expect(bundle.archive).not.toContain('bookmark:left-hand-audio')
     expect(bundle.archive).not.toContain('books/left-hand.epub')
+    expect(bundle.archive).toContain('reader-annotation:portable')
+    expect(bundle.markdown).toContain('Estraven looked east.')
+    expect(bundle.markdown).toContain('#Character #Revisit')
     expect(restored.manifest.entries.every(({ sha256 }) => sha256.length === 64)).toBe(true)
     expect(restored.organization).toEqual(representativeOrganization)
     expect(restored.upNext).toEqual(representativeUpNext)
@@ -189,11 +234,18 @@ describe('portable archive contract', () => {
       representativeLibrary,
       { includeAnnotations: false, createdAt: exportedAt },
       representativeOrganization,
+      representativeUpNext,
+      [],
+      [],
+      representativeReaderAnnotations,
     )
     const inspected = await inspectPortableArchive(bundle.archive)
     const manifestEntries = inspected.manifest.entries
 
     expect(bundle.archive).not.toContain('A private note')
+    expect(bundle.archive).not.toContain('A private passage note')
+    expect(bundle.archive).not.toContain('Estraven looked east.')
+    expect(inspected.readerAnnotations).toEqual([])
     expect(inspected.books[0]).toMatchObject({ notes: '', rating: 0 })
     expect(inspected.manifest.redactions.privateAnnotations).toBe('excluded')
     expect(inspected.organization.shelves[0].notes).toBe('')

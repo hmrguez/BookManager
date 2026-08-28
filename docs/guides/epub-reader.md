@@ -35,10 +35,36 @@ local-only zoom surface; missing resources and broken TOC targets leave the curr
 and show a recoverable message.
 
 Bookmarks and the last selected TOC target use the same asset fingerprint and locator rules as
-reading checkpoints. They travel in portable archive schema 5 when annotations are included, and
+reading checkpoints. They travel in portable archive schema 6 when annotations are included, and
 are omitted when private annotation data is excluded. Restoring an archive replaces navigation
 state transactionally, while an edition replacement drops revision-specific locator fragments
 before offering the saved passage to the new asset.
+
+## Highlights and notes
+
+Selecting EPUB text exposes Copy, Highlight, and Add Note through the platform selection menu.
+The same actions work with keyboard and assistive selection: Command-Shift-H/N on iOS and
+Control-Shift-H/N on Android. Each annotation keeps the exact Readium range together with the
+quoted passage, bounded text before and after it, chapter, color, note, normalized tags, timestamps,
+asset fingerprint, and toolkit provenance. Highlights are separate from bookmarks and can be
+opened, edited, or deleted from the Notes tab in the navigation sheet; tapping a highlight opens
+the same editor.
+
+Deletion creates a durable tombstone so sync and restore semantics cannot resurrect a removed
+annotation by accident. The reader offers an immediate Undo, which records an explicit restore.
+Portable archive schema 6 includes the complete annotation states in canonical, stable-order JSON
+and adds active highlights and notes to the human-readable Markdown journal. Excluding private
+annotations removes quotes, notes, tags, bookmarks, and annotation tombstones from both forms.
+
+An unchanged asset fingerprint keeps the full range across appearance, layout, orientation,
+restart, backup, and restore. A changed EPUB revision never receives an old CFI or selector
+silently: Wovenleaf drops revision-specific fragments, preserves the quote and surrounding context,
+and searches the new publication. A unique exact quote, or a unique match disambiguated by both
+available sides of its text context, receives the new Readium range and is persisted as re-anchored.
+Missing or ambiguous matches stay in **Needs review**; the reader must visit the candidate passage
+and choose **Keep Here** before the highlight is drawn again. Protected/DRM publications remain
+outside this flow because the app does not link a DRM module; only the visible passage selected in
+an unprotected EPUB is stored.
 
 ## Replacement and recovery
 

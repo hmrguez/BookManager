@@ -18,6 +18,7 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
     private var pendingPreference: (ReaderPreferenceScope, WovenleafReaderPreferences?)?
     private var lastLocator: Locator?
     private var navigationState: ReaderNavigationState
+    private var annotationState: ReaderAnnotationCollection
     private var navigationHistory: [Locator] = []
     private var pendingJumpOrigin: Locator?
     private var restoringHistory = false
@@ -50,6 +51,7 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         self.globalPreferences = globalPreferences
         self.bookPreferences = bookPreferences
         navigationState = context.navigationState
+        annotationState = context.annotationState
         let preferences = bookPreferences ?? globalPreferences
         self.navigator = try EPUBNavigatorViewController(
             publication: publication,
@@ -58,7 +60,11 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
                 preferences: preferences.readiumPreferences(
                     compactWidth: UIScreen.main.bounds.width < 700,
                     highContrast: UIAccessibility.isDarkerSystemColorsEnabled
-                )
+                ),
+                editingActions: EditingAction.defaultActions + [
+                    EditingAction(title: "Highlight", action: #selector(createHighlight(_:))),
+                    EditingAction(title: "Add Note", action: #selector(createPassageNote(_:))),
+                ]
             )
         )
         super.init(nibName: nil, bundle: nil)
@@ -156,6 +162,9 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         updateHistoryButton()
         updateBookmarkButton()
         setupReaderInput()
+        setupAnnotationInteractions()
+        applyAnnotationDecorations()
+        attemptAnnotationReanchoring()
         ReaderOutbox.enqueue(kind: "start", context: context, sessionId: sessionId, locator: initialLocator)
     }
 
@@ -171,6 +180,8 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
             UIKeyCommand(input: UIKeyCommand.inputRightArrow, modifierFlags: [], action: #selector(nextPage)),
             UIKeyCommand(input: "f", modifierFlags: .command, action: #selector(showReaderOutline)),
             UIKeyCommand(input: "b", modifierFlags: .command, action: #selector(toggleBookmark)),
+            UIKeyCommand(input: "h", modifierFlags: [.command, .shift], action: #selector(createHighlight(_:))),
+            UIKeyCommand(input: "n", modifierFlags: [.command, .shift], action: #selector(createPassageNote(_:))),
             UIKeyCommand(input: "[", modifierFlags: .command, action: #selector(goBackInBook)),
             UIKeyCommand(input: UIKeyCommand.inputEscape, modifierFlags: [], action: #selector(handleEscape)),
         ]
@@ -284,11 +295,15 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
             currentLocator: lastLocator ?? navigator.currentLocation,
             selectedTocLocator: navigationState.toc?.locator,
             bookmarks: navigationState.bookmarks,
+            annotations: annotationState.annotations,
             palette: readerPalette
         )
         outline.onNavigateToLink = { [weak self] link in self?.navigate(to: link, fromToc: true) }
         outline.onNavigateToLocator = { [weak self] locator in self?.navigate(to: locator) }
         outline.onDeleteBookmark = { [weak self] bookmark in self?.deleteBookmark(bookmark) }
+        outline.onEditAnnotation = { [weak self] annotation in self?.editAnnotation(annotation) }
+        outline.onDeleteAnnotation = { [weak self] annotation in self?.deleteAnnotation(annotation) }
+        outline.onReviewAnnotation = { [weak self] annotation in self?.reviewAnnotation(annotation) }
         let navigation = UINavigationController(rootViewController: outline)
         navigation.modalPresentationStyle = .pageSheet
         if let sheet = navigation.sheetPresentationController {
@@ -466,6 +481,305 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         updateBookmarkButton()
     }
 
+    @objc private func createHighlight(_ sender: Any?) {
+        createAnnotationFromSelection()
+    }
+
+    @objc private func createPassageNote(_ sender: Any?) {
+        createAnnotationFromSelection()
+    }
+
+    private func createAnnotationFromSelection() {
+        guard let selection = navigator.currentSelection else {
+            presentReaderMessage(title: "Select a passage", message: "Select a short passage first, then choose Highlight or Add Note.")
+            return
+        }
+        let quote = selection.locator.text.highlight?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !quote.isEmpty, quote.count <= 10_000 else {
+            navigator.clearSelection()
+            presentReaderMessage(
+                title: "Selection unavailable",
+                message: "Choose a passage between 1 and 10,000 characters. Wovenleaf does not save whole chapters as annotations."
+            )
+            return
+        }
+        presentAnnotationEditor(locator: selection.locator, annotation: nil)
+    }
+
+    private func editAnnotation(_ annotation: ReaderAnnotationRecord) {
+        presentAnnotationEditor(locator: annotation.locator, annotation: annotation)
+    }
+
+    private func reviewAnnotation(_ annotation: ReaderAnnotationRecord) {
+        Task { [weak self] in
+            guard let self else { return }
+            let candidates = await matchingReanchorCandidates(for: annotation)
+            guard !candidates.isEmpty else {
+                presentReaderMessage(
+                    title: "Passage unavailable",
+                    message: "This revised EPUB no longer contains the quoted passage. The annotation remains in Needs Review."
+                )
+                return
+            }
+            if candidates.count == 1 {
+                openReviewCandidate(candidates[0], annotation: annotation)
+                return
+            }
+            let chooser = UIAlertController(
+                title: "Choose the matching passage",
+                message: "The quote appears more than once. Compare its chapter and surrounding words before confirming.",
+                preferredStyle: .alert
+            )
+            for candidate in candidates.prefix(12) {
+                chooser.addAction(UIAlertAction(title: reviewCandidateLabel(candidate), style: .default) { [weak self] _ in
+                    self?.openReviewCandidate(candidate, annotation: annotation)
+                })
+            }
+            chooser.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+            present(chooser, animated: !UIAccessibility.isReduceMotionEnabled)
+        }
+    }
+
+    private func openReviewCandidate(_ locator: Locator, annotation: ReaderAnnotationRecord) {
+        Task {
+            guard await navigator.go(to: locator, options: .animated) else {
+                presentReaderMessage(title: "Passage unavailable", message: "This matching range could not be opened.")
+                return
+            }
+            presentAnnotationEditor(locator: locator, annotation: annotation, needsReview: true)
+        }
+    }
+
+    private func reviewCandidateLabel(_ locator: Locator) -> String {
+        let context = [locator.text.before, locator.text.highlight, locator.text.after]
+            .compactMap { $0 }
+            .joined(separator: " ")
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        return "\(locator.title ?? "Passage") — \(String(context.prefix(90)))"
+    }
+
+    private func presentAnnotationEditor(
+        locator: Locator,
+        annotation: ReaderAnnotationRecord?,
+        needsReview: Bool = false
+    ) {
+        let quote = annotation?.quote
+            ?? locator.text.highlight?.trimmingCharacters(in: .whitespacesAndNewlines)
+            ?? ""
+        let editor = ReaderAnnotationEditorViewController(
+            quote: quote,
+            annotation: annotation,
+            palette: readerPalette,
+            needsReview: needsReview
+        )
+        editor.onSave = { [weak self] color, note, tags in
+            self?.saveAnnotation(
+                annotation,
+                locator: locator,
+                color: color,
+                note: note,
+                tags: tags,
+                confirmingRevision: needsReview
+            )
+        }
+        if let annotation {
+            editor.onDelete = { [weak self] in self?.deleteAnnotation(annotation) }
+        }
+        let navigation = UINavigationController(rootViewController: editor)
+        navigation.modalPresentationStyle = .pageSheet
+        if let sheet = navigation.sheetPresentationController {
+            sheet.detents = [.medium(), .large()]
+            sheet.prefersGrabberVisible = true
+            sheet.preferredCornerRadius = 18
+        }
+        present(navigation, animated: !UIAccessibility.isReduceMotionEnabled)
+    }
+
+    private func saveAnnotation(
+        _ existing: ReaderAnnotationRecord?,
+        locator: Locator,
+        color: ReaderAnnotationColor,
+        note: String,
+        tags: [String],
+        confirmingRevision: Bool
+    ) {
+        let timestamp = ReaderOutbox.timestamp()
+        var annotation: ReaderAnnotationRecord
+        if var current = existing {
+            current.color = color
+            current.note = note
+            current.tags = tags
+            current.updatedAt = timestamp
+            current.deletedAt = nil
+            if confirmingRevision {
+                current.locator = locator
+                current.editionId = context.editionId
+                current.assetId = context.assetId
+                current.assetFingerprint = context.assetFingerprint
+                current.anchorStatus = .reanchored
+                current.anchorReason = nil
+            }
+            annotation = current
+        } else {
+            annotation = ReaderAnnotationRecord(
+                id: "reader-annotation:\(UUID().uuidString.lowercased())",
+                context: context,
+                locator: locator,
+                color: color,
+                note: note,
+                tags: tags,
+                timestamp: timestamp
+            )
+        }
+        annotationState.annotations.removeAll { $0.id == annotation.id }
+        annotationState.annotations.append(annotation)
+        annotationState.annotations.sort { $0.createdAt == $1.createdAt ? $0.id < $1.id : $0.createdAt < $1.createdAt }
+        annotationState.updatedAt = timestamp
+        ReaderOutbox.enqueueAnnotation(
+            context: context,
+            sessionId: sessionId,
+            action: "upsert",
+            annotationId: annotation.id,
+            annotation: annotation
+        )
+        navigator.clearSelection()
+        applyAnnotationDecorations()
+        UIAccessibility.post(notification: .announcement, argument: existing == nil ? "Highlight saved" : "Annotation updated")
+    }
+
+    private func deleteAnnotation(_ annotation: ReaderAnnotationRecord) {
+        guard let index = annotationState.annotations.firstIndex(where: { $0.id == annotation.id }) else { return }
+        let timestamp = ReaderOutbox.timestamp()
+        annotationState.annotations[index].deletedAt = timestamp
+        annotationState.annotations[index].updatedAt = timestamp
+        annotationState.updatedAt = timestamp
+        ReaderOutbox.enqueueAnnotation(
+            context: context,
+            sessionId: sessionId,
+            action: "delete",
+            annotationId: annotation.id
+        )
+        applyAnnotationDecorations()
+        let alert = UIAlertController(
+            title: "Annotation deleted",
+            message: "The deletion is retained for sync and portable export. You can undo it now.",
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "Done", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Undo", style: .default) { [weak self] _ in
+            self?.restoreAnnotation(id: annotation.id)
+        })
+        present(alert, animated: !UIAccessibility.isReduceMotionEnabled)
+    }
+
+    private func restoreAnnotation(id: String) {
+        guard let index = annotationState.annotations.firstIndex(where: { $0.id == id }) else { return }
+        annotationState.annotations[index].deletedAt = nil
+        annotationState.annotations[index].updatedAt = ReaderOutbox.timestamp()
+        annotationState.updatedAt = annotationState.annotations[index].updatedAt
+        ReaderOutbox.enqueueAnnotation(
+            context: context,
+            sessionId: sessionId,
+            action: "restore",
+            annotationId: id
+        )
+        applyAnnotationDecorations()
+        UIAccessibility.post(notification: .announcement, argument: "Annotation restored")
+    }
+
+    private func setupAnnotationInteractions() {
+        navigator.observeDecorationInteractions(inGroup: "annotations") { [weak self] event in
+            guard let self,
+                  let annotation = annotationState.annotations.first(where: { $0.id == event.decoration.id })
+            else { return }
+            Task { @MainActor in self.editAnnotation(annotation) }
+        }
+    }
+
+    private func attemptAnnotationReanchoring() {
+        let pending = annotationState.annotations.filter {
+            !$0.isDeleted && $0.anchorStatus == .review && $0.anchorReason == "asset-revision"
+        }
+        guard !pending.isEmpty, publication.isSearchable else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            for annotation in pending where !Task.isCancelled {
+                guard let locator = await uniqueReanchorCandidate(for: annotation) else { continue }
+                acceptAutomaticReanchor(annotation, locator: locator)
+            }
+        }
+    }
+
+    private func uniqueReanchorCandidate(for annotation: ReaderAnnotationRecord) async -> Locator? {
+        let exact = await matchingReanchorCandidates(for: annotation)
+        if exact.count == 1 { return exact[0] }
+        guard exact.count > 1 else { return nil }
+        let before = String(normalizedAnchorText(annotation.prefix).suffix(80))
+        let after = String(normalizedAnchorText(annotation.suffix).prefix(80))
+        guard !before.isEmpty || !after.isEmpty else { return nil }
+        let contextual = exact.filter { candidate in
+            let candidateBefore = normalizedAnchorText(candidate.text.before ?? "")
+            let candidateAfter = normalizedAnchorText(candidate.text.after ?? "")
+            return (before.isEmpty || candidateBefore.hasSuffix(before))
+                && (after.isEmpty || candidateAfter.hasPrefix(after))
+        }
+        return contextual.count == 1 ? contextual[0] : nil
+    }
+
+    private func matchingReanchorCandidates(for annotation: ReaderAnnotationRecord) async -> [Locator] {
+        guard let iterator = try? await publication.search(query: annotation.quote).get() else { return [] }
+        var candidates: [Locator] = []
+        while candidates.count < 50, !Task.isCancelled {
+            guard let page = try? await iterator.next().get() else { break }
+            candidates.append(contentsOf: page.locators.prefix(50 - candidates.count))
+        }
+        return candidates.filter {
+            normalizedAnchorText($0.text.highlight ?? "") == normalizedAnchorText(annotation.quote)
+        }
+    }
+
+    private func acceptAutomaticReanchor(_ original: ReaderAnnotationRecord, locator: Locator) {
+        guard let index = annotationState.annotations.firstIndex(where: {
+            $0.id == original.id && $0.anchorStatus == .review && !$0.isDeleted
+        }) else { return }
+        let timestamp = ReaderOutbox.timestamp()
+        annotationState.annotations[index].locator = locator
+        annotationState.annotations[index].anchorStatus = .reanchored
+        annotationState.annotations[index].anchorReason = nil
+        annotationState.annotations[index].updatedAt = timestamp
+        annotationState.updatedAt = timestamp
+        let annotation = annotationState.annotations[index]
+        ReaderOutbox.enqueueAnnotation(
+            context: context,
+            sessionId: sessionId,
+            action: "upsert",
+            annotationId: annotation.id,
+            annotation: annotation
+        )
+        applyAnnotationDecorations()
+    }
+
+    private func normalizedAnchorText(_ value: String) -> String {
+        value.components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+            .lowercased()
+    }
+
+    private func applyAnnotationDecorations() {
+        let decorations = annotationState.annotations.compactMap { annotation -> Decoration? in
+            guard !annotation.isDeleted, annotation.anchorStatus != .review else { return nil }
+            return Decoration(
+                id: annotation.id,
+                locator: annotation.locator,
+                style: .highlight(tint: annotation.color.tint(theme: effectivePreferences.theme))
+            )
+        }
+        navigator.apply(decorations: decorations, in: "annotations")
+    }
+
     private func updateBookmarkButton() {
         let locator = lastLocator ?? navigator.currentLocation
         let bookmarked = locator.map { current in
@@ -568,6 +882,7 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
             highContrast: UIAccessibility.isDarkerSystemColorsEnabled
         ))
         applyReaderPalette()
+        applyAnnotationDecorations()
     }
 
     private func applyReaderPalette() {

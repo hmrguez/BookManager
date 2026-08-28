@@ -14,14 +14,19 @@ import { readNumber, readText } from '../storage/database'
 import { readLibraryBooks, writeLibraryBook } from '../storage/library-repository'
 import {
   DEFAULT_READER_PREFERENCES,
+  annotationForReplacement,
   fallbackLocatorForReplacement,
   nativeReaderEventSchema,
+  readerAnnotationSchema,
+  readerAnnotationStateSchema,
   readerNavigationStateSchema,
   readerPreferencesSchema,
   readerCheckpointSchema,
   readiumLocatorSchema,
+  sortReaderAnnotations,
   type EpubReaderCapability,
   type NativeReaderEvent,
+  type ReaderAnnotationState,
   type ReaderCheckpoint,
   type ReaderNavigationState,
   type ReaderPreferences,
@@ -57,7 +62,7 @@ type PreferenceRow = SqlRow & {
 
 type ReadingNativeReaderEvent = Exclude<
   NativeReaderEvent,
-  { readonly kind: 'preference' | 'bookmark' | 'toc' }
+  { readonly kind: 'preference' | 'bookmark' | 'toc' | 'annotation' }
 >
 
 export class EpubReaderRepository {
@@ -199,6 +204,45 @@ export class EpubReaderRepository {
     )
   }
 
+  async annotationStateForBook(capability: EpubReaderCapability): Promise<ReaderAnnotationState> {
+    const [row] = await this.#database.query<{ readonly state_json: string }>(
+      'SELECT state_json FROM epub_reader_annotations WHERE book_id = ?',
+      [capability.bookId],
+    )
+    if (!row) {
+      return readerAnnotationStateSchema.parse({
+        version: 1,
+        bookId: capability.bookId,
+        editionId: capability.editionId,
+        annotations: [],
+        updatedAt: new Date(0).toISOString(),
+      })
+    }
+    const state = readerAnnotationStateSchema.parse(JSON.parse(readText(row, 'state_json')))
+    return readerAnnotationStateSchema.parse({
+      ...state,
+      editionId: capability.editionId,
+      annotations: state.annotations.map((annotation) =>
+        annotationForReplacement(annotation, capability),
+      ),
+    })
+  }
+
+  async allAnnotationStates(): Promise<ReaderAnnotationState[]> {
+    const rows = await this.#database.query<{ readonly state_json: string }>(
+      'SELECT state_json FROM epub_reader_annotations ORDER BY book_id',
+    )
+    return rows.map((row) =>
+      readerAnnotationStateSchema.parse(JSON.parse(readText(row, 'state_json'))),
+    )
+  }
+
+  async replaceAnnotationStates(states: readonly ReaderAnnotationState[]): Promise<void> {
+    await this.#database.transaction(async (database) => {
+      await replaceReaderAnnotationStates(database, states)
+    })
+  }
+
   async replaceNavigationStates(states: readonly ReaderNavigationState[]): Promise<void> {
     await this.#database.transaction(async (database) => {
       await replaceReaderNavigationStates(database, states)
@@ -264,6 +308,12 @@ export class EpubReaderRepository {
 
     if (event.kind === 'bookmark' || event.kind === 'toc') {
       await this.#saveNavigationState(event)
+      await this.#saveCheckpoint(event, undefined)
+      return 'applied'
+    }
+
+    if (event.kind === 'annotation') {
+      await this.#saveAnnotationState(event)
       await this.#saveCheckpoint(event, undefined)
       return 'applied'
     }
@@ -355,6 +405,61 @@ export class EpubReaderRepository {
     await this.#database.persist()
   }
 
+  async #saveAnnotationState(
+    event: Extract<NativeReaderEvent, { readonly kind: 'annotation' }>,
+  ): Promise<void> {
+    const [row] = await this.#database.query<{ readonly state_json: string }>(
+      'SELECT state_json FROM epub_reader_annotations WHERE book_id = ?',
+      [event.bookId],
+    )
+    const current = row
+      ? readerAnnotationStateSchema.parse(JSON.parse(readText(row, 'state_json')))
+      : readerAnnotationStateSchema.parse({
+          version: 1,
+          bookId: event.bookId,
+          editionId: event.editionId,
+          annotations: [],
+          updatedAt: event.emittedAt,
+        })
+    const existing = current.annotations.find(({ id }) => id === event.annotationId)
+    const retained = current.annotations.filter(({ id }) => id !== event.annotationId)
+    let annotations = current.annotations
+    if (event.action === 'upsert' && event.annotation) {
+      const annotation = readerAnnotationSchema.parse(event.annotation)
+      if (
+        annotation.id !== event.annotationId
+        || annotation.bookId !== event.bookId
+        || annotation.editionId !== event.editionId
+        || annotation.assetId !== event.assetId
+        || annotation.assetFingerprint !== event.assetFingerprint
+      ) {
+        throw new Error('The annotation identity does not match its native reader event.')
+      }
+      annotations = [...retained, annotation]
+    } else if (event.action === 'delete' && existing) {
+      annotations = [...retained, { ...existing, updatedAt: event.emittedAt, deletedAt: event.emittedAt }]
+    } else if (event.action === 'restore' && existing) {
+      const { deletedAt: _deletedAt, ...restored } = existing
+      annotations = [...retained, { ...restored, updatedAt: event.emittedAt }]
+    }
+    const next = readerAnnotationStateSchema.parse({
+      ...current,
+      editionId: event.editionId,
+      annotations: sortReaderAnnotations(annotations),
+      updatedAt: event.emittedAt,
+    })
+    await this.#database.run(
+      `INSERT INTO epub_reader_annotations(book_id, edition_id, state_json, recorded_at)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(book_id) DO UPDATE SET
+         edition_id = excluded.edition_id,
+         state_json = excluded.state_json,
+         recorded_at = excluded.recorded_at`,
+      [next.bookId, next.editionId, JSON.stringify(next), next.updatedAt],
+    )
+    await this.#database.persist()
+  }
+
   async #saveCheckpoint(event: NativeReaderEvent, explicitLocator?: ReadiumLocator): Promise<void> {
     const locator = explicitLocator ?? (
       event.kind === 'start' || event.kind === 'location' || event.kind === 'session'
@@ -414,6 +519,21 @@ export async function replaceReaderNavigationStates(
   for (const state of validated) {
     await database.run(
       `INSERT INTO epub_reader_navigation(book_id, edition_id, state_json, recorded_at)
+       VALUES (?, ?, ?, ?)`,
+      [state.bookId, state.editionId, JSON.stringify(state), state.updatedAt],
+    )
+  }
+}
+
+export async function replaceReaderAnnotationStates(
+  database: SqlDatabase,
+  states: readonly ReaderAnnotationState[],
+): Promise<void> {
+  const validated = readerAnnotationStateSchema.array().parse(states)
+  await database.run('DELETE FROM epub_reader_annotations')
+  for (const state of validated) {
+    await database.run(
+      `INSERT INTO epub_reader_annotations(book_id, edition_id, state_json, recorded_at)
        VALUES (?, ?, ?, ?)`,
       [state.bookId, state.editionId, JSON.stringify(state), state.updatedAt],
     )

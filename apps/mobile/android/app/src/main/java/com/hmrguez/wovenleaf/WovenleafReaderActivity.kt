@@ -1,6 +1,8 @@
 package com.hmrguez.wovenleaf
 
 import android.content.Intent
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.graphics.Color
 import android.graphics.Typeface
 import android.content.res.Configuration
@@ -11,7 +13,10 @@ import android.text.Html
 import android.text.TextUtils
 import android.util.Base64
 import android.view.Gravity
+import android.view.ActionMode
 import android.view.KeyEvent
+import android.view.Menu
+import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -32,6 +37,9 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import org.readium.r2.navigator.HyperlinkNavigator
+import org.readium.r2.navigator.DecorableNavigator
+import org.readium.r2.navigator.Decoration
+import org.readium.r2.navigator.Selection
 import org.readium.r2.navigator.epub.EpubNavigatorFactory
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
 import org.readium.r2.shared.ExperimentalReadiumApi
@@ -40,6 +48,7 @@ import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Publication
 import org.readium.r2.shared.publication.services.locateProgression
 import org.readium.r2.shared.publication.services.isRestricted
+import org.readium.r2.shared.publication.services.search.search
 import org.readium.r2.shared.util.AbsoluteUrl
 import org.readium.r2.shared.util.Url
 import org.readium.r2.shared.util.asset.AssetRetriever
@@ -83,6 +92,15 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
     private val sessionStartedAt = ReaderOutbox.timestamp()
     private val sessionStartedUptime = SystemClock.elapsedRealtime()
     private var sessionClosed = false
+    private val annotationDecorationListener = object : DecorableNavigator.Listener {
+        override fun onDecorationActivated(event: DecorableNavigator.OnActivatedEvent): Boolean {
+            val annotation = readerContext.annotationState.annotations.firstOrNull {
+                it.id == event.decoration.id && !it.isDeleted
+            } ?: return false
+            editAnnotation(annotation)
+            return true
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         supportFragmentManager.fragmentFactory = EpubNavigatorFragment.createDummyFactory()
@@ -134,6 +152,14 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
             }
             event.isCtrlPressed && event.keyCode == KeyEvent.KEYCODE_B -> {
                 toggleBookmark()
+                return true
+            }
+            event.isCtrlPressed && event.isShiftPressed && event.keyCode == KeyEvent.KEYCODE_H -> {
+                createAnnotationFromSelection()
+                return true
+            }
+            event.isCtrlPressed && event.isShiftPressed && event.keyCode == KeyEvent.KEYCODE_N -> {
+                createAnnotationFromSelection()
                 return true
             }
             event.isAltPressed && event.keyCode == KeyEvent.KEYCODE_DPAD_LEFT -> {
@@ -189,6 +215,7 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         val factory = EpubNavigatorFactory(opened)
         val configuration = EpubNavigatorFragment.Configuration().apply {
             registerJavascriptInterface("WovenleafImages") { resource -> ReaderImageBridge(resource) }
+            selectionActionModeCallback = ReaderSelectionActionModeCallback()
         }
         supportFragmentManager.fragmentFactory = factory.createFragmentFactory(
             initialLocator = initialLocator,
@@ -206,6 +233,9 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         ) as EpubNavigatorFragment
         supportFragmentManager.beginTransaction().replace(content.id, fragment, "epub-navigator").commitNow()
         navigator = fragment
+        fragment.addDecorationListener(ANNOTATION_GROUP, annotationDecorationListener)
+        applyAnnotationDecorations()
+        attemptAnnotationReanchoring()
         loading.visibility = View.GONE
         texture.bringToFront()
 
@@ -355,6 +385,10 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
             onNavigateLink = { link -> navigate(link, fromToc = true) },
             onNavigateLocator = { locator -> navigate(locator) },
             onDeleteBookmark = { bookmark -> deleteBookmark(bookmark) },
+            annotationState = readerContext.annotationState,
+            onEditAnnotation = { annotation -> editAnnotation(annotation) },
+            onDeleteAnnotation = { annotation -> deleteAnnotation(annotation) },
+            onReviewAnnotation = { annotation -> reviewAnnotation(annotation) },
         ).show(focusSearch)
     }
 
@@ -449,6 +483,307 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         updateBookmarkButton()
         bookmarkButton.announceForAccessibility("Bookmark removed")
     }
+
+    private inner class ReaderSelectionActionModeCallback : ActionMode.Callback {
+        override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
+            menu.add(Menu.NONE, SELECTION_COPY, 0, "Copy")
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
+            menu.add(Menu.NONE, SELECTION_HIGHLIGHT, 1, "Highlight")
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
+            menu.add(Menu.NONE, SELECTION_NOTE, 2, "Add note")
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
+            return true
+        }
+
+        override fun onPrepareActionMode(mode: ActionMode, menu: Menu): Boolean = false
+
+        override fun onActionItemClicked(mode: ActionMode, item: MenuItem): Boolean {
+            if (item.itemId !in setOf(SELECTION_COPY, SELECTION_HIGHLIGHT, SELECTION_NOTE)) return false
+            val fragment = navigator ?: return false
+            lifecycleScope.launch {
+                val selection = fragment.currentSelection()
+                if (item.itemId == SELECTION_COPY) copySelection(selection) else presentNewAnnotation(selection)
+                fragment.clearSelection()
+                mode.finish()
+            }
+            return true
+        }
+
+        override fun onDestroyActionMode(mode: ActionMode) = Unit
+    }
+
+    private fun copySelection(selection: Selection?) {
+        val quote = selection?.locator?.text?.highlight?.trim().orEmpty()
+        if (quote.isEmpty()) return
+        val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(ClipData.newPlainText("Book passage", quote))
+        content.announceForAccessibility("Passage copied")
+    }
+
+    private fun createAnnotationFromSelection() {
+        val fragment = navigator ?: return
+        lifecycleScope.launch {
+            presentNewAnnotation(fragment.currentSelection())
+            fragment.clearSelection()
+        }
+    }
+
+    private fun presentNewAnnotation(selection: Selection?) {
+        val locator = selection?.locator
+        val quote = locator?.text?.highlight?.trim().orEmpty()
+        if (locator == null || quote.isEmpty() || quote.length > 10_000) {
+            readerMessage(
+                if (selection == null) "Select a passage" else "Selection unavailable",
+                "Choose a passage between 1 and 10,000 characters. Wovenleaf does not save whole chapters as annotations.",
+            )
+            return
+        }
+        presentAnnotationEditor(locator, annotation = null)
+    }
+
+    private fun editAnnotation(annotation: ReaderAnnotationRecord) {
+        presentAnnotationEditor(annotation.locator, annotation)
+    }
+
+    private fun reviewAnnotation(annotation: ReaderAnnotationRecord) {
+        val opened = publication ?: return
+        lifecycleScope.launch {
+            val candidates = matchingReanchorCandidates(opened, annotation)
+            if (candidates.isEmpty()) {
+                readerMessage(
+                    "Passage unavailable",
+                    "This revised EPUB no longer contains the quoted passage. The annotation remains in Needs Review.",
+                )
+            } else if (candidates.size == 1) {
+                openReviewCandidate(candidates.first(), annotation)
+            } else {
+                val choices = candidates.take(12)
+                AlertDialog.Builder(this@WovenleafReaderActivity)
+                    .setTitle("Choose the matching passage")
+                    .setMessage("The quote appears more than once. Compare its chapter and surrounding words before confirming.")
+                    .setItems(choices.map(::reviewCandidateLabel).toTypedArray()) { _, index ->
+                        openReviewCandidate(choices[index], annotation)
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            }
+        }
+    }
+
+    private fun openReviewCandidate(locator: Locator, annotation: ReaderAnnotationRecord) {
+        val fragment = navigator ?: return
+        if (!fragment.go(locator, animated = true)) {
+            readerMessage("Passage unavailable", "This matching range could not be opened.")
+            return
+        }
+        presentAnnotationEditor(locator, annotation, needsReview = true)
+    }
+
+    private fun reviewCandidateLabel(locator: Locator): String {
+        val context = listOfNotNull(locator.text.before, locator.text.highlight, locator.text.after)
+            .joinToString(" ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+            .take(90)
+        return "${locator.title ?: "Passage"} — $context"
+    }
+
+    private fun presentAnnotationEditor(
+        locator: Locator,
+        annotation: ReaderAnnotationRecord?,
+        needsReview: Boolean = false,
+    ) {
+        val palette = ReaderPalette(effectivePreferences().theme, isHighContrast(this))
+        val quote = annotation?.quote ?: locator.text.highlight?.trim().orEmpty()
+        ReaderAnnotationEditorDialog(
+            activity = this,
+            palette = palette,
+            quote = quote,
+            annotation = annotation,
+            needsReview = needsReview,
+            onSave = { color, note, tags ->
+                saveAnnotation(annotation, locator, color, note, tags, confirmingRevision = needsReview)
+            },
+            onDelete = annotation?.let { current -> { deleteAnnotation(current) } },
+        ).show()
+    }
+
+    private fun saveAnnotation(
+        existing: ReaderAnnotationRecord?,
+        locator: Locator,
+        color: ReaderAnnotationColor,
+        note: String,
+        tags: List<String>,
+        confirmingRevision: Boolean,
+    ) {
+        val timestamp = ReaderOutbox.timestamp()
+        val annotation = if (existing == null) {
+            ReaderAnnotationRecord(
+                id = "reader-annotation:${UUID.randomUUID().toString().lowercase()}",
+                bookId = readerContext.bookId,
+                editionId = readerContext.editionId,
+                assetId = readerContext.assetId,
+                assetFingerprint = readerContext.assetFingerprint,
+                locator = locator,
+                quote = locator.text.highlight?.trim().orEmpty(),
+                prefix = locator.text.before.orEmpty().takeLast(1_000),
+                suffix = locator.text.after.orEmpty().take(1_000),
+                chapter = locator.title?.take(500),
+                color = color,
+                note = note,
+                tags = tags,
+                createdAt = timestamp,
+                updatedAt = timestamp,
+                deletedAt = null,
+                anchorStatus = "exact",
+                previousAssetFingerprint = null,
+                anchorReason = null,
+                platform = "android",
+                toolkitVersion = "3.3.0",
+            )
+        } else {
+            existing.apply {
+                this.color = color
+                this.note = note
+                this.tags = tags
+                updatedAt = timestamp
+                deletedAt = null
+                if (confirmingRevision) {
+                    this.locator = locator
+                    editionId = readerContext.editionId
+                    assetId = readerContext.assetId
+                    assetFingerprint = readerContext.assetFingerprint
+                    anchorStatus = "reanchored"
+                    anchorReason = null
+                }
+            }
+        }
+        readerContext.annotationState.annotations.removeAll { it.id == annotation.id }
+        readerContext.annotationState.annotations.add(annotation)
+        readerContext.annotationState.annotations.sortWith(compareBy({ it.createdAt }, { it.id }))
+        readerContext.annotationState.updatedAt = timestamp
+        ReaderOutbox.enqueueAnnotation(
+            this,
+            readerContext,
+            sessionId,
+            "upsert",
+            annotation.id,
+            annotation,
+        )
+        navigator?.clearSelection()
+        applyAnnotationDecorations()
+        content.announceForAccessibility(if (existing == null) "Highlight saved" else "Annotation updated")
+    }
+
+    private fun deleteAnnotation(annotation: ReaderAnnotationRecord) {
+        val stored = readerContext.annotationState.annotations.firstOrNull { it.id == annotation.id } ?: return
+        val timestamp = ReaderOutbox.timestamp()
+        stored.deletedAt = timestamp
+        stored.updatedAt = timestamp
+        readerContext.annotationState.updatedAt = timestamp
+        ReaderOutbox.enqueueAnnotation(this, readerContext, sessionId, "delete", stored.id)
+        applyAnnotationDecorations()
+        AlertDialog.Builder(this)
+            .setTitle("Annotation deleted")
+            .setMessage("The deletion is retained for sync and portable export. You can undo it now.")
+            .setNegativeButton("Done", null)
+            .setPositiveButton("Undo") { _, _ -> restoreAnnotation(stored.id) }
+            .show()
+    }
+
+    private fun restoreAnnotation(id: String) {
+        val annotation = readerContext.annotationState.annotations.firstOrNull { it.id == id } ?: return
+        annotation.deletedAt = null
+        annotation.updatedAt = ReaderOutbox.timestamp()
+        readerContext.annotationState.updatedAt = annotation.updatedAt
+        ReaderOutbox.enqueueAnnotation(this, readerContext, sessionId, "restore", id)
+        applyAnnotationDecorations()
+        content.announceForAccessibility("Annotation restored")
+    }
+
+    private fun applyAnnotationDecorations() {
+        val fragment = navigator ?: return
+        val decorations = readerContext.annotationState.annotations.mapNotNull { annotation ->
+            if (annotation.isDeleted || annotation.anchorStatus == "review") null else Decoration(
+                id = annotation.id,
+                locator = annotation.locator,
+                style = Decoration.Style.Highlight(annotation.color.tint(effectivePreferences().theme)),
+            )
+        }
+        lifecycleScope.launch { fragment.applyDecorations(decorations, ANNOTATION_GROUP) }
+    }
+
+    private fun attemptAnnotationReanchoring() {
+        val opened = publication ?: return
+        val pending = readerContext.annotationState.annotations.filter {
+            !it.isDeleted && it.anchorStatus == "review" && it.anchorReason == "asset-revision"
+        }
+        if (pending.isEmpty()) return
+        lifecycleScope.launch {
+            for (annotation in pending) {
+                val locator = uniqueReanchorCandidate(opened, annotation) ?: continue
+                acceptAutomaticReanchor(annotation, locator)
+            }
+        }
+    }
+
+    private suspend fun uniqueReanchorCandidate(
+        opened: Publication,
+        annotation: ReaderAnnotationRecord,
+    ): Locator? {
+        val exact = matchingReanchorCandidates(opened, annotation)
+        if (exact.size == 1) return exact.first()
+        if (exact.size < 2) return null
+        val before = normalizedAnchorText(annotation.prefix).takeLast(80)
+        val after = normalizedAnchorText(annotation.suffix).take(80)
+        if (before.isEmpty() && after.isEmpty()) return null
+        val contextual = exact.filter { candidate ->
+            (before.isEmpty() || normalizedAnchorText(candidate.text.before.orEmpty()).endsWith(before)) &&
+                (after.isEmpty() || normalizedAnchorText(candidate.text.after.orEmpty()).startsWith(after))
+        }
+        return contextual.singleOrNull()
+    }
+
+    private suspend fun matchingReanchorCandidates(
+        opened: Publication,
+        annotation: ReaderAnnotationRecord,
+    ): List<Locator> {
+        val iterator = opened.search(annotation.quote) ?: return emptyList()
+        val candidates = mutableListOf<Locator>()
+        while (candidates.size < 50) {
+            val page = iterator.next().getOrNull() ?: break
+            candidates += page.locators.take(50 - candidates.size)
+        }
+        iterator.close()
+        val quote = normalizedAnchorText(annotation.quote)
+        return candidates.filter { normalizedAnchorText(it.text.highlight.orEmpty()) == quote }
+    }
+
+    private fun acceptAutomaticReanchor(annotation: ReaderAnnotationRecord, locator: Locator) {
+        val stored = readerContext.annotationState.annotations.firstOrNull {
+            it.id == annotation.id && it.anchorStatus == "review" && !it.isDeleted
+        } ?: return
+        val timestamp = ReaderOutbox.timestamp()
+        stored.locator = locator
+        stored.anchorStatus = "reanchored"
+        stored.anchorReason = null
+        stored.updatedAt = timestamp
+        readerContext.annotationState.updatedAt = timestamp
+        ReaderOutbox.enqueueAnnotation(
+            this,
+            readerContext,
+            sessionId,
+            "upsert",
+            stored.id,
+            stored,
+        )
+        applyAnnotationDecorations()
+    }
+
+    private fun normalizedAnchorText(value: String): String = value
+        .trim()
+        .replace(Regex("\\s+"), " ")
+        .lowercase()
 
     private fun updateBookmarkButton() {
         if (!::bookmarkButton.isInitialized) return
@@ -659,6 +994,10 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
             ?.let { runCatching { JSONObject(it) }.getOrNull() }
             ?.let(ReaderNavigationState::fromJson)
             ?: return null
+        val annotationState = intent.getStringExtra(ReaderContract.ANNOTATION_STATE)
+            ?.let { runCatching { JSONObject(it) }.getOrNull() }
+            ?.let(ReaderAnnotationState::fromJson)
+            ?: return null
         return ReaderContext(
             bookId,
             editionId,
@@ -668,6 +1007,7 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
             globalPreferences,
             bookPreferences,
             navigationState,
+            annotationState,
         )
     }
 
@@ -719,6 +1059,7 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         recolorButtons(bottomChrome, palette)
         texture.theme = preferences.theme
         texture.highContrast = isHighContrast(this)
+        applyAnnotationDecorations()
         window.statusBarColor = palette.page
         window.navigationBarColor = palette.page
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -747,6 +1088,10 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     companion object {
+        private const val ANNOTATION_GROUP = "annotations"
+        private const val SELECTION_COPY = 9_301
+        private const val SELECTION_HIGHLIGHT = 9_302
+        private const val SELECTION_NOTE = 9_303
         private const val IMAGE_ACTIVATION_SCRIPT = """
             (() => {
               if (window.__wovenleafImageZoom) return;

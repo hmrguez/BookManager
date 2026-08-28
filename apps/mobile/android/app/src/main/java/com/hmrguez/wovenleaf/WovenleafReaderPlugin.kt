@@ -37,10 +37,12 @@ class WovenleafReaderPlugin : Plugin() {
         val fileUri = call.getString("fileUri")
         val globalPreferences = call.getObject("globalPreferences")
         val navigationState = ReaderNavigationState.fromJson(call.getObject("navigationState"))
+        val annotationState = ReaderAnnotationState.fromJson(call.getObject("annotationState"))
         if (
             listOf(bookId, editionId, assetId, fingerprint, title, fileUri).any { it.isNullOrBlank() }
             || WovenleafReaderPreferences.fromJson(globalPreferences) == null
             || navigationState == null
+            || annotationState == null
         ) {
             call.reject("The reader capability is invalid.", "INVALID_CAPABILITY")
             return
@@ -65,6 +67,7 @@ class WovenleafReaderPlugin : Plugin() {
             putExtra(ReaderContract.FILE_PATH, file.path)
             putExtra(ReaderContract.GLOBAL_PREFERENCES, globalPreferences.toString())
             putExtra(ReaderContract.NAVIGATION_STATE, call.getObject("navigationState").toString())
+            putExtra(ReaderContract.ANNOTATION_STATE, call.getObject("annotationState").toString())
             call.getObject("bookPreferences")?.let {
                 putExtra(ReaderContract.BOOK_PREFERENCES, it.toString())
             }
@@ -116,6 +119,7 @@ internal object ReaderContract {
     const val BOOK_PREFERENCES = "reader.bookPreferences"
     const val INITIAL_LOCATOR = "reader.initialLocator"
     const val NAVIGATION_STATE = "reader.navigationState"
+    const val ANNOTATION_STATE = "reader.annotationState"
 }
 
 internal data class ReaderContext(
@@ -127,6 +131,7 @@ internal data class ReaderContext(
     var globalPreferences: WovenleafReaderPreferences,
     var bookPreferences: WovenleafReaderPreferences?,
     val navigationState: ReaderNavigationState,
+    val annotationState: ReaderAnnotationState,
 )
 
 internal object ReaderOutbox {
@@ -241,6 +246,26 @@ internal object ReaderOutbox {
         sessionId,
         locator?.toJSON(),
         extra = if (locator == null) JSONObject().put("locator", JSONObject.NULL) else null,
+    )
+
+    fun enqueueAnnotation(
+        context: Context,
+        readerContext: ReaderContext,
+        sessionId: String,
+        action: String,
+        annotationId: String,
+        annotation: ReaderAnnotationRecord? = null,
+    ) = enqueue(
+        context,
+        "annotation",
+        readerContext,
+        sessionId,
+        locator = null,
+        extra = JSONObject().apply {
+            put("action", action)
+            put("annotationId", annotationId)
+            annotation?.let { put("annotation", it.toJson()) }
+        },
     )
 
     fun acknowledge(context: Context, ids: Set<String>) = synchronized(this) {

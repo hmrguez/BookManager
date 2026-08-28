@@ -104,6 +104,9 @@ final class ReaderOutlineViewController: UIViewController {
     var onNavigateToLink: ((Link) -> Void)?
     var onNavigateToLocator: ((Locator) -> Void)?
     var onDeleteBookmark: ((ReaderBookmarkState) -> Void)?
+    var onEditAnnotation: ((ReaderAnnotationRecord) -> Void)?
+    var onDeleteAnnotation: ((ReaderAnnotationRecord) -> Void)?
+    var onReviewAnnotation: ((ReaderAnnotationRecord) -> Void)?
 
     private struct TocEntry {
         let link: Link
@@ -114,11 +117,12 @@ final class ReaderOutlineViewController: UIViewController {
     private let currentLocator: Locator?
     private let selectedTocLocator: Locator?
     private var bookmarks: [ReaderBookmarkState]
+    private var annotations: [ReaderAnnotationRecord]
     private let palette: ReaderPalette
     private var tocEntries: [TocEntry] = []
     private var searchResults: [Locator] = []
     private var searchTask: Task<Void, Never>?
-    private let mode = UISegmentedControl(items: ["Contents", "Bookmarks"])
+    private let mode = UISegmentedControl(items: ["Contents", "Bookmarks", "Notes"])
     private let tableView = UITableView(frame: .zero, style: .plain)
     private let statusLabel = UILabel()
     private let searchController = UISearchController(searchResultsController: nil)
@@ -128,12 +132,16 @@ final class ReaderOutlineViewController: UIViewController {
         currentLocator: Locator?,
         selectedTocLocator: Locator?,
         bookmarks: [ReaderBookmarkState],
+        annotations: [ReaderAnnotationRecord],
         palette: ReaderPalette
     ) {
         self.publication = publication
         self.currentLocator = currentLocator
         self.selectedTocLocator = selectedTocLocator
         self.bookmarks = bookmarks
+        self.annotations = annotations.filter { !$0.isDeleted }.sorted {
+            $0.updatedAt == $1.updatedAt ? $0.id < $1.id : $0.updatedAt > $1.updatedAt
+        }
         self.palette = palette
         super.init(nibName: nil, bundle: nil)
     }
@@ -209,7 +217,11 @@ final class ReaderOutlineViewController: UIViewController {
 
     private var rowCount: Int {
         if isSearching { return searchResults.count }
-        return mode.selectedSegmentIndex == 0 ? tocEntries.count : bookmarks.count
+        switch mode.selectedSegmentIndex {
+        case 0: return tocEntries.count
+        case 1: return bookmarks.count
+        default: return annotations.count
+        }
     }
 
     private func loadTableOfContents() {
@@ -270,11 +282,16 @@ final class ReaderOutlineViewController: UIViewController {
                 ? "This book does not include a usable table of contents. You can still search or use the scrubber."
                 : nil
             statusLabel.isHidden = !tocEntries.isEmpty
-        } else {
+        } else if mode.selectedSegmentIndex == 1 {
             statusLabel.text = bookmarks.isEmpty
                 ? "No bookmarks yet. Use the ribbon in the reader to keep a passage."
                 : nil
             statusLabel.isHidden = !bookmarks.isEmpty
+        } else {
+            statusLabel.text = annotations.isEmpty
+                ? "No highlights or passage notes yet. Select text in the reader to begin."
+                : nil
+            statusLabel.isHidden = !annotations.isEmpty
         }
     }
 
@@ -318,6 +335,16 @@ final class ReaderOutlineViewController: UIViewController {
         return [percent, passage].compactMap { $0 }.joined(separator: " · ")
     }
 
+    private func annotationDetail(_ annotation: ReaderAnnotationRecord) -> String {
+        let review = annotation.anchorStatus == .review ? "Needs review" : nil
+        let chapter = annotation.chapter
+        let quote = annotation.quote.replacingOccurrences(of: "\n", with: " ")
+        let note = annotation.note.trimmingCharacters(in: .whitespacesAndNewlines)
+        return [review, chapter, quote, note.isEmpty ? nil : note]
+            .compactMap { $0 }
+            .joined(separator: " · ")
+    }
+
     @objc private func close() { dismiss(animated: !UIAccessibility.isReduceMotionEnabled) }
 
     @objc private func modeChanged() {
@@ -351,7 +378,7 @@ extension ReaderOutlineViewController: UITableViewDataSource, UITableViewDelegat
             let activeHref = selectedTocLocator?.href ?? currentLocator?.href
             cell.accessoryType = entry.link.url().string == activeHref?.string ? .checkmark : .disclosureIndicator
             cell.accessibilityLabel = "Level \(entry.depth + 1), \(entry.link.title ?? "Untitled section")"
-        } else {
+        } else if mode.selectedSegmentIndex == 1 {
             let bookmark = bookmarks[indexPath.row]
             configure(
                 cell,
@@ -359,6 +386,15 @@ extension ReaderOutlineViewController: UITableViewDataSource, UITableViewDelegat
                 detail: bookmarkDetail(bookmark)
             )
             cell.accessibilityLabel = "Bookmark, \(bookmark.locator.title ?? "saved passage"), \(bookmarkDetail(bookmark))"
+        } else {
+            let annotation = annotations[indexPath.row]
+            configure(
+                cell,
+                title: annotation.anchorStatus == .review ? "Review · \(annotation.chapter ?? "Passage")" : (annotation.chapter ?? "Highlighted passage"),
+                detail: annotationDetail(annotation)
+            )
+            cell.accessoryType = annotation.anchorStatus == .review ? .detailButton : .disclosureIndicator
+            cell.accessibilityLabel = "Annotation, \(annotationDetail(annotation))"
         }
         return cell
     }
@@ -369,8 +405,15 @@ extension ReaderOutlineViewController: UITableViewDataSource, UITableViewDelegat
             onNavigateToLocator?(searchResults[indexPath.row])
         } else if mode.selectedSegmentIndex == 0 {
             onNavigateToLink?(tocEntries[indexPath.row].link)
-        } else {
+        } else if mode.selectedSegmentIndex == 1 {
             onNavigateToLocator?(bookmarks[indexPath.row].locator)
+        } else {
+            let annotation = annotations[indexPath.row]
+            if annotation.anchorStatus == .review {
+                onReviewAnnotation?(annotation)
+            } else {
+                onNavigateToLocator?(annotation.locator)
+            }
         }
         dismiss(animated: !UIAccessibility.isReduceMotionEnabled)
     }
@@ -379,18 +422,39 @@ extension ReaderOutlineViewController: UITableViewDataSource, UITableViewDelegat
         _ tableView: UITableView,
         trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath
     ) -> UISwipeActionsConfiguration? {
-        guard !isSearching, mode.selectedSegmentIndex == 1 else { return nil }
-        let bookmark = bookmarks[indexPath.row]
+        guard !isSearching, mode.selectedSegmentIndex != 0 else { return nil }
+        if mode.selectedSegmentIndex == 1 {
+            let bookmark = bookmarks[indexPath.row]
+            let delete = UIContextualAction(style: .destructive, title: "Delete") { [weak self] _, _, done in
+                guard let self else { return done(false) }
+                bookmarks.remove(at: indexPath.row)
+                onDeleteBookmark?(bookmark)
+                tableView.deleteRows(at: [indexPath], with: .automatic)
+                refreshStatus()
+                done(true)
+            }
+            delete.accessibilityLabel = "Delete bookmark"
+            return UISwipeActionsConfiguration(actions: [delete])
+        }
+        let annotation = annotations[indexPath.row]
         let delete = UIContextualAction(style: .destructive, title: "Delete") { [weak self] _, _, done in
             guard let self else { return done(false) }
-            bookmarks.remove(at: indexPath.row)
-            onDeleteBookmark?(bookmark)
+            annotations.remove(at: indexPath.row)
+            onDeleteAnnotation?(annotation)
             tableView.deleteRows(at: [indexPath], with: .automatic)
             refreshStatus()
             done(true)
         }
-        delete.accessibilityLabel = "Delete bookmark"
-        return UISwipeActionsConfiguration(actions: [delete])
+        delete.accessibilityLabel = "Delete annotation"
+        let edit = UIContextualAction(style: .normal, title: "Edit") { [weak self] _, _, done in
+            self?.dismiss(animated: !UIAccessibility.isReduceMotionEnabled) {
+                self?.onEditAnnotation?(annotation)
+            }
+            done(true)
+        }
+        edit.backgroundColor = palette.secondaryInk
+        edit.accessibilityLabel = "Edit annotation"
+        return UISwipeActionsConfiguration(actions: [delete, edit])
     }
 }
 

@@ -458,7 +458,31 @@ export const STORAGE_MIGRATIONS: readonly StorageMigration[] = [
       await database.execute(audiobookListeningControlsSchemaSql())
     },
   },
+  {
+    version: 16,
+    name: 'durable full-fidelity EPUB annotations',
+    kind: 'additive',
+    signature: epubReaderAnnotationSchemaSql(),
+    async up(database) {
+      await database.execute(epubReaderAnnotationSchemaSql())
+    },
+  },
 ]
+
+function epubReaderAnnotationSchemaSql(): string {
+  return `
+CREATE TABLE epub_reader_annotations (
+  book_id TEXT PRIMARY KEY NOT NULL,
+  edition_id TEXT NOT NULL,
+  state_json TEXT NOT NULL CHECK (json_valid(state_json)),
+  recorded_at TEXT NOT NULL,
+  FOREIGN KEY (edition_id) REFERENCES editions(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX idx_epub_reader_annotations_edition
+  ON epub_reader_annotations(edition_id, recorded_at DESC, book_id);
+`
+}
 
 function audiobookListeningControlsSchemaSql(): string {
   return `

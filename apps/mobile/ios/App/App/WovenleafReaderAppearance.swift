@@ -599,7 +599,7 @@ final class PaperTextureView: UIView {
     }
 }
 
-private extension UIColor {
+extension UIColor {
     convenience init(readerHex: String) {
         let value = Int(readerHex.dropFirst(), radix: 16) ?? 0
         self.init(

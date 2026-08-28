@@ -40,7 +40,8 @@ final class WovenleafReaderPlugin: CAPPlugin, CAPBridgedPlugin {
             let fileURL = URL(string: fileURI),
             let validatedURL = validateManagedURL(fileURL),
             let globalPreferences = WovenleafReaderPreferences(object: call.getObject("globalPreferences")),
-            let navigationState = ReaderNavigationState(object: call.getObject("navigationState"))
+            let navigationState = ReaderNavigationState(object: call.getObject("navigationState")),
+            let annotationState = ReaderAnnotationCollection(object: call.getObject("annotationState"))
         else {
             call.reject("The reader capability is invalid.", "INVALID_CAPABILITY")
             return
@@ -56,7 +57,8 @@ final class WovenleafReaderPlugin: CAPPlugin, CAPBridgedPlugin {
             assetId: assetId,
             assetFingerprint: fingerprint,
             title: title,
-            navigationState: navigationState
+            navigationState: navigationState,
+            annotationState: annotationState
         )
         let initialLocator = call.getObject("initialLocator").flatMap(readerLocator(from:))
         let bookPreferences = WovenleafReaderPreferences(object: call.getObject("bookPreferences"))
@@ -145,6 +147,7 @@ struct ReaderContext {
     let assetFingerprint: String
     let title: String
     let navigationState: ReaderNavigationState
+    let annotationState: ReaderAnnotationCollection
 }
 
 enum ReaderOutbox {
@@ -252,6 +255,27 @@ enum ReaderOutbox {
             sessionId: sessionId,
             locator: locator,
             extra: locator == nil ? ["locator": NSNull()] : [:]
+        )
+    }
+
+    static func enqueueAnnotation(
+        context: ReaderContext,
+        sessionId: String,
+        action: String,
+        annotationId: String,
+        annotation: ReaderAnnotationRecord? = nil
+    ) {
+        var extra: [String: Any] = [
+            "action": action,
+            "annotationId": annotationId,
+        ]
+        if let annotation { extra["annotation"] = annotation.object }
+        enqueue(
+            kind: "annotation",
+            context: context,
+            sessionId: sessionId,
+            locator: nil,
+            extra: extra
         )
     }
 

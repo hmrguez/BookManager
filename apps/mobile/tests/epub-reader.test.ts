@@ -4,13 +4,18 @@ import { migrateStorage } from '../src/storage/migrations'
 import {
   DEFAULT_READER_PREFERENCES,
   MAX_FORCE_QUIT_POSITION_LOSS_MS,
+  annotationForReplacement,
   fallbackLocatorForReplacement,
   nativeReaderEventSchema,
+  normalizeAnnotationTags,
+  readerAnnotationSchema,
   readerNavigationStateSchema,
   readerPreferencesSchema,
   readiumLocatorSchema,
   type EpubReaderCapability,
   type NativeReaderEvent,
+  type ReaderAnnotation,
+  uniqueAnnotationReanchorCandidate,
 } from '../src/reader/model'
 import { EpubReaderRepository } from '../src/reader/repository'
 import { fixtureIds, representativeCatalog } from './fixtures/catalog'
@@ -286,6 +291,110 @@ describe('portable reader navigation', () => {
   })
 })
 
+describe('full-fidelity EPUB annotations', () => {
+  test('persists highlight context and keeps deletion tombstones without moving the reading position', async () => {
+    const database = new BunSqliteDatabase()
+    await migrateStorage(database)
+    await new CatalogRepository(database).replace(representativeCatalog)
+    const repository = new EpubReaderRepository(database)
+    await repository.ingest(readerEvent({ sequence: 1, progression: 0.42, locator: semanticLocator }))
+    const annotation = readerAnnotation()
+
+    expect(await repository.ingest(nativeReaderEventSchema.parse({
+      ...nativeEnvelope(2),
+      kind: 'annotation',
+      action: 'upsert',
+      annotationId: annotation.id,
+      annotation,
+    }))).toBe('applied')
+    expect(await repository.annotationStateForBook(readerCapability(fingerprint))).toMatchObject({
+      annotations: [{
+        id: annotation.id,
+        quote: 'Estraven looked east.',
+        prefix: 'The wind had fallen.',
+        suffix: 'Dawn found them awake.',
+        tags: ['Character', 'Revisit'],
+        anchor: { status: 'exact' },
+      }],
+    })
+
+    expect(await repository.ingest(nativeReaderEventSchema.parse({
+      ...nativeEnvelope(3),
+      kind: 'annotation',
+      action: 'delete',
+      annotationId: annotation.id,
+    }))).toBe('applied')
+    const deleted = await repository.annotationStateForBook(readerCapability(fingerprint))
+    expect(deleted.annotations[0]?.deletedAt).toBe('2026-08-28T12:00:03.000Z')
+    expect(await repository.checkpointForBook('book:left-hand-reader')).toMatchObject({
+      lastSequence: 3,
+      locator: semanticLocator,
+    })
+
+    expect(await repository.ingest(nativeReaderEventSchema.parse({
+      ...nativeEnvelope(4),
+      kind: 'annotation',
+      action: 'restore',
+      annotationId: annotation.id,
+    }))).toBe('applied')
+    expect((await repository.annotationStateForBook(readerCapability(fingerprint))).annotations[0])
+      .not.toHaveProperty('deletedAt')
+    await database.close()
+  })
+
+  test('routes every changed EPUB fingerprint to explicit review without trusting its old range', () => {
+    const annotation = readerAnnotation()
+    const replacement = annotationForReplacement(annotation, {
+      editionId: fixtureIds.editions.translated,
+      assetId: fixtureIds.assets.translatedEpub,
+      assetFingerprint: 'b'.repeat(64),
+    })
+
+    expect(replacement).toMatchObject({
+      editionId: fixtureIds.editions.translated,
+      assetId: fixtureIds.assets.translatedEpub,
+      assetFingerprint: 'b'.repeat(64),
+      quote: annotation.quote,
+      prefix: annotation.prefix,
+      suffix: annotation.suffix,
+      anchor: {
+        status: 'review',
+        previousAssetFingerprint: fingerprint,
+        reason: 'asset-revision',
+      },
+    })
+    expect(replacement.locator.locations.fragments).toEqual([])
+    expect(replacement.locator.locations).not.toHaveProperty('cssSelector')
+    expect(annotation.anchor.status).toBe('exact')
+  })
+
+  test('auto-reanchors only a unique quote or a unique surrounding-context match', () => {
+    const annotation = readerAnnotation()
+    const otherContext = readiumLocatorSchema.parse({
+      ...semanticLocator,
+      locations: { ...semanticLocator.locations, fragments: ['epubcfi(/6/30!/4/8)'] },
+      text: {
+        before: 'Across the ice, hours later.',
+        highlight: annotation.quote,
+        after: 'They packed in silence.',
+      },
+    })
+    expect(uniqueAnnotationReanchorCandidate(annotation, [semanticLocator]))
+      .toEqual(semanticLocator)
+    expect(uniqueAnnotationReanchorCandidate(annotation, [semanticLocator, otherContext]))
+      .toEqual(semanticLocator)
+    expect(uniqueAnnotationReanchorCandidate(
+      { ...annotation, prefix: '', suffix: '' },
+      [semanticLocator, otherContext],
+    )).toBeUndefined()
+  })
+
+  test('normalizes tag identity into a stable, bounded export order', () => {
+    expect(normalizeAnnotationTags([' revisit ', 'Character', 'character', '', 'World   building']))
+      .toEqual(['Character', 'revisit', 'World building'])
+  })
+})
+
 function readerEvent(options: {
   readonly sequence: number
   readonly progression: number
@@ -331,6 +440,28 @@ function nativeEnvelope(sequence: number) {
     platform: 'ios' as const,
     toolkitVersion: '3.11.0',
   }
+}
+
+function readerAnnotation(): ReaderAnnotation {
+  return readerAnnotationSchema.parse({
+    id: 'reader-annotation:camp-at-dawn',
+    bookId: 'book:left-hand-reader',
+    editionId: fixtureIds.editions.leftHandEbook,
+    assetId: fixtureIds.assets.leftHandEpub,
+    assetFingerprint: fingerprint,
+    locator: semanticLocator,
+    quote: 'Estraven looked east.',
+    prefix: 'The wind had fallen.',
+    suffix: 'Dawn found them awake.',
+    chapter: 'Chapter Eight',
+    color: 'ochre',
+    note: 'A moment of trust.',
+    tags: normalizeAnnotationTags(['Revisit', 'Character']),
+    createdAt: '2026-08-28T12:00:02.000Z',
+    updatedAt: '2026-08-28T12:00:02.000Z',
+    anchor: { status: 'exact' },
+    provenance: { source: 'epub-reader', platform: 'ios', toolkitVersion: '3.11.0' },
+  })
 }
 
 async function seedImport(

@@ -87,6 +87,10 @@ internal class ReaderNavigationDialog(
     private val onNavigateLink: (Link) -> Unit,
     private val onNavigateLocator: (Locator) -> Unit,
     private val onDeleteBookmark: (ReaderBookmarkState) -> Unit,
+    private val annotationState: ReaderAnnotationState,
+    private val onEditAnnotation: (ReaderAnnotationRecord) -> Unit,
+    private val onDeleteAnnotation: (ReaderAnnotationRecord) -> Unit,
+    private val onReviewAnnotation: (ReaderAnnotationRecord) -> Unit,
 ) {
     private data class TocEntry(val link: Link, val depth: Int)
 
@@ -100,6 +104,7 @@ internal class ReaderNavigationDialog(
     private lateinit var list: LinearLayout
     private lateinit var contentsButton: Button
     private lateinit var bookmarksButton: Button
+    private lateinit var notesButton: Button
 
     fun show(focusSearch: Boolean = false) {
         val root = LinearLayout(activity).apply {
@@ -113,8 +118,10 @@ internal class ReaderNavigationDialog(
         }
         contentsButton = modeButton("Contents") { mode = 0; query = ""; search.setText(""); refresh() }
         bookmarksButton = modeButton("Bookmarks") { mode = 1; query = ""; search.setText(""); refresh() }
+        notesButton = modeButton("Notes") { mode = 2; query = ""; search.setText(""); refresh() }
         modes.addView(contentsButton, LinearLayout.LayoutParams(0, dp(48), 1f))
         modes.addView(bookmarksButton, LinearLayout.LayoutParams(0, dp(48), 1f))
+        modes.addView(notesButton, LinearLayout.LayoutParams(0, dp(48), 1f))
         root.addView(modes)
 
         search = EditText(activity).apply {
@@ -198,14 +205,20 @@ internal class ReaderNavigationDialog(
         list.removeAllViews()
         contentsButton.isEnabled = mode != 0
         bookmarksButton.isEnabled = mode != 1
+        notesButton.isEnabled = mode != 2
         if (query.isNotEmpty()) {
             if (results.isEmpty()) status("No passages found.") else results.forEach(::addSearchResult)
         } else if (mode == 0) {
             if (tocEntries.isEmpty()) status("This publication does not include a table of contents.")
             else tocEntries.forEach(::addTocEntry)
-        } else {
+        } else if (mode == 1) {
             val bookmarks = state.bookmarks.sortedByDescending { it.updatedAt }
             if (bookmarks.isEmpty()) status("No bookmarks yet.") else bookmarks.forEach(::addBookmark)
+        } else {
+            val annotations = annotationState.annotations
+                .filterNot(ReaderAnnotationRecord::isDeleted)
+                .sortedWith(compareByDescending<ReaderAnnotationRecord> { it.updatedAt }.thenBy { it.id })
+            if (annotations.isEmpty()) status("No highlights or notes yet.") else annotations.forEach(::addAnnotation)
         }
     }
 
@@ -269,6 +282,46 @@ internal class ReaderNavigationDialog(
                 state.bookmarks.removeAll { it.id == bookmark.id }
                 refresh()
             }
+        })
+        list.addView(row)
+        addRule()
+    }
+
+    private fun addAnnotation(annotation: ReaderAnnotationRecord) {
+        val detail = buildList {
+            add(annotation.quote.replace(Regex("\\s+"), " ").trim().take(160))
+            annotation.chapter?.let(::add)
+            if (annotation.anchorStatus == "review") add("Needs review")
+            if (annotation.note.isNotBlank()) add(annotation.note.replace(Regex("\\s+"), " ").trim().take(120))
+            if (annotation.tags.isNotEmpty()) add(annotation.tags.joinToString(" · "))
+        }.joinToString("\n")
+        val row = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(palette.page)
+        }
+        row.addView(rowText(
+            if (annotation.anchorStatus == "review") "Needs review" else annotation.chapter ?: "Highlighted passage",
+            detail,
+        ).apply {
+            setPadding(dp(14), dp(11), dp(14), dp(6))
+            setOnClickListener {
+                dialog.dismiss()
+                if (annotation.anchorStatus == "review") onReviewAnnotation(annotation)
+                else onNavigateLocator(annotation.locator)
+            }
+        })
+        row.addView(LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.END
+            addView(modeButton(if (annotation.anchorStatus == "review") "Review" else "Edit") {
+                dialog.dismiss()
+                if (annotation.anchorStatus == "review") onReviewAnnotation(annotation)
+                else onEditAnnotation(annotation)
+            })
+            addView(modeButton("Delete") {
+                onDeleteAnnotation(annotation)
+                refresh()
+            })
         })
         list.addView(row)
         addRule()

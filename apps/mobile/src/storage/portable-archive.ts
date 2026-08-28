@@ -21,8 +21,18 @@ import {
   type UpNextState,
 } from '../up-next-model'
 import { assertCredentialFree } from '../security'
-import { readerNavigationStateSchema, type ReaderNavigationState } from '../reader/model'
-import { EpubReaderRepository, replaceReaderNavigationStates } from '../reader/repository'
+import {
+  readerAnnotationStateSchema,
+  readerNavigationStateSchema,
+  sortReaderAnnotations,
+  type ReaderAnnotationState,
+  type ReaderNavigationState,
+} from '../reader/model'
+import {
+  EpubReaderRepository,
+  replaceReaderAnnotationStates,
+  replaceReaderNavigationStates,
+} from '../reader/repository'
 import {
   CatalogRepository,
   deleteCatalogRecords,
@@ -39,7 +49,7 @@ import { readUpNextState, replaceUpNextState } from './up-next-repository'
 
 export const PORTABLE_ARCHIVE_FORMAT = 'wovenleaf-portable-library'
 export const PORTABLE_ARCHIVE_FORMAT_VERSION = 1
-export const PORTABLE_ARCHIVE_SCHEMA_VERSION = 5
+export const PORTABLE_ARCHIVE_SCHEMA_VERSION = 6
 
 const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/)
 const archiveEntryDescriptorSchema = z.object({
@@ -137,6 +147,7 @@ export type PortableArchiveInspection = {
   readonly upNext: UpNextState
   readonly smartLists: readonly SavedSmartList[]
   readonly readerNavigation: readonly ReaderNavigationState[]
+  readonly readerAnnotations: readonly ReaderAnnotationState[]
   readonly assetContents: readonly PortableAssetContent[]
 }
 
@@ -165,13 +176,14 @@ export class PortableArchiveService {
   }
 
   async create(options: PortableArchiveOptions = {}): Promise<PortableArchiveBundle> {
-    const [catalog, books, organization, upNext, smartLists, readerNavigation] = await Promise.all([
+    const [catalog, books, organization, upNext, smartLists, readerNavigation, readerAnnotations] = await Promise.all([
       new CatalogRepository(this.#database).read(),
       readLibraryBooks(this.#database),
       readLibraryOrganization(this.#database),
       readUpNextState(this.#database),
       readSavedSmartLists(this.#database),
       new EpubReaderRepository(this.#database).allNavigationStates(),
+      new EpubReaderRepository(this.#database).allAnnotationStates(),
     ])
     return createPortableArchive(
       catalog,
@@ -181,6 +193,7 @@ export class PortableArchiveService {
       upNext,
       smartLists,
       readerNavigation,
+      readerAnnotations,
     )
   }
 
@@ -192,6 +205,7 @@ export class PortableArchiveService {
     const inspection = await this.inspect(serializedArchive)
     await this.#database.transaction(async (database) => {
       await replaceReaderNavigationStates(database, [])
+      await replaceReaderAnnotationStates(database, [])
       await deleteCatalogRecords(database)
       await replaceLibraryBooks(database, inspection.books)
       await insertCatalogRecords(database, inspection.catalog)
@@ -199,6 +213,7 @@ export class PortableArchiveService {
       await replaceUpNextState(database, inspection.upNext)
       await replaceSavedSmartLists(database, inspection.smartLists)
       await replaceReaderNavigationStates(database, inspection.readerNavigation)
+      await replaceReaderAnnotationStates(database, inspection.readerAnnotations)
     })
     return inspection
   }
@@ -212,6 +227,7 @@ export async function createPortableArchive(
   upNextInput: UpNextState = createDefaultUpNextState(options.createdAt),
   smartListsInput: readonly SavedSmartList[] = [],
   readerNavigationInput: readonly ReaderNavigationState[] = [],
+  readerAnnotationInput: readonly ReaderAnnotationState[] = [],
 ): Promise<PortableArchiveBundle> {
   const includeAnnotations = options.includeAnnotations ?? true
   const includeSourcePayloads = options.includeSourcePayloads ?? false
@@ -226,6 +242,9 @@ export async function createPortableArchive(
   const smartLists = savedSmartListSchema.array().parse(smartListsInput)
   const readerNavigation = readerNavigationStateSchema.array().parse(
     options.includeAnnotations === false ? [] : readerNavigationInput,
+  )
+  const readerAnnotations = readerAnnotationStateSchema.array().parse(
+    options.includeAnnotations === false ? [] : readerAnnotationInput,
   )
   const portableOrganization = includeAnnotations
     ? organization
@@ -252,7 +271,7 @@ export async function createPortableArchive(
   })
   const readableBooks = includeAnnotations ? books : libraryData
   const csv = createLibraryCsv(readableBooks)
-  const markdown = createLibraryMarkdown(readableBooks, createdAt)
+  const markdown = createLibraryMarkdown(readableBooks, createdAt, readerAnnotations)
   const assetContents = validateAssetContents(catalog, options.assetContents ?? [])
 
   assertCredentialFree({
@@ -263,6 +282,7 @@ export async function createPortableArchive(
     upNext,
     smartLists,
     readerNavigation,
+    readerAnnotations,
   })
 
   const entries: Record<string, string> = {}
@@ -308,6 +328,13 @@ export async function createPortableArchive(
     mediaType: 'application/json',
     fidelity: 'canonical',
     contents: canonicalStringify(readerNavigation),
+  })
+  await addTextEntry(entries, descriptors, {
+    path: 'data/reader-annotations.json',
+    role: 'annotations',
+    mediaType: 'application/json',
+    fidelity: 'canonical',
+    contents: canonicalStringify(readerAnnotations),
   })
   await addTextEntry(entries, descriptors, {
     path: 'annotations/reading.json',
@@ -481,6 +508,9 @@ export async function inspectPortableArchive(
   const readerNavigation = archive.manifest.schemaVersion >= 5
     ? parseJsonEntry(archive, 'data/reader-navigation.json', readerNavigationStateSchema.array())
     : []
+  const readerAnnotations = archive.manifest.schemaVersion >= 6
+    ? parseJsonEntry(archive, 'data/reader-annotations.json', readerAnnotationStateSchema.array())
+    : []
   const catalog = parseCatalogEntries(coreCatalog, annotations.readingEvents)
   const books = mergeLibraryAnnotations(
     libraryData,
@@ -493,7 +523,7 @@ export async function inspectPortableArchive(
     archive.entries,
   )
 
-  assertCredentialFree({ catalog, books, organization, upNext, smartLists, readerNavigation })
+  assertCredentialFree({ catalog, books, organization, upNext, smartLists, readerNavigation, readerAnnotations })
   return {
     manifest: archive.manifest,
     catalog,
@@ -502,6 +532,7 @@ export async function inspectPortableArchive(
     upNext,
     smartLists,
     readerNavigation,
+    readerAnnotations,
     assetContents,
   }
 }
@@ -907,6 +938,7 @@ function csvCell(value: string): string {
 export function createLibraryMarkdown(
   books: readonly LibraryBook[],
   createdAt = new Date().toISOString(),
+  annotationStates: readonly ReaderAnnotationState[] = [],
 ): string {
   const shelfLabels: Record<LibraryBook['shelf'], string> = {
     tbr: 'To Be Read',
@@ -936,6 +968,40 @@ export function createLibraryMarkdown(
       else lines.push(`- Progress: ${book.progress}%`)
       if (book.rating) lines.push(`- Rating: ${book.rating}/5`)
       if (book.notes) lines.push('', book.notes)
+    }
+  }
+
+  const bookById = new Map(books.map((book) => [book.id, book]))
+  const highlights = annotationStates
+    .flatMap((state) => sortReaderAnnotations(state.annotations))
+    .filter(({ deletedAt }) => deletedAt === undefined)
+    .sort((left, right) => {
+      const leftTitle = bookById.get(left.bookId)?.title ?? left.bookId
+      const rightTitle = bookById.get(right.bookId)?.title ?? right.bookId
+      return leftTitle.localeCompare(rightTitle)
+        || (left.chapter ?? '').localeCompare(right.chapter ?? '')
+        || left.createdAt.localeCompare(right.createdAt)
+        || left.id.localeCompare(right.id)
+    })
+  lines.push('', `## Highlights & Notes (${highlights.length})`)
+  if (!highlights.length) {
+    lines.push('', '_No saved highlights or passage notes._')
+  } else {
+    for (const annotation of highlights) {
+      const book = bookById.get(annotation.bookId)
+      lines.push('', `### ${escapeMarkdown(book?.title ?? 'Unknown book')}`)
+      const details = [annotation.chapter, annotation.color, annotation.createdAt]
+        .filter((value): value is string => Boolean(value))
+        .map(escapeMarkdown)
+      lines.push('', `_${details.join(' · ')}_`)
+      lines.push('', ...annotation.quote.split(/\r?\n/).map((line) => `> ${line}`))
+      if (annotation.note) lines.push('', annotation.note)
+      if (annotation.tags.length) {
+        lines.push('', `Tags: ${annotation.tags.map((tag) => `#${escapeMarkdown(tag.replaceAll(' ', '-'))}`).join(' ')}`)
+      }
+      if (annotation.anchor.status === 'review') {
+        lines.push('', '_Anchor needs review after an EPUB revision._')
+      }
     }
   }
   return `${lines.join('\n')}\n`

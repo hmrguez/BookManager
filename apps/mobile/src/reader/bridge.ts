@@ -1,6 +1,7 @@
 import { registerPlugin, type PluginListenerHandle } from '@capacitor/core'
 import type {
   NativeReaderEvent,
+  ReaderAnnotationState,
   ReaderNavigationState,
   ReaderPreferences,
   ReadiumLocator,
@@ -16,6 +17,7 @@ type ReaderOpenOptions = {
   readonly globalPreferences: ReaderPreferences
   readonly bookPreferences?: ReaderPreferences
   readonly navigationState: ReaderNavigationState
+  readonly annotationState: ReaderAnnotationState
   readonly initialLocator?: ReadiumLocator
 }
 

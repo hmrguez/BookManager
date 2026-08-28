@@ -8,6 +8,7 @@ import { EpubReaderRepository } from './repository'
 
 export class EpubReaderService {
   readonly #repository: EpubReaderRepository
+  #eventQueue: Promise<void> = Promise.resolve()
 
   constructor(database: SqlDatabase, ledger?: ReadingLedgerRepository) {
     this.#repository = new EpubReaderRepository(database, ledger)
@@ -37,12 +38,14 @@ export class EpubReaderService {
     const initialLocator = await this.#repository.resumeLocator(capability)
     const preferences = await this.#repository.preferencesForBook(bookId)
     const navigationState = await this.#repository.navigationStateForBook(capability)
+    const annotationState = await this.#repository.annotationStateForBook(capability)
     try {
       await nativeReader.open({
         ...capability,
         fileUri: uri,
         globalPreferences: preferences.global,
         navigationState,
+        annotationState,
         ...(preferences.book ? { bookPreferences: preferences.book } : {}),
         ...(initialLocator ? { initialLocator } : {}),
       })
@@ -62,13 +65,15 @@ export class EpubReaderService {
     if (!Capacitor.isNativePlatform()) return async () => {}
     const handle = await nativeReader.addListener('readerEvent', (candidate) => {
       const event = nativeReaderEventSchema.parse(candidate)
-      void this.#repository.ingest(event).then(async () => {
-        await nativeReader.acknowledge({ ids: [event.id] })
-        onApplied?.()
+      void this.#ingestQueued(event, onApplied).catch(() => {
+        // The durable native outbox intentionally retains the event for the next drain.
       })
     })
     await this.drainOutbox(onApplied)
-    return () => handle.remove()
+    return async () => {
+      await this.#eventQueue
+      await handle.remove()
+    }
   }
 
   async drainOutbox(onApplied?: () => void): Promise<void> {
@@ -77,11 +82,24 @@ export class EpubReaderService {
     const acknowledged: string[] = []
     for (const candidate of events) {
       const event = nativeReaderEventSchema.parse(candidate)
-      await this.#repository.ingest(event)
+      await this.#ingestQueued(event, onApplied, false)
       acknowledged.push(event.id)
-      onApplied?.()
     }
     if (acknowledged.length) await nativeReader.acknowledge({ ids: acknowledged })
+  }
+
+  #ingestQueued(
+    event: ReturnType<typeof nativeReaderEventSchema.parse>,
+    onApplied?: () => void,
+    acknowledge = true,
+  ): Promise<void> {
+    const next = this.#eventQueue.then(async () => {
+      await this.#repository.ingest(event)
+      if (acknowledge) await nativeReader.acknowledge({ ids: [event.id] })
+      onApplied?.()
+    })
+    this.#eventQueue = next.catch(() => {})
+    return next
   }
 
   checkpointForBook(bookId: string) {
