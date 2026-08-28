@@ -24,7 +24,23 @@ export const readingLocatorSchema = z.discriminatedUnion('kind', [
     kind: z.literal('epub'),
     href: z.string().min(1),
     locator: z.string().min(1),
+    type: z.string().min(1).optional(),
+    title: z.string().min(1).optional(),
+    fragments: z.array(z.string().min(1)).optional(),
     progression: fractionSchema.optional(),
+    totalProgression: fractionSchema.optional(),
+    position: z.number().int().positive().optional(),
+    text: z.object({
+      before: z.string().optional(),
+      highlight: z.string().optional(),
+      after: z.string().optional(),
+    }).optional(),
+    assetFingerprint: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    toolkit: z.object({
+      name: z.literal('readium'),
+      platform: z.enum(['ios', 'android']),
+      version: z.string().min(1),
+    }).optional(),
   }),
   z.object({ kind: z.literal('audio-time'), positionMs: z.number().int().nonnegative() }),
   z.object({

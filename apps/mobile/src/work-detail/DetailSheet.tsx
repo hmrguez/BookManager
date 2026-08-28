@@ -11,6 +11,7 @@ export function DetailSheet({
   tagSuggestions,
   onClose,
   onMove,
+  onRead,
   onProgress,
   onFinish,
   onRate,
@@ -28,6 +29,7 @@ export function DetailSheet({
   tagSuggestions: readonly string[]
   onClose: () => void
   onMove: (shelf: ShelfId) => void
+  onRead: () => void
   onProgress: () => void
   onFinish: () => void
   onRate: (rating: number) => void
@@ -48,6 +50,7 @@ export function DetailSheet({
         tags={tags}
         tagSuggestions={tagSuggestions}
         onMove={onMove}
+        onRead={onRead}
         onProgress={onProgress}
         onFinish={onFinish}
         onRate={onRate}

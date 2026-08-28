@@ -413,7 +413,38 @@ export const STORAGE_MIGRATIONS: readonly StorageMigration[] = [
       await database.execute(audiobookImportSchemaSql())
     },
   },
+  {
+    version: 11,
+    name: 'durable native EPUB reader checkpoints',
+    kind: 'additive',
+    signature: epubReaderCheckpointSchemaSql(),
+    async up(database) {
+      await database.execute(epubReaderCheckpointSchemaSql())
+    },
+  },
 ]
+
+function epubReaderCheckpointSchemaSql(): string {
+  return `
+CREATE TABLE epub_reader_checkpoints (
+  asset_id TEXT PRIMARY KEY NOT NULL,
+  book_id TEXT NOT NULL,
+  edition_id TEXT NOT NULL,
+  asset_fingerprint TEXT NOT NULL CHECK (length(asset_fingerprint) = 64),
+  last_sequence INTEGER NOT NULL CHECK (last_sequence >= 0),
+  locator_json TEXT CHECK (locator_json IS NULL OR json_valid(locator_json)),
+  total_progression REAL CHECK (total_progression IS NULL OR total_progression BETWEEN 0 AND 1),
+  chapter_href TEXT,
+  chapter_title TEXT,
+  recorded_at TEXT NOT NULL,
+  FOREIGN KEY (edition_id) REFERENCES editions(id) ON DELETE RESTRICT,
+  FOREIGN KEY (asset_id) REFERENCES assets(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX idx_epub_reader_checkpoints_book
+  ON epub_reader_checkpoints(book_id, recorded_at DESC, asset_id);
+`
+}
 
 function audiobookImportSchemaSql(): string {
   return `

@@ -50,6 +50,7 @@ type WorkDetailExperienceProps = {
   readonly tags: readonly string[]
   readonly tagSuggestions: readonly string[]
   readonly onMove: (shelf: ShelfId) => void
+  readonly onRead: () => void
   readonly onProgress: () => void
   readonly onFinish: () => void
   readonly onRate: (rating: number) => void
@@ -93,6 +94,7 @@ export function WorkDetailExperience({
   tags,
   tagSuggestions,
   onMove,
+  onRead,
   onProgress,
   onFinish,
   onRate,
@@ -240,7 +242,7 @@ export function WorkDetailExperience({
           />
         )}
         {activeSection === 'reading' && (
-          <ReadingPanel model={model} selectedEdition={selectedEdition} book={book} onProgress={onProgress} onFinish={onFinish} />
+          <ReadingPanel model={model} selectedEdition={selectedEdition} book={book} onRead={onRead} onProgress={onProgress} onFinish={onFinish} />
         )}
         {activeSection === 'notes' && (
           <NotesPanel
@@ -487,12 +489,14 @@ function ReadingPanel({
   model,
   selectedEdition,
   book,
+  onRead,
   onProgress,
   onFinish,
 }: {
   readonly model: WorkDetailModel
   readonly selectedEdition: WorkEditionDetail
   readonly book: LibraryBook
+  readonly onRead: () => void
   readonly onProgress: () => void
   readonly onFinish: () => void
 }) {
@@ -511,6 +515,9 @@ function ReadingPanel({
           <span><strong>{selectedEdition.shortLabel}</strong>{selectedEdition.progressLabel}</span>
         </div>
         <div className={tw("reading-overview__actions")}>
+          {book.format?.toLocaleUpperCase() === 'EPUB' && (
+            <button type="button" onClick={onRead}><BookOpen aria-hidden="true" />{book.progress > 0 ? 'Continue reading' : 'Start reading'}</button>
+          )}
           <button type="button" onClick={onProgress} disabled={book.shelf === 'finished'}>Update progress</button>
           {book.shelf !== 'finished' && <button type="button" onClick={onFinish}><BookCheck aria-hidden="true" /> Mark finished</button>}
         </div>

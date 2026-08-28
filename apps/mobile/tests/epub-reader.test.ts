@@ -1,0 +1,216 @@
+import { describe, expect, test } from 'bun:test'
+import { CatalogRepository } from '../src/storage/catalog-repository'
+import { migrateStorage } from '../src/storage/migrations'
+import {
+  MAX_FORCE_QUIT_POSITION_LOSS_MS,
+  fallbackLocatorForReplacement,
+  nativeReaderEventSchema,
+  readiumLocatorSchema,
+  type EpubReaderCapability,
+  type NativeReaderEvent,
+} from '../src/reader/model'
+import { EpubReaderRepository } from '../src/reader/repository'
+import { fixtureIds, representativeCatalog } from './fixtures/catalog'
+import { BunSqliteDatabase } from './storage-test-database'
+
+const fingerprint = 'a'.repeat(64)
+const semanticLocator = readiumLocatorSchema.parse({
+  href: 'Text/chapter-08.xhtml',
+  type: 'application/xhtml+xml',
+  title: 'Chapter Eight',
+  locations: {
+    fragments: ['epubcfi(/6/24!/4/2/14)'],
+    progression: 0.42,
+    totalProgression: 0.42,
+    position: 128,
+    cssSelector: '#the-camp-at-dawn',
+  },
+  text: {
+    before: 'The wind had fallen.',
+    highlight: 'Estraven looked east.',
+    after: 'Dawn found them awake.',
+  },
+  vendorExtension: { semanticAnchor: 'camp-at-dawn' },
+})
+
+describe('native EPUB resume checkpoints', () => {
+  test('keeps the canonical toolkit locator opaque and layout-independent', () => {
+    expect(semanticLocator).toMatchObject({
+      href: 'Text/chapter-08.xhtml',
+      locations: {
+        fragments: ['epubcfi(/6/24!/4/2/14)'],
+        cssSelector: '#the-camp-at-dawn',
+      },
+      vendorExtension: { semanticAnchor: 'camp-at-dawn' },
+    })
+    expect(MAX_FORCE_QUIT_POSITION_LOSS_MS).toBe(750)
+  })
+
+  test('rejects stale native events before they can move progress backwards', async () => {
+    const database = new BunSqliteDatabase()
+    await migrateStorage(database)
+    await new CatalogRepository(database).replace(representativeCatalog)
+    const repository = new EpubReaderRepository(database)
+
+    expect(await repository.ingest(readerEvent({ sequence: 2, progression: 0.62 }))).toBe('applied')
+    expect(await repository.ingest(readerEvent({ sequence: 1, progression: 0.18 }))).toBe('stale')
+
+    const checkpoint = await repository.checkpointForBook('book:left-hand-reader')
+    expect(checkpoint).toMatchObject({
+      lastSequence: 2,
+      assetFingerprint: fingerprint,
+      locator: { locations: { totalProgression: 0.62 } },
+    })
+    const staleRows = await database.query(
+      "SELECT id FROM reading_events WHERE id = 'reading-event:reader:test-1'",
+    )
+    expect(staleRows).toEqual([])
+    await database.close()
+  })
+
+  test('resumes the exact locator until replacement, then falls back to its semantic passage', async () => {
+    const database = new BunSqliteDatabase()
+    await migrateStorage(database)
+    await new CatalogRepository(database).replace(representativeCatalog)
+    const repository = new EpubReaderRepository(database)
+    await repository.ingest(readerEvent({ sequence: 3, progression: 0.42, locator: semanticLocator }))
+
+    const capability = readerCapability(fingerprint)
+    expect(await repository.resumeLocator(capability)).toEqual(semanticLocator)
+
+    const replacementResume = await repository.resumeLocator(readerCapability('b'.repeat(64)))
+    expect(replacementResume).toEqual(fallbackLocatorForReplacement(semanticLocator))
+    expect(replacementResume).toMatchObject({
+      href: semanticLocator.href,
+      title: semanticLocator.title,
+      locations: { fragments: [], totalProgression: 0.42 },
+      text: semanticLocator.text,
+    })
+    expect(replacementResume?.locations).not.toHaveProperty('cssSelector')
+    await database.close()
+  })
+
+  test('replayed outbox events are idempotent while advancing their checkpoint', async () => {
+    const database = new BunSqliteDatabase()
+    await migrateStorage(database)
+    await new CatalogRepository(database).replace(representativeCatalog)
+    const repository = new EpubReaderRepository(database)
+    const event = readerEvent({ sequence: 4, progression: 0.71 })
+
+    expect(await repository.ingest(event)).toBe('applied')
+    expect(await repository.ingest(event)).toBe('stale')
+    const rows = await database.query(
+      "SELECT COUNT(*) AS count FROM reading_events WHERE id = 'reading-event:reader:test-4'",
+    )
+    expect(rows).toEqual([{ count: 1 }])
+    await database.close()
+  })
+
+  test('events from a replaced asset cannot outrank the active import', async () => {
+    const database = new BunSqliteDatabase()
+    await migrateStorage(database)
+    await new CatalogRepository(database).replace(representativeCatalog)
+    await seedImport(database, {
+      id: 'epub-import:reader:old',
+      assetId: fixtureIds.assets.leftHandEpub,
+      editionId: fixtureIds.editions.leftHandEbook,
+      fingerprint,
+      importedAt: '2026-08-28T10:00:00.000Z',
+    })
+    await seedImport(database, {
+      id: 'epub-import:reader:replacement',
+      assetId: fixtureIds.assets.translatedEpub,
+      editionId: fixtureIds.editions.translated,
+      fingerprint: 'b'.repeat(64),
+      importedAt: '2026-08-28T11:00:00.000Z',
+    })
+    const repository = new EpubReaderRepository(database)
+
+    expect(await repository.ingest(readerEvent({ sequence: 9, progression: 0.18 }))).toBe('stale')
+    expect(await repository.ingest(readerEvent({
+      sequence: 5,
+      progression: 0.73,
+      editionId: fixtureIds.editions.translated,
+      assetId: fixtureIds.assets.translatedEpub,
+      assetFingerprint: 'b'.repeat(64),
+    }))).toBe('applied')
+    expect(await repository.checkpointForBook('book:left-hand-reader')).toMatchObject({
+      assetId: fixtureIds.assets.translatedEpub,
+      locator: { locations: { totalProgression: 0.73 } },
+    })
+    await database.close()
+  })
+})
+
+function readerEvent(options: {
+  readonly sequence: number
+  readonly progression: number
+  readonly locator?: typeof semanticLocator
+  readonly editionId?: string
+  readonly assetId?: string
+  readonly assetFingerprint?: string
+}): NativeReaderEvent {
+  const locator = options.locator ?? readiumLocatorSchema.parse({
+    ...semanticLocator,
+    locations: {
+      ...semanticLocator.locations,
+      progression: options.progression,
+      totalProgression: options.progression,
+    },
+  })
+  return nativeReaderEventSchema.parse({
+    id: `reading-event:reader:test-${options.sequence}`,
+    sequence: options.sequence,
+    kind: 'location',
+    bookId: 'book:left-hand-reader',
+    editionId: options.editionId ?? fixtureIds.editions.leftHandEbook,
+    assetId: options.assetId ?? fixtureIds.assets.leftHandEpub,
+    assetFingerprint: options.assetFingerprint ?? fingerprint,
+    sessionId: 'reading-session:reader:test',
+    emittedAt: `2026-08-28T12:00:0${options.sequence}.000Z`,
+    locator,
+    platform: 'ios',
+    toolkitVersion: '3.11.0',
+  })
+}
+
+async function seedImport(
+  database: BunSqliteDatabase,
+  options: {
+    readonly id: string
+    readonly assetId: string
+    readonly editionId: string
+    readonly fingerprint: string
+    readonly importedAt: string
+  },
+) {
+  await database.run(
+    `INSERT INTO epub_imports(
+       id, content_hash, package_identifier, metadata_key, package_version,
+       original_name, book_id, edition_id, content_asset_id, cover_asset_id,
+       source_record_id, outcome, imported_at, payload_json
+     ) VALUES (?, ?, ?, ?, '3', ?, 'book:left-hand-reader', ?, ?, NULL, ?, 'revision', ?, '{}')`,
+    [
+      options.id,
+      options.fingerprint,
+      `urn:reader:${options.id}`,
+      options.id,
+      `${options.id}.epub`,
+      options.editionId,
+      options.assetId,
+      fixtureIds.sources.google,
+      options.importedAt,
+    ],
+  )
+}
+
+function readerCapability(assetFingerprint: string): EpubReaderCapability {
+  return {
+    bookId: 'book:left-hand-reader',
+    editionId: fixtureIds.editions.leftHandEbook,
+    assetId: fixtureIds.assets.leftHandEpub,
+    assetFingerprint,
+    relativePath: 'books/left-hand.epub',
+    title: 'The Left Hand of Darkness',
+  }
+}

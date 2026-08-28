@@ -1,0 +1,97 @@
+diff --git a/Package.swift b/Package.swift
+index d77ddaa0f4c98544c7a23d05621dc9eb20a429a4..36e2646bdf33567673cb3a46fa06f61b3c1570b9 100644
+--- a/Package.swift
++++ b/Package.swift
+@@ -14,3 +14,3 @@ let package = Package(
+         .package(url: "https://github.com/sqlcipher/SQLCipher.swift.git", from: "4.14.0"),
+-        .package(url: "https://github.com/weichsel/ZIPFoundation.git", from: "0.9.0")
++        .package(url: "https://github.com/readium/ZIPFoundation.git", from: "3.0.1")
+     ],
+@@ -23,3 +23,3 @@ let package = Package(
+                 .product(name: "SQLCipher", package: "SQLCipher.swift"),
+-                .product(name: "ZIPFoundation", package: "ZIPFoundation")
++                .product(name: "ReadiumZIPFoundation", package: "ZIPFoundation")
+             ],
+diff --git a/ios/Plugin/Utils/UtilsDownloadFromHTTP.swift b/ios/Plugin/Utils/UtilsDownloadFromHTTP.swift
+index 12bd71d2c38fb0c0bef4ae67e113b561dcac017e..537c736af35cd8228dfa0b6b65019ee13d6d953c 100644
+--- a/ios/Plugin/Utils/UtilsDownloadFromHTTP.swift
++++ b/ios/Plugin/Utils/UtilsDownloadFromHTTP.swift
+@@ -9,3 +9,3 @@
+-import ZIPFoundation
++import ReadiumZIPFoundation
+-
++
+ enum UtilsDownloadError: Error {
+@@ -166,9 +166,8 @@ class UtilsDownloadFromHTTP {
+-
+-                guard let archive = Archive(url: zipFile, accessMode: .read) else {
+-                    let msg = "Failed in reading Archive"
+-                    completion([], UtilsDownloadError.invalidArchive(message: msg))
+-                    return
++
++                let archive = try UtilsAsync.wait {
++                    try await Archive(url: zipFile, accessMode: .read)
+                 }
+-
+-                for entry in archive where entry.type == .file {
++
++                let entries = try UtilsAsync.wait { try await archive.entries() }
++                for entry in entries where entry.type == .file {
+                     let fileURL = destinationURL.appendingPathComponent(entry.path)
+@@ -177,3 +176,3 @@ class UtilsDownloadFromHTTP {
+                     if fileExtension == "db" {
+-                        _ = try archive.extract(entry, to: fileURL)
++                        _ = try UtilsAsync.wait { try await archive.extract(entry, to: fileURL) }
+                         dbFiles.append(fileURL)
+diff --git a/ios/Plugin/Utils/UtilsFile.swift b/ios/Plugin/Utils/UtilsFile.swift
+index 28ca7935e681a3e430a32b9e204f98804bb9bea5..c1fbd6aabe06e2810914035c0c5f30fc5131bc4f 100644
+--- a/ios/Plugin/Utils/UtilsFile.swift
++++ b/ios/Plugin/Utils/UtilsFile.swift
+@@ -10,3 +10,26 @@
+-import ZIPFoundation
++import ReadiumZIPFoundation
++
++final class UtilsAsyncResult<Value>: @unchecked Sendable {
++    var result: Result<Value, Error>?
++}
++
++enum UtilsAsync {
++    static func wait<Value>(
++        _ operation: @escaping @Sendable () async throws -> Value
++    ) throws -> Value {
++        let semaphore = DispatchSemaphore(value: 0)
++        let box = UtilsAsyncResult<Value>()
++        Task.detached {
++            do {
++                box.result = .success(try await operation())
++            } catch {
++                box.result = .failure(error)
++            }
++            semaphore.signal()
++        }
++        semaphore.wait()
++        return try box.result!.get()
++    }
++}
+-
++
+ enum UtilsFileError: Error {
+@@ -427,9 +450,8 @@ class UtilsFile {
+             let zipAsset: URL = fromURL.appendingPathComponent(zip)
+-            guard let archive = Archive(url: zipAsset, accessMode: .read) else {
+-                let msg = "Error: Read Archive: \(zipAsset) failed"
+-                print("\(msg)")
+-                throw UtilsFileError.unzipToDatabaseFailed(message: msg)
++            let archive = try UtilsAsync.wait {
++                try await Archive(url: zipAsset, accessMode: .read)
+             }
+             let uDb: URL = try getFolderURL(folderPath: databaseLocation)
+-            for entry in archive {
++            let entries = try UtilsAsync.wait { try await archive.entries() }
++            for entry in entries {
+                 let dbEntry = setPathSuffix(sDb: entry.path)
+@@ -442,3 +464,3 @@ class UtilsFile {
+                         }
+-                        _ = try archive.extract(entry, to: zipCopy)
++                        _ = try UtilsAsync.wait { try await archive.extract(entry, to: zipCopy) }
+                     }

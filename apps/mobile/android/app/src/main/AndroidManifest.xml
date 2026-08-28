@@ -31,6 +31,9 @@
                 <data
                     android:host="handoff"
                     android:scheme="@string/custom_url_scheme" />
+                <data
+                    android:host="reader"
+                    android:scheme="@string/custom_url_scheme" />
             </intent-filter>
 
             <intent-filter>
@@ -56,6 +59,13 @@
             </intent-filter>
 
         </activity>
+
+        <activity
+            android:name=".WovenleafReaderActivity"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|uiMode|density"
+            android:exported="false"
+            android:screenOrientation="unspecified"
+            android:theme="@style/AppTheme.NoActionBar" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

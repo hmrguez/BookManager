@@ -18,7 +18,8 @@ let package = Package(
         .package(name: "CapacitorBarcodeScanner", path: "../../../node_modules/@capacitor/barcode-scanner"),
         .package(name: "CapacitorClipboard", path: "../../../node_modules/@capacitor/clipboard"),
         .package(name: "CapacitorFilesystem", path: "../../../node_modules/@capacitor/filesystem"),
-        .package(name: "CapgoCapacitorShareTarget", path: "../../../node_modules/@capgo/capacitor-share-target")
+        .package(name: "CapgoCapacitorShareTarget", path: "../../../node_modules/@capgo/capacitor-share-target"),
+        .package(url: "https://github.com/readium/swift-toolkit.git", exact: "3.11.0")
     ],
     targets: [
         .target(
@@ -32,7 +33,10 @@ let package = Package(
                 .product(name: "CapacitorBarcodeScanner", package: "CapacitorBarcodeScanner"),
                 .product(name: "CapacitorClipboard", package: "CapacitorClipboard"),
                 .product(name: "CapacitorFilesystem", package: "CapacitorFilesystem"),
-                .product(name: "CapgoCapacitorShareTarget", package: "CapgoCapacitorShareTarget")
+                .product(name: "CapgoCapacitorShareTarget", package: "CapgoCapacitorShareTarget"),
+                .product(name: "ReadiumShared", package: "swift-toolkit"),
+                .product(name: "ReadiumStreamer", package: "swift-toolkit"),
+                .product(name: "ReadiumNavigator", package: "swift-toolkit")
             ]
         )
     ]

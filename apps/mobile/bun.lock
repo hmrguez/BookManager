@@ -41,6 +41,9 @@
       },
     },
   },
+  "patchedDependencies": {
+    "@capacitor-community/sqlite@8.1.1": "patches/@capacitor-community%2Fsqlite@8.1.1.patch",
+  },
   "overrides": {
     "sql.js": "1.11.0",
   },

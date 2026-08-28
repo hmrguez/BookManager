@@ -11,6 +11,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         normalizeSharedBookIntent(getIntent());
+        registerPlugin(WovenleafReaderPlugin.class);
         super.onCreate(savedInstanceState);
 
         // The library, reading history, and notes are private throughout the current app.

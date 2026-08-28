@@ -41,6 +41,7 @@ import { useLibraryViewModel } from './library/useLibraryViewModel'
 import { SearchSheet } from './search/SearchSheet'
 import { CustomShelfEditorSheet } from './organization/CustomShelfComponents'
 import { FinishedSheet, ProgressSheet } from './reading/ReadingSheets'
+import { ReaderRecoverySheet, type ReaderRecovery } from './reading/ReaderRecoverySheet'
 import {
   SettingsPage,
   type AudiobookImportViewState,
@@ -56,6 +57,7 @@ import {
   type EpubImportSource,
   type EpubImportResult,
 } from './epub'
+import { EpubReaderError } from './reader'
 import {
   audiobookImportErrorMessage,
   audiobookSourceFromIncomingUrl,
@@ -139,6 +141,8 @@ function App() {
   const [exportError, setExportError] = useState<string>()
   const [recovery, setRecovery] = useState<RecoveryViewState>({ snapshots: [], busy: false })
   const [smartListCatalog, setSmartListCatalog] = useState<Catalog>()
+  const [readerRecovery, setReaderRecovery] = useState<(ReaderRecovery & { readonly bookId: string })>()
+  const [readerBusyBookId, setReaderBusyBookId] = useState<string>()
   const sheetTriggerRef = useRef<HTMLElement | null>(null)
   const epubAbortRef = useRef<AbortController | undefined>(undefined)
   const audiobookAbortRef = useRef<AbortController | undefined>(undefined)
@@ -185,6 +189,23 @@ function App() {
       active = false
     }
   }, [])
+
+  useEffect(() => {
+    let disposed = false
+    let removeListener: (() => Promise<void>) | undefined
+    void getStorageRuntime().then(async (runtime) => {
+      removeListener = await runtime.reader.installEventListener(() => {
+        if (!disposed) void reload()
+      })
+      if (disposed && removeListener) void removeListener()
+    }).catch(() => {
+      // Reader recovery is also drained before every native open.
+    })
+    return () => {
+      disposed = true
+      if (removeListener) void removeListener()
+    }
+  }, [reload])
 
   const prepareAudiobookSources = async (
     loadSources: () => Promise<readonly AudiobookImportSource[]>,
@@ -430,6 +451,30 @@ function App() {
     }
   }
 
+  const openReader = async (bookId: string) => {
+    if (readerBusyBookId) return
+    setReaderBusyBookId(bookId)
+    setReaderRecovery(undefined)
+    try {
+      const runtime = await getStorageRuntime()
+      await runtime.reader.drainOutbox(() => void reload())
+      await runtime.reader.open(bookId)
+      closeSheet()
+    } catch (error) {
+      const book = books.find(({ id }) => id === bookId)
+      setReaderRecovery({
+        bookId,
+        title: book?.title ?? 'EPUB edition',
+        message: error instanceof Error ? error.message : 'This EPUB could not be opened.',
+        canRetry: !(error instanceof EpubReaderError)
+          || !['not-found', 'unavailable'].includes(error.code),
+      })
+      closeSheet()
+    } finally {
+      setReaderBusyBookId(undefined)
+    }
+  }
+
   const openSharedIsbn = useEffectEvent((isbn: NonNullable<ReturnType<typeof extractValidIsbn>>) => {
     setView('library')
     setSheet({ kind: 'search', shelf: 'tbr', initialCapture: { isbn, method: 'share-sheet' } })
@@ -437,6 +482,11 @@ function App() {
   })
 
   const onIncomingBookFile = useEffectEvent((url: string) => {
+    const readerBookId = readerBookIdFromUrl(url)
+    if (readerBookId) {
+      void openReader(readerBookId)
+      return
+    }
     if (/^wovenleaf:\/\/(?:share|add)/i.test(url)) {
       const isbn = extractValidIsbn(url)
       if (isbn) openSharedIsbn(isbn)
@@ -947,6 +997,7 @@ function App() {
             }
           }}
           onProgress={() => openSheet({ kind: 'progress', bookId: selectedBook.id })}
+          onRead={() => void openReader(selectedBook.id)}
           onFinish={() => handleFinish(selectedBook.id)}
           onRate={(rating) => updateBook(selectedBook.id, { rating })}
           onNotes={(notes) => updateBook(selectedBook.id, { notes })}
@@ -1011,6 +1062,13 @@ function App() {
           />
         </Sheet>
       )}
+      {readerRecovery && (
+        <ReaderRecoverySheet
+          recovery={readerRecovery}
+          onClose={() => setReaderRecovery(undefined)}
+          onRetry={() => void openReader(readerRecovery.bookId)}
+        />
+      )}
 
       <CommandPalette
         key={commandMenuOpen ? 'command-menu-open' : 'command-menu-closed'}
@@ -1056,6 +1114,16 @@ function audiobookResultToastMessage(result: { readonly outcome: string; readonl
 
 function isZipContainer(bytes: Uint8Array): boolean {
   return bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04
+}
+
+function readerBookIdFromUrl(value: string): string | undefined {
+  try {
+    const url = new URL(value)
+    if (url.protocol !== 'wovenleaf:' || !['reader', 'read'].includes(url.hostname)) return undefined
+    return url.searchParams.get('book') ?? undefined
+  } catch {
+    return undefined
+  }
 }
 
 export default App
