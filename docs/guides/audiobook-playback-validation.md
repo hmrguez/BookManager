@@ -14,6 +14,9 @@ canonical checkpoint, session-duration, seek, speed, and provenance behavior add
 - Wired-headset or Bluetooth removal always pauses and never moves playback to a private device speaker. Connecting a route never starts playback.
 - A sleep timer always pauses and clears play intent. It never resumes automatically.
 - Process recreation restores the exact queue, selected segment, rate, and a position no more than 15 seconds behind the last audible position. Restoration is paused; it never auto-plays.
+- System-media metadata includes the book title, author, chapter, elapsed time, duration, and rate. Cover art is published only from a verified managed asset and is replaced whenever the queue identity changes.
+- System-surface previews are private by default. Disabling previews removes title, author, chapter, and artwork immediately without disabling transport controls.
+- Replayed command IDs are acknowledged against the current engine snapshot without applying their transport or seek effect a second time, including after process recreation.
 - A missing, replaced, truncated, corrupt, or locked file preserves the last committed position and exposes a recoverable relink/retry state. The engine must not silently substitute another path.
 - AirPlay is supported through the iOS system route picker. Android exposes platform Media3 routing but intentionally does not advertise Cast; Cast requires a separate remote-playback queue and is outside this issue.
 
@@ -21,7 +24,7 @@ canonical checkpoint, session-duration, seek, speed, and provenance behavior add
 
 1. Install a debug build from the same commit on both physical devices.
 2. Import one 30-or-more-segment MP3 audiobook and one M4B with embedded chapters. Use media long enough for the one-hour endurance rows.
-3. Enable system-surface previews, begin playback in the middle of a chapter, set a non-default rate, and record the queue ID, segment, position, rate, engine epoch, session ID, and revision.
+3. Confirm system-surface previews are disabled by default. Then enable them, begin playback in the middle of a chapter, set a non-default rate, and record the queue ID, segment, position, rate, engine epoch, session ID, and revision.
 4. For every row, capture native logs and the React snapshot immediately before the stimulus, immediately after it, and after 1 second.
 
 ## Physical-device matrix
@@ -31,7 +34,12 @@ canonical checkpoint, session-duration, seek, speed, and provenance behavior add
 | M4B endurance | Play locked/backgrounded for one hour at 1× and again at 2× | No stop or stall; position, active time, battery, thermal state, and system surface remain coherent | ☐ | ☐ |
 | MP3 endurance | Play the 30-or-more-segment fixture locked/backgrounded for one hour at 1× and again at 2× | File transitions remain monotonic and journaled once; no queue loss or runaway resource use | ☐ | ☐ |
 | Lock/background | Lock the device, then leave it locked for two checkpoint intervals | Audio and system controls continue; queue, rate, artwork privacy, and position remain coherent | ☐ | ☐ |
+| Metadata fidelity | Compare the player with lock screen, notification, and Control Center at a chapter boundary and a non-default rate | Title, author, cover, chapter, elapsed time, duration, and rate remain current with no stale book identity | ☐ | ☐ |
+| Privacy toggle | Disable and re-enable system-surface previews while the device is locked and unlocked | Identity and artwork disappear immediately when disabled; transport controls remain labeled and usable; current metadata returns when enabled | ☐ | ☐ |
+| Artwork replacement | Switch between two audiobooks with distinct covers, then return to the first | Each surface shows only the current verified cover; no stale artwork, retained identity, or increasing memory footprint | ☐ | ☐ |
 | Command convergence | Use play, pause, ± skip, next/previous, and scrub from lock screen/headset | React matches the native revision and state within 1 second after foregrounding | ☐ | ☐ |
+| Command replay | Replay an already acknowledged play, seek, skip, and chapter command after reconnect and after process recreation | The current snapshot is returned and position/state/revision are not changed a second time | ☐ | ☐ |
+| Command accessibility | Inspect available actions with VoiceOver/TalkBack and operate a wired and Bluetooth headset | Only valid actions are exposed; skip labels include the interval; play/pause/seek/chapter actions announce and perform the same operation | ☐ | ☐ |
 | Phone call | Accept and end an incoming call while playing | Pause on interruption; resume only when the OS recommends/allows it and all transient-resume conditions still hold | ☐ | ☐ |
 | Siri/Assistant | Start and dismiss voice assistant while playing | Pause during capture; resume only if the OS marks it resumable and all transient-resume conditions hold | ☐ | ☐ |
 | Navigation | Trigger spoken navigation over playback | Duck or transiently pause according to platform focus; no lost position or duplicate resume | ☐ | ☐ |
@@ -56,7 +64,7 @@ canonical checkpoint, session-duration, seek, speed, and provenance behavior add
 
 For each checked cell, record device model, OS version, build commit, route, audiobook format and fixture fingerprint, wall-clock timestamp, starting and ending revisions, measured React convergence time, maximum recovered-position delta, CPU, battery, thermal state, memory, journal size/write rate, and log/screen-recording location. A row passes only when the required result and all invariants hold. File a follow-up issue for every exception; do not reinterpret an exception as platform behavior without updating the architecture decision.
 
-Automated contract tests cover schema validation, snapshot ordering, command-race recovery,
+Automated contract tests cover schema validation, artwork validation, private-by-default preferences, system metadata hooks, snapshot ordering, command-race recovery,
 at-least-once journal acknowledgement, checkpoint throttling, process-loss reconstruction,
 buffering exclusion, seek/speed semantics, and stale external-progress precedence. The physical
 matrix remains mandatory before release because CI cannot faithfully generate calls, alarms, route

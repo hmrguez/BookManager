@@ -5,6 +5,7 @@ import {
   AUDIOBOOK_PLAYBACK_BRIDGE_VERSION,
   MAX_PLAYBACK_JOURNAL_EVENTS,
   type NativePlaybackEvent,
+  type PlaybackArtwork,
   type PlaybackCapabilities,
   type PlaybackCommand,
   type PlaybackError,
@@ -40,6 +41,7 @@ export class WovenleafPlaybackWeb extends WebPlugin implements WovenleafPlayback
   readonly #events: NativePlaybackEvent[] = []
   #audio?: HTMLAudioElement
   #manifest?: PlaybackManifest
+  #artwork?: PlaybackArtwork
   #sources = new Map<string, string>()
   #segmentIndex = 0
   #sessionId: string | null = null
@@ -57,6 +59,7 @@ export class WovenleafPlaybackWeb extends WebPlugin implements WovenleafPlayback
   #previewEnabled = false
   #activeStartedAt?: number
   #activeDurationMs = 0
+  #publishedMetadataIdentity?: string
 
   constructor() {
     super()
@@ -75,6 +78,8 @@ export class WovenleafPlaybackWeb extends WebPlugin implements WovenleafPlayback
     return this.#command(options, async () => {
       this.#disposeAudio()
       this.#manifest = options.manifest
+      this.#artwork = options.artwork
+      this.#publishedMetadataIdentity = undefined
       this.#sources = new Map(options.sources.map(({ capability, uri }) => [capability, uri]))
       this.#segmentIndex = this.#segmentForAbsolute(options.manifest.initialAbsolutePositionMs)
       this.#sessionId = `playback-session:web:${crypto.randomUUID()}`
@@ -208,7 +213,9 @@ export class WovenleafPlaybackWeb extends WebPlugin implements WovenleafPlayback
   }
 
   async setSystemSurfacePrivacy(options: { readonly previewEnabled: boolean }): Promise<PlaybackSnapshot> {
+    if (this.#previewEnabled === options.previewEnabled) return this.#snapshot()
     this.#previewEnabled = options.previewEnabled
+    this.#publishedMetadataIdentity = undefined
     this.#updateMediaSession()
     return this.#emitSnapshot()
   }
@@ -377,6 +384,7 @@ export class WovenleafPlaybackWeb extends WebPlugin implements WovenleafPlayback
 
   async #emitSnapshot(): Promise<PlaybackSnapshot> {
     this.#revision += 1
+    this.#updateMediaSession()
     const snapshot = this.#snapshot()
     await this.notifyListeners('snapshotChanged', snapshot)
     return snapshot
@@ -471,31 +479,98 @@ export class WovenleafPlaybackWeb extends WebPlugin implements WovenleafPlayback
     const metadata = this.#previewEnabled
       ? this.#manifest.systemSurfaceMetadata.preview
       : this.#manifest.systemSurfaceMetadata.private
-    navigator.mediaSession.metadata = new MediaMetadata({
-      title: metadata.title,
-      artist: 'contributor' in metadata ? metadata.contributor : metadata.subtitle,
-      album: 'series' in metadata ? metadata.series : undefined,
-    })
-    navigator.mediaSession.setActionHandler('play', () => {
-      void this.play({ commandId: `web-media:${crypto.randomUUID()}`, expectedRevision: this.#revision })
-    })
-    navigator.mediaSession.setActionHandler('pause', () => {
-      void this.pause({ commandId: `web-media:${crypto.randomUUID()}`, expectedRevision: this.#revision })
-    })
-    navigator.mediaSession.setActionHandler('seekbackward', (details) => {
-      void this.seekBy({
-        commandId: `web-media:${crypto.randomUUID()}`,
-        expectedRevision: this.#revision,
-        offsetMs: -Math.round((details.seekOffset ?? 15) * 1_000),
+    const chapter = this.#previewEnabled ? this.#currentChapter() : undefined
+    const identity = [
+      this.#manifest.assetId,
+      this.#previewEnabled,
+      chapter?.key ?? 'private',
+      this.#previewEnabled ? this.#artwork?.fingerprint ?? 'no-artwork' : 'hidden-artwork',
+    ].join(':')
+    if (identity !== this.#publishedMetadataIdentity) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: metadata.title,
+        artist: 'contributor' in metadata ? metadata.contributor : metadata.subtitle,
+        album: chapter?.title ?? ('series' in metadata ? metadata.series : undefined),
+        artwork: this.#previewEnabled && this.#artwork
+          ? [{ src: this.#artwork.uri, type: this.#artwork.mediaType }]
+          : [],
       })
-    })
-    navigator.mediaSession.setActionHandler('seekforward', (details) => {
-      void this.seekBy({
-        commandId: `web-media:${crypto.randomUUID()}`,
-        expectedRevision: this.#revision,
-        offsetMs: Math.round((details.seekOffset ?? 30) * 1_000),
+      this.#publishedMetadataIdentity = identity
+    }
+
+    const invoke = (command: (commandId: string, expectedRevision: number) => Promise<PlaybackSnapshot>) => {
+      void command(`web-media:${crypto.randomUUID()}`, this.#revision).catch(() => {
+        // A newer media action already won; the next authoritative snapshot refreshes these controls.
       })
+    }
+    this.#setMediaAction('play', () => {
+      invoke((commandId, expectedRevision) => this.play({ commandId, expectedRevision }))
     })
+    this.#setMediaAction('pause', () => {
+      invoke((commandId, expectedRevision) => this.pause({ commandId, expectedRevision }))
+    })
+    this.#setMediaAction('stop', () => {
+      invoke((commandId, expectedRevision) => this.stop({ commandId, expectedRevision }))
+    })
+    this.#setMediaAction('seekbackward', (details) => {
+      invoke((commandId, expectedRevision) => this.seekBy({
+        commandId,
+        expectedRevision,
+        offsetMs: -Math.round(
+          (details.seekOffset ?? this.#manifest!.skipIntervals.backwardMs / 1_000) * 1_000,
+        ),
+      }))
+    })
+    this.#setMediaAction('seekforward', (details) => {
+      invoke((commandId, expectedRevision) => this.seekBy({
+        commandId,
+        expectedRevision,
+        offsetMs: Math.round(
+          (details.seekOffset ?? this.#manifest!.skipIntervals.forwardMs / 1_000) * 1_000,
+        ),
+      }))
+    })
+    this.#setMediaAction('seekto', (details) => {
+      invoke((commandId, expectedRevision) => this.seekToAbsolute({
+        commandId,
+        expectedRevision,
+        positionMs: Math.round((details.seekTime ?? 0) * 1_000),
+      }))
+    })
+    const position = this.#absolutePosition()
+    const hasNext = this.#manifest.chapters.some(({ absoluteStartMs }) => absoluteStartMs > position + 500)
+    this.#setMediaAction('nexttrack', hasNext
+      ? () => invoke((commandId, expectedRevision) => this.nextChapter({ commandId, expectedRevision }))
+      : null)
+    this.#setMediaAction('previoustrack', position > 0
+      ? () => invoke((commandId, expectedRevision) => this.previousChapter({ commandId, expectedRevision }))
+      : null)
+
+    navigator.mediaSession.playbackState = this.#state === 'playing'
+      ? 'playing'
+      : this.#state === 'paused' || this.#state === 'buffering'
+        ? 'paused'
+        : 'none'
+    const duration = this.#duration()
+    if (duration > 0) {
+      try {
+        navigator.mediaSession.setPositionState({
+          duration: duration / 1_000,
+          playbackRate: this.#rate,
+          position: Math.min(Math.max(0, duration - 1), this.#absolutePosition()) / 1_000,
+        })
+      } catch {
+        // Some browser implementations expose Media Session without position-state support.
+      }
+    }
+  }
+
+  #setMediaAction(action: MediaSessionAction, handler: MediaSessionActionHandler | null): void {
+    try {
+      navigator.mediaSession.setActionHandler(action, handler)
+    } catch {
+      // Optional actions vary by browser and platform version.
+    }
   }
 
   #clearSleepTimeout(): void {

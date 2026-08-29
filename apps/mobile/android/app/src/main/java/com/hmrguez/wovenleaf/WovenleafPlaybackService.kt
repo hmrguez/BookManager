@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.view.KeyEvent
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -47,6 +48,7 @@ class WovenleafPlaybackService : MediaLibraryService() {
     private var manifest: JSONObject? = null
     private var sources = JSONArray()
     private var sourceByCapability = emptyMap<String, JSONObject>()
+    private var artwork: JSONObject? = null
     private var playbackSessionId: String? = null
     private var revision = 0L
     private var sequence = 0L
@@ -66,6 +68,22 @@ class WovenleafPlaybackService : MediaLibraryService() {
     private var lastDurablePositionMs = 0L
     private var lastMediaItemIndex = C.INDEX_UNSET
     private var retainedErrorPositionMs: Long? = null
+    private var lastPublishedMetadataIdentity: String? = null
+    private var pendingTransportChange = false
+    private var pendingSeek: Pair<Long, Long>? = null
+    private val handledMediaKeyCodes = setOf(
+        KeyEvent.KEYCODE_MEDIA_NEXT,
+        KeyEvent.KEYCODE_MEDIA_PREVIOUS,
+        KeyEvent.KEYCODE_MEDIA_FAST_FORWARD,
+        KeyEvent.KEYCODE_MEDIA_REWIND,
+    )
+    private val supportedArtworkMediaTypes = setOf(
+        "image/avif",
+        "image/gif",
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+    )
 
     private val ticker = object : Runnable {
         override fun run() {
@@ -88,6 +106,7 @@ class WovenleafPlaybackService : MediaLibraryService() {
                 }
                 revision += 1
                 updateTransportState()
+                refreshMetadata()
                 checkpoint(force = false)
                 emitSnapshot()
             }
@@ -190,6 +209,26 @@ class WovenleafPlaybackService : MediaLibraryService() {
             return Futures.immediateFuture(handleCommand(action, payload))
         }
 
+        @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
+        override fun onMediaButtonEvent(
+            mediaSession: MediaSession,
+            controllerInfo: MediaSession.ControllerInfo,
+            intent: Intent,
+        ): Boolean {
+            val event = intent.getParcelableExtra<KeyEvent>(Intent.EXTRA_KEY_EVENT) ?: return false
+            if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount != 0) {
+                return event.keyCode in handledMediaKeyCodes
+            }
+            val action = when (event.keyCode) {
+                KeyEvent.KEYCODE_MEDIA_NEXT -> PlaybackContract.NEXT_CHAPTER
+                KeyEvent.KEYCODE_MEDIA_PREVIOUS -> PlaybackContract.PREVIOUS_CHAPTER
+                KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> PlaybackContract.SKIP_FORWARD
+                KeyEvent.KEYCODE_MEDIA_REWIND -> PlaybackContract.SKIP_BACK
+                else -> return false
+            }
+            return handleSystemCommand(action).resultCode == SessionResult.RESULT_SUCCESS
+        }
+
         override fun onGetLibraryRoot(
             session: MediaLibrarySession,
             browser: MediaSession.ControllerInfo,
@@ -220,6 +259,7 @@ class WovenleafPlaybackService : MediaLibraryService() {
             return Futures.immediateFuture(LibraryResult.ofItemList(items, params))
         }
 
+        @Suppress("OVERRIDE_DEPRECATION")
         override fun onPlaybackResumption(
             mediaSession: MediaSession,
             controller: MediaSession.ControllerInfo,
@@ -246,9 +286,12 @@ class WovenleafPlaybackService : MediaLibraryService() {
             return SessionResult(SessionResult.RESULT_SUCCESS)
         }
         if (action == PlaybackContract.SET_PRIVACY) {
-            previewEnabled = payload.optBoolean("previewEnabled", false)
+            val next = payload.optBoolean("previewEnabled", false)
+            if (previewEnabled == next) return successResult(snapshot())
+            previewEnabled = next
             revision += 1
-            refreshMetadata()
+            lastPublishedMetadataIdentity = null
+            refreshMetadata(force = true, allItems = true)
             checkpoint(force = true)
             emitSnapshot()
             return successResult(snapshot())
@@ -259,7 +302,10 @@ class WovenleafPlaybackService : MediaLibraryService() {
         if (commandId.isBlank() || expectedRevision < 0) {
             return errorResult("COMMAND_REJECTED", "The playback command is invalid.")
         }
-        journal.command(commandId)?.let(::successResult)
+        journal.command(commandId)?.let {
+            lastCommandId = commandId
+            return successResult(snapshot())
+        }
         if (expectedRevision != revision) {
             return errorResult("STALE_REVISION", "Playback changed before this command arrived.")
         }
@@ -302,6 +348,11 @@ class WovenleafPlaybackService : MediaLibraryService() {
     }
 
     private fun handleSystemCommand(action: String): SessionResult = try {
+        val beforeState = transportState
+        val beforeIntent = playIntent
+        val beforeSuppression = suppressionReason
+        val beforePosition = absolutePositionMs()
+        val beforeRate = rate
         lastCommandId = "android-system:${UUID.randomUUID().toString().lowercase()}"
         when (action) {
             PlaybackContract.SKIP_BACK -> seek(
@@ -316,6 +367,10 @@ class WovenleafPlaybackService : MediaLibraryService() {
             PlaybackContract.PREVIOUS_CHAPTER -> moveChapter(forward = false)
             else -> return errorResult("COMMAND_REJECTED", "This system playback command is unavailable.")
         }
+        val changed = transportState != beforeState || playIntent != beforeIntent ||
+            suppressionReason != beforeSuppression || abs(absolutePositionMs() - beforePosition) > 100 ||
+            abs(rate - beforeRate) > 0.001
+        if (!changed) return successResult(snapshot())
         revision += 1
         checkpoint(force = true)
         val result = snapshot()
@@ -331,6 +386,7 @@ class WovenleafPlaybackService : MediaLibraryService() {
             ?: throw PlaybackCommandException("QUEUE_INVALID", "The audiobook manifest is missing.")
         val candidateSources = payload.optJSONArray("sources")
             ?: throw PlaybackCommandException("QUEUE_INVALID", "The audiobook source capabilities are missing.")
+        val candidateArtwork = payload.optJSONObject("artwork")
         if (candidateManifest.optInt("schemaVersion") != PlaybackContract.BRIDGE_VERSION) {
             throw PlaybackCommandException("QUEUE_INVALID", "This audiobook queue version is unsupported.")
         }
@@ -343,6 +399,8 @@ class WovenleafPlaybackService : MediaLibraryService() {
         manifest = candidateManifest
         sources = candidateSources
         sourceByCapability = resolved
+        artwork = validatedArtwork(candidateArtwork)
+        lastPublishedMetadataIdentity = null
         playbackSessionId = "playback-session:android:${UUID.randomUUID().toString().lowercase()}"
         playIntent = false
         suppressionReason = "none"
@@ -359,26 +417,33 @@ class WovenleafPlaybackService : MediaLibraryService() {
         player.playWhenReady = false
         lastMediaItemIndex = startIndex
         transportState = "paused"
-        refreshMetadata()
+        session.setMediaButtonPreferences(mediaButtonPreferences())
+        refreshMetadata(force = true)
     }
 
     private fun play(reason: String) {
         if (manifest == null || player.mediaItemCount == 0) {
             throw PlaybackCommandException("QUEUE_INVALID", "Load an audiobook before playing.")
         }
+        if (playIntent && transportState in setOf("playing", "buffering")) return
         val wasPlaying = playIntent
         playIntent = true
         suppressionReason = "none"
         playbackError = null
         player.playbackParameters = PlaybackParameters(rate, 1f)
+        pendingTransportChange = true
         player.play()
+        handler.post { pendingTransportChange = false }
         transportState = if (player.playbackState == Player.STATE_BUFFERING) "buffering" else "playing"
         if (!wasPlaying) enqueue(if (reason == "interruption-ended") "resume" else "play", reason)
     }
 
     private fun pause(reason: String, clearIntent: Boolean) {
+        if (!playIntent && !player.isPlaying && transportState == "paused") return
         val before = absolutePositionMs()
+        pendingTransportChange = true
         player.pause()
+        handler.post { pendingTransportChange = false }
         closeActiveInterval()
         if (clearIntent) playIntent = false
         transportState = if (manifest == null) "empty" else "paused"
@@ -387,6 +452,7 @@ class WovenleafPlaybackService : MediaLibraryService() {
     }
 
     private fun stop() {
+        if (transportState == "stopped") return
         pause("stop", clearIntent = true)
         transportState = if (manifest == null) "empty" else "stopped"
         suppressionReason = "none"
@@ -397,8 +463,13 @@ class WovenleafPlaybackService : MediaLibraryService() {
         if (manifest == null) throw PlaybackCommandException("QUEUE_INVALID", "No audiobook queue is loaded.")
         val before = absolutePositionMs()
         val target = requestedPositionMs.coerceIn(0, max(0, durationMs() - 1))
+        if (target == before) return
         val segmentIndex = segmentIndexForAbsolute(target)
+        pendingSeek = before to target
         player.seekTo(segmentIndex, target - segmentStartMs(segmentIndex))
+        handler.post {
+            if (pendingSeek == Pair(before, target)) pendingSeek = null
+        }
         enqueue("seek", reason, before, target)
     }
 
@@ -417,6 +488,7 @@ class WovenleafPlaybackService : MediaLibraryService() {
         if (requestedRate !in 0.5f..3f) {
             throw PlaybackCommandException("COMMAND_REJECTED", "The requested playback speed is unsupported.")
         }
+        if (abs(requestedRate - rate) < 0.001) return
         val position = absolutePositionMs()
         rate = requestedRate
         player.playbackParameters = PlaybackParameters(rate, 1f)
@@ -549,6 +621,9 @@ class WovenleafPlaybackService : MediaLibraryService() {
         }
 
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            val internallyRequested = pendingTransportChange
+            if (internallyRequested) pendingTransportChange = false
+            val previousIntent = playIntent
             when (reason) {
                 Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_BECOMING_NOISY -> {
                     playIntent = false
@@ -561,7 +636,19 @@ class WovenleafPlaybackService : MediaLibraryService() {
                     enqueue("interruption", "audio-focus-loss")
                 }
                 Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST,
-                Player.PLAY_WHEN_READY_CHANGE_REASON_REMOTE -> playIntent = playWhenReady
+                Player.PLAY_WHEN_READY_CHANGE_REASON_REMOTE -> {
+                    playIntent = playWhenReady
+                    if (!internallyRequested && previousIntent != playWhenReady) {
+                        enqueue(
+                            if (playWhenReady) "resume" else "pause",
+                            if (reason == Player.PLAY_WHEN_READY_CHANGE_REASON_REMOTE) {
+                                "remote-command"
+                            } else {
+                                "system-command"
+                            },
+                        )
+                    }
+                }
             }
             revision += 1
             checkpoint(force = true)
@@ -580,12 +667,46 @@ class WovenleafPlaybackService : MediaLibraryService() {
             emitSnapshot()
         }
 
+        override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) {
+            if (abs(playbackParameters.speed - rate) < 0.001) return
+            val position = absolutePositionMs()
+            rate = playbackParameters.speed.coerceIn(0.5f, 3f)
+            enqueue("rate-change", "remote-command", position, position)
+            revision += 1
+            checkpoint(force = true)
+            emitSnapshot()
+        }
+
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             val current = player.currentMediaItemIndex
-            if (lastMediaItemIndex != C.INDEX_UNSET && current != lastMediaItemIndex) {
+            val changedItem = lastMediaItemIndex != C.INDEX_UNSET && current != lastMediaItemIndex
+            if (changedItem) {
                 enqueue("segment-transition", "file-boundary")
+                lastPublishedMetadataIdentity = null
+                handler.post { refreshMetadata(force = true) }
             }
             lastMediaItemIndex = current
+            revision += 1
+            checkpoint(force = true)
+            emitSnapshot()
+        }
+
+        override fun onPositionDiscontinuity(
+            oldPosition: Player.PositionInfo,
+            newPosition: Player.PositionInfo,
+            reason: Int,
+        ) {
+            val before = absolutePosition(oldPosition)
+            val after = absolutePosition(newPosition)
+            val pending = pendingSeek
+            if (pending != null && abs(after - pending.second) <= 100) {
+                pendingSeek = null
+                return
+            }
+            if (reason != Player.DISCONTINUITY_REASON_SEEK || before == after) return
+            enqueue("seek", "system-command", before, after)
+            lastPublishedMetadataIdentity = null
+            refreshMetadata(force = true)
             revision += 1
             checkpoint(force = true)
             emitSnapshot()
@@ -613,58 +734,91 @@ class WovenleafPlaybackService : MediaLibraryService() {
 
     private fun mediaItems(): List<MediaItem> {
         val segments = manifest?.optJSONArray("segments")?.objects() ?: return emptyList()
-        val title = systemTitle()
-        val contributor = systemContributor()
         return segments.mapNotNull { segment ->
-            val source = sourceByCapability[segment.optString("playableCapability")] ?: return@mapNotNull null
-            MediaItem.Builder()
-                .setMediaId(segment.optString("id"))
-                .setUri(source.optString("uri"))
-                .setMimeType(segment.optString("mediaType"))
-                .setMediaMetadata(
-                    MediaMetadata.Builder()
-                        .setTitle(title)
-                        .setArtist(contributor)
-                        .setAlbumTitle(if (previewEnabled) previewMetadata()?.optString("series") else null)
-                        .setIsBrowsable(false)
-                        .setIsPlayable(true)
-                        .build(),
-                )
-                .build()
+            mediaItem(segment, firstChapterForSegment(segment.optString("id")))
         }
+    }
+
+    private fun mediaItem(segment: JSONObject, chapter: JSONObject?): MediaItem? {
+        val source = sourceByCapability[segment.optString("playableCapability")] ?: return null
+        return MediaItem.Builder()
+            .setMediaId(segment.optString("id"))
+            .setUri(source.optString("uri"))
+            .setMimeType(segment.optString("mediaType"))
+            .setMediaMetadata(systemMetadata(chapter))
+            .build()
+    }
+
+    private fun systemMetadata(chapter: JSONObject?): MediaMetadata {
+        val chapters = manifest?.optJSONArray("chapters")?.objects() ?: emptyList()
+        val chapterIndex = chapter?.let { current -> chapters.indexOfFirst { it.optString("key") == current.optString("key") } }
+            ?.takeIf { it >= 0 }
+        val builder = MediaMetadata.Builder()
+            .setTitle(systemTitle())
+            .setArtist(systemContributor())
+            .setAlbumTitle(if (previewEnabled) previewMetadata()?.optString("series") else null)
+            .setSubtitle(if (previewEnabled) chapter?.optString("title") else null)
+            .setDurationMs(durationMs())
+            .setTrackNumber(if (previewEnabled) chapterIndex?.plus(1) else null)
+            .setTotalTrackCount(if (previewEnabled && chapterIndex != null) chapters.size else null)
+            .setIsBrowsable(false)
+            .setIsPlayable(true)
+        if (previewEnabled) artwork?.optString("uri")?.takeIf(String::isNotBlank)?.let {
+            builder.setArtworkUri(Uri.parse(it))
+        }
+        return builder.build()
     }
 
     private fun mediaButtonPreferences(): List<CommandButton> = listOf(
         CommandButton.Builder(CommandButton.ICON_SKIP_BACK_15)
             .setSessionCommand(PlaybackContract.command(PlaybackContract.SKIP_BACK))
-            .setDisplayName("Back 15 seconds")
+            .setDisplayName("Back ${backwardSkipSeconds()} seconds")
+            .setEnabled(manifest != null)
             .setSlots(CommandButton.SLOT_BACK)
             .build(),
         CommandButton.Builder(CommandButton.ICON_PREVIOUS)
             .setSessionCommand(PlaybackContract.command(PlaybackContract.PREVIOUS_CHAPTER))
             .setDisplayName("Previous chapter")
+            .setEnabled(manifest != null && absolutePositionMs() > 0)
             .setSlots(CommandButton.SLOT_BACK_SECONDARY)
             .build(),
         CommandButton.Builder(CommandButton.ICON_SKIP_FORWARD_30)
             .setSessionCommand(PlaybackContract.command(PlaybackContract.SKIP_FORWARD))
-            .setDisplayName("Forward 30 seconds")
+            .setDisplayName("Forward ${forwardSkipSeconds()} seconds")
+            .setEnabled(manifest != null)
             .setSlots(CommandButton.SLOT_FORWARD)
             .build(),
         CommandButton.Builder(CommandButton.ICON_NEXT)
             .setSessionCommand(PlaybackContract.command(PlaybackContract.NEXT_CHAPTER))
             .setDisplayName("Next chapter")
+            .setEnabled(hasNextChapter())
             .setSlots(CommandButton.SLOT_FORWARD_SECONDARY)
             .build(),
     )
 
-    private fun refreshMetadata() {
+    private fun refreshMetadata(force: Boolean = false, allItems: Boolean = false) {
         if (manifest == null || player.mediaItemCount == 0) return
         val currentIndex = currentSegmentIndex()
-        val position = player.currentPosition
-        val shouldPlay = player.playWhenReady
-        player.setMediaItems(mediaItems(), currentIndex, position)
-        player.prepare()
-        player.playWhenReady = shouldPlay
+        val segment = currentSegment() ?: return
+        val chapter = currentChapter()
+        val identity = listOf(
+            manifest?.optString("assetId"),
+            previewEnabled.toString(),
+            if (previewEnabled) chapter?.optString("key") else "private",
+            if (previewEnabled) artwork?.optString("fingerprint") else "hidden-artwork",
+            (absolutePositionMs() > 0).toString(),
+            hasNextChapter().toString(),
+        ).joinToString(":")
+        if (!force && identity == lastPublishedMetadataIdentity) return
+        lastPublishedMetadataIdentity = identity
+        if (allItems) {
+            player.replaceMediaItems(0, player.mediaItemCount, mediaItems())
+        } else {
+            val replacement = mediaItem(segment, chapter) ?: return
+            player.replaceMediaItem(currentIndex, replacement)
+        }
+        session.notifyChildrenChanged("wovenleaf-root", player.mediaItemCount, null)
+        session.setMediaButtonPreferences(mediaButtonPreferences())
     }
 
     private fun restorePausedQueue() {
@@ -676,6 +830,8 @@ class WovenleafPlaybackService : MediaLibraryService() {
             manifest = savedManifest
             sources = savedSources
             sourceByCapability = savedSources.objects().associateBy { it.optString("capability") }
+            artwork = validatedArtwork(saved.optJSONObject("artwork"))
+            lastPublishedMetadataIdentity = null
             retainedErrorPositionMs = savedSnapshot.optLong("absolutePositionMs", 0)
             playbackSessionId = savedSnapshot.optString("playbackSessionId").takeIf(String::isNotBlank)
             revision = savedSnapshot.optLong("revision", 0) + 1
@@ -695,6 +851,8 @@ class WovenleafPlaybackService : MediaLibraryService() {
             player.playWhenReady = false
             lastMediaItemIndex = index
             retainedErrorPositionMs = null
+            session.setMediaButtonPreferences(mediaButtonPreferences())
+            refreshMetadata(force = true)
         }.onFailure {
             transportState = "error"
             suppressionReason = "error"
@@ -763,6 +921,7 @@ class WovenleafPlaybackService : MediaLibraryService() {
         journal.saveState(JSONObject().apply {
             put("manifest", currentManifest)
             put("sources", sources)
+            put("artwork", artwork ?: JSONObject.NULL)
             put("snapshot", snapshot())
             put("previewEnabled", previewEnabled)
             put("sequence", sequence)
@@ -916,10 +1075,48 @@ class WovenleafPlaybackService : MediaLibraryService() {
         }
     }
 
+    private fun firstChapterForSegment(segmentId: String): JSONObject? = manifest
+        ?.optJSONArray("chapters")
+        ?.objects()
+        ?.firstOrNull { it.optString("segmentId") == segmentId }
+
+    private fun hasNextChapter(): Boolean {
+        val position = absolutePositionMs()
+        return manifest?.optJSONArray("chapters")?.objects()?.any {
+            it.optLong("absoluteStartMs") > position + 500
+        } == true
+    }
+
+    private fun backwardSkipSeconds(): Long = max(
+        1,
+        (manifest?.optJSONObject("skipIntervals")?.optLong("backwardMs") ?: 15_000) / 1_000,
+    )
+
+    private fun forwardSkipSeconds(): Long = max(
+        1,
+        (manifest?.optJSONObject("skipIntervals")?.optLong("forwardMs") ?: 30_000) / 1_000,
+    )
+
+    private fun absolutePosition(position: Player.PositionInfo): Long {
+        val index = position.mediaItemIndex.takeIf { it >= 0 } ?: return absolutePositionMs()
+        return min(durationMs(), max(0, segmentStartMs(index) + position.positionMs))
+    }
+
     private fun previewMetadata(): JSONObject? = manifest?.optJSONObject("systemSurfaceMetadata")?.optJSONObject("preview")
     private fun privateMetadata(): JSONObject? = manifest?.optJSONObject("systemSurfaceMetadata")?.optJSONObject("private")
     private fun systemTitle() = if (previewEnabled) previewMetadata()?.optString("title") else privateMetadata()?.optString("title")
     private fun systemContributor() = if (previewEnabled) previewMetadata()?.optString("contributor") else privateMetadata()?.optString("subtitle")
+
+    private fun validatedArtwork(candidate: JSONObject?): JSONObject? {
+        candidate ?: return null
+        if (candidate.optString("mediaType") !in supportedArtworkMediaTypes) return null
+        val file = managedFile(candidate.optString("uri")) ?: return null
+        if (
+            !file.isFile || !file.canRead() || file.length() != candidate.optLong("byteSize") ||
+            sha256(file) != candidate.optString("fingerprint")
+        ) return null
+        return JSONObject(candidate.toString())
+    }
 
     private fun managedFile(rawUri: String): File? {
         val uri = runCatching { Uri.parse(rawUri) }.getOrNull() ?: return null

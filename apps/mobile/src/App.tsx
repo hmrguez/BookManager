@@ -50,6 +50,11 @@ import {
 } from './settings/SettingsPage'
 import { DetailSheet } from './work-detail/DetailSheet'
 import { AudiobookPlayer } from './playback/AudiobookPlayer'
+import {
+  getSystemMediaPreferencesStorage,
+  readSystemMediaPreferences,
+  writeSystemMediaPreferences,
+} from './playback'
 import { tw } from './tailwind/styles'
 import { motionStyles } from './tailwind/motion'
 import {
@@ -129,6 +134,9 @@ function App() {
   const [appearance, setAppearance] = useState(() => readAppearance(getAppearanceStorage()))
   const [searchPreferences, setSearchPreferences] = useState(() =>
     readSearchPreferences(getSearchPreferencesStorage()),
+  )
+  const [systemMediaPreferences, setSystemMediaPreferences] = useState(() =>
+    readSystemMediaPreferences(getSystemMediaPreferencesStorage()),
   )
   const [importPreview, setImportPreview] = useState<ImportPreview>()
   const [importHistory, setImportHistory] = useState<ImportBatchSummary[]>([])
@@ -323,6 +331,15 @@ function App() {
   useEffect(() => {
     writeSearchPreferences(getSearchPreferencesStorage(), searchPreferences)
   }, [searchPreferences])
+
+  useEffect(() => {
+    writeSystemMediaPreferences(getSystemMediaPreferencesStorage(), systemMediaPreferences)
+    void getStorageRuntime().then(({ playback }) =>
+      playback.setSystemSurfacePrivacy(systemMediaPreferences.showBookDetailsWhenLocked),
+    ).catch(() => {
+      // The saved privacy choice is retried when the native playback engine reconnects.
+    })
+  }, [systemMediaPreferences])
 
   useEffect(() => {
     const handleCommandShortcut = (event: KeyboardEvent) => {
@@ -935,6 +952,7 @@ function App() {
             books={books}
             appearance={appearance}
             searchPreferences={searchPreferences}
+            systemMediaPreferences={systemMediaPreferences}
             importHistory={importHistory}
             importBusy={importBusy}
             importError={importError}
@@ -948,6 +966,7 @@ function App() {
             onBack={showLibrary}
             onAppearanceChange={setAppearance}
             onSearchPreferencesChange={setSearchPreferences}
+            onSystemMediaPreferencesChange={setSystemMediaPreferences}
             onManualAdd={() => openSheet({ kind: 'search', shelf: 'tbr', manual: true })}
             onImportFile={(file) => { void handleImportFile(file) }}
             onImportEpubFiles={(files) => {

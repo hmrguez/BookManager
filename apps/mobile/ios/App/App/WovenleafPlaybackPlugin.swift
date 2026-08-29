@@ -49,7 +49,11 @@ final class WovenleafPlaybackPlugin: CAPPlugin, CAPBridgedPlugin {
             return
         }
         performCommand(call) {
-            try self.engine.loadQueue(manifest: manifest, sources: sources)
+            try self.engine.loadQueue(
+                manifest: manifest,
+                sources: sources,
+                artwork: call.getObject("artwork")
+            )
         }
     }
 
@@ -211,6 +215,13 @@ private struct PlaybackSource: Codable {
     let mediaType: String
 }
 
+private struct PlaybackArtwork: Codable {
+    let uri: String
+    let fingerprint: String
+    let byteSize: Int
+    let mediaType: String
+}
+
 private final class WovenleafPlaybackEngine: NSObject {
     static let shared = WovenleafPlaybackEngine()
 
@@ -237,6 +248,8 @@ private final class WovenleafPlaybackEngine: NSObject {
     private let engineEpoch = "ios-engine:\(UUID().uuidString.lowercased())"
     private var manifest: PlaybackManifest?
     private var sources: [String: PlaybackSource] = [:]
+    private var artwork: PlaybackArtwork?
+    private var cachedArtwork: (fingerprint: String, value: MPMediaItemArtwork)?
     private var items: [ObjectIdentifier: Int] = [:]
     private var segmentIndex = 0
     private var sessionId: String?
@@ -353,7 +366,10 @@ private final class WovenleafPlaybackEngine: NSObject {
         expectedRevision: Int,
         operation: () throws -> Void
     ) throws -> JSObject {
-        if let existing = journal.command(id: id) { return existing }
+        if journal.command(id: id) != nil {
+            lastCommandId = id
+            return snapshot
+        }
         guard expectedRevision == revision else {
             throw PlaybackEngineError(code: "STALE_REVISION", message: "Playback changed before this command arrived.")
         }
@@ -372,7 +388,7 @@ private final class WovenleafPlaybackEngine: NSObject {
         return result
     }
 
-    func loadQueue(manifest object: JSObject, sources sourceObjects: [Any]) throws {
+    func loadQueue(manifest object: JSObject, sources sourceObjects: [Any], artwork artworkObject: JSObject?) throws {
         let decodedManifest: PlaybackManifest = try decode(object)
         guard decodedManifest.schemaVersion == playbackBridgeVersion, !decodedManifest.segments.isEmpty else {
             throw PlaybackEngineError(code: "QUEUE_INVALID", message: "This audiobook queue version is unsupported.")
@@ -380,8 +396,17 @@ private final class WovenleafPlaybackEngine: NSObject {
         let decodedSources: [PlaybackSource] = try decode(sourceObjects)
         let byCapability = Dictionary(uniqueKeysWithValues: decodedSources.map { ($0.capability, $0) })
         try validateQueue(manifest: decodedManifest, sources: byCapability)
+        let decodedArtwork: PlaybackArtwork? = try artworkObject.map { try decode($0) }
         for source in decodedSources {
             guard let url = URL(string: source.uri), let validURL = validateManagedURL(url) else { continue }
+            try? FileManager.default.setAttributes(
+                [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
+                ofItemAtPath: validURL.path
+            )
+        }
+        if let decodedArtwork,
+           let url = URL(string: decodedArtwork.uri),
+           let validURL = validateManagedURL(url) {
             try? FileManager.default.setAttributes(
                 [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
                 ofItemAtPath: validURL.path
@@ -390,6 +415,8 @@ private final class WovenleafPlaybackEngine: NSObject {
         player.pause()
         manifest = decodedManifest
         sources = byCapability
+        artwork = validatedArtwork(decodedArtwork)
+        cachedArtwork = nil
         sessionId = "playback-session:ios:\(UUID().uuidString.lowercased())"
         rate = min(3, max(0.5, decodedManifest.rate))
         state = "loading"
@@ -408,6 +435,7 @@ private final class WovenleafPlaybackEngine: NSObject {
         guard manifest != nil, player.currentItem != nil else {
             throw PlaybackEngineError(code: "QUEUE_INVALID", message: "Load an audiobook before playing.")
         }
+        if playIntent && (state == "playing" || state == "buffering") { return }
         do {
             let audio = AVAudioSession.sharedInstance()
             try audio.setCategory(.playback, mode: .spokenAudio, options: [.allowAirPlay, .allowBluetoothA2DP])
@@ -429,6 +457,7 @@ private final class WovenleafPlaybackEngine: NSObject {
     }
 
     func pause(reason: String = "user-command", clearIntent: Bool = true) throws {
+        if !playIntent && state == "paused" { return }
         let before = absolutePositionMs
         player.pause()
         closeActiveInterval()
@@ -440,6 +469,7 @@ private final class WovenleafPlaybackEngine: NSObject {
     }
 
     func stop() throws {
+        if state == "stopped" { return }
         try pause(reason: "stop", clearIntent: true)
         state = manifest == nil ? "empty" : "stopped"
         suppressionReason = "none"
@@ -454,6 +484,7 @@ private final class WovenleafPlaybackEngine: NSObject {
         }
         let before = absolutePositionMs
         let target = max(0, min(requestedMs, max(0, durationMs - 1)))
+        if target == before { return }
         rebuildQueue(at: target, autoplay: playIntent)
         enqueue(kind: "seek", reason: reason, before: before, after: target)
         updateNowPlaying()
@@ -475,6 +506,7 @@ private final class WovenleafPlaybackEngine: NSObject {
         guard requestedRate >= 0.5, requestedRate <= 3 else {
             throw PlaybackEngineError(code: "COMMAND_REJECTED", message: "The requested playback speed is unsupported.")
         }
+        if abs(requestedRate - rate) < 0.001 { return }
         let position = absolutePositionMs
         rate = requestedRate
         if playIntent { player.rate = rate }
@@ -537,7 +569,12 @@ private final class WovenleafPlaybackEngine: NSObject {
     }
 
     func setSystemSurfacePreview(_ enabled: Bool) {
+        if previewEnabled == enabled {
+            updateNowPlaying()
+            return
+        }
         previewEnabled = enabled
+        if !enabled { cachedArtwork = nil }
         revision += 1
         updateNowPlaying()
         checkpoint(force: true)
@@ -598,6 +635,7 @@ private final class WovenleafPlaybackEngine: NSObject {
         let remote = MPRemoteCommandCenter.shared()
         remote.playCommand.addTarget { [weak self] _ in self?.systemCommand("remote-play") { try $0.play(reason: "remote-command") } ?? .commandFailed }
         remote.pauseCommand.addTarget { [weak self] _ in self?.systemCommand("remote-pause") { try $0.pause(reason: "remote-command") } ?? .commandFailed }
+        remote.stopCommand.addTarget { [weak self] _ in self?.systemCommand("remote-stop") { try $0.stop() } ?? .commandFailed }
         remote.togglePlayPauseCommand.addTarget { [weak self] _ in
             self?.systemCommand("remote-toggle") {
                 if $0.playIntent { try $0.pause(reason: "remote-command") } else { try $0.play(reason: "remote-command") }
@@ -618,6 +656,7 @@ private final class WovenleafPlaybackEngine: NSObject {
             guard let event = event as? MPChangePlaybackRateCommandEvent else { return .commandFailed }
             return self?.systemCommand("remote-rate") { try $0.setRate(event.playbackRate) } ?? .commandFailed
         }
+        updateRemoteCommandAvailability()
     }
 
     private func systemSeek(forward: Bool) -> MPRemoteCommandHandlerStatus {
@@ -631,9 +670,20 @@ private final class WovenleafPlaybackEngine: NSObject {
         _ prefix: String,
         operation: (WovenleafPlaybackEngine) throws -> Void
     ) -> MPRemoteCommandHandlerStatus {
+        let beforeState = state
+        let beforeIntent = playIntent
+        let beforeSuppression = suppressionReason
+        let beforePosition = absolutePositionMs
+        let beforeRate = rate
         do {
             lastCommandId = "\(prefix):\(UUID().uuidString.lowercased())"
             try operation(self)
+            let changed = state != beforeState
+                || playIntent != beforeIntent
+                || suppressionReason != beforeSuppression
+                || abs(absolutePositionMs - beforePosition) > 100
+                || abs(rate - beforeRate) > 0.001
+            if !changed { return .success }
             revision += 1
             checkpoint(force: true)
             emitSnapshot(snapshot)
@@ -696,6 +746,7 @@ private final class WovenleafPlaybackEngine: NSObject {
             enqueue(kind: "interruption", reason: "began", before: before, after: absolutePositionMs)
             revision += 1
             checkpoint(force: true)
+            updateNowPlaying()
             emitSnapshot(snapshot)
             return
         }
@@ -709,6 +760,7 @@ private final class WovenleafPlaybackEngine: NSObject {
         wasPlayingBeforeInterruption = false
         revision += 1
         checkpoint(force: true)
+        updateNowPlaying()
         emitSnapshot(snapshot)
     }
 
@@ -739,6 +791,7 @@ private final class WovenleafPlaybackEngine: NSObject {
         enqueue(kind: "interruption", reason: "media-services-reset", before: position, after: position)
         revision += 1
         checkpoint(force: true)
+        updateNowPlaying()
         emitSnapshot(snapshot)
     }
 
@@ -885,6 +938,7 @@ private final class WovenleafPlaybackEngine: NSObject {
         let payload: JSObject = [
             "manifest": encodeObject(manifest),
             "sources": encodeObject(Array(sources.values)),
+            "artwork": artwork.map { encodeObject($0) } ?? NSNull(),
             "snapshot": snapshot,
             "previewEnabled": previewEnabled,
             "sequence": sequence,
@@ -903,9 +957,12 @@ private final class WovenleafPlaybackEngine: NSObject {
         do {
             let restoredManifest: PlaybackManifest = try decode(manifestObject)
             let restoredSources: [PlaybackSource] = try decode(sourceObjects)
+            let restoredArtwork: PlaybackArtwork? = (journalState["artwork"] as? JSObject).flatMap { try? decode($0) }
             let restoredByCapability = Dictionary(uniqueKeysWithValues: restoredSources.map { ($0.capability, $0) })
             manifest = restoredManifest
             sources = restoredByCapability
+            artwork = validatedArtwork(restoredArtwork)
+            cachedArtwork = nil
             retainedErrorPositionMs = savedSnapshot["absolutePositionMs"] as? Int ?? restoredManifest.initialAbsolutePositionMs
             sessionId = savedSnapshot["playbackSessionId"] as? String
             revision = (savedSnapshot["revision"] as? Int ?? 0) + 1
@@ -934,21 +991,71 @@ private final class WovenleafPlaybackEngine: NSObject {
     private func updateNowPlaying() {
         guard let manifest else {
             MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+            updateRemoteCommandAvailability()
             return
         }
         let metadata = previewEnabled ? manifest.systemSurfaceMetadata.preview.title : manifest.systemSurfaceMetadata.private.title
         let contributor = previewEnabled
             ? manifest.systemSurfaceMetadata.preview.contributor
             : manifest.systemSurfaceMetadata.private.subtitle
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = [
+        let chapterIndex = manifest.chapters.firstIndex { $0.key == currentChapter?.key }
+        var nowPlaying: [String: Any] = [
             MPMediaItemPropertyTitle: metadata,
             MPMediaItemPropertyArtist: contributor,
             MPMediaItemPropertyAlbumTitle: previewEnabled ? (manifest.systemSurfaceMetadata.preview.series ?? "") : "",
+            MPMediaItemPropertyComments: previewEnabled ? (currentChapter?.title ?? "") : "",
             MPNowPlayingInfoPropertyElapsedPlaybackTime: Double(absolutePositionMs) / 1_000,
             MPMediaItemPropertyPlaybackDuration: Double(durationMs) / 1_000,
             MPNowPlayingInfoPropertyPlaybackRate: state == "playing" ? Double(rate) : 0,
             MPNowPlayingInfoPropertyDefaultPlaybackRate: Double(rate),
             MPNowPlayingInfoPropertyExternalContentIdentifier: manifest.assetId,
+        ]
+        if previewEnabled, let chapterIndex {
+            nowPlaying[MPNowPlayingInfoPropertyChapterNumber] = chapterIndex
+            nowPlaying[MPNowPlayingInfoPropertyChapterCount] = manifest.chapters.count
+            nowPlaying[MPMediaItemPropertyAlbumTrackNumber] = chapterIndex + 1
+            nowPlaying[MPMediaItemPropertyAlbumTrackCount] = manifest.chapters.count
+        }
+        if let artwork = nowPlayingArtwork() {
+            nowPlaying[MPMediaItemPropertyArtwork] = artwork
+        }
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlaying
+        updateRemoteCommandAvailability()
+    }
+
+    private func nowPlayingArtwork() -> MPMediaItemArtwork? {
+        guard previewEnabled, let artwork else { return nil }
+        if cachedArtwork?.fingerprint == artwork.fingerprint { return cachedArtwork?.value }
+        guard
+            let url = URL(string: artwork.uri),
+            let validURL = validateManagedURL(url),
+            let image = UIImage(contentsOfFile: validURL.path)
+        else { return nil }
+        let value = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+        cachedArtwork = (artwork.fingerprint, value)
+        return value
+    }
+
+    private func updateRemoteCommandAvailability() {
+        let remote = MPRemoteCommandCenter.shared()
+        let hasQueue = manifest != nil && player.currentItem != nil
+        remote.playCommand.isEnabled = hasQueue && !playIntent
+        remote.pauseCommand.isEnabled = hasQueue && playIntent
+        remote.stopCommand.isEnabled = hasQueue && state != "stopped" && state != "empty"
+        remote.togglePlayPauseCommand.isEnabled = hasQueue
+        remote.skipForwardCommand.isEnabled = hasQueue
+        remote.skipBackwardCommand.isEnabled = hasQueue
+        remote.changePlaybackPositionCommand.isEnabled = hasQueue
+        remote.changePlaybackRateCommand.isEnabled = hasQueue
+        remote.nextTrackCommand.isEnabled = hasQueue && (manifest?.chapters.contains {
+            $0.absoluteStartMs > absolutePositionMs + 500
+        } ?? false)
+        remote.previousTrackCommand.isEnabled = hasQueue && absolutePositionMs > 0
+        remote.skipForwardCommand.preferredIntervals = [
+            NSNumber(value: Double(manifest?.skipIntervals.forwardMs ?? 30_000) / 1_000)
+        ]
+        remote.skipBackwardCommand.preferredIntervals = [
+            NSNumber(value: Double(manifest?.skipIntervals.backwardMs ?? 15_000) / 1_000)
         ]
     }
 
@@ -972,6 +1079,20 @@ private final class WovenleafPlaybackEngine: NSObject {
         guard let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first else { return nil }
         let root = library.appendingPathComponent("NoCloud", isDirectory: true).standardizedFileURL.resolvingSymlinksInPath()
         return candidate.path.hasPrefix(root.path + "/") ? candidate : nil
+    }
+
+    private func validatedArtwork(_ candidate: PlaybackArtwork?) -> PlaybackArtwork? {
+        guard
+            let candidate,
+            ["image/avif", "image/gif", "image/jpeg", "image/png", "image/webp"].contains(candidate.mediaType),
+            let url = URL(string: candidate.uri),
+            let validURL = validateManagedURL(url),
+            FileManager.default.isReadableFile(atPath: validURL.path),
+            let size = (try? FileManager.default.attributesOfItem(atPath: validURL.path)[.size] as? NSNumber)?.intValue,
+            size == candidate.byteSize,
+            (try? sha256(validURL)) == candidate.fingerprint
+        else { return nil }
+        return candidate
     }
 
     private func validateQueue(

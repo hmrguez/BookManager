@@ -1,6 +1,7 @@
 import { Directory, Filesystem } from '@capacitor/filesystem'
 import { immutablePlaybackManifest } from '../audiobooks/manifest'
 import type { PlaybackManifest } from '../audiobooks/model'
+import { assetSchema } from '../domain/catalog'
 import type { SqlDatabase, SqlRow } from '../storage/database'
 import { readNumber, readText } from '../storage/database'
 import { AudiobookPlaybackError, playbackQueueRequestSchema, type PlaybackQueueRequest } from './model'
@@ -9,6 +10,10 @@ import { AudiobookControlsRepository } from './controls'
 
 type PlaybackImportRow = SqlRow & {
   readonly manifest_json: string
+}
+
+type PlaybackArtworkRow = SqlRow & {
+  readonly payload_json: string
 }
 
 type PlaybackFileRow = SqlRow & {
@@ -72,14 +77,24 @@ export class AudiobookPlaybackRepository {
   }
 
   async #resolve(manifest: PlaybackManifest): Promise<PlaybackQueueRequest> {
-    const rows = await this.#database.query<PlaybackFileRow>(
-      `SELECT f.capability_id, f.relative_path, f.fingerprint, f.byte_size, f.media_type
-       FROM audiobook_files f
-       JOIN audiobook_imports i ON i.id = f.import_id
-       WHERE i.content_asset_id = ?
-       ORDER BY f.position, f.capability_id`,
-      [manifest.assetId],
-    )
+    const [rows, artworkRows] = await Promise.all([
+      this.#database.query<PlaybackFileRow>(
+        `SELECT f.capability_id, f.relative_path, f.fingerprint, f.byte_size, f.media_type
+         FROM audiobook_files f
+         JOIN audiobook_imports i ON i.id = f.import_id
+         WHERE i.content_asset_id = ?
+         ORDER BY f.position, f.capability_id`,
+        [manifest.assetId],
+      ),
+      this.#database.query<PlaybackArtworkRow>(
+        `SELECT cover.payload_json
+         FROM audiobook_imports i
+         JOIN assets cover ON cover.id = i.cover_asset_id
+         WHERE i.content_asset_id = ?
+         LIMIT 1`,
+        [manifest.assetId],
+      ),
+    ])
     const sources = await Promise.all(rows.map(async (row) => {
       const capability = readText(row, 'capability_id')
       const relativePath = readText(row, 'relative_path')
@@ -110,6 +125,32 @@ export class AudiobookPlaybackRepository {
         )
       }
     }))
-    return playbackQueueRequestSchema.parse({ manifest, sources })
+    const artwork = await resolveArtwork(artworkRows[0])
+    return playbackQueueRequestSchema.parse({ manifest, sources, ...(artwork ? { artwork } : {}) })
+  }
+}
+
+async function resolveArtwork(row: PlaybackArtworkRow | undefined) {
+  if (!row) return undefined
+  try {
+    const parsed = assetSchema.safeParse(JSON.parse(readText(row, 'payload_json')))
+    if (!parsed.success || parsed.data.role !== 'cover' || parsed.data.format !== 'image') return undefined
+    const { location } = parsed.data
+    if (location.kind !== 'managed-file') return undefined
+    const stat = await Filesystem.stat({ path: location.relativePath, directory: Directory.LibraryNoCloud })
+    if (stat.size !== location.byteSize) return undefined
+    const { uri } = await Filesystem.getUri({
+      path: location.relativePath,
+      directory: Directory.LibraryNoCloud,
+    })
+    return {
+      uri,
+      fingerprint: location.sha256,
+      byteSize: location.byteSize,
+      mediaType: parsed.data.mediaType,
+    }
+  } catch {
+    // Cover art is optional and must never make otherwise valid audio unavailable.
+    return undefined
   }
 }

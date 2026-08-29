@@ -9,6 +9,7 @@ export {
   commandId,
   isNewerPlaybackSnapshot,
   nativePlaybackEventSchema,
+  playbackArtworkSchema,
   playbackCapabilitiesSchema,
   playbackErrorSchema,
   playbackQueueRequestSchema,
@@ -21,6 +22,7 @@ export {
 } from './model'
 export type {
   NativePlaybackEvent,
+  PlaybackArtwork,
   PlaybackCapabilities,
   PlaybackCommand,
   PlaybackError,
@@ -32,6 +34,14 @@ export type {
   PlaybackSuppressionReason,
   PlaybackTransportState,
 } from './model'
+export {
+  DEFAULT_SYSTEM_MEDIA_PREFERENCES,
+  SYSTEM_MEDIA_PREFERENCES_STORAGE_KEY,
+  getSystemMediaPreferencesStorage,
+  readSystemMediaPreferences,
+  writeSystemMediaPreferences,
+} from './preferences'
+export type { SystemMediaPreferences } from './preferences'
 export { AudiobookPlaybackRepository } from './repository'
 export {
   DEFAULT_AUDIOBOOK_CONTROL_PREFERENCES,

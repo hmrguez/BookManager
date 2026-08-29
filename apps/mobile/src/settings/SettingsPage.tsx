@@ -30,6 +30,7 @@ import {
 import type { ImportBatchSummary } from '../imports'
 import type { LibraryBook } from '../library'
 import type { SearchPreferences } from '../search'
+import type { SystemMediaPreferences } from '../playback'
 import { GOOGLE_BOOKS_KEY_CONFIGURED, appearanceLabels } from '../app/config'
 import type { ExportFormat } from '../app/model'
 import { tw } from '../tailwind/styles'
@@ -68,6 +69,7 @@ export function SettingsPage({
   books,
   appearance,
   searchPreferences,
+  systemMediaPreferences,
   importHistory,
   importBusy,
   importError,
@@ -81,6 +83,7 @@ export function SettingsPage({
   onBack,
   onAppearanceChange,
   onSearchPreferencesChange,
+  onSystemMediaPreferencesChange,
   onManualAdd,
   onImportFile,
   onImportEpubFiles,
@@ -98,6 +101,7 @@ export function SettingsPage({
   books: LibraryBook[]
   appearance: AppearancePreferences
   searchPreferences: SearchPreferences
+  systemMediaPreferences: SystemMediaPreferences
   importHistory: readonly ImportBatchSummary[]
   importBusy: boolean
   importError?: string
@@ -111,6 +115,7 @@ export function SettingsPage({
   onBack: () => void
   onAppearanceChange: (preferences: AppearancePreferences) => void
   onSearchPreferencesChange: (preferences: SearchPreferences) => void
+  onSystemMediaPreferencesChange: (preferences: SystemMediaPreferences) => void
   onManualAdd: () => void
   onImportFile: (file: File) => void
   onImportEpubFiles: (files: readonly File[]) => void
@@ -460,6 +465,25 @@ export function SettingsPage({
                 {searchPreferences.includePrivateNotes
                   ? 'Note text can surface a book in local search.'
                   : 'Off by default; titles and library metadata remain searchable.'}
+              </small>
+            </span>
+            <i aria-hidden="true" />
+          </button>
+          <button
+            className={tw('texture-toggle search-notes-toggle')}
+            type="button"
+            aria-label="Show book details on the lock screen"
+            aria-pressed={systemMediaPreferences.showBookDetailsWhenLocked}
+            onClick={() => onSystemMediaPreferencesChange({
+              showBookDetailsWhenLocked: !systemMediaPreferences.showBookDetailsWhenLocked,
+            })}
+          >
+            <span>
+              <strong>Show book details when locked</strong>
+              <small>
+                {systemMediaPreferences.showBookDetailsWhenLocked
+                  ? 'Title, author, chapter, and cover appear on trusted system media surfaces.'
+                  : 'Wovenleaf hides the book identity and cover; playback controls remain available.'}
               </small>
             </span>
             <i aria-hidden="true" />

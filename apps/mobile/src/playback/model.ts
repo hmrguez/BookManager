@@ -145,9 +145,17 @@ export const playbackSourceSchema = z.object({
   mediaType: z.enum(['audio/mpeg', 'audio/mp4']),
 })
 
+export const playbackArtworkSchema = z.object({
+  uri: z.string().min(1),
+  fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+  byteSize: z.number().int().positive(),
+  mediaType: z.enum(['image/avif', 'image/gif', 'image/jpeg', 'image/png', 'image/webp']),
+})
+
 export const playbackQueueRequestSchema = z.object({
   manifest: playbackManifestSchema,
   sources: z.array(playbackSourceSchema).min(1),
+  artwork: playbackArtworkSchema.optional(),
 }).superRefine(({ manifest, sources }, context) => {
   const sourceByCapability = new Map(sources.map((source) => [source.capability, source]))
   for (const [index, segment] of manifest.segments.entries()) {
@@ -171,6 +179,7 @@ export type PlaybackSleepTimer = z.infer<typeof playbackSleepTimerSchema>
 export type PlaybackSnapshot = z.infer<typeof playbackSnapshotSchema>
 export type NativePlaybackEvent = z.infer<typeof nativePlaybackEventSchema>
 export type PlaybackSource = z.infer<typeof playbackSourceSchema>
+export type PlaybackArtwork = z.infer<typeof playbackArtworkSchema>
 export type PlaybackQueueRequest = z.infer<typeof playbackQueueRequestSchema>
 
 export type PlaybackCommand = {
