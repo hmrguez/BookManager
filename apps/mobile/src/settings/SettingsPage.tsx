@@ -44,6 +44,7 @@ import type {
   AudiobookImportReview,
 } from '../audiobooks'
 import type { RecoveryBackupPreview } from '../storage'
+import { EpubStorageCard, type EpubStorageViewState } from './EpubStorageCard'
 
 export type EpubImportViewState = {
   readonly progress?: EpubImportProgress
@@ -75,6 +76,7 @@ export function SettingsPage({
   importError,
   epubImport,
   epubBusy,
+  epubStorage,
   audiobookImport,
   audiobookBusy,
   exportBusy,
@@ -88,6 +90,12 @@ export function SettingsPage({
   onImportFile,
   onImportEpubFiles,
   onCancelEpubImport,
+  onRefreshEpubStorage,
+  onPreviewEpubCleanup,
+  onConfirmEpubCleanup,
+  onCancelEpubReview,
+  onPreviewEpubRelink,
+  onConfirmEpubRelink,
   onPrepareAudiobookFiles,
   onCommitAudiobook,
   onCancelAudiobookImport,
@@ -107,6 +115,7 @@ export function SettingsPage({
   importError?: string
   epubImport: EpubImportViewState
   epubBusy: boolean
+  epubStorage: EpubStorageViewState
   audiobookImport: AudiobookImportViewState
   audiobookBusy: boolean
   exportBusy: boolean
@@ -120,17 +129,24 @@ export function SettingsPage({
   onImportFile: (file: File) => void
   onImportEpubFiles: (files: readonly File[]) => void
   onCancelEpubImport: () => void
+  onRefreshEpubStorage: () => void
+  onPreviewEpubCleanup: (assetIds?: readonly string[]) => void
+  onConfirmEpubCleanup: () => void
+  onCancelEpubReview: () => void
+  onPreviewEpubRelink: (assetId: string, file: File) => void
+  onConfirmEpubRelink: () => void
   onPrepareAudiobookFiles: (files: readonly File[]) => void
   onCommitAudiobook: (review: AudiobookImportReview) => void
   onCancelAudiobookImport: () => void
   onDismissAudiobookImport: () => void
   onUndoImport: (batchId: string) => void
-  onExport: (format: ExportFormat, includeAnnotations: boolean) => void
+  onExport: (format: ExportFormat, includeAnnotations: boolean, includeEpubFiles: boolean) => void
   onRecoveryFile: (file: File) => void
   onCreateRecoveryPoint: () => void
   onRestoreBackup: () => void
 }) {
   const [includeExportAnnotations, setIncludeExportAnnotations] = useState(true)
+  const [includeExportEpubFiles, setIncludeExportEpubFiles] = useState(false)
   const [epubDropActive, setEpubDropActive] = useState(false)
   const [audiobookDropActive, setAudiobookDropActive] = useState(false)
   const ratedBooks = books.filter((book) => book.rating > 0).length
@@ -256,6 +272,16 @@ export function SettingsPage({
             </div>
           )}
         </section>
+
+        <EpubStorageCard
+          state={epubStorage}
+          onRefresh={onRefreshEpubStorage}
+          onPreviewCleanup={onPreviewEpubCleanup}
+          onConfirmCleanup={onConfirmEpubCleanup}
+          onCancelReview={onCancelEpubReview}
+          onPreviewRelink={onPreviewEpubRelink}
+          onConfirmRelink={onConfirmEpubRelink}
+        />
 
         <section
           className={tw(`settings-card audiobook-intake${audiobookDropActive ? ' is-dragging' : ''}`)}
@@ -508,7 +534,7 @@ export function SettingsPage({
               <strong>Always left behind</strong>
               <span>Passwords, API keys, and secure credentials</span>
               <span>Database cache and import staging</span>
-              <span>Cover, ebook, and audiobook files</span>
+              <span>{includeExportEpubFiles ? 'Audiobook, cover, and supplement files' : 'Cover, ebook, and audiobook files'}</span>
             </div>
           </div>
 
@@ -525,23 +551,40 @@ export function SettingsPage({
             <i aria-hidden="true" />
           </button>
 
+          <button
+            className={tw('export-annotation-toggle export-epub-toggle')}
+            type="button"
+            aria-pressed={includeExportEpubFiles}
+            onClick={() => setIncludeExportEpubFiles((value) => !value)}
+          >
+            <span>
+              <strong>DRM-free EPUB files</strong>
+              <small>
+                {includeExportEpubFiles
+                  ? `${epubStorage.inventory?.items.filter(({ active, state }) => active && state === 'available').length ?? 0} verified current copies will be embedded; the archive may contain copyrighted book files.`
+                  : 'Excluded by default; library metadata, progress, highlights, and notes still remain restorable.'}
+              </small>
+            </span>
+            <i aria-hidden="true" />
+          </button>
+
           <div className={tw('export-actions')}>
             <button
               className={tw('export-action export-action--primary')}
               type="button"
               disabled={exportBusy}
-              onClick={() => onExport('archive', includeExportAnnotations)}
+              onClick={() => onExport('archive', includeExportAnnotations, includeExportEpubFiles)}
             >
               <Archive aria-hidden="true" />
               <span><strong>{exportBusy ? 'Building locally…' : 'Portable JSON archive'}</strong><small>Lossless structure · verified restore</small></span>
               <Download aria-hidden="true" />
             </button>
-            <button className={tw('export-action')} type="button" disabled={exportBusy} onClick={() => onExport('csv', includeExportAnnotations)}>
+            <button className={tw('export-action')} type="button" disabled={exportBusy} onClick={() => onExport('csv', includeExportAnnotations, false)}>
               <Table2 aria-hidden="true" />
               <span><strong>Readable CSV</strong><small>Lossy table · not restorable</small></span>
               <Download aria-hidden="true" />
             </button>
-            <button className={tw('export-action')} type="button" disabled={exportBusy} onClick={() => onExport('markdown', includeExportAnnotations)}>
+            <button className={tw('export-action')} type="button" disabled={exportBusy} onClick={() => onExport('markdown', includeExportAnnotations, false)}>
               <FileText aria-hidden="true" />
               <span><strong>Reading journal</strong><small>Lossy Markdown · not restorable</small></span>
               <Download aria-hidden="true" />
@@ -554,7 +597,7 @@ export function SettingsPage({
           <div className={tw('settings-card__icon')}><RotateCcw aria-hidden="true" /></div>
           <div className={tw('settings-card__heading')}>
             <span>Backup & restore · Three-point rotation</span><h2>A quiet return point.</h2>
-            <p>Wovenleaf checks the whole backup in a separate staging area, keeps the current library as rollback, and only then swaps the catalog.</p>
+            <p>Wovenleaf checks the whole backup in a separate staging area, keeps the current library as rollback, and only then swaps the catalog. Local recovery points keep history and notes, but never EPUB bytes.</p>
           </div>
 
           {recovery.snapshots.length > 0 && (

@@ -151,7 +151,7 @@ describe('portable archive contract', () => {
     expect(restored.manifest).toMatchObject({
       format: 'wovenleaf-portable-library',
       formatVersion: 1,
-      schemaVersion: 6,
+      schemaVersion: 7,
       scope: { kind: 'complete-library', bookCount: 3 },
       redactions: {
         privateAnnotations: 'included',

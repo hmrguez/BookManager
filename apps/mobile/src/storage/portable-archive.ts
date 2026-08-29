@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import {
+  assetSchema,
   catalogRecordsSchema,
   catalogSchema,
   readingEventPrivacyPolicy,
@@ -33,12 +34,14 @@ import {
   replaceReaderAnnotationStates,
   replaceReaderNavigationStates,
 } from '../reader/repository'
+import type { ManagedAssetStore, ManagedFileWrite } from '../epub/managed-store'
 import {
   CatalogRepository,
   deleteCatalogRecords,
   insertCatalogRecords,
 } from './catalog-repository'
-import type { SqlDatabase } from './database'
+import type { SqlDatabase, SqlRow } from './database'
+import { readText } from './database'
 import {
   readLibraryBooks,
   replaceLibraryBooks,
@@ -49,7 +52,7 @@ import { readUpNextState, replaceUpNextState } from './up-next-repository'
 
 export const PORTABLE_ARCHIVE_FORMAT = 'wovenleaf-portable-library'
 export const PORTABLE_ARCHIVE_FORMAT_VERSION = 1
-export const PORTABLE_ARCHIVE_SCHEMA_VERSION = 6
+export const PORTABLE_ARCHIVE_SCHEMA_VERSION = 7
 
 const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/)
 const archiveEntryDescriptorSchema = z.object({
@@ -114,6 +117,25 @@ const portableAnnotationsSchema = z.object({
   readingEvents: z.array(readingEventSchema),
 })
 
+const portableEpubImportSchema = z.object({
+  id: z.string().min(1),
+  contentHash: sha256Schema,
+  packageIdentifier: z.string().min(1),
+  metadataKey: z.string().min(1),
+  packageVersion: z.enum(['2', '3']),
+  originalName: z.string().min(1),
+  bookId: z.string().min(1),
+  editionId: z.string().min(1),
+  contentAssetId: z.string().min(1),
+  coverAssetId: z.string().min(1).optional(),
+  sourceRecordId: z.string().min(1),
+  outcome: z.enum(['imported', 'revision']),
+  importedAt: z.iso.datetime({ offset: true }),
+  payload: z.record(z.string(), z.unknown()),
+})
+
+export type PortableEpubImport = z.infer<typeof portableEpubImportSchema>
+
 export type PortableArchiveManifest = z.infer<typeof portableArchiveManifestSchema>
 
 export type PortableAssetContent = {
@@ -127,6 +149,7 @@ export type PortableArchiveOptions = {
   readonly includeAnnotations?: boolean
   readonly includeSourcePayloads?: boolean
   readonly assetContents?: readonly PortableAssetContent[]
+  readonly epubImports?: readonly PortableEpubImport[]
   readonly createdAt?: string
   readonly producerVersion?: string
 }
@@ -148,6 +171,7 @@ export type PortableArchiveInspection = {
   readonly smartLists: readonly SavedSmartList[]
   readonly readerNavigation: readonly ReaderNavigationState[]
   readonly readerAnnotations: readonly ReaderAnnotationState[]
+  readonly epubImports: readonly PortableEpubImport[]
   readonly assetContents: readonly PortableAssetContent[]
 }
 
@@ -170,13 +194,15 @@ export class PortableArchiveCompatibilityError extends Error {
 
 export class PortableArchiveService {
   readonly #database: SqlDatabase
+  readonly #epubAssetStore?: ManagedAssetStore
 
-  constructor(database: SqlDatabase) {
+  constructor(database: SqlDatabase, options: { readonly epubAssetStore?: ManagedAssetStore } = {}) {
     this.#database = database
+    this.#epubAssetStore = options.epubAssetStore
   }
 
   async create(options: PortableArchiveOptions = {}): Promise<PortableArchiveBundle> {
-    const [catalog, books, organization, upNext, smartLists, readerNavigation, readerAnnotations] = await Promise.all([
+    const [catalog, books, organization, upNext, smartLists, readerNavigation, readerAnnotations, epubImports] = await Promise.all([
       new CatalogRepository(this.#database).read(),
       readLibraryBooks(this.#database),
       readLibraryOrganization(this.#database),
@@ -184,11 +210,12 @@ export class PortableArchiveService {
       readSavedSmartLists(this.#database),
       new EpubReaderRepository(this.#database).allNavigationStates(),
       new EpubReaderRepository(this.#database).allAnnotationStates(),
+      readPortableEpubImports(this.#database),
     ])
     return createPortableArchive(
       catalog,
       books,
-      options,
+      { ...options, epubImports },
       organization,
       upNext,
       smartLists,
@@ -202,20 +229,166 @@ export class PortableArchiveService {
   }
 
   async restore(serializedArchive: string): Promise<PortableArchiveInspection> {
-    const inspection = await this.inspect(serializedArchive)
-    await this.#database.transaction(async (database) => {
-      await replaceReaderNavigationStates(database, [])
-      await replaceReaderAnnotationStates(database, [])
-      await deleteCatalogRecords(database)
-      await replaceLibraryBooks(database, inspection.books)
-      await insertCatalogRecords(database, inspection.catalog)
-      await replaceOrganization(database, inspection.organization)
-      await replaceUpNextState(database, inspection.upNext)
-      await replaceSavedSmartLists(database, inspection.smartLists)
-      await replaceReaderNavigationStates(database, inspection.readerNavigation)
-      await replaceReaderAnnotationStates(database, inspection.readerAnnotations)
-    })
-    return inspection
+    const inspected = await this.inspect(serializedArchive)
+    const restored = await restoreIncludedEpubAssets(inspected, this.#epubAssetStore)
+    try {
+      await this.#database.transaction(async (database) => {
+        await replaceReaderNavigationStates(database, [])
+        await replaceReaderAnnotationStates(database, [])
+        await deleteCatalogRecords(database)
+        await replaceLibraryBooks(database, restored.inspection.books)
+        await insertCatalogRecords(database, restored.inspection.catalog)
+        await insertPortableEpubImports(database, restored.inspection.epubImports)
+        await replaceOrganization(database, restored.inspection.organization)
+        await replaceUpNextState(database, restored.inspection.upNext)
+        await replaceSavedSmartLists(database, restored.inspection.smartLists)
+        await replaceReaderNavigationStates(database, restored.inspection.readerNavigation)
+        await replaceReaderAnnotationStates(database, restored.inspection.readerAnnotations)
+      })
+      return restored.inspection
+    } catch (error) {
+      await Promise.all(restored.writes.filter(({ created }) => created).map(({ relativePath }) =>
+        this.#epubAssetStore?.remove(relativePath),
+      ))
+      throw error
+    }
+  }
+}
+
+type PortableEpubImportRow = SqlRow & {
+  readonly id: string
+  readonly content_hash: string
+  readonly package_identifier: string
+  readonly metadata_key: string
+  readonly package_version: string
+  readonly original_name: string
+  readonly book_id: string
+  readonly edition_id: string
+  readonly content_asset_id: string
+  readonly cover_asset_id: string | null
+  readonly source_record_id: string
+  readonly outcome: string
+  readonly imported_at: string
+  readonly payload_json: string
+}
+
+async function readPortableEpubImports(database: SqlDatabase): Promise<PortableEpubImport[]> {
+  const rows = await database.query<PortableEpubImportRow>(
+    `SELECT id, content_hash, package_identifier, metadata_key, package_version, original_name,
+            book_id, edition_id, content_asset_id, cover_asset_id, source_record_id,
+            outcome, imported_at, payload_json
+     FROM epub_imports ORDER BY imported_at, id`,
+  )
+  return rows.map((row) => portableEpubImportSchema.parse({
+    id: readText(row, 'id'),
+    contentHash: readText(row, 'content_hash'),
+    packageIdentifier: readText(row, 'package_identifier'),
+    metadataKey: readText(row, 'metadata_key'),
+    packageVersion: readText(row, 'package_version'),
+    originalName: readText(row, 'original_name'),
+    bookId: readText(row, 'book_id'),
+    editionId: readText(row, 'edition_id'),
+    contentAssetId: readText(row, 'content_asset_id'),
+    ...(row.cover_asset_id === null ? {} : { coverAssetId: readText(row, 'cover_asset_id') }),
+    sourceRecordId: readText(row, 'source_record_id'),
+    outcome: readText(row, 'outcome'),
+    importedAt: readText(row, 'imported_at'),
+    payload: JSON.parse(readText(row, 'payload_json')),
+  }))
+}
+
+async function insertPortableEpubImports(
+  database: SqlDatabase,
+  imports: readonly PortableEpubImport[],
+): Promise<void> {
+  for (const item of portableEpubImportSchema.array().parse(imports)) {
+    await database.run(
+      `INSERT INTO epub_imports(
+         id, content_hash, package_identifier, metadata_key, package_version, original_name,
+         book_id, edition_id, content_asset_id, cover_asset_id, source_record_id,
+         outcome, imported_at, payload_json
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        item.id,
+        item.contentHash,
+        item.packageIdentifier,
+        item.metadataKey,
+        item.packageVersion,
+        item.originalName,
+        item.bookId,
+        item.editionId,
+        item.contentAssetId,
+        item.coverAssetId ?? null,
+        item.sourceRecordId,
+        item.outcome,
+        item.importedAt,
+        JSON.stringify(item.payload),
+      ],
+    )
+  }
+}
+
+async function restoreIncludedEpubAssets(
+  inspection: PortableArchiveInspection,
+  store?: ManagedAssetStore,
+): Promise<{ readonly inspection: PortableArchiveInspection; readonly writes: readonly ManagedFileWrite[] }> {
+  if (!store) return { inspection, writes: [] }
+  const contentById = new Map(inspection.assetContents.map((content) => [content.assetId, content]))
+  const writes: ManagedFileWrite[] = []
+  const assets = []
+  try {
+    for (const asset of inspection.catalog.assets) {
+      const content = contentById.get(asset.id)
+      if (asset.format !== 'epub' || asset.mediaType !== 'application/epub+zip') {
+        assets.push(asset)
+        continue
+      }
+      const expected = asset.location.kind === 'missing'
+        ? asset.location.fingerprint?.replace(/^sha256:/, '')
+        : undefined
+      const fingerprint = content ? await sha256Hex(content.bytes) : expected
+      if (!fingerprint || (expected && expected !== fingerprint)) {
+        if (!content) {
+          assets.push(asset)
+          continue
+        }
+        throw new PortableArchiveIntegrityError(
+          `assets/${encodeURIComponent(asset.id)}`,
+          'EPUB bytes do not match the catalog fingerprint',
+        )
+      }
+      const relativePath = `assets/epub/${fingerprint}.epub`
+      const current = await store.read(relativePath)
+      if (!content && (!current || await sha256Hex(current) !== fingerprint)) {
+        assets.push(asset)
+        continue
+      }
+      if (content) {
+        const write = current && await sha256Hex(current) === fingerprint
+          ? { relativePath, created: false }
+          : await store.replaceAtomically(relativePath, content.bytes)
+        writes.push(write)
+      }
+      assets.push(assetSchema.parse({
+        ...asset,
+        location: {
+          kind: 'managed-file',
+          relativePath,
+          sha256: fingerprint,
+          byteSize: content?.bytes.byteLength ?? current?.byteLength ?? 0,
+        },
+      }))
+    }
+    return {
+      inspection: {
+        ...inspection,
+        catalog: catalogSchema.parse({ ...inspection.catalog, assets }),
+      },
+      writes,
+    }
+  } catch (error) {
+    await Promise.all(writes.filter(({ created }) => created).map(({ relativePath }) => store.remove(relativePath)))
+    throw error
   }
 }
 
@@ -246,6 +419,7 @@ export async function createPortableArchive(
   const readerAnnotations = readerAnnotationStateSchema.array().parse(
     options.includeAnnotations === false ? [] : readerAnnotationInput,
   )
+  const epubImports = portableEpubImportSchema.array().parse(options.epubImports ?? [])
   const portableOrganization = includeAnnotations
     ? organization
     : libraryOrganizationSchema.parse({
@@ -283,6 +457,7 @@ export async function createPortableArchive(
     smartLists,
     readerNavigation,
     readerAnnotations,
+    epubImports,
   })
 
   const entries: Record<string, string> = {}
@@ -321,6 +496,13 @@ export async function createPortableArchive(
     mediaType: 'application/json',
     fidelity: 'canonical',
     contents: canonicalStringify(smartLists),
+  })
+  await addTextEntry(entries, descriptors, {
+    path: 'data/epub-assets.json',
+    role: 'data',
+    mediaType: 'application/json',
+    fidelity: 'canonical',
+    contents: canonicalStringify(epubImports),
   })
   await addTextEntry(entries, descriptors, {
     path: 'data/reader-navigation.json',
@@ -511,6 +693,9 @@ export async function inspectPortableArchive(
   const readerAnnotations = archive.manifest.schemaVersion >= 6
     ? parseJsonEntry(archive, 'data/reader-annotations.json', readerAnnotationStateSchema.array())
     : []
+  const epubImports = archive.manifest.schemaVersion >= 7
+    ? parseJsonEntry(archive, 'data/epub-assets.json', portableEpubImportSchema.array())
+    : []
   const catalog = parseCatalogEntries(coreCatalog, annotations.readingEvents)
   const books = mergeLibraryAnnotations(
     libraryData,
@@ -523,7 +708,7 @@ export async function inspectPortableArchive(
     archive.entries,
   )
 
-  assertCredentialFree({ catalog, books, organization, upNext, smartLists, readerNavigation, readerAnnotations })
+  assertCredentialFree({ catalog, books, organization, upNext, smartLists, readerNavigation, readerAnnotations, epubImports })
   return {
     manifest: archive.manifest,
     catalog,
@@ -533,6 +718,7 @@ export async function inspectPortableArchive(
     smartLists,
     readerNavigation,
     readerAnnotations,
+    epubImports,
     assetContents,
   }
 }

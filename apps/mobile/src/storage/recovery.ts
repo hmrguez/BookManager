@@ -1,4 +1,5 @@
 import { assertCredentialFree } from '../security'
+import type { ManagedAssetStore } from '../epub/managed-store'
 import { CatalogRepository } from './catalog-repository'
 import type { SqlDatabase, SqlRow } from './database'
 import { readText } from './database'
@@ -91,6 +92,7 @@ export type RecoverySupportReport = {
 
 export type RecoveryServiceOptions = {
   readonly store?: RecoveryArtifactStore
+  readonly epubAssetStore?: ManagedAssetStore
   readonly now?: () => Date
   readonly createId?: (kind: RecoveryArtifactKind | 'restore') => string
   readonly availableBytes?: () => Promise<number | undefined>
@@ -120,7 +122,9 @@ export class RecoveryService {
 
   constructor(database: SqlDatabase, options: RecoveryServiceOptions = {}) {
     this.#database = database
-    this.#portableArchives = new PortableArchiveService(database)
+    this.#portableArchives = new PortableArchiveService(database, {
+      ...(options.epubAssetStore ? { epubAssetStore: options.epubAssetStore } : {}),
+    })
     this.#store = options.store ?? createRecoveryArtifactStore()
     this.#now = options.now ?? (() => new Date())
     this.#createId = options.createId

@@ -1,6 +1,8 @@
 import { createStarterLibrary } from '../library-model'
 import { AudiobookImportService } from '../audiobooks'
 import { EpubImportService } from '../epub'
+import { EpubAssetLifecycleService } from '../epub/lifecycle'
+import { CapacitorManagedAssetStore } from '../epub/managed-store'
 import { openCapacitorDatabase } from './capacitor-database'
 import { CatalogRepository, ReadingLedgerRepository } from './catalog-repository'
 import type { SqlDatabase } from './database'
@@ -40,6 +42,7 @@ export type StorageRuntime = {
   readonly imports: ImportRepository
   readonly audiobooks: AudiobookImportService
   readonly epubs: EpubImportService
+  readonly epubAssets: EpubAssetLifecycleService
   readonly reader: EpubReaderService
   readonly playback: AudiobookPlaybackService
   readonly portableArchives: PortableArchiveService
@@ -60,7 +63,8 @@ export function getStorageRuntime(): Promise<StorageRuntime> {
 
 async function initializeStorageRuntime(): Promise<StorageRuntime> {
   const database = await openCapacitorDatabase()
-  const recovery = new RecoveryService(database)
+  const epubAssetStore = new CapacitorManagedAssetStore()
+  const recovery = new RecoveryService(database, { epubAssetStore })
   const recoveryLaunch = await recovery.beginPendingLaunch()
   await migrateStorage(database, { backupStore: createMigrationBackupStore() })
   const library = new LibraryRepository(database)
@@ -102,10 +106,11 @@ async function initializeStorageRuntime(): Promise<StorageRuntime> {
     upNext: new UpNextRepository(database),
     imports: new ImportRepository(database),
     audiobooks: new AudiobookImportService(database),
-    epubs: new EpubImportService(database),
+    epubs: new EpubImportService(database, { managedStore: epubAssetStore }),
+    epubAssets: new EpubAssetLifecycleService(database, { managedStore: epubAssetStore }),
     reader: new EpubReaderService(database, readingLedger),
     playback: new AudiobookPlaybackService(database),
-    portableArchives: new PortableArchiveService(database),
+    portableArchives: new PortableArchiveService(database, { epubAssetStore }),
     recovery,
     recoveryLaunch,
     ...(recoveryWarning ? { recoveryWarning } : {}),

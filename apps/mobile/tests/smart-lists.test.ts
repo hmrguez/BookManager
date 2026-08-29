@@ -201,7 +201,7 @@ describe('versioned explainable smart lists', () => {
     )
     const inspected = await inspectPortableArchive(bundle.archive)
 
-    expect(inspected.manifest.schemaVersion).toBe(6)
+    expect(inspected.manifest.schemaVersion).toBe(7)
     expect(inspected.manifest.entries.some(({ path }) => path === 'data/smart-lists.json')).toBe(true)
     expect(inspected.smartLists).toEqual([saved])
     expect(inspected.smartLists[0].definition).toEqual(futureDefinition)

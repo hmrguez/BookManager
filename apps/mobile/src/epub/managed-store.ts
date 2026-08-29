@@ -9,6 +9,8 @@ export type ManagedFileWrite = {
 
 export interface ManagedAssetStore {
   putAtomically(relativePath: string, bytes: Uint8Array, signal?: AbortSignal): Promise<ManagedFileWrite>
+  replaceAtomically(relativePath: string, bytes: Uint8Array, signal?: AbortSignal): Promise<ManagedFileWrite>
+  read(relativePath: string): Promise<Uint8Array | undefined>
   remove(relativePath: string): Promise<void>
 }
 
@@ -57,6 +59,52 @@ export class CapacitorManagedAssetStore implements ManagedAssetStore {
     assertManagedPath(relativePath)
     await deleteIfPresent(relativePath)
   }
+
+  async replaceAtomically(
+    relativePath: string,
+    bytes: Uint8Array,
+    signal?: AbortSignal,
+  ): Promise<ManagedFileWrite> {
+    assertManagedPath(relativePath)
+    throwIfEpubImportCanceled(signal)
+    const existed = await fileExists(relativePath)
+    const temporaryPath = `${relativePath}.replacement-${crypto.randomUUID()}`
+    try {
+      await writeManagedFile(temporaryPath, bytes)
+      throwIfEpubImportCanceled(signal)
+      await deleteIfPresent(relativePath)
+      await Filesystem.rename({
+        from: temporaryPath,
+        to: relativePath,
+        directory: Directory.LibraryNoCloud,
+        toDirectory: Directory.LibraryNoCloud,
+      })
+      return { relativePath, created: !existed }
+    } catch (error) {
+      await deleteIfPresent(temporaryPath)
+      if (error instanceof EpubImportError) throw error
+      throw new EpubImportError(
+        'storage-failed',
+        'The replacement EPUB could not be committed to private storage. Library records were left unchanged.',
+        { cause: error },
+      )
+    }
+  }
+
+  async read(relativePath: string): Promise<Uint8Array | undefined> {
+    assertManagedPath(relativePath)
+    try {
+      const result = await Filesystem.readFile({
+        path: relativePath,
+        directory: Directory.LibraryNoCloud,
+      })
+      return result.data instanceof Blob
+        ? new Uint8Array(await result.data.arrayBuffer())
+        : base64ToBytes(result.data)
+    } catch {
+      return undefined
+    }
+  }
 }
 
 export class MemoryManagedAssetStore implements ManagedAssetStore {
@@ -81,6 +129,27 @@ export class MemoryManagedAssetStore implements ManagedAssetStore {
 
   async remove(relativePath: string): Promise<void> {
     this.files.delete(relativePath)
+  }
+
+  async replaceAtomically(
+    relativePath: string,
+    bytes: Uint8Array,
+    signal?: AbortSignal,
+  ): Promise<ManagedFileWrite> {
+    assertManagedPath(relativePath)
+    throwIfEpubImportCanceled(signal)
+    if (this.failNextWrite) {
+      this.failNextWrite = false
+      throw new EpubImportError('storage-failed', 'Simulated managed-storage interruption.')
+    }
+    const created = !this.files.has(relativePath)
+    this.files.set(relativePath, bytes.slice())
+    return { relativePath, created }
+  }
+
+  async read(relativePath: string): Promise<Uint8Array | undefined> {
+    assertManagedPath(relativePath)
+    return this.files.get(relativePath)?.slice()
   }
 }
 
@@ -116,6 +185,20 @@ function bytesToBase64(bytes: Uint8Array): string {
     chunks.push(String.fromCharCode(...chunk))
   }
   return btoa(chunks.join(''))
+}
+
+function base64ToBytes(encoded: string): Uint8Array {
+  const binary = atob(encoded.replace(/^data:[^,]+,/, ''))
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0))
+}
+
+async function writeManagedFile(relativePath: string, bytes: Uint8Array): Promise<void> {
+  await Filesystem.writeFile({
+    path: relativePath,
+    directory: Directory.LibraryNoCloud,
+    recursive: true,
+    data: Capacitor.getPlatform() === 'web' ? new Blob([copyBuffer(bytes)]) : bytesToBase64(bytes),
+  })
 }
 
 function copyBuffer(bytes: Uint8Array): ArrayBuffer {

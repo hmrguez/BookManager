@@ -48,6 +48,7 @@ import {
   type EpubImportViewState,
   type RecoveryViewState,
 } from './settings/SettingsPage'
+import type { EpubStorageViewState } from './settings/EpubStorageCard'
 import { DetailSheet } from './work-detail/DetailSheet'
 import { AudiobookPlayer } from './playback/AudiobookPlayer'
 import {
@@ -144,6 +145,7 @@ function App() {
   const [importError, setImportError] = useState<string>()
   const [epubImport, setEpubImport] = useState<EpubImportViewState>({})
   const [epubBusy, setEpubBusy] = useState(false)
+  const [epubStorage, setEpubStorage] = useState<EpubStorageViewState>({ busy: false })
   const [audiobookImport, setAudiobookImport] = useState<AudiobookImportViewState>({})
   const [audiobookBusy, setAudiobookBusy] = useState(false)
   const [exportBusy, setExportBusy] = useState(false)
@@ -154,6 +156,7 @@ function App() {
   const [readerBusyBookId, setReaderBusyBookId] = useState<string>()
   const sheetTriggerRef = useRef<HTMLElement | null>(null)
   const epubAbortRef = useRef<AbortController | undefined>(undefined)
+  const epubRelinkSourceRef = useRef<EpubImportSource | undefined>(undefined)
   const audiobookAbortRef = useRef<AbortController | undefined>(undefined)
   const audiobookSourcesRef = useRef<readonly AudiobookImportSource[]>([])
   const recoveryArchiveRef = useRef<string | undefined>(undefined)
@@ -391,6 +394,7 @@ function App() {
     setView('settings')
     void refreshImportHistory()
     void refreshRecovery()
+    void refreshEpubStorage()
     window.scrollTo({ top: 0, behavior: motionScrollBehavior(appearance.motion) })
   }
 
@@ -417,6 +421,102 @@ function App() {
         error: error instanceof Error ? error.message : String(error),
       }))
     }
+  }
+
+  const refreshEpubStorage = async () => {
+    setEpubStorage((current) => ({ ...current, busy: true, error: undefined }))
+    try {
+      const inventory = await (await getStorageRuntime()).epubAssets.inventory()
+      setEpubStorage({ inventory, busy: false })
+    } catch (error) {
+      setEpubStorage((current) => ({
+        ...current,
+        busy: false,
+        error: error instanceof Error ? error.message : String(error),
+      }))
+    }
+  }
+
+  const previewEpubCleanup = async (assetIds?: readonly string[]) => {
+    setEpubStorage((current) => ({ ...current, busy: true, error: undefined, relinkPreview: undefined }))
+    try {
+      const cleanupPreview = await (await getStorageRuntime()).epubAssets.previewCleanup(assetIds)
+      setEpubStorage((current) => ({ ...current, busy: false, cleanupPreview }))
+    } catch (error) {
+      setEpubStorage((current) => ({
+        ...current,
+        busy: false,
+        error: error instanceof Error ? error.message : String(error),
+      }))
+    }
+  }
+
+  const confirmEpubCleanup = async () => {
+    const preview = epubStorage.cleanupPreview
+    if (!preview) return
+    setEpubStorage((current) => ({ ...current, busy: true, error: undefined }))
+    try {
+      const freedBytes = await (await getStorageRuntime()).epubAssets.cleanup(preview)
+      setToast({ message: `${formatStorageBytes(freedBytes)} freed; reading history and notes were kept` })
+      await refreshEpubStorage()
+    } catch (error) {
+      setEpubStorage((current) => ({
+        ...current,
+        busy: false,
+        error: error instanceof Error ? error.message : String(error),
+      }))
+    }
+  }
+
+  const previewEpubRelink = async (assetId: string, file: File) => {
+    setEpubStorage((current) => ({ ...current, busy: true, error: undefined, cleanupPreview: undefined }))
+    try {
+      const source = await epubSourceFromFile(file)
+      const relinkPreview = await (await getStorageRuntime()).epubAssets.previewRelink(assetId, source)
+      epubRelinkSourceRef.current = source
+      setEpubStorage((current) => ({ ...current, busy: false, relinkPreview }))
+    } catch (error) {
+      epubRelinkSourceRef.current = undefined
+      setEpubStorage((current) => ({
+        ...current,
+        busy: false,
+        error: error instanceof Error ? error.message : String(error),
+      }))
+    }
+  }
+
+  const confirmEpubRelink = async () => {
+    const preview = epubStorage.relinkPreview
+    const source = epubRelinkSourceRef.current
+    if (!preview || !source) return
+    setEpubStorage((current) => ({ ...current, busy: true, error: undefined }))
+    try {
+      const result = await (await getStorageRuntime()).epubAssets.relink(preview, source)
+      epubRelinkSourceRef.current = undefined
+      setToast({
+        message: result.kind === 'restored'
+          ? 'EPUB fingerprint verified and offline reading restored'
+          : 'Reviewed EPUB revision linked; history and notes were kept',
+      })
+      await refreshEpubStorage()
+      await reload()
+    } catch (error) {
+      setEpubStorage((current) => ({
+        ...current,
+        busy: false,
+        error: error instanceof Error ? error.message : String(error),
+      }))
+    }
+  }
+
+  const cancelEpubReview = () => {
+    epubRelinkSourceRef.current = undefined
+    setEpubStorage((current) => ({
+      ...current,
+      cleanupPreview: undefined,
+      relinkPreview: undefined,
+      error: undefined,
+    }))
   }
 
   const handleImportFile = async (file: File) => {
@@ -457,6 +557,7 @@ function App() {
         await reload()
         setSmartListCatalog(await runtime.catalog.read())
       }
+      await refreshEpubStorage()
       const duplicateCount = results.filter(({ outcome }) => outcome === 'duplicate').length
       const changedCount = results.length - duplicateCount
       setToast({
@@ -579,14 +680,21 @@ function App() {
     }
   }, [])
 
-  const handleExport = async (format: ExportFormat, includeAnnotations: boolean) => {
+  const handleExport = async (
+    format: ExportFormat,
+    includeAnnotations: boolean,
+    includeEpubFiles: boolean,
+  ) => {
     setExportBusy(true)
     setExportError(undefined)
     try {
       await reload()
-      const bundle = await (await getStorageRuntime()).portableArchives.create({
+      const runtime = await getStorageRuntime()
+      const assetContents = includeEpubFiles ? await runtime.epubAssets.backupContents() : []
+      const bundle = await runtime.portableArchives.create({
         includeAnnotations,
         includeSourcePayloads: false,
+        assetContents,
       })
       if (format === 'archive') {
         downloadTextFile(bundle.archive, `${bundle.filenameStem}.wovenleaf.json`, 'application/json')
@@ -597,7 +705,9 @@ function App() {
       }
       setToast({
         message: format === 'archive'
-          ? 'Portable archive verified and ready'
+          ? assetContents.length > 0
+            ? `Portable archive verified with ${assetContents.length} EPUB file${assetContents.length === 1 ? '' : 's'}`
+            : 'Portable archive verified; EPUB bytes are excluded'
           : `${format === 'csv' ? 'CSV' : 'Reading journal'} saved as a readable, lossy view`,
       })
     } catch (error) {
@@ -958,6 +1068,7 @@ function App() {
             importError={importError}
             epubImport={epubImport}
             epubBusy={epubBusy}
+            epubStorage={epubStorage}
             audiobookImport={audiobookImport}
             audiobookBusy={audiobookBusy}
             exportBusy={exportBusy}
@@ -973,12 +1084,18 @@ function App() {
               void importEpubSources(files.map((file) => () => epubSourceFromFile(file)))
             }}
             onCancelEpubImport={() => epubAbortRef.current?.abort()}
+            onRefreshEpubStorage={() => { void refreshEpubStorage() }}
+            onPreviewEpubCleanup={(assetIds) => { void previewEpubCleanup(assetIds) }}
+            onConfirmEpubCleanup={() => { void confirmEpubCleanup() }}
+            onCancelEpubReview={cancelEpubReview}
+            onPreviewEpubRelink={(assetId, file) => { void previewEpubRelink(assetId, file) }}
+            onConfirmEpubRelink={() => { void confirmEpubRelink() }}
             onPrepareAudiobookFiles={(files) => { void prepareAudiobookFiles(files) }}
             onCommitAudiobook={(review) => { void commitAudiobook(review) }}
             onCancelAudiobookImport={() => audiobookAbortRef.current?.abort()}
             onDismissAudiobookImport={dismissAudiobookImport}
             onUndoImport={(batchId) => { void undoImportBatch(batchId) }}
-            onExport={(format, includeAnnotations) => { void handleExport(format, includeAnnotations) }}
+            onExport={(format, includeAnnotations, includeEpubFiles) => { void handleExport(format, includeAnnotations, includeEpubFiles) }}
             onRecoveryFile={(file) => { void handleRecoveryFile(file) }}
             onCreateRecoveryPoint={() => { void createRecoveryPoint() }}
             onRestoreBackup={() => { void restoreBackup() }}
@@ -1168,6 +1285,12 @@ function audiobookResultToastMessage(result: { readonly outcome: string; readonl
   if (result.outcome === 'duplicate') return `${result.title} is already safely managed`
   if (result.outcome === 'revision') return `Revised audiobook linked to ${result.title} without losing progress`
   return `${result.title} is ready as one audiobook`
+}
+
+function formatStorageBytes(bytes: number): string {
+  if (bytes < 1_024) return `${bytes} B`
+  if (bytes < 1_048_576) return `${Math.ceil(bytes / 1_024)} KB`
+  return `${(bytes / 1_048_576).toFixed(1)} MB`
 }
 
 function isZipContainer(bytes: Uint8Array): boolean {
