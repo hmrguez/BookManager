@@ -68,6 +68,9 @@ class WovenleafReaderPlugin : Plugin() {
             putExtra(ReaderContract.GLOBAL_PREFERENCES, globalPreferences.toString())
             putExtra(ReaderContract.NAVIGATION_STATE, call.getObject("navigationState").toString())
             putExtra(ReaderContract.ANNOTATION_STATE, call.getObject("annotationState").toString())
+            call.getObject("compatibility")?.let {
+                putExtra(ReaderContract.COMPATIBILITY, it.toString())
+            }
             call.getObject("bookPreferences")?.let {
                 putExtra(ReaderContract.BOOK_PREFERENCES, it.toString())
             }
@@ -120,6 +123,7 @@ internal object ReaderContract {
     const val INITIAL_LOCATOR = "reader.initialLocator"
     const val NAVIGATION_STATE = "reader.navigationState"
     const val ANNOTATION_STATE = "reader.annotationState"
+    const val COMPATIBILITY = "reader.compatibility"
 }
 
 internal data class ReaderContext(
@@ -128,11 +132,58 @@ internal data class ReaderContext(
     val assetId: String,
     val assetFingerprint: String,
     val title: String,
+    val compatibility: ReaderPublicationProfile?,
     var globalPreferences: WovenleafReaderPreferences,
     var bookPreferences: WovenleafReaderPreferences?,
     val navigationState: ReaderNavigationState,
     val annotationState: ReaderAnnotationState,
 )
+
+internal data class ReaderPublicationProfile(
+    val layout: String,
+    val pageProgressionDirection: String,
+    val primaryLanguage: String,
+    val notices: List<String>,
+    val verticalWriting: Boolean,
+) {
+    val isRightToLeft: Boolean get() = pageProgressionDirection == "rtl"
+
+    fun renderingPreferences(source: WovenleafReaderPreferences): WovenleafReaderPreferences {
+        var result = source
+        if (layout == "fixed-layout" || layout == "mixed") {
+            result = result.copy(layout = "paginated", columnCount = "one", publisherStyles = true)
+        }
+        if (verticalWriting) {
+            result = result.copy(
+                layout = "paginated",
+                columnCount = "one",
+                textAlign = "start",
+                publisherStyles = true,
+            )
+        }
+        return result
+    }
+
+    companion object {
+        fun fromJson(json: JSONObject?): ReaderPublicationProfile? {
+            if (json == null || json.optInt("version") != 1) return null
+            val features = json.optJSONObject("features") ?: return null
+            val support = json.optJSONObject("support") ?: return null
+            val noticesJson = support.optJSONArray("notices") ?: JSONArray()
+            return ReaderPublicationProfile(
+                layout = json.optString("layout"),
+                pageProgressionDirection = json.optString("pageProgressionDirection"),
+                primaryLanguage = json.optString("primaryLanguage"),
+                notices = buildList {
+                    for (index in 0 until noticesJson.length()) {
+                        noticesJson.optString(index).takeIf(String::isNotBlank)?.let(::add)
+                    }
+                },
+                verticalWriting = features.optBoolean("verticalWriting"),
+            )
+        }
+    }
+}
 
 internal object ReaderOutbox {
     private const val PREFERENCES = "wovenleaf.reader"

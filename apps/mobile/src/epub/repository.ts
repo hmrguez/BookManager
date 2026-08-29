@@ -237,6 +237,7 @@ export class EpubImportRepository {
           packagePath: input.inspection.packagePath,
           entryCount: input.inspection.entryCount,
           scriptedContentDiscovered: input.inspection.containsScriptedContent,
+          compatibility: input.inspection.compatibility,
           replacedAssetId: association.previousImport?.content_asset_id,
         },
       }
@@ -404,6 +405,7 @@ function createSourceRecord(input: {
       packagePath: input.inspection.packagePath,
       creators: [...input.inspection.creators],
       containsScriptedContent: input.inspection.containsScriptedContent,
+      compatibility: input.inspection.compatibility,
     },
   })
   return { record, claimsByField }

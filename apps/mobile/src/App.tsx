@@ -493,7 +493,7 @@ function App() {
         title: book?.title ?? 'EPUB edition',
         message: error instanceof Error ? error.message : 'This EPUB could not be opened.',
         canRetry: !(error instanceof EpubReaderError)
-          || !['not-found', 'unavailable'].includes(error.code),
+          || !['not-found', 'unavailable', 'unsupported-content'].includes(error.code),
       })
       closeSheet()
     } finally {

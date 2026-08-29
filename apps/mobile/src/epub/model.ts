@@ -1,3 +1,5 @@
+import type { EpubCompatibilityProfile } from './compatibility'
+
 export const EPUB_MEDIA_TYPE = 'application/epub+zip'
 export const MAX_EPUB_ARCHIVE_BYTES = 256 * 1024 * 1024
 
@@ -29,6 +31,7 @@ export type EpubInspection = {
   readonly identifiers: readonly EpubIdentifier[]
   readonly cover?: EpubCover
   readonly containsScriptedContent: boolean
+  readonly compatibility: EpubCompatibilityProfile
 }
 
 export type EpubImportOutcome = 'imported' | 'revision' | 'duplicate'

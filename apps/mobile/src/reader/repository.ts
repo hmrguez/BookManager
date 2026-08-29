@@ -12,6 +12,7 @@ import { ReadingLedgerRepository } from '../storage/catalog-repository'
 import type { SqlDatabase, SqlRow } from '../storage/database'
 import { readNumber, readText } from '../storage/database'
 import { readLibraryBooks, writeLibraryBook } from '../storage/library-repository'
+import { epubCompatibilityProfileSchema } from '../epub/compatibility'
 import {
   DEFAULT_READER_PREFERENCES,
   annotationForReplacement,
@@ -42,6 +43,7 @@ type CapabilityRow = SqlRow & {
   readonly content_hash: string
   readonly original_name: string
   readonly asset_payload: string
+  readonly import_payload: string
 }
 
 type CheckpointRow = SqlRow & {
@@ -77,7 +79,7 @@ export class EpubReaderRepository {
   async capabilityForBook(bookId: string): Promise<EpubReaderCapability | undefined> {
     const [row] = await this.#database.query<CapabilityRow>(
       `SELECT i.book_id, i.edition_id, i.content_asset_id, i.content_hash, i.original_name,
-              a.payload_json AS asset_payload
+              a.payload_json AS asset_payload, i.payload_json AS import_payload
        FROM epub_imports i
        JOIN assets a ON a.id = i.content_asset_id
        WHERE i.book_id = ?
@@ -90,6 +92,12 @@ export class EpubReaderRepository {
       readonly location?: { readonly kind?: string; readonly relativePath?: string }
     }
     if (payload.location?.kind !== 'managed-file' || !payload.location.relativePath) return undefined
+    const importPayload = JSON.parse(readText(row, 'import_payload')) as {
+      readonly provenance?: { readonly compatibility?: unknown }
+    }
+    const compatibility = epubCompatibilityProfileSchema.safeParse(
+      importPayload.provenance?.compatibility,
+    )
     return {
       bookId: readText(row, 'book_id'),
       editionId: readText(row, 'edition_id'),
@@ -97,6 +105,7 @@ export class EpubReaderRepository {
       assetFingerprint: readText(row, 'content_hash'),
       relativePath: payload.location.relativePath,
       title: readText(row, 'original_name').replace(/\.epub$/i, ''),
+      ...(compatibility.success ? { compatibility: compatibility.data } : {}),
     }
   }
 

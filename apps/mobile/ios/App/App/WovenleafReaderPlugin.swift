@@ -57,6 +57,7 @@ final class WovenleafReaderPlugin: CAPPlugin, CAPBridgedPlugin {
             assetId: assetId,
             assetFingerprint: fingerprint,
             title: title,
+            compatibility: ReaderPublicationProfile(object: call.getObject("compatibility")),
             navigationState: navigationState,
             annotationState: annotationState
         )
@@ -146,8 +147,52 @@ struct ReaderContext {
     let assetId: String
     let assetFingerprint: String
     let title: String
+    let compatibility: ReaderPublicationProfile?
     let navigationState: ReaderNavigationState
     let annotationState: ReaderAnnotationCollection
+}
+
+struct ReaderPublicationProfile {
+    let layout: String
+    let pageProgressionDirection: String
+    let primaryLanguage: String
+    let notices: [String]
+    let verticalWriting: Bool
+
+    init?(object: [String: Any]?) {
+        guard
+            let object,
+            object["version"] as? Int == 1,
+            let layout = object["layout"] as? String,
+            let direction = object["pageProgressionDirection"] as? String,
+            let language = object["primaryLanguage"] as? String,
+            let features = object["features"] as? [String: Any],
+            let support = object["support"] as? [String: Any]
+        else { return nil }
+        self.layout = layout
+        pageProgressionDirection = direction
+        primaryLanguage = language
+        notices = support["notices"] as? [String] ?? []
+        verticalWriting = features["verticalWriting"] as? Bool ?? false
+    }
+
+    var isRightToLeft: Bool { pageProgressionDirection == "rtl" }
+
+    func renderingPreferences(_ source: WovenleafReaderPreferences) -> WovenleafReaderPreferences {
+        var result = source
+        if layout == "fixed-layout" || layout == "mixed" {
+            result.layout = .paginated
+            result.columnCount = .one
+            result.publisherStyles = true
+        }
+        if verticalWriting {
+            result.layout = .paginated
+            result.columnCount = .one
+            result.textAlign = .start
+            result.publisherStyles = true
+        }
+        return result
+    }
 }
 
 enum ReaderOutbox {

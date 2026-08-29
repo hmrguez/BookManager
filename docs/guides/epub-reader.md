@@ -103,3 +103,18 @@ The settings sheet supports Dynamic Type, scrolling at large accessibility sizes
 and high-contrast palettes. It deliberately leaves device brightness to the operating system and
 explains how to match the luminous display to ambient light; an LCD/OLED phone cannot reproduce the
 reflective front-light hardware of an e-ink panel.
+
+## Accessibility and international content
+
+Every new import now stores a versioned compatibility profile before native open. Reflowable RTL,
+bidi, CJK, ruby, semantic structure, MathML, SVG, tables, footnotes, fixed or mixed layout,
+vertical writing, media overlays, scripted content, foreign spine resources, and accessibility
+discoverability metadata all have explicit detection. Unsupported reading orders are stopped before
+Readium can present a blank page; limited features open behind an honest, reusable explanation.
+
+Page controls and keyboard arrows follow RTL spine progression. Fixed and vertical publications
+keep publisher styling, pagination, start alignment, and a single column so appearance overrides do
+not corrupt their layout. The native selection menu also hands a selected passage to system
+read-aloud in the publication language. The complete support table, licensed corpus policy, and
+physical VoiceOver/TalkBack matrix are documented in
+[EPUB accessibility and international reading](epub-accessibility-and-compatibility.md).

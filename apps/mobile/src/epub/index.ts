@@ -2,6 +2,23 @@ export { epubSourceFromFile, epubSourceFromIncomingUrl } from './incoming'
 export type { EpubImportSource } from './incoming'
 export { inspectEpub, EPUB_SAFETY_LIMITS } from './inspect'
 export {
+  EPUB_COMPATIBILITY_NOTICES,
+  createEpubCompatibilityProfile,
+  epubCompatibilityProfileSchema,
+  epubContentFeaturesSchema,
+  epubLayoutSchema,
+  epubPageProgressionSchema,
+  epubSupportLevelSchema,
+  epubUnsupportedMessage,
+} from './compatibility'
+export type {
+  EpubCompatibilityInput,
+  EpubCompatibilityProfile,
+  EpubContentFeatures,
+  EpubLayout,
+  EpubSupportLevel,
+} from './compatibility'
+export {
   CapacitorManagedAssetStore,
   MemoryManagedAssetStore,
 } from './managed-store'

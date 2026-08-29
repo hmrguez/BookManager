@@ -5,6 +5,7 @@ import type { SqlDatabase } from '../storage/database'
 import { nativeReader } from './bridge'
 import { EpubReaderError, nativeReaderEventSchema } from './model'
 import { EpubReaderRepository } from './repository'
+import { epubUnsupportedMessage } from '../epub/compatibility'
 
 export class EpubReaderService {
   readonly #repository: EpubReaderRepository
@@ -21,6 +22,12 @@ export class EpubReaderService {
     const capability = await this.#repository.capabilityForBook(bookId)
     if (!capability) {
       throw new EpubReaderError('not-found', 'No readable EPUB is attached to this book.')
+    }
+    const unsupportedMessage = capability.compatibility
+      ? epubUnsupportedMessage(capability.compatibility)
+      : undefined
+    if (unsupportedMessage) {
+      throw new EpubReaderError('unsupported-content', unsupportedMessage)
     }
     try {
       await Filesystem.stat({ path: capability.relativePath, directory: Directory.LibraryNoCloud })

@@ -6,6 +6,7 @@ import type {
   ReaderPreferences,
   ReadiumLocator,
 } from './model'
+import type { EpubCompatibilityProfile } from '../epub/compatibility'
 
 type ReaderOpenOptions = {
   readonly bookId: string
@@ -19,6 +20,7 @@ type ReaderOpenOptions = {
   readonly navigationState: ReaderNavigationState
   readonly annotationState: ReaderAnnotationState
   readonly initialLocator?: ReadiumLocator
+  readonly compatibility?: EpubCompatibilityProfile
 }
 
 interface WovenleafReaderPlugin {

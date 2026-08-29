@@ -2,6 +2,12 @@ import { DOMParser } from '@xmldom/xmldom'
 import type { Document as XmlDocument, Element as XmlElement } from '@xmldom/xmldom'
 import JSZip, { type JSZipObject } from 'jszip'
 import {
+  createEpubCompatibilityProfile,
+  type EpubCompatibilityProfile,
+  type EpubContentFeatures,
+  type EpubLayout,
+} from './compatibility'
+import {
   EPUB_MEDIA_TYPE,
   EpubImportError,
   MAX_EPUB_ARCHIVE_BYTES,
@@ -136,6 +142,16 @@ export async function inspectEpub(
     const properties = item.getAttribute('properties')?.split(/\s+/) ?? []
     return properties.includes('scripted') || item.getAttribute('media-type') === 'application/javascript'
   })
+  const compatibility = await inspectCompatibility({
+    archive,
+    entries: centralByName,
+    packageDocument,
+    packagePath,
+    language,
+    manifestItems,
+    spineItems,
+    containsScriptedContent,
+  })
 
   onProgress?.({ stage: 'fingerprinting', fileName, detail: 'Fingerprinting the original package' })
   const contentHash = await sha256(bytes)
@@ -157,7 +173,198 @@ export async function inspectEpub(
     identifiers,
     ...(cover ? { cover } : {}),
     containsScriptedContent,
+    compatibility,
   }
+}
+
+type ManifestRecord = {
+  readonly id: string
+  readonly href: string
+  readonly mediaType: string
+  readonly fallback?: string
+  readonly mediaOverlay?: string
+}
+
+const READABLE_SPINE_MEDIA_TYPES = new Set([
+  'application/xhtml+xml',
+  'image/svg+xml',
+])
+const MAX_COMPATIBILITY_RESOURCE_BYTES = 8 * 1024 * 1024
+const MAX_COMPATIBILITY_TOTAL_BYTES = 32 * 1024 * 1024
+
+async function inspectCompatibility(input: {
+  readonly archive: JSZip
+  readonly entries: ReadonlyMap<string, CentralEntry>
+  readonly packageDocument: XmlDocument
+  readonly packagePath: string
+  readonly language: string
+  readonly manifestItems: readonly XmlElement[]
+  readonly spineItems: readonly XmlElement[]
+  readonly containsScriptedContent: boolean
+}): Promise<EpubCompatibilityProfile> {
+  const manifest = new Map<string, ManifestRecord>()
+  for (const item of input.manifestItems) {
+    const id = item.getAttribute('id')?.trim() ?? ''
+    const href = item.getAttribute('href')?.trim() ?? ''
+    const mediaType = item.getAttribute('media-type')?.trim().toLocaleLowerCase() ?? ''
+    if (!id || !href || !mediaType) continue
+    manifest.set(id, {
+      id,
+      href,
+      mediaType,
+      ...(item.getAttribute('fallback')?.trim()
+        ? { fallback: item.getAttribute('fallback')?.trim() }
+        : {}),
+      ...(item.getAttribute('media-overlay')?.trim()
+        ? { mediaOverlay: item.getAttribute('media-overlay')?.trim() }
+        : {}),
+    })
+  }
+
+  const spineMediaTypes: string[] = []
+  const unsupportedSpineMediaTypes: string[] = []
+  const readableResources: ManifestRecord[] = []
+  let fallbackSpineItemCount = 0
+  for (const spineItem of input.spineItems) {
+    const item = manifest.get(spineItem.getAttribute('idref')?.trim() ?? '')
+    if (!item) continue
+    spineMediaTypes.push(item.mediaType)
+    const resolved = resolveReadableManifestItem(item, manifest)
+    if (!resolved) {
+      unsupportedSpineMediaTypes.push(item.mediaType)
+      continue
+    }
+    if (resolved.id !== item.id) fallbackSpineItemCount += 1
+    const path = resolvePackageHref(input.packagePath, resolved.href)
+    requireFile(input.archive, path)
+    readableResources.push(resolved)
+  }
+
+  const sources = await compatibilitySources(
+    input.archive,
+    input.entries,
+    input.packagePath,
+    [...readableResources, ...manifest.values()].filter((item) =>
+      READABLE_SPINE_MEDIA_TYPES.has(item.mediaType) || item.mediaType === 'text/css',
+    ),
+  )
+  const combined = sources.join('\n')
+  const pageProgressionDirection = readPageProgressionDirection(input.packageDocument)
+  const accessibility = readAccessibilityMetadata(input.packageDocument)
+  const features: EpubContentFeatures = {
+    bidirectionalText: pageProgressionDirection === 'rtl'
+      || isRightToLeftLanguage(input.language)
+      || /\b(?:dir\s*=\s*["']?(?:rtl|auto)|unicode-bidi\s*:|direction\s*:\s*rtl)|[\u0590-\u08ff]/iu.test(combined),
+    verticalWriting: /(?:-epub-|-webkit-)?writing-mode\s*:\s*(?:vertical|sideways)|\bwriting-mode\s*=\s*["']?(?:vertical|tb-)/iu.test(combined),
+    ruby: /<(?:[a-z][\w.-]*:)?ruby\b/iu.test(combined),
+    footnotes: /(?:epub:type|role)\s*=\s*["'][^"']*(?:noteref|footnote|endnote|doc-noteref|doc-footnote)/iu.test(combined),
+    mathml: /<(?:[a-z][\w.-]*:)?math\b/iu.test(combined),
+    svg: readableResources.some(({ mediaType }) => mediaType === 'image/svg+xml')
+      || /<(?:[a-z][\w.-]*:)?svg\b/iu.test(combined),
+    complexTables: /<table\b/iu.test(combined)
+      && /\b(?:rowspan|colspan|headers|scope)\s*=/iu.test(combined),
+    mediaOverlays: [...manifest.values()].some(({ mediaOverlay, mediaType }) =>
+      Boolean(mediaOverlay) || mediaType === 'application/smil+xml',
+    ),
+    scriptedContent: input.containsScriptedContent || /<script\b/iu.test(combined),
+    semanticStructure: /<(?:h[1-6]|main|nav|section|article|aside)\b|(?:epub:type|role)\s*=/iu.test(combined),
+  }
+
+  return createEpubCompatibilityProfile({
+    layout: readLayout(input.packageDocument, input.spineItems),
+    pageProgressionDirection,
+    primaryLanguage: input.language,
+    spineMediaTypes,
+    unsupportedSpineMediaTypes,
+    fallbackSpineItemCount,
+    readableSpineItemCount: readableResources.length,
+    accessibility,
+    features,
+  })
+}
+
+function resolveReadableManifestItem(
+  initial: ManifestRecord,
+  manifest: ReadonlyMap<string, ManifestRecord>,
+): ManifestRecord | undefined {
+  const visited = new Set<string>()
+  let item: ManifestRecord | undefined = initial
+  while (item && !visited.has(item.id)) {
+    visited.add(item.id)
+    if (READABLE_SPINE_MEDIA_TYPES.has(item.mediaType)) return item
+    item = item.fallback ? manifest.get(item.fallback) : undefined
+  }
+  return undefined
+}
+
+async function compatibilitySources(
+  archive: JSZip,
+  entries: ReadonlyMap<string, CentralEntry>,
+  packagePath: string,
+  resources: readonly ManifestRecord[],
+): Promise<string[]> {
+  const sources: string[] = []
+  const paths = new Set<string>()
+  let inspectedBytes = 0
+  for (const resource of resources) {
+    const path = resolvePackageHref(packagePath, resource.href)
+    if (paths.has(path)) continue
+    paths.add(path)
+    const entry = entries.get(path)
+    if (!entry || entry.uncompressedSize > MAX_COMPATIBILITY_RESOURCE_BYTES) continue
+    if (inspectedBytes + entry.uncompressedSize > MAX_COMPATIBILITY_TOTAL_BYTES) break
+    const file = archive.file(path)
+    if (!file) continue
+    sources.push(await file.async('text'))
+    inspectedBytes += entry.uncompressedSize
+  }
+  return sources
+}
+
+function readLayout(document: XmlDocument, spineItems: readonly XmlElement[]): EpubLayout {
+  const globalLayout = metadataPropertyValues(document, 'layout')
+    .find((value) => value === 'pre-paginated' || value === 'reflowable')
+  const overrides = spineItems.map((item) => item.getAttribute('properties')?.split(/\s+/) ?? [])
+  const hasFixedOverride = overrides.some((values) => values.includes('rendition:layout-pre-paginated'))
+  const hasReflowableOverride = overrides.some((values) => values.includes('rendition:layout-reflowable'))
+  if (globalLayout === 'pre-paginated') return hasReflowableOverride ? 'mixed' : 'fixed-layout'
+  return hasFixedOverride ? 'mixed' : 'reflowable'
+}
+
+function readPageProgressionDirection(document: XmlDocument): 'default' | 'ltr' | 'rtl' {
+  const value = elements(document, 'spine')[0]?.getAttribute('page-progression-direction')?.trim()
+  return value === 'ltr' || value === 'rtl' ? value : 'default'
+}
+
+function readAccessibilityMetadata(document: XmlDocument) {
+  const accessModes = metadataPropertyValues(document, 'accessMode')
+  const features = metadataPropertyValues(document, 'accessibilityFeature')
+  const hazards = metadataPropertyValues(document, 'accessibilityHazard')
+  const summary = metadataPropertyValues(document, 'accessibilitySummary')[0]
+  const conformsTo = metadataPropertyValues(document, 'conformsTo')
+  return {
+    accessModes,
+    features,
+    hazards,
+    ...(summary ? { summary } : {}),
+    conformsTo,
+    hasDiscoverabilityMetadata: accessModes.length > 0 && features.length > 0 && hazards.length > 0,
+  }
+}
+
+function metadataPropertyValues(document: XmlDocument, localProperty: string): string[] {
+  const expected = localProperty.toLocaleLowerCase()
+  return [...new Set(elements(document, 'meta').flatMap((meta) => {
+    const property = meta.getAttribute('property') ?? meta.getAttribute('name') ?? ''
+    const normalized = property.split(/[:/#]/).at(-1)?.toLocaleLowerCase()
+    if (normalized !== expected) return []
+    const value = textContent(meta) || meta.getAttribute('content')?.trim() || ''
+    return value ? [value] : []
+  }))]
+}
+
+function isRightToLeftLanguage(language: string): boolean {
+  return /^(?:ar|arc|dv|fa|ha|he|khw|ks|ku|ps|sd|ug|ur|yi)(?:-|$)/iu.test(language)
 }
 
 function validateInputIdentity(fileName: string, mediaType: string): void {

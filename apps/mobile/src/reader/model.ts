@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { EpubCompatibilityProfile } from '../epub/compatibility'
 
 const fractionSchema = z.number().min(0).max(1)
 
@@ -209,10 +210,11 @@ export type EpubReaderCapability = {
   readonly assetFingerprint: string
   readonly relativePath: string
   readonly title: string
+  readonly compatibility?: EpubCompatibilityProfile
 }
 
 export class EpubReaderError extends Error {
-  readonly code: 'unavailable' | 'not-found' | 'missing-asset' | 'corrupt-asset' | 'open-failed'
+  readonly code: 'unavailable' | 'not-found' | 'missing-asset' | 'corrupt-asset' | 'unsupported-content' | 'open-failed'
 
   constructor(code: EpubReaderError['code'], message: string, options?: ErrorOptions) {
     super(message, options)

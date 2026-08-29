@@ -9,6 +9,7 @@ import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
+import android.speech.tts.TextToSpeech
 import android.text.Html
 import android.text.TextUtils
 import android.util.Base64
@@ -59,6 +60,7 @@ import org.readium.r2.shared.util.toUrl
 import org.readium.r2.streamer.PublicationOpener
 import org.readium.r2.streamer.parser.DefaultPublicationParser
 import java.io.File
+import java.util.Locale
 import java.util.UUID
 
 @OptIn(ExperimentalReadiumApi::class)
@@ -92,6 +94,9 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
     private val sessionStartedAt = ReaderOutbox.timestamp()
     private val sessionStartedUptime = SystemClock.elapsedRealtime()
     private var sessionClosed = false
+    private var textToSpeech: TextToSpeech? = null
+    private var speechReady = false
+    private var presentedCompatibilityNotice = false
     private val annotationDecorationListener = object : DecorableNavigator.Listener {
         override fun onDecorationActivated(event: DecorableNavigator.OnActivatedEvent): Boolean {
             val annotation = readerContext.annotationState.annotations.firstOrNull {
@@ -109,6 +114,14 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         readerContext = readContext() ?: run {
             finish()
             return
+        }
+        textToSpeech = TextToSpeech(this) { status ->
+            speechReady = status == TextToSpeech.SUCCESS
+            if (speechReady) {
+                textToSpeech?.language = Locale.forLanguageTag(
+                    readerContext.compatibility?.primaryLanguage ?: Locale.getDefault().toLanguageTag(),
+                )
+            }
         }
         buildReaderChrome()
         openPublication()
@@ -130,6 +143,8 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         checkpointJob?.cancel()
         preferenceJob?.cancel()
         locationJob?.cancel()
+        textToSpeech?.stop()
+        textToSpeech?.shutdown()
         if (isFinishing) publication?.close()
         super.onDestroy()
     }
@@ -162,16 +177,28 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
                 createAnnotationFromSelection()
                 return true
             }
+            event.isCtrlPressed && event.isShiftPressed && event.keyCode == KeyEvent.KEYCODE_S -> {
+                readSelectionAloud()
+                return true
+            }
             event.isAltPressed && event.keyCode == KeyEvent.KEYCODE_DPAD_LEFT -> {
                 goBackInBook()
                 return true
             }
             event.keyCode == KeyEvent.KEYCODE_DPAD_LEFT -> {
-                navigator?.goBackward(animated = true)
+                if (readerContext.compatibility?.isRightToLeft == true) {
+                    navigator?.goForward(animated = true)
+                } else {
+                    navigator?.goBackward(animated = true)
+                }
                 return true
             }
             event.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                navigator?.goForward(animated = true)
+                if (readerContext.compatibility?.isRightToLeft == true) {
+                    navigator?.goBackward(animated = true)
+                } else {
+                    navigator?.goForward(animated = true)
+                }
                 return true
             }
         }
@@ -238,6 +265,12 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         attemptAnnotationReanchoring()
         loading.visibility = View.GONE
         texture.bringToFront()
+        if (!presentedCompatibilityNotice && readerContext.compatibility?.notices?.isNotEmpty() == true) {
+            presentedCompatibilityNotice = true
+            showCompatibilityNotice()
+        } else {
+            content.sendAccessibilityEvent(android.view.accessibility.AccessibilityEvent.TYPE_VIEW_FOCUSED)
+        }
 
         ReaderOutbox.enqueue(
             this,
@@ -260,7 +293,9 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         }
     }
 
-    private fun readerPreferences() = effectivePreferences().toReadium(
+    private fun readerPreferences() = (
+        readerContext.compatibility?.renderingPreferences(effectivePreferences()) ?: effectivePreferences()
+    ).toReadium(
         compactWidth = resources.configuration.screenWidthDp < 700,
         highContrast = isHighContrast(this),
     )
@@ -270,6 +305,7 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
             orientation = LinearLayout.VERTICAL
         }
         topChrome = LinearLayout(this).apply {
+            id = View.generateViewId()
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(12), dp(8), dp(12), dp(8))
@@ -287,6 +323,11 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
             contentDescription = "Add bookmark"
         }
         topChrome.addView(bookmarkButton)
+        if (readerContext.compatibility?.notices?.isNotEmpty() == true) {
+            topChrome.addView(textButton("Info") { showCompatibilityNotice() }.apply {
+                contentDescription = "Reading compatibility"
+            })
+        }
         appearanceButton = textButton("Aa") { showReaderSettings() }
         appearanceButton.contentDescription = "Reading appearance"
         appearanceButton.typeface = Typeface.create("serif", Typeface.BOLD)
@@ -306,6 +347,7 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         chrome.addView(content, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
 
         bottomChrome = LinearLayout(this).apply {
+            id = View.generateViewId()
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(12), dp(4), dp(12), dp(8))
@@ -345,15 +387,23 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         }
         progressGroup.addView(scrubber, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(36)))
         bottomChrome.addView(progressGroup, LinearLayout.LayoutParams(0, dp(64), 1f))
-        bottomChrome.addView(textButton("‹") { navigator?.goBackward(animated = true) }.apply {
+        bottomChrome.addView(textButton(if (readerContext.compatibility?.isRightToLeft == true) "›" else "‹") {
+            navigator?.goBackward(animated = true)
+        }.apply {
             textSize = 24f
             contentDescription = "Previous page"
         })
-        bottomChrome.addView(textButton("›") { navigator?.goForward(animated = true) }.apply {
+        bottomChrome.addView(textButton(if (readerContext.compatibility?.isRightToLeft == true) "‹" else "›") {
+            navigator?.goForward(animated = true)
+        }.apply {
             textSize = 24f
             contentDescription = "Next page"
         })
         chrome.addView(bottomChrome, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(76)))
+        topChrome.accessibilityTraversalBefore = content.id
+        content.accessibilityTraversalAfter = topChrome.id
+        content.accessibilityTraversalBefore = bottomChrome.id
+        bottomChrome.accessibilityTraversalAfter = content.id
         setContentView(chrome)
         applyChromePalette()
     }
@@ -492,17 +542,29 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
             menu.add(Menu.NONE, SELECTION_NOTE, 2, "Add note")
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
+            menu.add(Menu.NONE, SELECTION_READ_ALOUD, 3, "Read aloud")
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
             return true
         }
 
         override fun onPrepareActionMode(mode: ActionMode, menu: Menu): Boolean = false
 
         override fun onActionItemClicked(mode: ActionMode, item: MenuItem): Boolean {
-            if (item.itemId !in setOf(SELECTION_COPY, SELECTION_HIGHLIGHT, SELECTION_NOTE)) return false
+            if (item.itemId !in setOf(
+                    SELECTION_COPY,
+                    SELECTION_HIGHLIGHT,
+                    SELECTION_NOTE,
+                    SELECTION_READ_ALOUD,
+                )
+            ) return false
             val fragment = navigator ?: return false
             lifecycleScope.launch {
                 val selection = fragment.currentSelection()
-                if (item.itemId == SELECTION_COPY) copySelection(selection) else presentNewAnnotation(selection)
+                when (item.itemId) {
+                    SELECTION_COPY -> copySelection(selection)
+                    SELECTION_READ_ALOUD -> readSelection(selection)
+                    else -> presentNewAnnotation(selection)
+                }
                 fragment.clearSelection()
                 mode.finish()
             }
@@ -518,6 +580,28 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
         clipboard.setPrimaryClip(ClipData.newPlainText("Book passage", quote))
         content.announceForAccessibility("Passage copied")
+    }
+
+    private fun readSelectionAloud() {
+        val fragment = navigator ?: return
+        lifecycleScope.launch {
+            readSelection(fragment.currentSelection())
+            fragment.clearSelection()
+        }
+    }
+
+    private fun readSelection(selection: Selection?) {
+        val quote = selection?.locator?.text?.highlight?.trim().orEmpty()
+        if (quote.isEmpty()) {
+            readerMessage("Select a passage", "Select a passage first, then choose Read aloud.")
+            return
+        }
+        if (!speechReady) {
+            readerMessage("Read aloud unavailable", "The system speech service is not ready. Try again in a moment.")
+            return
+        }
+        textToSpeech?.speak(quote, TextToSpeech.QUEUE_FLUSH, null, "wovenleaf-selection")
+        content.announceForAccessibility("Reading selected passage aloud")
     }
 
     private fun createAnnotationFromSelection() {
@@ -941,6 +1025,20 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         AlertDialog.Builder(this).setTitle(title).setMessage(message).setPositiveButton("OK", null).show()
     }
 
+    private fun showCompatibilityNotice() {
+        val notices = readerContext.compatibility?.notices.orEmpty()
+        if (notices.isEmpty()) return
+        AlertDialog.Builder(this)
+            .setTitle("Reading this edition")
+            .setMessage(notices.joinToString("\n\n"))
+            .setPositiveButton("Continue") { _, _ ->
+                content.sendAccessibilityEvent(
+                    android.view.accessibility.AccessibilityEvent.TYPE_VIEW_FOCUSED,
+                )
+            }
+            .show()
+    }
+
     private fun flushLocation() {
         checkpointJob?.cancel()
         checkpointJob = null
@@ -998,12 +1096,16 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
             ?.let { runCatching { JSONObject(it) }.getOrNull() }
             ?.let(ReaderAnnotationState::fromJson)
             ?: return null
+        val compatibility = intent.getStringExtra(ReaderContract.COMPATIBILITY)
+            ?.let { runCatching { JSONObject(it) }.getOrNull() }
+            ?.let(ReaderPublicationProfile::fromJson)
         return ReaderContext(
             bookId,
             editionId,
             assetId,
             fingerprint,
             title,
+            compatibility,
             globalPreferences,
             bookPreferences,
             navigationState,
@@ -1092,6 +1194,7 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         private const val SELECTION_COPY = 9_301
         private const val SELECTION_HIGHLIGHT = 9_302
         private const val SELECTION_NOTE = 9_303
+        private const val SELECTION_READ_ALOUD = 9_304
         private const val IMAGE_ACTIVATION_SCRIPT = """
             (() => {
               if (window.__wovenleafImageZoom) return;

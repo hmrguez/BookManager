@@ -1,4 +1,5 @@
 @_spi(ExperimentalTargetElement) import ReadiumNavigator
+import AVFoundation
 import ReadiumShared
 import UIKit
 
@@ -23,6 +24,8 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
     private var pendingJumpOrigin: Locator?
     private var restoringHistory = false
     private var inputObserverTokens: Set<InputObservableToken> = []
+    private let speechSynthesizer = AVSpeechSynthesizer()
+    private var presentedCompatibilityNotice = false
     private let progressControl = ReaderProgressControl()
     private lazy var historyButton = UIBarButtonItem(
         image: UIImage(systemName: "arrow.uturn.backward"),
@@ -52,7 +55,9 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         self.bookPreferences = bookPreferences
         navigationState = context.navigationState
         annotationState = context.annotationState
-        let preferences = bookPreferences ?? globalPreferences
+        let preferences = context.compatibility?.renderingPreferences(bookPreferences ?? globalPreferences)
+            ?? bookPreferences
+            ?? globalPreferences
         self.navigator = try EPUBNavigatorViewController(
             publication: publication,
             initialLocation: initialLocator,
@@ -64,6 +69,7 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
                 editingActions: EditingAction.defaultActions + [
                     EditingAction(title: "Highlight", action: #selector(createHighlight(_:))),
                     EditingAction(title: "Add Note", action: #selector(createPassageNote(_:))),
+                    EditingAction(title: "Read Aloud", action: #selector(readSelectionAloud(_:))),
                 ]
             )
         )
@@ -92,7 +98,17 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         )
         appearanceButton.accessibilityLabel = "Reading appearance"
         bookmarkButton.accessibilityLabel = "Add bookmark"
-        navigationItem.rightBarButtonItems = [appearanceButton, bookmarkButton]
+        let compatibilityButton = context.compatibility?.notices.isEmpty == false
+            ? UIBarButtonItem(
+                image: UIImage(systemName: "info.circle"),
+                style: .plain,
+                target: self,
+                action: #selector(showCompatibilityNotice)
+            )
+            : nil
+        compatibilityButton?.accessibilityLabel = "Reading compatibility"
+        navigationItem.rightBarButtonItems = [appearanceButton, compatibilityButton, bookmarkButton]
+            .compactMap { $0 }
 
         addChild(navigator)
         navigator.view.translatesAutoresizingMaskIntoConstraints = false
@@ -134,13 +150,13 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
             UIBarButtonItem(customView: progressControl),
             UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil),
             UIBarButtonItem(
-                image: UIImage(systemName: "chevron.backward"),
+                image: UIImage(systemName: context.compatibility?.isRightToLeft == true ? "chevron.right" : "chevron.left"),
                 style: .plain,
                 target: self,
                 action: #selector(previousPage)
             ),
             UIBarButtonItem(
-                image: UIImage(systemName: "chevron.forward"),
+                image: UIImage(systemName: context.compatibility?.isRightToLeft == true ? "chevron.left" : "chevron.right"),
                 style: .plain,
                 target: self,
                 action: #selector(nextPage)
@@ -168,6 +184,16 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         ReaderOutbox.enqueue(kind: "start", context: context, sessionId: sessionId, locator: initialLocator)
     }
 
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        if !presentedCompatibilityNotice, context.compatibility?.notices.isEmpty == false {
+            presentedCompatibilityNotice = true
+            showCompatibilityNotice()
+        } else {
+            UIAccessibility.post(notification: .screenChanged, argument: navigator.view)
+        }
+    }
+
     override var preferredStatusBarStyle: UIStatusBarStyle {
         effectivePreferences.theme == .graphite ? .lightContent : .darkContent
     }
@@ -175,13 +201,20 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
     override var canBecomeFirstResponder: Bool { true }
 
     override var keyCommands: [UIKeyCommand]? {
-        [
-            UIKeyCommand(input: UIKeyCommand.inputLeftArrow, modifierFlags: [], action: #selector(previousPage)),
-            UIKeyCommand(input: UIKeyCommand.inputRightArrow, modifierFlags: [], action: #selector(nextPage)),
+        let previousKey = context.compatibility?.isRightToLeft == true
+            ? UIKeyCommand.inputRightArrow
+            : UIKeyCommand.inputLeftArrow
+        let nextKey = context.compatibility?.isRightToLeft == true
+            ? UIKeyCommand.inputLeftArrow
+            : UIKeyCommand.inputRightArrow
+        return [
+            UIKeyCommand(input: previousKey, modifierFlags: [], action: #selector(previousPage)),
+            UIKeyCommand(input: nextKey, modifierFlags: [], action: #selector(nextPage)),
             UIKeyCommand(input: "f", modifierFlags: .command, action: #selector(showReaderOutline)),
             UIKeyCommand(input: "b", modifierFlags: .command, action: #selector(toggleBookmark)),
             UIKeyCommand(input: "h", modifierFlags: [.command, .shift], action: #selector(createHighlight(_:))),
             UIKeyCommand(input: "n", modifierFlags: [.command, .shift], action: #selector(createPassageNote(_:))),
+            UIKeyCommand(input: "s", modifierFlags: [.command, .shift], action: #selector(readSelectionAloud(_:))),
             UIKeyCommand(input: "[", modifierFlags: .command, action: #selector(goBackInBook)),
             UIKeyCommand(input: UIKeyCommand.inputEscape, modifierFlags: [], action: #selector(handleEscape)),
         ]
@@ -397,6 +430,7 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
             navigator.removeObserver(token)
         }
         inputObserverTokens.removeAll()
+        speechSynthesizer.stopSpeaking(at: .immediate)
         flushPreference()
         flushLocation()
         let endedAt = Date()
@@ -487,6 +521,40 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
 
     @objc private func createPassageNote(_ sender: Any?) {
         createAnnotationFromSelection()
+    }
+
+    @objc private func readSelectionAloud(_ sender: Any?) {
+        guard let quote = navigator.currentSelection?.locator.text.highlight?
+            .trimmingCharacters(in: .whitespacesAndNewlines), !quote.isEmpty
+        else {
+            presentReaderMessage(
+                title: "Select a passage",
+                message: "Select a passage first, then choose Read Aloud."
+            )
+            return
+        }
+        speechSynthesizer.stopSpeaking(at: .immediate)
+        let utterance = AVSpeechUtterance(string: quote)
+        if let language = context.compatibility?.primaryLanguage {
+            utterance.voice = AVSpeechSynthesisVoice(language: language)
+        }
+        speechSynthesizer.speak(utterance)
+        navigator.clearSelection()
+        UIAccessibility.post(notification: .announcement, argument: "Reading selected passage aloud")
+    }
+
+    @objc private func showCompatibilityNotice() {
+        guard let profile = context.compatibility, !profile.notices.isEmpty else { return }
+        let alert = UIAlertController(
+            title: "Reading this edition",
+            message: profile.notices.joined(separator: "\n\n"),
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "Continue", style: .default) { [weak self] _ in
+            guard let self else { return }
+            UIAccessibility.post(notification: .screenChanged, argument: self.navigator.view)
+        })
+        present(alert, animated: !UIAccessibility.isReduceMotionEnabled)
     }
 
     private func createAnnotationFromSelection() {
@@ -877,7 +945,9 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
     }
 
     private func applyPreferences() {
-        navigator.submitPreferences(effectivePreferences.readiumPreferences(
+        let renderingPreferences = context.compatibility?.renderingPreferences(effectivePreferences)
+            ?? effectivePreferences
+        navigator.submitPreferences(renderingPreferences.readiumPreferences(
             compactWidth: traitCollection.horizontalSizeClass == .compact,
             highContrast: UIAccessibility.isDarkerSystemColorsEnabled
         ))
