@@ -31,6 +31,7 @@ export class EpubImportService {
     options: {
       readonly signal?: AbortSignal
       readonly onProgress?: (progress: EpubImportProgress) => void
+      readonly targetBookId?: string
     } = {},
   ): Promise<EpubImportResult> {
     const { signal, onProgress } = options
@@ -66,6 +67,7 @@ export class EpubImportService {
         originalName: source.name,
         inspection,
         contentRelativePath,
+        ...(options.targetBookId ? { targetBookId: options.targetBookId } : {}),
         ...(coverRelativePath ? { coverRelativePath } : {}),
       })
       onProgress?.({

@@ -10,7 +10,7 @@ import {
 } from './design-system'
 import { ImportReviewPage } from './imports/ImportReviewPage'
 import type { ImportBatchSummary, ImportPreview, ImportReviewDecision } from './imports'
-import { useLibrary, type BookSearchResult, type ShelfId } from './library'
+import { useLibrary, type BookSearchResult, type LibraryBook, type ShelfId } from './library'
 import { useOrganization, type ShelfDraft } from './organization'
 import { tagsForBook, type CustomShelf } from './organization-model'
 import {
@@ -69,9 +69,11 @@ import {
   audiobookImportErrorMessage,
   audiobookSourceFromIncomingUrl,
   audiobookSourcesFromFiles,
+  defaultAudiobookReview,
   type AudiobookImportReview,
   type AudiobookImportSource,
 } from './audiobooks'
+import { FEATURES } from './app/feature-flags'
 import { extractValidIsbn, listenForSharedIsbn } from './capture'
 import { enrichCapturedBook } from './capture'
 import { getMetadataSearchService } from './metadata'
@@ -116,7 +118,6 @@ function App() {
     addQueueBook,
     removeQueueBook,
     moveQueueBook,
-    togglePinnedBook,
     setReasonState,
     dismissSuggestion,
     restoreSuggestion,
@@ -246,6 +247,7 @@ function App() {
 
   const prepareAudiobookSources = async (
     loadSources: () => Promise<readonly AudiobookImportSource[]>,
+    targetBook?: LibraryBook,
   ) => {
     if (audiobookBusy) return
     const controller = new AbortController()
@@ -260,7 +262,27 @@ function App() {
         signal: controller.signal,
         onProgress: (progress) => setAudiobookImport({ progress }),
       })
-      setAudiobookImport({ draft })
+      if (!targetBook) {
+        setAudiobookImport({ draft })
+        return
+      }
+      const review = {
+        ...defaultAudiobookReview(draft),
+        title: targetBook.title,
+        authors: targetBook.authors,
+        orderConfirmed: true,
+      }
+      const runtime = await getStorageRuntime()
+      const result = await runtime.audiobooks.import(sources, review, {
+        signal: controller.signal,
+        targetBookId: targetBook.id,
+        onProgress: (progress) => setAudiobookImport({ progress }),
+      })
+      audiobookSourcesRef.current = []
+      setAudiobookImport({ result })
+      await reload()
+      setSmartListCatalog(await runtime.catalog.read())
+      setToast({ message: `Audiobook attached to ${targetBook.title}` })
     } catch (error) {
       audiobookSourcesRef.current = []
       const message = audiobookImportErrorMessage(error)
@@ -275,6 +297,11 @@ function App() {
   const prepareAudiobookFiles = (files: readonly File[]) => {
     if (files.length === 0) return
     return prepareAudiobookSources(() => audiobookSourcesFromFiles(files))
+  }
+
+  const attachAudiobookFiles = (book: LibraryBook, files: readonly File[]) => {
+    if (files.length === 0) return
+    return prepareAudiobookSources(() => audiobookSourcesFromFiles(files), book)
   }
 
   const commitAudiobook = async (review: AudiobookImportReview) => {
@@ -537,6 +564,7 @@ function App() {
 
   const importEpubSources = async (
     sources: readonly (() => Promise<EpubImportSource>)[],
+    targetBookId?: string,
   ) => {
     if (epubBusy || sources.length === 0) return
     const controller = new AbortController()
@@ -550,6 +578,7 @@ function App() {
         const source = await loadSource()
         const result = await runtime.epubs.import(source, {
           signal: controller.signal,
+          ...(targetBookId ? { targetBookId } : {}),
           onProgress: (progress) => setEpubImport({ progress }),
         })
         results.push(result)
@@ -560,8 +589,11 @@ function App() {
       await refreshEpubStorage()
       const duplicateCount = results.filter(({ outcome }) => outcome === 'duplicate').length
       const changedCount = results.length - duplicateCount
+      const targetBook = targetBookId ? books.find(({ id }) => id === targetBookId) : undefined
       setToast({
-        message: results.length === 1
+        message: targetBook && results.length === 1
+          ? `EPUB attached to ${targetBook.title}`
+          : results.length === 1
           ? resultToastMessage(results[0])
           : `${changedCount} EPUB${changedCount === 1 ? '' : 's'} added or revised; ${duplicateCount} already managed`,
       })
@@ -1044,7 +1076,6 @@ function App() {
             onFinish={handleFinish}
             onRate={(id, rating) => updateBook(id, { rating })}
             onMoveQueueBook={moveQueueBook}
-            onTogglePinnedBook={togglePinnedBook}
             onDismissSuggestion={dismissSuggestion}
             onReasonState={setReasonState}
           />
@@ -1191,6 +1222,17 @@ function App() {
             closeSheet()
             setToast({ message: 'Removed from your library' })
           }}
+          onAttachEpub={(files) => {
+            void importEpubSources(
+              files.map((file) => () => epubSourceFromFile(file)),
+              selectedBook.id,
+            )
+          }}
+          onAttachAudiobook={(files) => { void attachAudiobookFiles(selectedBook, files) }}
+          epubBusy={epubBusy}
+          epubImport={epubImport}
+          audiobookBusy={audiobookBusy}
+          audiobookImport={audiobookImport}
         />
       )}
       {sheet?.kind === 'audiobook-player' && selectedBook && (
@@ -1210,7 +1252,7 @@ function App() {
           onDelete={deleteCustomShelf}
         />
       )}
-      {sheet?.kind === 'smart-list' && (
+      {FEATURES.smartLists && sheet?.kind === 'smart-list' && (
         <Sheet title={selectedSmartList ? `Edit ${selectedSmartList.name}` : 'New smart list'} onClose={closeSheet} tall>
           <SmartListEditor
             key={sheet.smartListId ?? 'new-smart-list'}
@@ -1226,7 +1268,7 @@ function App() {
           </datalist>
         </Sheet>
       )}
-      {sheet?.kind === 'up-next' && (
+      {FEATURES.assistedUpNext && sheet?.kind === 'up-next' && (
         <Sheet title="How should Up Next help?" onClose={closeSheet} tall>
           <UpNextSettings
             state={upNext}

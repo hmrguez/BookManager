@@ -45,6 +45,7 @@ import type {
 } from '../audiobooks'
 import type { RecoveryBackupPreview } from '../storage'
 import { EpubStorageCard, type EpubStorageViewState } from './EpubStorageCard'
+import { FEATURES } from '../app/feature-flags'
 
 export type EpubImportViewState = {
   readonly progress?: EpubImportProgress
@@ -182,11 +183,8 @@ export function SettingsPage({
   return (
     <main className={tw('settings-page', motionStyles.navigate)} data-motion-event="navigate">
       <header className={tw('settings-header')}>
-        <div className={tw('app-header__meta')}>
-          <span>Wovenleaf</span><i aria-hidden="true" /><span>Local preferences</span>
-        </div>
         <div className={tw('title-row')}>
-          <div><p>Quiet controls for a private library</p><h1 tabIndex={-1}>Settings</h1></div>
+          <h1 tabIndex={-1}>Settings</h1>
           <button className={tw('header-search')} type="button" onClick={onBack} aria-label="Back to my books">
             <Library aria-hidden="true" />
           </button>
@@ -194,6 +192,8 @@ export function SettingsPage({
       </header>
 
       <div className={tw('settings-ledger')}>
+        {FEATURES.advancedFileManagement && (
+          <>
         <section
           className={tw(`settings-card epub-intake${epubDropActive ? ' is-dragging' : ''}`)}
           onDragEnter={(event) => {
@@ -369,6 +369,8 @@ export function SettingsPage({
             />
           )}
         </section>
+          </>
+        )}
 
         <section className={tw('settings-card settings-card--appearance')}>
           <div className={tw('settings-card__icon')}><Palette aria-hidden="true" /></div>

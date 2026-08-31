@@ -144,11 +144,6 @@ export function orderedUpNextBooks(
   const known = new Set(ordered.map(({ id }) => id))
   ordered.push(...nextBooks.filter(({ id }) => !known.has(id)))
 
-  if (!state.pinnedBookId) return ordered
-  const pinnedIndex = ordered.findIndex(({ id }) => id === state.pinnedBookId)
-  if (pinnedIndex <= 0) return ordered
-  const [pinned] = ordered.splice(pinnedIndex, 1)
-  ordered.unshift(pinned)
   return ordered
 }
 

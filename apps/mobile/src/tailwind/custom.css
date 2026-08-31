@@ -82,9 +82,9 @@ textarea:focus {
 }
 
 input:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 3px;
-  box-shadow: 0 0 0 1px var(--focus-halo);
+  outline: none;
+  box-shadow: none;
+  border-color: var(--border-strong);
 }
 
 textarea:focus-visible {

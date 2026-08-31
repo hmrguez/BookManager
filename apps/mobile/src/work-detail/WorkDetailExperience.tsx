@@ -42,6 +42,22 @@ import {
 import { tw } from '../tailwind/styles'
 import { motionStyles } from '../tailwind/motion'
 import { applyManualBookEdits, inspectIsbnInput } from '../capture'
+import { FEATURES } from '../app/feature-flags'
+import type { EpubImportProgress, EpubImportResult } from '../epub'
+import type { AudiobookImportDraft, AudiobookImportProgress, AudiobookImportResult } from '../audiobooks'
+
+export type EpubAttachmentState = {
+  readonly progress?: EpubImportProgress
+  readonly result?: EpubImportResult
+  readonly error?: string
+}
+
+export type AudiobookAttachmentState = {
+  readonly progress?: AudiobookImportProgress
+  readonly draft?: AudiobookImportDraft
+  readonly result?: AudiobookImportResult
+  readonly error?: string
+}
 
 type WorkDetailExperienceProps = {
   readonly book: LibraryBook
@@ -60,6 +76,12 @@ type WorkDetailExperienceProps = {
   readonly onCustomShelves: (shelfIds: readonly string[]) => void
   readonly onTags: (tags: readonly string[]) => void
   readonly onRemove: () => void
+  readonly onAttachEpub: (files: readonly File[]) => void
+  readonly onAttachAudiobook: (files: readonly File[]) => void
+  readonly epubBusy: boolean
+  readonly epubImport: EpubAttachmentState
+  readonly audiobookBusy: boolean
+  readonly audiobookImport: AudiobookAttachmentState
 }
 
 type IdentitySnapshot = {
@@ -104,6 +126,12 @@ export function WorkDetailExperience({
   onCustomShelves,
   onTags,
   onRemove,
+  onAttachEpub,
+  onAttachAudiobook,
+  epubBusy,
+  epubImport,
+  audiobookBusy,
+  audiobookImport,
 }: WorkDetailExperienceProps) {
   const model = useMemo(() => buildWorkDetailModel(book), [book])
   const [activeSection, setActiveSection] = useState<WorkDetailSection>('overview')
@@ -115,6 +143,34 @@ export function WorkDetailExperience({
   const [identitySnapshot, setIdentitySnapshot] = useState<IdentitySnapshot>()
   const [announcement, setAnnouncement] = useState('')
   const selectedEdition = model.editions.find(({ id }) => id === selectedEditionId) ?? model.editions[0]!
+
+  if (!FEATURES.advancedBookDetails) {
+    return (
+      <SimpleBookDetail
+        book={book}
+        customShelves={customShelves}
+        customShelfIds={customShelfIds}
+        tags={tags}
+        tagSuggestions={tagSuggestions}
+        onMove={onMove}
+        onRead={onRead}
+        onProgress={onProgress}
+        onFinish={onFinish}
+        onRate={onRate}
+        onNotes={onNotes}
+        onMetadata={onMetadata}
+        onCustomShelves={onCustomShelves}
+        onTags={onTags}
+        onRemove={onRemove}
+        onAttachEpub={onAttachEpub}
+        onAttachAudiobook={onAttachAudiobook}
+        epubBusy={epubBusy}
+        epubImport={epubImport}
+        audiobookBusy={audiobookBusy}
+        audiobookImport={audiobookImport}
+      />
+    )
+  }
 
   const openIdentityPreview = (kind: IdentityActionKind) => {
     setIdentityPreview(createIdentityImpact(model, kind, selectedEdition.id))
@@ -284,6 +340,214 @@ export function WorkDetailExperience({
 
       <p className={tw("sr-only")} role="status" aria-live="polite" aria-atomic="true">{announcement}</p>
     </div>
+  )
+}
+
+function SimpleBookDetail({
+  book,
+  customShelves,
+  customShelfIds,
+  tags,
+  tagSuggestions,
+  onMove,
+  onRead,
+  onProgress,
+  onFinish,
+  onRate,
+  onNotes,
+  onMetadata,
+  onCustomShelves,
+  onTags,
+  onRemove,
+  onAttachEpub,
+  onAttachAudiobook,
+  epubBusy,
+  epubImport,
+  audiobookBusy,
+  audiobookImport,
+}: Omit<WorkDetailExperienceProps, 'onEnrich'>) {
+  const [editing, setEditing] = useState(false)
+  const [title, setTitle] = useState(book.title)
+  const [author, setAuthor] = useState(book.authors.join(', '))
+  const [pageCount, setPageCount] = useState(book.pageCount ? String(book.pageCount) : '')
+  const [confirmRemove, setConfirmRemove] = useState(false)
+  const hasReadableFile = ['EPUB', 'AUDIOBOOK'].includes(book.format?.toLocaleUpperCase() ?? '')
+  const epubResult = epubImport.result?.bookId === book.id ? epubImport.result : undefined
+  const audiobookResult = audiobookImport.result?.bookId === book.id ? audiobookImport.result : undefined
+
+  const saveDetails = (event: FormEvent) => {
+    event.preventDefault()
+    const cleanTitle = title.trim()
+    if (!cleanTitle) return
+    onMetadata({
+      title: cleanTitle,
+      authors: author.split(/[;,]/).map((value) => value.trim()).filter(Boolean),
+      pageCount: Number.parseInt(pageCount, 10) || 0,
+    })
+    setEditing(false)
+  }
+
+  return (
+    <div className={tw('work-detail simple-book-detail')}>
+      <header className={tw('work-detail__hero simple-book-detail__hero')}>
+        <BookCover book={book} large />
+        <div className={tw('work-detail__identity')}>
+          <span className={tw('simple-book-detail__status')}>{SHELVES.find(({ id }) => id === book.shelf)?.label}</span>
+          <h3>{book.title}</h3>
+          <p>{book.authors.join(', ') || 'Unknown author'}</p>
+          <div className={tw('work-detail__work-state')}>
+            <strong>{book.progress > 0 ? `${book.progress}% complete` : book.format ?? 'No file attached'}</strong>
+          </div>
+        </div>
+      </header>
+
+      <section className={tw('simple-attachments')} aria-labelledby="attach-file-title">
+        <header>
+          <div><span>Read or listen</span><h4 id="attach-file-title">Attach a file</h4></div>
+          <small>It stays private on this device.</small>
+        </header>
+        <div className={tw('simple-attachments__actions')}>
+          <label className={tw(epubBusy ? 'is-busy' : '')}>
+            <FileText aria-hidden="true" />
+            <span><strong>{epubBusy ? 'Attaching EPUB…' : 'Attach EPUB'}</strong><small>Choose one .epub file</small></span>
+            <ChevronRight aria-hidden="true" />
+            <input
+              type="file"
+              accept=".epub,application/epub+zip"
+              disabled={epubBusy}
+              onChange={(event) => {
+                if (event.currentTarget.files?.length) onAttachEpub(Array.from(event.currentTarget.files))
+                event.currentTarget.value = ''
+              }}
+            />
+          </label>
+          <label className={tw(audiobookBusy ? 'is-busy' : '')}>
+            <Headphones aria-hidden="true" />
+            <span><strong>{audiobookBusy ? 'Attaching audio…' : 'Attach audiobook'}</strong><small>M4B or ordered MP3 files</small></span>
+            <ChevronRight aria-hidden="true" />
+            <input
+              type="file"
+              accept=".m4b,.m4a,.mp4,.mp3,audio/mpeg,audio/mp4"
+              multiple
+              disabled={audiobookBusy}
+              onChange={(event) => {
+                if (event.currentTarget.files?.length) onAttachAudiobook(Array.from(event.currentTarget.files))
+                event.currentTarget.value = ''
+              }}
+            />
+          </label>
+        </div>
+        {(epubBusy || epubResult || epubImport.error) && (
+          <AttachmentMessage
+            busy={epubBusy}
+            error={epubImport.error}
+            complete={Boolean(epubResult)}
+            detail={epubImport.error ?? epubImport.progress?.detail ?? (epubResult ? 'EPUB attached and ready to read.' : '')}
+          />
+        )}
+        {(audiobookBusy || audiobookResult || audiobookImport.error) && (
+          <AttachmentMessage
+            busy={audiobookBusy}
+            error={audiobookImport.error}
+            complete={Boolean(audiobookResult)}
+            detail={audiobookImport.error ?? audiobookImport.progress?.detail ?? (audiobookResult ? 'Audiobook attached and ready to listen.' : '')}
+          />
+        )}
+      </section>
+
+      <section className={tw('simple-reading-actions')} aria-label="Reading actions">
+        {hasReadableFile && (
+          <button type="button" className={tw('is-primary')} onClick={onRead}>
+            {book.format?.toLocaleUpperCase() === 'AUDIOBOOK' ? <Headphones aria-hidden="true" /> : <BookOpen aria-hidden="true" />}
+            {book.progress > 0 ? 'Continue' : 'Start'}
+          </button>
+        )}
+        <button type="button" onClick={onProgress}><Clock3 aria-hidden="true" /> Update progress</button>
+        {book.shelf !== 'finished' && <button type="button" onClick={onFinish}><BookCheck aria-hidden="true" /> Mark finished</button>}
+      </section>
+
+      <section className={tw('simple-detail-section')} aria-labelledby="book-information-title">
+        <header><div><span>Book information</span><h4 id="book-information-title">The essentials</h4></div></header>
+        {editing ? (
+          <form className={tw('simple-details-form')} onSubmit={saveDetails}>
+            <label><span>Title</span><input required value={title} onChange={(event) => setTitle(event.target.value)} /></label>
+            <label><span>Author</span><input value={author} onChange={(event) => setAuthor(event.target.value)} /></label>
+            <label><span>Pages</span><input type="number" min="0" value={pageCount} onChange={(event) => setPageCount(event.target.value)} /></label>
+            <div><button type="button" onClick={() => setEditing(false)}>Cancel</button><button type="submit">Save</button></div>
+          </form>
+        ) : (
+          <div className={tw('simple-facts')}>
+            <dl>
+              <div><dt>Format</dt><dd>{book.format ?? 'Not set'}</dd></div>
+              <div><dt>Length</dt><dd>{book.pageCount ? `${book.pageCount} pages` : 'Not set'}</dd></div>
+              <div><dt>ISBN</dt><dd>{book.identifiers?.[0] ?? 'Not set'}</dd></div>
+            </dl>
+            <button type="button" onClick={() => setEditing(true)}><Pencil aria-hidden="true" /> Edit details</button>
+          </div>
+        )}
+      </section>
+
+      <section className={tw('simple-detail-section')} aria-labelledby="reading-status-title">
+        <header><div><span>Reading status</span><h4 id="reading-status-title">Where it belongs</h4></div></header>
+        <div className={tw('simple-shelf-choices')}>
+          {SHELVES.map((shelf) => (
+            <button type="button" key={shelf.id} aria-pressed={shelf.id === book.shelf} onClick={() => onMove(shelf.id)}>
+              {shelf.shortLabel}{shelf.id === book.shelf && <Check aria-hidden="true" />}
+            </button>
+          ))}
+        </div>
+        {customShelves.length > 0 && (
+          <fieldset className={tw('simple-custom-shelves')}>
+            <legend>Custom shelves</legend>
+            {customShelves.map((shelf) => {
+              const checked = customShelfIds.includes(shelf.id)
+              return (
+                <label key={shelf.id}>
+                  <input type="checkbox" checked={checked} onChange={() => onCustomShelves(checked
+                    ? customShelfIds.filter((id) => id !== shelf.id)
+                    : [...customShelfIds, shelf.id])} />
+                  <span>{shelf.name}</span>
+                </label>
+              )
+            })}
+          </fieldset>
+        )}
+      </section>
+
+      <section className={tw('simple-detail-section simple-personal')} aria-labelledby="personal-title">
+        <header><div><span>For you</span><h4 id="personal-title">Rating and notes</h4></div></header>
+        <div className={tw('work-memory__rating')}><span>Rating</span><RatingStars value={book.rating} onChange={onRate} /></div>
+        <label><span>Private note</span><textarea value={book.notes} onChange={(event) => onNotes(event.target.value)} rows={3} placeholder="What do you want to remember?" /></label>
+        <WorkTagEditor tags={tags} suggestions={tagSuggestions} onChange={onTags} />
+      </section>
+
+      <section className={tw('remove-work')} aria-label="Remove from library">
+        <button type="button" onClick={() => (confirmRemove ? onRemove() : setConfirmRemove(true))}>
+          <Trash2 aria-hidden="true" />
+          <span><strong>{confirmRemove ? 'Tap again to remove' : 'Remove from library'}</strong><small>Your attached files and library entry will be removed.</small></span>
+          <ChevronRight aria-hidden="true" />
+        </button>
+      </section>
+    </div>
+  )
+}
+
+function AttachmentMessage({
+  busy,
+  error,
+  complete,
+  detail,
+}: {
+  readonly busy: boolean
+  readonly error?: string
+  readonly complete: boolean
+  readonly detail: string
+}) {
+  return (
+    <p className={tw(`simple-attachment-message${error ? ' is-error' : complete ? ' is-complete' : ''}`)} role={error ? 'alert' : 'status'}>
+      {complete ? <Check aria-hidden="true" /> : busy ? <RefreshCw aria-hidden="true" /> : <X aria-hidden="true" />}
+      <span>{detail}</span>
+    </p>
   )
 }
 

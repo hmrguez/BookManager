@@ -20,6 +20,7 @@ import { motionScrollBehavior } from '../design-system'
 import { CustomShelfSection } from '../organization/CustomShelfComponents'
 import { tw } from '../tailwind/styles'
 import { motionStyles } from '../tailwind/motion'
+import { FEATURES } from '../app/feature-flags'
 import { ShelfSection } from './ShelfSection'
 import type { LibraryViewModel } from './useLibraryViewModel'
 
@@ -49,7 +50,6 @@ export function LibraryPage({
   onFinish,
   onRate,
   onMoveQueueBook,
-  onTogglePinnedBook,
   onDismissSuggestion,
   onReasonState,
 }: {
@@ -76,7 +76,6 @@ export function LibraryPage({
   onFinish: (bookId: string) => void
   onRate: (bookId: string, rating: number) => void
   onMoveQueueBook: (bookId: string, targetIndex: number, visibleIds: readonly string[]) => void
-  onTogglePinnedBook: (bookId: string) => void
   onDismissSuggestion: (bookId: string) => void
   onReasonState: (criterion: UpNextCriterion, state: 'neutral' | 'pinned' | 'dismissed') => void
 }) {
@@ -190,7 +189,7 @@ export function LibraryPage({
             </button>
           ))}
         </nav>
-        {activeSmartLists.some(({ pinned }) => pinned) && (
+        {FEATURES.smartLists && activeSmartLists.some(({ pinned }) => pinned) && (
           <nav className={tw('pinned-shelf-tabs')} aria-label="Pinned smart lists">
             <span><ListFilter aria-hidden="true" /> Smart</span>
             <div>
@@ -258,7 +257,6 @@ export function LibraryPage({
                   targetIndex,
                   orderedNextBooks.map(({ id }) => id),
                 )}
-                onPinBook={onTogglePinnedBook}
                 onManage={() => onOpenSheet({ kind: 'up-next' })}
                 onAddSuggestion={onNext}
                 onDismissSuggestion={onDismissSuggestion}
@@ -282,7 +280,7 @@ export function LibraryPage({
               />
             ))}
 
-            {!librarySearchActive && (
+            {FEATURES.smartLists && !librarySearchActive && (
               <>
                 <div className={tw('smart-lists-heading')}>
                   <div>

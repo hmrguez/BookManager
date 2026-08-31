@@ -54,6 +54,7 @@ export class AudiobookImportService {
     options: {
       readonly signal?: AbortSignal
       readonly onProgress?: (progress: AudiobookImportProgress) => void
+      readonly targetBookId?: string
     } = {},
   ): Promise<AudiobookImportResult> {
     const { signal, onProgress } = options
@@ -113,6 +114,7 @@ export class AudiobookImportService {
         audiobook,
         bundleRelativePath,
         storedSegments,
+        ...(options.targetBookId ? { targetBookId: options.targetBookId } : {}),
         ...(coverRelativePath ? { coverRelativePath } : {}),
       })
       onProgress?.({

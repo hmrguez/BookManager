@@ -45,7 +45,7 @@ describe('explainable Up Next', () => {
     })
   })
 
-  test('surfaces an expiring Libby loan without moving it above a pinned queue choice', () => {
+  test('surfaces an expiring Libby loan without changing the manual queue order', () => {
     const pinned = book('chosen-first', 'next')
     const second = book('chosen-second', 'next')
     const expiring = book('expiring-loan', 'tbr', {
@@ -64,8 +64,8 @@ describe('explainable Up Next', () => {
     })
 
     expect(orderedUpNextBooks([second, pinned], state).map(({ id }) => id)).toEqual([
-      pinned.id,
       second.id,
+      pinned.id,
     ])
     const result = buildUpNextSuggestions([pinned, second, ordinary, expiring], state, now)
     expect(result.suggestions[0].book.id).toBe(expiring.id)

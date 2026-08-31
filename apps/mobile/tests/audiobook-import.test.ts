@@ -19,6 +19,7 @@ import {
 } from '../src/domain/catalog'
 import { CatalogRepository, ReadingLedgerRepository } from '../src/storage/catalog-repository'
 import { migrateStorage } from '../src/storage/migrations'
+import { writeLibraryBook } from '../src/storage/library-repository'
 import { PortableArchiveService } from '../src/storage/portable-archive'
 import { BunSqliteDatabase } from './storage-test-database'
 
@@ -120,6 +121,48 @@ describe('audiobook inspection and normalization', () => {
 })
 
 describe('managed audiobook import', () => {
+  test('attaches selected audio files to the existing library book', async () => {
+    const database = new BunSqliteDatabase()
+    await migrateStorage(database)
+    await writeLibraryBook(database, {
+      id: 'selected-audio-book',
+      title: 'The Book I Selected',
+      authors: ['Known Author'],
+      pageCount: 0,
+      shelf: 'next',
+      progress: 0,
+      currentPage: 0,
+      rating: 0,
+      notes: '',
+      addedAt: '2026-08-01T12:00:00.000Z',
+      lastUpdatedAt: '2026-08-01T12:00:00.000Z',
+    })
+    const service = new AudiobookImportService(database, {
+      managedStore: new MemoryManagedAudiobookStore(),
+      createId: sequentialIds(),
+      createCapabilityId: sequentialCapabilities(),
+    })
+    const sources = [mp3Source('selected.mp3', { album: 'Unhelpful File Title' })]
+    const draft = await service.prepare(sources)
+
+    const result = await service.import(sources, {
+      ...defaultAudiobookReview(draft),
+      title: 'The Book I Selected',
+      authors: ['Known Author'],
+    }, { targetBookId: 'selected-audio-book' })
+
+    expect(result.bookId).toBe('selected-audio-book')
+    const rows = await database.query<{ readonly payload_json: string }>('SELECT payload_json FROM library_books')
+    expect(rows).toHaveLength(1)
+    expect(JSON.parse(rows[0]!.payload_json)).toMatchObject({
+      id: 'selected-audio-book',
+      title: 'The Book I Selected',
+      shelf: 'next',
+      format: 'Audiobook',
+    })
+    await database.close()
+  })
+
   test('treats reviewed metadata changes as revisions of the same audio set', async () => {
     const database = new BunSqliteDatabase()
     await migrateStorage(database)

@@ -40,6 +40,7 @@ export type EpubCommitInput = {
   readonly inspection: EpubInspection
   readonly contentRelativePath: string
   readonly coverRelativePath?: string
+  readonly targetBookId?: string
 }
 
 export type EpubImportRepositoryOptions = {
@@ -94,7 +95,7 @@ export class EpubImportRepository {
 
       const importedAt = this.#now().toISOString()
       const metadataKey = createMetadataKey(input.inspection)
-      const association = await findAssociation(database, input.inspection, metadataKey)
+      const association = await findAssociation(database, input.inspection, metadataKey, input.targetBookId)
       const workId = association.edition?.workId
         ?? workIdSchema.parse(this.#createId('work'))
       const editionId = association.edition?.id
@@ -298,7 +299,28 @@ async function findAssociation(
   database: SqlDatabase,
   inspection: EpubInspection,
   metadataKey: string,
+  targetBookId?: string,
 ): Promise<Association> {
+  if (targetBookId) {
+    const book = (await readLibraryBooks(database)).find(({ id }) => id === targetBookId)
+    if (!book) throw new Error(`Cannot attach EPUB to missing library book ${targetBookId}`)
+    const [previousImport] = await database.query<EpubImportRow>(
+      `SELECT id, content_hash, original_name, book_id, edition_id, content_asset_id, imported_at
+       FROM epub_imports WHERE book_id = ?
+       ORDER BY imported_at DESC, id DESC LIMIT 1`,
+      [targetBookId],
+    )
+    return {
+      book,
+      ...(previousImport
+        ? {
+            previousImport,
+            edition: await readEdition(database, readText(previousImport, 'edition_id')),
+          }
+        : {}),
+    }
+  }
+
   const [previousImport] = await database.query<EpubImportRow>(
     `SELECT id, content_hash, original_name, book_id, edition_id, content_asset_id, imported_at
      FROM epub_imports

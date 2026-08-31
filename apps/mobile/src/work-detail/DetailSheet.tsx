@@ -1,7 +1,11 @@
 import type { LibraryBook, ShelfId } from '../library'
 import type { CustomShelf } from '../organization-model'
 import { Sheet } from '../app/components/Sheet'
-import { WorkDetailExperience } from './WorkDetailExperience'
+import {
+  WorkDetailExperience,
+  type AudiobookAttachmentState,
+  type EpubAttachmentState,
+} from './WorkDetailExperience'
 
 export function DetailSheet({
   book,
@@ -21,6 +25,12 @@ export function DetailSheet({
   onCustomShelves,
   onTags,
   onRemove,
+  onAttachEpub,
+  onAttachAudiobook,
+  epubBusy,
+  epubImport,
+  audiobookBusy,
+  audiobookImport,
 }: {
   book: LibraryBook
   customShelves: readonly CustomShelf[]
@@ -39,6 +49,12 @@ export function DetailSheet({
   onCustomShelves: (shelfIds: readonly string[]) => void
   onTags: (tags: readonly string[]) => void
   onRemove: () => void
+  onAttachEpub: (files: readonly File[]) => void
+  onAttachAudiobook: (files: readonly File[]) => void
+  epubBusy: boolean
+  epubImport: EpubAttachmentState
+  audiobookBusy: boolean
+  audiobookImport: AudiobookAttachmentState
 }) {
   return (
     <Sheet title="Book details" onClose={onClose} tall>
@@ -60,6 +76,12 @@ export function DetailSheet({
         onCustomShelves={onCustomShelves}
         onTags={onTags}
         onRemove={onRemove}
+        onAttachEpub={onAttachEpub}
+        onAttachAudiobook={onAttachAudiobook}
+        epubBusy={epubBusy}
+        epubImport={epubImport}
+        audiobookBusy={audiobookBusy}
+        audiobookImport={audiobookImport}
       />
     </Sheet>
   )

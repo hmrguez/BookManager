@@ -18,6 +18,22 @@ React and Capacitor for web, iOS, and Android. It keeps a deliberately small wor
 The first launch includes a small starter library so every interaction is immediately visible.
 Each starter title can be moved or removed like any other book.
 
+## Attach an EPUB or audiobook
+
+Open **My Books**, select the book, then choose **Attach EPUB** or **Attach audiobook** under
+**Attach a file**. The file is associated with that selected library entry and copied into private
+managed storage. Audiobooks accept one M4B file or an ordered set of MP3 files.
+
+Advanced surfaces remain available for development without complicating the default experience.
+Set any of these Vite environment variables to `true` in `apps/mobile/.env.local` to enable them:
+
+- `VITE_FEATURE_ASSISTED_UP_NEXT` — guided Up Next suggestions and their settings.
+- `VITE_FEATURE_SMART_LISTS` — saved rule-based lists.
+- `VITE_FEATURE_ADVANCED_BOOK_DETAILS` — edition, provenance, merge, and split tools.
+- `VITE_FEATURE_ADVANCED_FILE_MANAGEMENT` — global file intake and EPUB storage tools in Settings.
+
+All four flags default to `false`.
+
 ## Book metadata providers
 
 Open Library is the primary provider and needs no API key. Requests are rate-limited to its

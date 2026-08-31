@@ -11,6 +11,7 @@ import {
 } from '../src/epub'
 import { CatalogRepository } from '../src/storage/catalog-repository'
 import { migrateStorage } from '../src/storage/migrations'
+import { writeLibraryBook } from '../src/storage/library-repository'
 import { BunSqliteDatabase } from './storage-test-database'
 
 describe('safe EPUB inspection', () => {
@@ -102,6 +103,44 @@ describe('safe EPUB inspection', () => {
 })
 
 describe('managed EPUB import', () => {
+  test('attaches a selected EPUB to the existing library book', async () => {
+    const database = new BunSqliteDatabase()
+    await migrateStorage(database)
+    await writeLibraryBook(database, {
+      id: 'selected-book',
+      title: 'My Chosen Title',
+      authors: ['My Chosen Author'],
+      pageCount: 300,
+      shelf: 'reading',
+      progress: 12,
+      currentPage: 36,
+      rating: 0,
+      notes: '',
+      addedAt: '2026-08-01T12:00:00.000Z',
+      lastUpdatedAt: '2026-08-01T12:00:00.000Z',
+    })
+    const service = new EpubImportService(database, {
+      managedStore: new MemoryManagedAssetStore(),
+      createId: sequentialIds(),
+    })
+
+    const result = await service.import(await sourceFor({ title: 'Different Package Title' }), {
+      targetBookId: 'selected-book',
+    })
+
+    expect(result.bookId).toBe('selected-book')
+    const rows = await database.query<{ readonly payload_json: string }>('SELECT payload_json FROM library_books')
+    expect(rows).toHaveLength(1)
+    expect(JSON.parse(rows[0]!.payload_json)).toMatchObject({
+      id: 'selected-book',
+      title: 'My Chosen Title',
+      shelf: 'reading',
+      progress: 12,
+      format: 'EPUB',
+    })
+    await database.close()
+  })
+
   test('catalogs a new asset, deduplicates exact content, and links a revision to the edition', async () => {
     const database = new BunSqliteDatabase()
     await migrateStorage(database)

@@ -22,6 +22,7 @@ import {
   type UpNextSuggestionSet,
 } from './up-next-model'
 import { tw } from './tailwind/styles'
+import { FEATURES } from './app/feature-flags'
 
 type ReasonState = 'neutral' | 'pinned' | 'dismissed'
 
@@ -34,7 +35,6 @@ export function UpNextSection({
   onDetails,
   onStart,
   onMove,
-  onPinBook,
   onManage,
   onAddSuggestion,
   onDismissSuggestion,
@@ -48,7 +48,6 @@ export function UpNextSection({
   onDetails: (bookId: string) => void
   onStart: (bookId: string) => void
   onMove: (bookId: string, targetIndex: number) => void
-  onPinBook: (bookId: string) => void
   onManage: () => void
   onAddSuggestion: (bookId: string) => void
   onDismissSuggestion: (bookId: string) => void
@@ -70,17 +69,21 @@ export function UpNextSection({
           <h2>Up Next <i>·</i> {books.length}</h2>
           <ChevronDown className={tw(isCollapsed ? 'is-collapsed' : '')} aria-hidden="true" />
         </button>
-        <span className={tw(`up-next__mode up-next__mode--${state.mode}`)}>
-          {state.mode === 'manual' ? 'Manual' : 'Guided'}
-        </span>
-        <button
-          className={tw("shelf-add up-next__manage")}
-          type="button"
-          onClick={onManage}
-          aria-label="Choose how Up Next suggestions work"
-        >
-          <SlidersHorizontal aria-hidden="true" />
-        </button>
+        {FEATURES.assistedUpNext && (
+          <>
+            <span className={tw(`up-next__mode up-next__mode--${state.mode}`)}>
+              {state.mode === 'manual' ? 'Manual' : 'Guided'}
+            </span>
+            <button
+              className={tw("shelf-add up-next__manage")}
+              type="button"
+              onClick={onManage}
+              aria-label="Choose how Up Next suggestions work"
+            >
+              <SlidersHorizontal aria-hidden="true" />
+            </button>
+          </>
+        )}
         <button
           type="button"
           className={tw("shelf-add")}
@@ -92,14 +95,16 @@ export function UpNextSection({
       </header>
 
       <div className={tw("shelf-books")} id="shelf-books-next" hidden={isCollapsed}>
-        <div className={tw("up-next__principle")}>
-          <span>{state.mode === 'manual' ? 'Your order, exactly' : 'Your order stays in charge'}</span>
-          <small>
-            {state.mode === 'manual'
-              ? 'No ranking or algorithm is active.'
-              : 'Suggestions use only the signals you selected.'}
-          </small>
-        </div>
+        {FEATURES.assistedUpNext && (
+          <div className={tw("up-next__principle")}>
+            <span>{state.mode === 'manual' ? 'Your order, exactly' : 'Your order stays in charge'}</span>
+            <small>
+              {state.mode === 'manual'
+                ? 'No ranking or algorithm is active.'
+                : 'Suggestions use only the signals you selected.'}
+            </small>
+          </div>
+        )}
 
         {books.length === 0 ? (
           <button className={tw("empty-shelf")} type="button" onClick={onAdd}>
@@ -112,15 +117,14 @@ export function UpNextSection({
         ) : (
           <div className={tw("up-next__queue")}>
             {books.map((book, index) => {
-              const pinned = state.pinnedBookId === book.id
               return (
                 <article
-                  className={tw(`up-next-book${pinned ? ' is-pinned' : ''}`)}
+                  className={tw('up-next-book')}
                   key={book.id}
                   data-motion-event="reorder"
                 >
                   <span className={tw("up-next-book__number")} aria-label={`Position ${index + 1}`}>
-                    {pinned ? <Pin aria-hidden="true" /> : String(index + 1).padStart(2, '0')}
+                    {String(index + 1).padStart(2, '0')}
                   </span>
                   <button className={tw("book-identity")} type="button" onClick={() => onDetails(book.id)}>
                     <BookCover book={book} />
@@ -128,7 +132,7 @@ export function UpNextSection({
                       <strong>{book.title}</strong>
                       <small>{book.authors.join(', ')}</small>
                       <em className={tw("up-next-book__note")}>
-                        {pinned ? 'Pinned choice · always first' : book.format ?? 'Format not recorded'}
+                        {book.format ?? 'Format not recorded'}
                       </em>
                     </span>
                   </button>
@@ -136,7 +140,7 @@ export function UpNextSection({
                     <button
                       type="button"
                       onClick={() => onMove(book.id, index - 1)}
-                      disabled={index === 0 || pinned}
+                      disabled={index === 0}
                       aria-label={`Move ${book.title} earlier`}
                     >
                       <ArrowUp aria-hidden="true" />
@@ -144,19 +148,10 @@ export function UpNextSection({
                     <button
                       type="button"
                       onClick={() => onMove(book.id, index + 1)}
-                      disabled={index === books.length - 1 || pinned}
+                      disabled={index === books.length - 1}
                       aria-label={`Move ${book.title} later`}
                     >
                       <ArrowDown aria-hidden="true" />
-                    </button>
-                    <button
-                      type="button"
-                      className={tw(pinned ? 'is-active' : '')}
-                      onClick={() => onPinBook(book.id)}
-                      aria-label={`${pinned ? 'Unpin' : 'Pin'} ${book.title} as the next choice`}
-                      aria-pressed={pinned}
-                    >
-                      <Pin aria-hidden="true" />
                     </button>
                     <button
                       type="button"
@@ -173,7 +168,7 @@ export function UpNextSection({
           </div>
         )}
 
-        {state.mode === 'assisted' && !isFiltering && (
+        {FEATURES.assistedUpNext && state.mode === 'assisted' && !isFiltering && (
           <aside className={tw(`choice-notes choice-notes--${suggestions.certainty}`)}>
             <header>
               <span><Sparkles aria-hidden="true" /> Choice notes</span>
