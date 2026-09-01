@@ -474,7 +474,7 @@ const utilityRecipes: Record<string, string> = {
   "tone-3": "[&.tone-3]:[background:var(--cover-stock-4)]",
   "tone-4": "[&.tone-4]:[background:var(--cover-stock-5)]",
   "tone-5": "[&.tone-5]:[background:var(--cover-stock-6)]",
-  "up-next": "[border-color:var(--border-strong)] max-[560px]:[&_.shelf-add]:[width:36px]",
+  "up-next": "[border-color:var(--border-strong)]",
   "up-next__header": "[background:color-mix(in_srgb,_var(--surface-sunken)_64%,_transparent)]",
   "up-next__manage": "[border-left:0] [&_svg]:[width:16px] [&_svg]:[height:16px] max-[560px]:[width:36px]",
   "up-next__mode": "[align-self:center] [padding:4px_7px] [border:1px_solid_var(--border-subtle)] [border-radius:var(--radius-pill)] [color:var(--text-secondary)] [font:650_0.5rem/1_var(--font-interface)] [letter-spacing:0.1em] [text-transform:uppercase] max-[560px]:[padding-right:6px] max-[560px]:[padding-left:6px] max-[560px]:[font-size:0.46rem] max-[370px]:[display:none]",
