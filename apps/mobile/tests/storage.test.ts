@@ -7,6 +7,7 @@ import {
   type Catalog,
 } from '../src/domain/catalog'
 import { CatalogRepository, ReadingLedgerRepository } from '../src/storage/catalog-repository'
+import type { SqlRow, SqlValue } from '../src/storage/database'
 import type { MigrationBackupStore, StorageMigration } from '../src/storage/migrations'
 import { migrateStorage, STORAGE_MIGRATIONS } from '../src/storage/migrations'
 import { CatalogQueryService } from '../src/storage/query-services'
@@ -14,6 +15,16 @@ import { representativeCatalog } from './fixtures/catalog'
 import { BunSqliteDatabase } from './storage-test-database'
 
 describe('transactional SQLite storage', () => {
+  test('routes row-returning connection pragmas through the query path', async () => {
+    const database = new AndroidExecSqlDatabase()
+
+    await migrateStorage(database)
+
+    expect(database.queriedStatements[0]).toBe('PRAGMA busy_timeout = 5000')
+    expect(database.executedStatements.join('\n')).not.toContain('PRAGMA busy_timeout')
+    await database.close()
+  })
+
   test('round-trips the canonical aggregate through normalized repository tables', async () => {
     const database = new BunSqliteDatabase()
     await migrateStorage(database)
@@ -218,6 +229,27 @@ describe('transactional SQLite storage', () => {
     await database.close()
   })
 })
+
+class AndroidExecSqlDatabase extends BunSqliteDatabase {
+  readonly executedStatements: string[] = []
+  readonly queriedStatements: string[] = []
+
+  override async execute(statements: string): Promise<void> {
+    this.executedStatements.push(statements)
+    if (/\bPRAGMA\s+busy_timeout\b/i.test(statements)) {
+      throw new Error('Queries can be performed using SQLiteDatabase query or rawQuery methods only')
+    }
+    await super.execute(statements)
+  }
+
+  override async query<Row extends SqlRow = SqlRow>(
+    statement: string,
+    values: readonly SqlValue[] = [],
+  ): Promise<Row[]> {
+    this.queriedStatements.push(statement)
+    return super.query<Row>(statement, values)
+  }
+}
 
 function locationEvent(id: string, editionId: string, timestamp: string) {
   return readingEventSchema.parse({

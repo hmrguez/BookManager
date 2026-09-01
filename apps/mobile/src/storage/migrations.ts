@@ -1002,9 +1002,10 @@ CREATE INDEX idx_legacy_library_migrations_status
 `
 }
 
+const BUSY_TIMEOUT_SQL = 'PRAGMA busy_timeout = 5000'
+
 const MIGRATION_INFRASTRUCTURE_SQL = `
 PRAGMA foreign_keys = ON;
-PRAGMA busy_timeout = 5000;
 
 CREATE TABLE IF NOT EXISTS schema_migrations (
   version INTEGER PRIMARY KEY NOT NULL,
@@ -1042,6 +1043,7 @@ export async function migrateStorage(
 ): Promise<void> {
   const migrations = options.migrations ?? STORAGE_MIGRATIONS
   validateMigrationSequence(migrations)
+  await database.query(BUSY_TIMEOUT_SQL)
   await database.execute(MIGRATION_INFRASTRUCTURE_SQL)
   await database.persist()
 
