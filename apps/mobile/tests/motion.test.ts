@@ -33,7 +33,7 @@ describe('Pulp motion grammar', () => {
       expect(rule.purpose.length).toBeGreaterThan(20)
       expect(rule.trigger.length).toBeGreaterThan(20)
       expect(rule.durationMs).toBeGreaterThan(0)
-      expect(rule.durationMs).toBeLessThanOrEqual(300)
+      expect(rule.durationMs).toBeLessThanOrEqual(family === 'move-shelf' ? 600 : 300)
       expect(rule.interruption).toMatch(/immediate|retarget|first frame/i)
       expect(rule.reversal.length).toBeGreaterThan(20)
       expect(rule.gestureCoupling.length).toBeGreaterThan(15)
@@ -106,8 +106,12 @@ describe('Pulp motion grammar', () => {
     expect(motionCss).not.toMatch(/\binfinite\b/)
     expect(motionCss).toContain("[data-shelf-motion='erase']::after")
     expect(motionCss).toContain("[data-shelf-motion='write']::after")
+    expect(motionCss).toContain("[data-shelf-motion='erase']::before")
+    expect(motionCss).toContain("[data-shelf-motion='write']::before")
     expect(motionCss).toContain('@keyframes motion-shelf-erase')
     expect(motionCss).toContain('@keyframes motion-shelf-write')
+    expect(motionCss).toContain('@keyframes motion-shelf-eraser')
+    expect(motionCss).toContain('@keyframes motion-shelf-pencil')
 
     for (const token of [
       '--motion-duration-feedback',

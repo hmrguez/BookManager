@@ -17,6 +17,49 @@
   will-change: clip-path;
 }
 
+[data-shelf-motion='erase']::before,
+[data-shelf-motion='write']::before {
+  position: absolute;
+  z-index: 5;
+  top: 50%;
+  left: 0;
+  width: 100%;
+  content: '';
+  pointer-events: none;
+  will-change: opacity, transform;
+}
+
+[data-shelf-motion='erase']::before {
+  height: 12px;
+  background: linear-gradient(
+    90deg,
+    var(--border-strong) 0 2px,
+    var(--surface-sunken) 2px 12px,
+    var(--border-subtle) 12px 14px,
+    var(--text-accent) 14px 24px,
+    transparent 24px
+  );
+  border-radius: 2px;
+  clip-path: inset(0 calc(100% - 24px) 0 0 round 2px);
+  transform-origin: 12px 50%;
+  animation: motion-shelf-eraser var(--motion-duration-shelf-ink) linear both;
+}
+
+[data-shelf-motion='write']::before {
+  height: 10px;
+  background: linear-gradient(
+    90deg,
+    var(--border-strong) 0 3px,
+    var(--text-accent) 3px 21px,
+    var(--surface-sunken) 21px 26px,
+    var(--text-primary) 26px 29px,
+    transparent 29px
+  );
+  clip-path: polygon(0 18%, 22px 18%, 29px 50%, 22px 82%, 0 82%);
+  transform-origin: 14.5px 50%;
+  animation: motion-shelf-pencil var(--motion-duration-shelf-ink) linear both;
+}
+
 [data-shelf-motion='erase']::after {
   animation: motion-shelf-erase var(--motion-duration-shelf-ink) linear both;
 }
@@ -65,6 +108,40 @@
 @keyframes motion-shelf-write {
   from { clip-path: inset(0 0 0 0); }
   to { clip-path: inset(0 0 0 100%); }
+}
+
+@keyframes motion-shelf-eraser {
+  0% {
+    opacity: 0;
+    transform: translate3d(-24px, -50%, 0) rotate(-7deg);
+  }
+  8% { opacity: 1; }
+  20% { transform: translate3d(calc(20% - 24px), calc(-50% - 3px), 0) rotate(-3deg); }
+  40% { transform: translate3d(calc(40% - 24px), calc(-50% + 2px), 0) rotate(-8deg); }
+  60% { transform: translate3d(calc(60% - 24px), calc(-50% - 4px), 0) rotate(-2deg); }
+  80% { transform: translate3d(calc(80% - 24px), calc(-50% + 2px), 0) rotate(-7deg); }
+  92% { opacity: 1; }
+  100% {
+    opacity: 0;
+    transform: translate3d(calc(100% - 24px), -50%, 0) rotate(-4deg);
+  }
+}
+
+@keyframes motion-shelf-pencil {
+  0% {
+    opacity: 0;
+    transform: translate3d(-29px, -50%, 0) rotate(6deg);
+  }
+  8% { opacity: 1; }
+  20% { transform: translate3d(calc(20% - 29px), calc(-50% - 4px), 0) rotate(9deg); }
+  40% { transform: translate3d(calc(40% - 29px), calc(-50% + 2px), 0) rotate(3deg); }
+  60% { transform: translate3d(calc(60% - 29px), calc(-50% - 3px), 0) rotate(8deg); }
+  80% { transform: translate3d(calc(80% - 29px), calc(-50% + 2px), 0) rotate(4deg); }
+  92% { opacity: 1; }
+  100% {
+    opacity: 0;
+    transform: translate3d(calc(100% - 29px), -50%, 0) rotate(7deg);
+  }
 }
 
 @keyframes motion-complete-mark {
