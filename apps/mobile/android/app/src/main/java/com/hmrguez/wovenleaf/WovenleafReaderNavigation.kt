@@ -101,6 +101,7 @@ internal class ReaderChapterRailView(
     private var activeIndex = 0
     private var previewIndex: Int? = null
     private var pulseIndex: Int? = null
+    private var showsAllMarkers = false
     private var palette = ReaderPalette("paper")
     private val railWidth = dp(GUTTER_WIDTH_DP).toFloat()
     private val markerSpacing = dp(10).toFloat()
@@ -123,11 +124,8 @@ internal class ReaderChapterRailView(
     }
 
     fun updateActive(locator: Locator?) {
-        val href = locator?.href?.toString() ?: return
-        val match = entries.indexOfLast {
-            href.startsWith(it.link.url().toString()) || it.link.url().toString().startsWith(href)
-        }
-        if (match >= 0) {
+        val match = locator?.let(::matchingIndex) ?: return
+        if (activeIndex != match) {
             activeIndex = match
             refreshAccessibility()
             invalidate()
@@ -168,15 +166,22 @@ internal class ReaderChapterRailView(
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (event.x > railWidth && event.actionMasked == MotionEvent.ACTION_DOWN) return false
-        val index = nearestIndex(event.y) ?: return false
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
+                showsAllMarkers = true
                 removeCallbacks(hidePreview)
-                previewIndex = index
+                previewIndex = nearestIndex(event.y)
                 invalidate()
                 return true
             }
             MotionEvent.ACTION_UP -> {
+                val index = nearestIndex(event.y)
+                showsAllMarkers = false
+                if (index == null) {
+                    previewIndex = null
+                    invalidate()
+                    return true
+                }
                 activeIndex = index
                 previewIndex = index
                 onNavigate(entries[index].link)
@@ -185,6 +190,7 @@ internal class ReaderChapterRailView(
                 return true
             }
             MotionEvent.ACTION_CANCEL -> {
+                showsAllMarkers = false
                 previewIndex = null
                 invalidate()
                 return true
@@ -259,6 +265,7 @@ internal class ReaderChapterRailView(
 
     private fun visibleIndices(): List<Int> {
         if (entries.isEmpty()) return emptyList()
+        if (showsAllMarkers) return entries.indices.toList()
         val count = minOf(MAX_VISIBLE_MARKERS, entries.size)
         val focus = previewIndex ?: activeIndex
         val start = (focus - count / 2).coerceIn(0, entries.size - count)
@@ -268,9 +275,43 @@ internal class ReaderChapterRailView(
     private fun markerY(index: Int, visible: List<Int>): Float {
         val offset = visible.indexOf(index)
         if (offset < 0 || visible.size == 1) return height / 2f
-        val markerHeight = (visible.size - 1) * markerSpacing
-        return (height - markerHeight) / 2f + offset * markerSpacing
+        val spacing = markerSpacing(visible)
+        val markerHeight = (visible.size - 1) * spacing
+        return (height - markerHeight) / 2f + offset * spacing
     }
+
+    private fun markerSpacing(visible: List<Int>): Float {
+        if (!showsAllMarkers || visible.size <= 1) return markerSpacing
+        return minOf(markerSpacing, maxOf(1f, height - dp(48).toFloat()) / (visible.size - 1))
+    }
+
+    private fun matchingIndex(locator: Locator): Int? {
+        val locatorHref = locator.href.toString()
+        val resource = locatorHref.substringBefore('#')
+        val fragments = buildSet {
+            locator.locations.fragments.mapTo(this) { normalizedFragment(it) }
+            locatorHref.substringAfter('#', "").takeIf(String::isNotEmpty)?.let {
+                add(normalizedFragment(it))
+            }
+        }
+        val resourceMatches = entries.indices.filter {
+            entries[it].link.url().toString().substringBefore('#') == resource
+        }
+        if (resourceMatches.isEmpty()) return null
+
+        resourceMatches.firstOrNull { index ->
+            entries[index].link.url().toString().substringAfter('#', "")
+                .takeIf(String::isNotEmpty)
+                ?.let { fragments.contains(normalizedFragment(it)) }
+                ?: false
+        }?.let { return it }
+
+        if (activeIndex in resourceMatches) return activeIndex
+        return resourceMatches.first()
+    }
+
+    private fun normalizedFragment(fragment: String): String =
+        android.net.Uri.decode(fragment.removePrefix("#"))
 
     private fun refreshAccessibility() {
         val title = entries.getOrNull(activeIndex)?.link?.title ?: "No chapters"

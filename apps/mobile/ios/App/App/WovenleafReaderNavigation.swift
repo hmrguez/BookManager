@@ -104,6 +104,7 @@ final class ReaderChapterRailView: UIView {
     private var activeIndex = 0
     private var previewIndex: Int?
     private var pulseIndex: Int?
+    private var showsAllMarkers = false
     private var palette = ReaderPalette(theme: .paper)
     private var hideWorkItem: DispatchWorkItem?
     private let railWidth = ReaderChapterRailView.gutterWidth
@@ -121,11 +122,10 @@ final class ReaderChapterRailView: UIView {
 
         let hover = UIHoverGestureRecognizer(target: self, action: #selector(hovered(_:)))
         addGestureRecognizer(hover)
-        let tap = UITapGestureRecognizer(target: self, action: #selector(tapped(_:)))
-        addGestureRecognizer(tap)
-        let hold = UILongPressGestureRecognizer(target: self, action: #selector(held(_:)))
-        hold.minimumPressDuration = 0.28
-        addGestureRecognizer(hold)
+        let press = UILongPressGestureRecognizer(target: self, action: #selector(pressed(_:)))
+        press.minimumPressDuration = 0
+        press.allowableMovement = .greatestFiniteMagnitude
+        addGestureRecognizer(press)
     }
 
     @available(*, unavailable)
@@ -143,8 +143,8 @@ final class ReaderChapterRailView: UIView {
     }
 
     func updateActive(locator: Locator?) {
-        guard let href = locator?.href.string else { return }
-        if let match = entries.lastIndex(where: { href.hasPrefix($0.link.url().string) || $0.link.url().string.hasPrefix(href) }) {
+        guard let locator, let match = matchingIndex(for: locator) else { return }
+        if activeIndex != match {
             activeIndex = match
             refreshAccessibilityValue()
             setNeedsDisplay()
@@ -209,7 +209,8 @@ final class ReaderChapterRailView: UIView {
     }
 
     private var markerBand: CGRect {
-        let markerHeight = CGFloat(max(0, visibleIndices.count - 1)) * markerSpacing
+        let visible = visibleIndices
+        let markerHeight = CGFloat(max(0, visible.count - 1)) * spacing(for: visible)
         return CGRect(
             x: 0,
             y: bounds.midY - markerHeight / 2,
@@ -281,26 +282,27 @@ final class ReaderChapterRailView: UIView {
         }
     }
 
-    @objc private func tapped(_ recognizer: UITapGestureRecognizer) {
+    @objc private func pressed(_ recognizer: UILongPressGestureRecognizer) {
         let point = recognizer.location(in: self)
-        guard point.x <= railWidth, let index = nearestIndex(to: point.y) else { return }
-        activeIndex = index
-        onNavigate?(entries[index].link)
-        reveal(index, duration: 1.2)
-    }
-
-    @objc private func held(_ recognizer: UILongPressGestureRecognizer) {
-        let point = recognizer.location(in: self)
-        guard point.x <= railWidth, let index = nearestIndex(to: point.y) else { return }
         if recognizer.state == .began || recognizer.state == .changed {
+            guard point.x <= railWidth else { return }
+            showsAllMarkers = true
             hideWorkItem?.cancel()
-            previewIndex = index
+            previewIndex = nearestIndex(to: point.y)
             setNeedsDisplay()
         } else if recognizer.state == .ended {
+            let index = point.x <= railWidth ? nearestIndex(to: point.y) : nil
+            showsAllMarkers = false
+            guard let index else {
+                previewIndex = nil
+                setNeedsDisplay()
+                return
+            }
             activeIndex = index
             onNavigate?(entries[index].link)
             reveal(index, duration: 1.2)
-        } else if recognizer.state == .cancelled {
+        } else if recognizer.state == .cancelled || recognizer.state == .failed {
+            showsAllMarkers = false
             previewIndex = nil
             setNeedsDisplay()
         }
@@ -330,6 +332,7 @@ final class ReaderChapterRailView: UIView {
 
     private var visibleIndices: [Int] {
         guard !entries.isEmpty else { return [] }
+        if showsAllMarkers { return Array(entries.indices) }
         let count = min(maxVisibleMarkers, entries.count)
         let focus = previewIndex ?? activeIndex
         let unclampedStart = focus - count / 2
@@ -339,7 +342,41 @@ final class ReaderChapterRailView: UIView {
 
     private func markerY(for index: Int, visible: [Int]) -> CGFloat {
         guard let offset = visible.firstIndex(of: index), visible.count > 1 else { return bounds.midY }
-        return markerBand.minY + CGFloat(offset) * markerSpacing
+        return markerBand.minY + CGFloat(offset) * spacing(for: visible)
+    }
+
+    private func spacing(for visible: [Int]) -> CGFloat {
+        guard showsAllMarkers, visible.count > 1 else { return markerSpacing }
+        return min(markerSpacing, max(1, bounds.height - 48) / CGFloat(visible.count - 1))
+    }
+
+    private func matchingIndex(for locator: Locator) -> Int? {
+        let resource = locator.href.removingFragment().string
+        let fragments = Set(
+            locator.locations.fragments.map(normalizedFragment)
+                + [locator.href.fragment].compactMap { $0 }.map(normalizedFragment)
+        )
+        let resourceMatches = entries.indices.filter {
+            entries[$0].link.url().removingFragment().string == resource
+        }
+        guard !resourceMatches.isEmpty else { return nil }
+
+        if let exact = resourceMatches.first(where: { index in
+            guard let fragment = entries[index].link.url().fragment else { return false }
+            return fragments.contains(normalizedFragment(fragment))
+        }) {
+            return exact
+        }
+
+        if resourceMatches.contains(activeIndex) {
+            return activeIndex
+        }
+        return resourceMatches.first
+    }
+
+    private func normalizedFragment(_ fragment: String) -> String {
+        let unprefixed = fragment.hasPrefix("#") ? String(fragment.dropFirst()) : fragment
+        return unprefixed.removingPercentEncoding ?? unprefixed
     }
 
     private func refreshAccessibilityValue() {

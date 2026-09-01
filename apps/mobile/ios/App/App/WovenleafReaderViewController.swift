@@ -302,6 +302,9 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
             guard let self else { return }
             let links = (try? await publication.tableOfContents().get()) ?? []
             chapterRail.setLinks(links)
+            if navigationState.toc?.assetFingerprint == context.assetFingerprint {
+                chapterRail.updateActive(locator: navigationState.toc?.locator)
+            }
             chapterRail.updateActive(locator: lastLocator ?? navigator.currentLocation)
         }
     }

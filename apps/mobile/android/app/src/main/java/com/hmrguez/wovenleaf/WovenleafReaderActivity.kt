@@ -284,6 +284,9 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         attemptAnnotationReanchoring()
         loading.visibility = View.GONE
         chapterRail.setLinks(opened.tableOfContents)
+        readerContext.navigationState.toc
+            ?.takeIf { it.assetFingerprint == readerContext.assetFingerprint }
+            ?.let { chapterRail.updateActive(it.locator) }
         chapterRail.bringToFront()
         feedbackView.bringToFront()
         if (!presentedCompatibilityNotice && readerContext.compatibility?.notices?.isNotEmpty() == true) {
