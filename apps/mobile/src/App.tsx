@@ -6,6 +6,7 @@ import {
   getAppearanceStorage,
   motionScrollBehavior,
   readAppearance,
+  shouldReduceMotion,
   writeAppearance,
 } from './design-system'
 import { ImportReviewPage } from './imports/ImportReviewPage'
@@ -57,6 +58,13 @@ import {
   readSystemMediaPreferences,
   writeSystemMediaPreferences,
 } from './playback'
+import {
+  feedback,
+  getFeedbackPreferencesStorage,
+  readFeedbackPreferences,
+  writeFeedbackPreferences,
+  type FeedbackPreferences,
+} from './feedback'
 import { tw } from './tailwind/styles'
 import { motionStyles } from './tailwind/motion'
 import {
@@ -140,6 +148,9 @@ function App() {
   )
   const [systemMediaPreferences, setSystemMediaPreferences] = useState(() =>
     readSystemMediaPreferences(getSystemMediaPreferencesStorage()),
+  )
+  const [feedbackPreferences, setFeedbackPreferences] = useState(() =>
+    readFeedbackPreferences(getFeedbackPreferencesStorage()),
   )
   const [importPreview, setImportPreview] = useState<ImportPreview>()
   const [importHistory, setImportHistory] = useState<ImportBatchSummary[]>([])
@@ -290,6 +301,7 @@ function App() {
       const message = audiobookImportErrorMessage(error)
       setAudiobookImport({ error: message })
       setToast({ message })
+      void feedback.emit('error')
     } finally {
       audiobookAbortRef.current = undefined
       setAudiobookBusy(false)
@@ -330,6 +342,7 @@ function App() {
       const message = audiobookImportErrorMessage(error)
       setAudiobookImport({ error: message })
       setToast({ message })
+      void feedback.emit('error')
     } finally {
       audiobookAbortRef.current = undefined
       setAudiobookBusy(false)
@@ -366,6 +379,20 @@ function App() {
       // The saved privacy choice is retried when the native playback engine reconnects.
     })
   }, [systemMediaPreferences])
+
+  useEffect(() => {
+    feedback.configure(feedbackPreferences)
+    writeFeedbackPreferences(getFeedbackPreferencesStorage(), feedbackPreferences)
+  }, [feedbackPreferences])
+
+  const changeFeedbackPreferences = (preferences: FeedbackPreferences) => {
+    const enabledHaptics = feedbackPreferences.haptics === 'off' && preferences.haptics === 'system'
+    const enabledSound = feedbackPreferences.sound === 'off' && preferences.sound === 'quiet'
+    feedback.configure(preferences)
+    setFeedbackPreferences(preferences)
+    if (enabledSound) void feedback.emit('completion')
+    else if (enabledHaptics) void feedback.emit('selection')
+  }
 
   useEffect(() => {
     const handleCommandShortcut = (event: KeyboardEvent) => {
@@ -471,6 +498,7 @@ function App() {
         busy: false,
         error: error instanceof Error ? error.message : String(error),
       }))
+      void feedback.emit('error')
     }
   }
 
@@ -597,6 +625,7 @@ function App() {
       const message = epubImportErrorMessage(error)
       setEpubImport((current) => ({ ...current, error: message }))
       setToast({ message })
+      void feedback.emit('error')
     } finally {
       epubAbortRef.current = undefined
       setEpubBusy(false)
@@ -620,6 +649,7 @@ function App() {
       const message = audiobookImportErrorMessage(error)
       setAudiobookImport({ error: message })
       setToast({ message })
+      void feedback.emit('error')
     }
   }
 
@@ -642,6 +672,7 @@ function App() {
           || !['not-found', 'unavailable', 'unsupported-content'].includes(error.code),
       })
       closeSheet()
+      void feedback.emit('error')
     } finally {
       setReaderBusyBookId(undefined)
     }
@@ -742,6 +773,7 @@ function App() {
       const message = error instanceof Error ? error.message : String(error)
       setExportError(message)
       setToast({ message })
+      void feedback.emit('error')
     } finally {
       setExportBusy(false)
     }
@@ -761,6 +793,7 @@ function App() {
         busy: false,
         error: error instanceof Error ? error.message : String(error),
       }))
+      void feedback.emit('error')
     }
   }
 
@@ -775,6 +808,7 @@ function App() {
       const message = error instanceof Error ? error.message : String(error)
       setRecovery((current) => ({ ...current, error: message }))
       setToast({ message })
+      void feedback.emit('error')
     } finally {
       setRecovery((current) => ({ ...current, busy: false }))
     }
@@ -800,6 +834,7 @@ function App() {
       const message = error instanceof Error ? error.message : String(error)
       setRecovery((current) => ({ ...current, error: message }))
       setToast({ message })
+      void feedback.emit('error')
     } finally {
       setRecovery((current) => ({ ...current, busy: false }))
     }
@@ -822,6 +857,7 @@ function App() {
       const message = error instanceof Error ? error.message : String(error)
       setImportError(message)
       setToast({ message })
+      void feedback.emit('error')
     } finally {
       setImportBusy(false)
     }
@@ -844,6 +880,7 @@ function App() {
       })
     } catch (error) {
       setImportError(error instanceof Error ? error.message : String(error))
+      void feedback.emit('error')
     } finally {
       setImportBusy(false)
     }
@@ -867,18 +904,31 @@ function App() {
     })
   }
 
-  const beginShelfMotion = (bookId: string, from?: ShelfId, to?: ShelfId) => {
+  const beginShelfMotion = (bookId: string, from?: ShelfId, to?: ShelfId): ShelfMotionEvent => {
     shelfMotionSequenceRef.current += 1
-    setShelfMotion({ sequence: shelfMotionSequenceRef.current, bookId, from, to })
+    const event = { sequence: shelfMotionSequenceRef.current, bookId, from, to }
+    setShelfMotion(event)
+    return event
   }
 
-  const moveToShelf = (id: string, shelf: ShelfId) => {
+  const moveToShelf = (
+    id: string,
+    shelf: ShelfId,
+    feedbackEvent: 'successful-move' | 'completion' = 'successful-move',
+  ) => {
     const book = books.find((item) => item.id === id)
     if (!book || book.shelf === shelf) return false
-    beginShelfMotion(id, book.shelf, shelf)
+    const motion = beginShelfMotion(id, book.shelf, shelf)
     moveBook(id, shelf)
     if (shelf === 'next') addQueueBook(id)
     else removeQueueBook(id)
+    void feedback.emit(feedbackEvent, {
+      operationId: `shelf:${motion.sequence}:${id}:${shelf}`,
+      soundProfile: feedbackEvent === 'successful-move'
+        && !shouldReduceMotion(appearance.motion)
+        ? 'shelf-transfer'
+        : 'semantic',
+    })
     return true
   }
 
@@ -904,10 +954,14 @@ function App() {
   const handleAdd = (result: BookSearchResult, shelf: ShelfId) => {
     const previous = findLibraryBookForSearchResult(books, result)
     if (previous && previous.shelf !== shelf) {
-      beginShelfMotion(previous.id, previous.shelf, shelf)
+      const motion = beginShelfMotion(previous.id, previous.shelf, shelf)
       const { bookId } = addBook(result, shelf)
       if (shelf === 'next') addQueueBook(bookId)
       else removeQueueBook(bookId)
+      void feedback.emit('successful-move', {
+        operationId: `shelf:${motion.sequence}:${bookId}:${shelf}`,
+        soundProfile: shouldReduceMotion(appearance.motion) ? 'semantic' : 'shelf-transfer',
+      })
       setToast({ message: `Moved to ${shelfCopy[shelf].label}` })
       return
     }
@@ -915,7 +969,12 @@ function App() {
     const { bookId } = addBook(result, shelf)
     if (shelf === 'next') addQueueBook(bookId)
     else removeQueueBook(bookId)
-    if (!previous) beginShelfMotion(bookId, undefined, shelf)
+    if (!previous) {
+      const motion = beginShelfMotion(bookId, undefined, shelf)
+      void feedback.emit('successful-move', {
+        operationId: `shelf:${motion.sequence}:${bookId}:${shelf}`,
+      })
+    }
     setToast({ message: previous ? `Already in ${shelfCopy[shelf].label}` : `Added to ${shelfCopy[shelf].label}` })
   }
 
@@ -947,6 +1006,33 @@ function App() {
     }
   }
 
+  const updateReadingProgress = (book: LibraryBook, requested: number) => {
+    if (!Number.isFinite(requested)) {
+      void feedback.emit('boundary')
+      return
+    }
+    const bounded = Math.max(0, Math.min(100, requested))
+    if (requested !== bounded) void feedback.emit('boundary')
+    else if (bounded !== book.progress) void feedback.emit('selection')
+    setProgress(book.id, bounded)
+  }
+
+  const updateReadingPage = (book: LibraryBook, requested: number) => {
+    if (!Number.isFinite(requested)) {
+      void feedback.emit('boundary')
+      return
+    }
+    const bounded = Math.max(0, Math.min(book.pageCount, requested))
+    if (requested !== bounded) void feedback.emit('boundary')
+    else if (bounded !== book.currentPage) void feedback.emit('selection')
+    setCurrentPage(book.id, bounded)
+  }
+
+  const rateBook = (id: string, rating: number) => {
+    if (books.find((book) => book.id === id)?.rating !== rating) void feedback.emit('selection')
+    updateBook(id, { rating })
+  }
+
   const handleStart = (id: string) => {
     const book = books.find((item) => item.id === id)
     moveWithUndo(id, 'reading', `${book?.title ?? 'Book'} is now being read`)
@@ -958,7 +1044,7 @@ function App() {
   }
 
   const handleFinish = (id: string) => {
-    moveToShelf(id, 'finished')
+    moveToShelf(id, 'finished', 'completion')
     openSheet({ kind: 'finished', bookId: id })
   }
 
@@ -1076,7 +1162,7 @@ function App() {
             onNext={handleNext}
             onStart={handleStart}
             onFinish={handleFinish}
-            onRate={(id, rating) => updateBook(id, { rating })}
+            onRate={rateBook}
             onMoveQueueBook={moveQueueBook}
             onDismissSuggestion={dismissSuggestion}
             onReasonState={setReasonState}
@@ -1096,6 +1182,7 @@ function App() {
             appearance={appearance}
             searchPreferences={searchPreferences}
             systemMediaPreferences={systemMediaPreferences}
+            feedbackPreferences={feedbackPreferences}
             importHistory={importHistory}
             importBusy={importBusy}
             importError={importError}
@@ -1111,6 +1198,7 @@ function App() {
             onAppearanceChange={setAppearance}
             onSearchPreferencesChange={setSearchPreferences}
             onSystemMediaPreferencesChange={setSystemMediaPreferences}
+            onFeedbackPreferencesChange={changeFeedbackPreferences}
             onManualAdd={() => openSheet({ kind: 'search', shelf: 'tbr', manual: true })}
             onImportFile={(file) => { void handleImportFile(file) }}
             onImportEpubFiles={(files) => {
@@ -1171,13 +1259,13 @@ function App() {
         <ProgressSheet
           book={selectedBook}
           onClose={closeSheet}
-          onProgress={(progress) => setProgress(selectedBook.id, progress)}
-          onPage={(page) => setCurrentPage(selectedBook.id, page)}
+          onProgress={(progress) => updateReadingProgress(selectedBook, progress)}
+          onPage={(page) => updateReadingPage(selectedBook, page)}
           onFinish={() => handleFinish(selectedBook.id)}
         />
       )}
       {sheet?.kind === 'finished' && selectedBook && (
-        <FinishedSheet book={selectedBook} onClose={closeSheet} onRate={(rating) => updateBook(selectedBook.id, { rating })} />
+        <FinishedSheet book={selectedBook} onClose={closeSheet} onRate={(rating) => rateBook(selectedBook.id, rating)} />
       )}
       {sheet?.kind === 'detail' && selectedBook && (
         <DetailSheet

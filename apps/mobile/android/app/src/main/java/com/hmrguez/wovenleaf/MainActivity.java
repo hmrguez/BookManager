@@ -11,6 +11,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         normalizeSharedBookIntent(getIntent());
+        registerPlugin(WovenleafFeedbackPlugin.class);
         registerPlugin(WovenleafReaderPlugin.class);
         registerPlugin(WovenleafPlaybackPlugin.class);
         super.onCreate(savedInstanceState);

@@ -1,0 +1,59 @@
+{
+  "generatedBy": "scripts/generate-feedback-sounds.ts",
+  "sounds": [
+    {
+      "filename": "graphite-tick.wav",
+      "description": "A short graphite contact for one discrete selection.",
+      "durationMs": 85,
+      "sampleRate": 44100,
+      "channels": 1,
+      "bitDepth": 16,
+      "sha256": "7eccda77c764a15f32efef893f749c067201ab87e3c5b1c07af5a04d09c4d519"
+    },
+    {
+      "filename": "paper-slide.wav",
+      "description": "A restrained paper slip and landing for ordinary successful moves.",
+      "durationMs": 240,
+      "sampleRate": 44100,
+      "channels": 1,
+      "bitDepth": 16,
+      "sha256": "4c3610d67c3b0ef3900463721b428e3f9b54ed25e5d69886b1f2acea88a48451"
+    },
+    {
+      "filename": "paper-edge.wav",
+      "description": "A pencil meeting a dry page edge without an alarm-like pitch.",
+      "durationMs": 140,
+      "sampleRate": 44100,
+      "channels": 1,
+      "bitDepth": 16,
+      "sha256": "1323c69a3b428557a962092b43a72a2e12b85f728925b08f69a6347123f4dd39"
+    },
+    {
+      "filename": "page-settle.wav",
+      "description": "One quiet page turn followed by a soft paper landing.",
+      "durationMs": 460,
+      "sampleRate": 44100,
+      "channels": 1,
+      "bitDepth": 16,
+      "sha256": "85729d45ef1e9e77ccad61112d719a4372d31c29cf9d54a45099f85ce687fe2b"
+    },
+    {
+      "filename": "soft-error.wav",
+      "description": "Two low dry paper taps for a failed user-requested operation.",
+      "durationMs": 250,
+      "sampleRate": 44100,
+      "channels": 1,
+      "bitDepth": 16,
+      "sha256": "8378f56e316289f5d8464525e8d3a746c08b3deeaaaf5f6e9d62d6bf3befc6ff"
+    },
+    {
+      "filename": "shelf-transfer.wav",
+      "description": "Eraser at 220 ms and pencil at 1180 ms, synchronized to the shelf-transfer motion grammar.",
+      "durationMs": 1720,
+      "sampleRate": 44100,
+      "channels": 1,
+      "bitDepth": 16,
+      "sha256": "f4c58e83004306957484ff658be4ec63936cc579e46dff0db1ab802a5200b491"
+    }
+  ]
+}

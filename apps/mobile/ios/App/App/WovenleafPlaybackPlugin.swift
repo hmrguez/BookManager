@@ -222,6 +222,10 @@ private struct PlaybackArtwork: Codable {
     let mediaType: String
 }
 
+func wovenleafPlaybackSuppressesInterfaceSounds() -> Bool {
+    WovenleafPlaybackEngine.shared.interfaceSoundsAreSuppressed
+}
+
 private final class WovenleafPlaybackEngine: NSObject {
     static let shared = WovenleafPlaybackEngine()
 
@@ -273,6 +277,10 @@ private final class WovenleafPlaybackEngine: NSObject {
     private var lastObservedSegmentIndex = 0
     private var activeStartedAt: TimeInterval?
     private var activeDurationMs = 0
+
+    var interfaceSoundsAreSuppressed: Bool {
+        state == "playing" || state == "buffering"
+    }
     private var retainedErrorPositionMs: Int?
 
     var absolutePositionMs: Int {

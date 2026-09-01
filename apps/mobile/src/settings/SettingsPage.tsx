@@ -18,6 +18,7 @@ import {
   Search,
   ShieldCheck,
   Table2,
+  Vibrate,
   X,
 } from 'lucide-react'
 import {
@@ -31,6 +32,7 @@ import type { ImportBatchSummary } from '../imports'
 import type { LibraryBook } from '../library'
 import type { SearchPreferences } from '../search'
 import type { SystemMediaPreferences } from '../playback'
+import type { FeedbackPreferences } from '../feedback'
 import { GOOGLE_BOOKS_KEY_CONFIGURED, appearanceLabels } from '../app/config'
 import type { ExportFormat } from '../app/model'
 import { tw } from '../tailwind/styles'
@@ -72,6 +74,7 @@ export function SettingsPage({
   appearance,
   searchPreferences,
   systemMediaPreferences,
+  feedbackPreferences,
   importHistory,
   importBusy,
   importError,
@@ -87,6 +90,7 @@ export function SettingsPage({
   onAppearanceChange,
   onSearchPreferencesChange,
   onSystemMediaPreferencesChange,
+  onFeedbackPreferencesChange,
   onManualAdd,
   onImportFile,
   onImportEpubFiles,
@@ -111,6 +115,7 @@ export function SettingsPage({
   appearance: AppearancePreferences
   searchPreferences: SearchPreferences
   systemMediaPreferences: SystemMediaPreferences
+  feedbackPreferences: FeedbackPreferences
   importHistory: readonly ImportBatchSummary[]
   importBusy: boolean
   importError?: string
@@ -126,6 +131,7 @@ export function SettingsPage({
   onAppearanceChange: (preferences: AppearancePreferences) => void
   onSearchPreferencesChange: (preferences: SearchPreferences) => void
   onSystemMediaPreferencesChange: (preferences: SystemMediaPreferences) => void
+  onFeedbackPreferencesChange: (preferences: FeedbackPreferences) => void
   onManualAdd: () => void
   onImportFile: (file: File) => void
   onImportEpubFiles: (files: readonly File[]) => void
@@ -463,6 +469,44 @@ export function SettingsPage({
             <span>
               <strong>Paper fiber</strong>
               <small>One static procedural layer; automatically removed for contrast and transparency preferences.</small>
+            </span>
+            <i aria-hidden="true" />
+          </button>
+        </section>
+
+        <section className={tw('settings-card')}>
+          <div className={tw('settings-card__icon')}><Vibrate aria-hidden="true" /></div>
+          <div className={tw('settings-card__heading')}>
+            <span>Touch & sound</span><h2>Let the paper answer.</h2>
+            <p>Brief native taps reinforce meaning. Optional graphite, eraser, and page sounds remain deliberately quiet.</p>
+          </div>
+          <button
+            className={tw('texture-toggle')}
+            type="button"
+            aria-pressed={feedbackPreferences.haptics === 'system'}
+            onClick={() => onFeedbackPreferencesChange({
+              ...feedbackPreferences,
+              haptics: feedbackPreferences.haptics === 'system' ? 'off' : 'system',
+            })}
+          >
+            <span>
+              <strong>System haptics</strong>
+              <small>Uses the device’s native touch language and follows its feedback settings.</small>
+            </span>
+            <i aria-hidden="true" />
+          </button>
+          <button
+            className={tw('texture-toggle')}
+            type="button"
+            aria-pressed={feedbackPreferences.sound === 'quiet'}
+            onClick={() => onFeedbackPreferencesChange({
+              ...feedbackPreferences,
+              sound: feedbackPreferences.sound === 'quiet' ? 'off' : 'quiet',
+            })}
+          >
+            <span>
+              <strong>Paper sounds</strong>
+              <small>Off by default · uses device volume · stays silent around audiobooks and assistive reading.</small>
             </span>
             <i aria-hidden="true" />
           </button>
