@@ -44,6 +44,24 @@ const semanticLocator = readiumLocatorSchema.parse({
 })
 
 describe('native EPUB resume checkpoints', () => {
+  test('keeps the Android reader chrome inside system bars and display cutouts', async () => {
+    const source = await Bun.file(
+      new URL(
+        '../android/app/src/main/java/com/hmrguez/wovenleaf/WovenleafReaderActivity.kt',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(source).toContain('WindowCompat.setDecorFitsSystemWindows(window, false)')
+    expect(source).toContain('ViewCompat.setOnApplyWindowInsetsListener(chrome)')
+    expect(source).toContain(
+      'WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()',
+    )
+    expect(source).toContain(
+      'view.setPadding(safeArea.left, safeArea.top, safeArea.right, safeArea.bottom)',
+    )
+  })
+
   test('keeps the canonical toolkit locator opaque and layout-independent', () => {
     expect(semanticLocator).toMatchObject({
       href: 'Text/chapter-08.xhtml',

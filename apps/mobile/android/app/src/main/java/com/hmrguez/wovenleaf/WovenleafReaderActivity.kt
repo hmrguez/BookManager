@@ -31,6 +31,9 @@ import android.widget.SeekBar
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -111,6 +114,7 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         supportFragmentManager.fragmentFactory = EpubNavigatorFragment.createDummyFactory()
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         readerContext = readContext() ?: run {
             finish()
             return
@@ -405,7 +409,19 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         content.accessibilityTraversalBefore = bottomChrome.id
         bottomChrome.accessibilityTraversalAfter = content.id
         setContentView(chrome)
+        applySafeAreaInsets()
         applyChromePalette()
+    }
+
+    private fun applySafeAreaInsets() {
+        ViewCompat.setOnApplyWindowInsetsListener(chrome) { view, windowInsets ->
+            val safeArea = windowInsets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
+            )
+            view.setPadding(safeArea.left, safeArea.top, safeArea.right, safeArea.bottom)
+            windowInsets
+        }
+        ViewCompat.requestApplyInsets(chrome)
     }
 
     private fun textButton(label: String, action: () -> Unit) = Button(this).apply {
