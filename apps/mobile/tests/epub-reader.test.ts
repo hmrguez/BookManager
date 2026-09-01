@@ -473,8 +473,12 @@ describe('paper page turns and reader chrome', () => {
 
     expect(ios).toContain('libraryButton.accessibilityLabel = "Close reader and return to library"')
     expect(ios).not.toContain('private lazy var historyButton')
+    expect(ios).toContain('private static let readerRightPadding: CGFloat = 8')
+    expect(ios).toContain('constant: -Self.readerRightPadding')
     expect(android).toContain('override fun onBackPressed() {\n        closeReader()')
     expect(android).not.toContain('historyButton = textButton("Back")')
+    expect(android).toContain('private const val READER_RIGHT_PADDING_DP = 8')
+    expect(android).toContain('rightMargin = dp(READER_RIGHT_PADDING_DP)')
   })
 
   test('serializes swipe and button turns without snapshots or duplicate navigation', async () => {
@@ -509,12 +513,10 @@ describe('paper page turns and reader chrome', () => {
     expect(iosNavigation).toContain('final class ReaderChapterRailView')
     expect(iosNavigation).toContain('UIHoverGestureRecognizer')
     expect(iosNavigation).toContain('static let gutterWidth: CGFloat = 26')
-    expect(iosNavigation).toContain('static let rightPadding: CGFloat = 8')
     expect(iosNavigation).toContain('private let maxVisibleMarkers = 7')
     expect(androidNavigation).toContain('class ReaderChapterRailView')
     expect(androidNavigation).toContain('onHoverEvent')
     expect(androidNavigation).toContain('const val GUTTER_WIDTH_DP = 26')
-    expect(androidNavigation).toContain('const val RIGHT_PADDING_DP = 8')
     expect(androidNavigation).toContain('private const val MAX_VISIBLE_MARKERS = 7')
     expect(iosAppearance).toContain('ReaderTypefacePicker')
     expect(iosAppearance).not.toContain('showsMenuAsPrimaryAction')

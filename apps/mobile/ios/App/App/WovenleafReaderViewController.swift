@@ -5,6 +5,8 @@ import UIKit
 
 @MainActor
 final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelegate, UIGestureRecognizerDelegate {
+    private static let readerRightPadding: CGFloat = 8
+
     private let publication: Publication
     private let navigator: EPUBNavigatorViewController
     private let initialLocator: Locator?
@@ -119,9 +121,12 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         NSLayoutConstraint.activate([
             navigator.view.leadingAnchor.constraint(
                 equalTo: view.leadingAnchor,
-                constant: ReaderChapterRailView.contentInset
+                constant: ReaderChapterRailView.gutterWidth
             ),
-            navigator.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            navigator.view.trailingAnchor.constraint(
+                equalTo: view.trailingAnchor,
+                constant: -Self.readerRightPadding
+            ),
             navigator.view.topAnchor.constraint(equalTo: topChrome.bottomAnchor),
             navigator.view.bottomAnchor.constraint(equalTo: bottomChrome.topAnchor),
         ])

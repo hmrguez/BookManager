@@ -393,7 +393,8 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         content.addView(
             pageSurface,
             FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT).apply {
-                leftMargin = dp(ReaderChapterRailView.CONTENT_INSET_DP)
+                leftMargin = dp(ReaderChapterRailView.GUTTER_WIDTH_DP)
+                rightMargin = dp(READER_RIGHT_PADDING_DP)
             },
         )
         chapterRail = ReaderChapterRailView(this) { link -> navigate(link, fromToc = true) }
@@ -1327,6 +1328,7 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     companion object {
+        private const val READER_RIGHT_PADDING_DP = 8
         private const val ANNOTATION_GROUP = "annotations"
         private const val SELECTION_COPY = 9_301
         private const val SELECTION_HIGHLIGHT = 9_302

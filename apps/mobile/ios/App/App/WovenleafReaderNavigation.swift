@@ -92,8 +92,6 @@ struct ReaderNavigationState {
 @MainActor
 final class ReaderChapterRailView: UIView {
     static let gutterWidth: CGFloat = 26
-    static let rightPadding: CGFloat = 8
-    static let contentInset = gutterWidth + rightPadding
 
     var onNavigate: ((Link) -> Void)?
 
@@ -221,7 +219,7 @@ final class ReaderChapterRailView: UIView {
     }
 
     private var previewRect: CGRect {
-        let x = Self.contentInset
+        let x = Self.gutterWidth + 8
         let width = min(330, max(210, bounds.width - x - 14))
         return CGRect(x: x, y: max(16, min(bounds.height - 148, previewAnchorY - 66)), width: width, height: 132)
     }
