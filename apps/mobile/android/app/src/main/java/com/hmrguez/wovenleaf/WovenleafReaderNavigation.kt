@@ -88,6 +88,11 @@ internal class ReaderChapterRailView(
     context: android.content.Context,
     private val onNavigate: (Link) -> Unit,
 ) : View(context) {
+    companion object {
+        const val GUTTER_WIDTH_DP = 26
+        private const val MAX_VISIBLE_MARKERS = 7
+    }
+
     private data class Entry(val link: Link, val depth: Int)
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -95,9 +100,12 @@ internal class ReaderChapterRailView(
     private var entries: List<Entry> = emptyList()
     private var activeIndex = 0
     private var previewIndex: Int? = null
+    private var pulseIndex: Int? = null
     private var palette = ReaderPalette("paper")
-    private val railWidth = dp(44).toFloat()
+    private val railWidth = dp(GUTTER_WIDTH_DP).toFloat()
+    private val markerSpacing = dp(10).toFloat()
     private val hidePreview = Runnable { previewIndex = null; invalidate() }
+    private val hidePulse = Runnable { pulseIndex = null; invalidate() }
 
     init {
         isClickable = true
@@ -132,28 +140,30 @@ internal class ReaderChapterRailView(
     }
 
     fun revealActiveMomentarily() {
-        reveal(activeIndex, 1_450)
+        if (activeIndex !in entries.indices) return
+        removeCallbacks(hidePulse)
+        pulseIndex = activeIndex
+        invalidate()
+        postDelayed(hidePulse, 800)
     }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         if (entries.isEmpty()) return
-        val top = height * 0.16f
-        val bandHeight = maxOf(1f, height * 0.68f)
-        val denominator = maxOf(1, entries.lastIndex).toFloat()
-        entries.indices.forEach { index ->
-            val y = if (entries.size == 1) top + bandHeight / 2 else top + index / denominator * bandHeight
+        val visible = visibleIndices()
+        visible.forEach { index ->
+            val y = markerY(index, visible)
             val active = index == activeIndex
-            val hovering = index == previewIndex
-            val width = dp(if (active) 27 else if (hovering) 22 else 13).toFloat()
+            val emphasized = index == previewIndex || index == pulseIndex
+            val width = dp(if (active) 18 else if (emphasized) 15 else 9).toFloat()
             markerPaint.strokeWidth = dp(if (active) 2 else 1).toFloat()
             markerPaint.color = withAlpha(
                 if (active) palette.ink else palette.secondaryInk,
-                if (active) 0.95f else if (hovering) 0.65f else 0.32f,
+                if (active) 0.95f else if (emphasized) 0.65f else 0.32f,
             )
-            canvas.drawLine(dp(12).toFloat(), y, dp(12).toFloat() + width, y, markerPaint)
+            canvas.drawLine(dp(4).toFloat(), y, dp(4).toFloat() + width, y, markerPaint)
         }
-        previewIndex?.let { drawPreview(canvas, it, top, bandHeight, denominator) }
+        previewIndex?.let { drawPreview(canvas, it) }
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -203,11 +213,12 @@ internal class ReaderChapterRailView(
         return true
     }
 
-    private fun drawPreview(canvas: Canvas, index: Int, top: Float, bandHeight: Float, denominator: Float) {
-        val cardWidth = minOf(dp(330).toFloat(), maxOf(dp(210).toFloat(), width - dp(78).toFloat()))
-        val anchorY = if (entries.size == 1) top + bandHeight / 2 else top + index / denominator * bandHeight
-        val cardTop = (anchorY - dp(70)).coerceIn(dp(16).toFloat(), height - dp(156).toFloat())
-        val card = RectF(dp(50).toFloat(), cardTop, dp(50) + cardWidth, cardTop + dp(140))
+    private fun drawPreview(canvas: Canvas, index: Int) {
+        val cardLeft = dp(GUTTER_WIDTH_DP + 8).toFloat()
+        val cardWidth = minOf(dp(330).toFloat(), maxOf(dp(210).toFloat(), width.toFloat() - cardLeft - dp(14)))
+        val anchorY = markerY(index, visibleIndices())
+        val cardTop = (anchorY - dp(66)).coerceIn(dp(16).toFloat(), height - dp(148).toFloat())
+        val card = RectF(cardLeft, cardTop, cardLeft + cardWidth, cardTop + dp(132))
         paint.style = Paint.Style.FILL
         paint.color = palette.raised
         canvas.drawRoundRect(card, dp(17).toFloat(), dp(17).toFloat(), paint)
@@ -234,6 +245,7 @@ internal class ReaderChapterRailView(
     private fun reveal(index: Int, durationMs: Long) {
         if (index !in entries.indices) return
         removeCallbacks(hidePreview)
+        pulseIndex = null
         previewIndex = index
         refreshAccessibility()
         invalidate()
@@ -241,10 +253,23 @@ internal class ReaderChapterRailView(
     }
 
     private fun nearestIndex(y: Float): Int? {
-        if (entries.isEmpty()) return null
-        val top = height * 0.16f
-        val fraction = ((y - top) / maxOf(1f, height * 0.68f)).coerceIn(0f, 1f)
-        return (fraction * maxOf(0, entries.lastIndex)).toInt().coerceIn(entries.indices)
+        val visible = visibleIndices()
+        return visible.minByOrNull { index -> kotlin.math.abs(markerY(index, visible) - y) }
+    }
+
+    private fun visibleIndices(): List<Int> {
+        if (entries.isEmpty()) return emptyList()
+        val count = minOf(MAX_VISIBLE_MARKERS, entries.size)
+        val focus = previewIndex ?: activeIndex
+        val start = (focus - count / 2).coerceIn(0, entries.size - count)
+        return (start until start + count).toList()
+    }
+
+    private fun markerY(index: Int, visible: List<Int>): Float {
+        val offset = visible.indexOf(index)
+        if (offset < 0 || visible.size == 1) return height / 2f
+        val markerHeight = (visible.size - 1) * markerSpacing
+        return (height - markerHeight) / 2f + offset * markerSpacing
     }
 
     private fun refreshAccessibility() {

@@ -491,8 +491,11 @@ describe('paper page turns and reader chrome', () => {
     }
     expect(ios).toContain('UIPanGestureRecognizer')
     expect(ios).toContain('goForward(options: .none)')
+    expect(ios).toContain('private var pageTurnTravel: CGFloat')
+    expect(ios).toContain('commitPageTurn(direction, interactive: false)')
     expect(android).toContain('onInterceptTouchEvent')
     expect(android).toContain('goForward(animated = false)')
+    expect(android).toContain('private fun animateCommit(sign: Float, interactive: Boolean')
   })
 
   test('uses a persistent chapter rail and bespoke typeface choices on both platforms', async () => {
@@ -505,8 +508,12 @@ describe('paper page turns and reader chrome', () => {
 
     expect(iosNavigation).toContain('final class ReaderChapterRailView')
     expect(iosNavigation).toContain('UIHoverGestureRecognizer')
+    expect(iosNavigation).toContain('static let gutterWidth: CGFloat = 26')
+    expect(iosNavigation).toContain('private let maxVisibleMarkers = 7')
     expect(androidNavigation).toContain('class ReaderChapterRailView')
     expect(androidNavigation).toContain('onHoverEvent')
+    expect(androidNavigation).toContain('const val GUTTER_WIDTH_DP = 26')
+    expect(androidNavigation).toContain('private const val MAX_VISIBLE_MARKERS = 7')
     expect(iosAppearance).toContain('ReaderTypefacePicker')
     expect(iosAppearance).not.toContain('showsMenuAsPrimaryAction')
     expect(androidAppearance).toContain('TypefacePicker')

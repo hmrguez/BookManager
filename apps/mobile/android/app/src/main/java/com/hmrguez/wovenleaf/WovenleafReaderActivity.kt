@@ -392,7 +392,9 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         ))
         content.addView(
             pageSurface,
-            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
+            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT).apply {
+                leftMargin = dp(ReaderChapterRailView.GUTTER_WIDTH_DP)
+            },
         )
         chapterRail = ReaderChapterRailView(this) { link -> navigate(link, fromToc = true) }
         content.addView(
@@ -1518,32 +1520,26 @@ private class ReaderPageSurface(context: android.content.Context) : FrameLayout(
     }
 
     fun animateRequested(sign: Float, finished: () -> Unit) {
-        animate().cancel()
         edgeDirection = sign
-        edgeProgress = 0.72f
+        edgeProgress = 1f
         invalidate()
-        if (reduceMotion()) {
-            animate().alpha(0.78f).setDuration(100).withEndAction(finished).start()
-        } else {
-            animate()
-                .translationX(sign * minOf(readerDp(context, 112).toFloat(), width * 0.18f))
-                .rotationY(sign * 2.1f)
-                .setDuration(160)
-                .withEndAction(finished)
-                .start()
-        }
+        animateCommit(sign, interactive = false, finished = finished)
     }
 
     fun animateInteractiveCommit(finished: () -> Unit) {
         val sign = if (translationX < 0 || (translationX == 0f && edgeDirection < 0)) -1f else 1f
+        animateCommit(sign, interactive = true, finished = finished)
+    }
+
+    private fun animateCommit(sign: Float, interactive: Boolean, finished: () -> Unit) {
         animate().cancel()
         if (reduceMotion()) {
             animate().alpha(0.78f).setDuration(100).withEndAction(finished).start()
         } else {
             animate()
-                .translationX(sign * minOf(readerDp(context, 112).toFloat(), width * 0.18f))
+                .translationX(sign * width * 0.28f)
                 .rotationY(sign * 2.1f)
-                .setDuration(120)
+                .setDuration(if (interactive) 120 else 220)
                 .withEndAction(finished)
                 .start()
         }

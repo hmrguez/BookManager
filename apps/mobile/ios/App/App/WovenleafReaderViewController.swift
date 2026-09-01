@@ -117,7 +117,10 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         navigator.view.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(navigator.view)
         NSLayoutConstraint.activate([
-            navigator.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            navigator.view.leadingAnchor.constraint(
+                equalTo: view.leadingAnchor,
+                constant: ReaderChapterRailView.gutterWidth
+            ),
             navigator.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             navigator.view.topAnchor.constraint(equalTo: topChrome.bottomAnchor),
             navigator.view.bottomAnchor.constraint(equalTo: bottomChrome.topAnchor),
@@ -137,8 +140,8 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         chapterRail.onNavigate = { [weak self] link in self?.navigate(to: link, fromToc: true) }
         view.addSubview(chapterRail)
         NSLayoutConstraint.activate([
-            chapterRail.leadingAnchor.constraint(equalTo: navigator.view.leadingAnchor),
-            chapterRail.trailingAnchor.constraint(equalTo: navigator.view.trailingAnchor),
+            chapterRail.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            chapterRail.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             chapterRail.topAnchor.constraint(equalTo: navigator.view.topAnchor),
             chapterRail.bottomAnchor.constraint(equalTo: navigator.view.bottomAnchor),
         ])
@@ -993,28 +996,14 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         }
         pageTurnInFlight = true
         motionProbe.begin(interactive: false)
-        let sign = visualSign(for: direction)
-        if UIAccessibility.isReduceMotionEnabled {
-            pageEdge.update(progress: 0.72, direction: sign, palette: readerPalette)
-            UIView.animate(withDuration: 0.1, animations: { self.navigator.view.alpha = 0.78 }) { _ in
-                self.commitPageTurn(direction, interactive: false)
-            }
-        } else {
-            applyPageLift(offset: sign * min(84, navigator.view.bounds.width * 0.13), progress: 0.7)
-            UIView.animate(
-                withDuration: 0.16,
-                delay: 0,
-                options: [.curveEaseOut, .beginFromCurrentState, .allowUserInteraction],
-                animations: { self.applyPageLift(offset: sign * min(112, self.navigator.view.bounds.width * 0.18), progress: 1) }
-            ) { _ in self.commitPageTurn(direction, interactive: false) }
-        }
+        commitPageTurn(direction, interactive: false)
     }
 
     private func commitPageTurn(_ direction: ReaderPageTurnDirection, interactive: Bool) {
         let sign = visualSign(for: direction)
         let finishLift = { [weak self] in
             guard let self else { return }
-            self.applyPageLift(offset: sign * min(112, self.navigator.view.bounds.width * 0.18), progress: 1)
+            self.applyPageLift(offset: sign * self.pageTurnTravel, progress: 1)
         }
         let completion = { [weak self] in
             guard let self else { return }
@@ -1025,15 +1014,19 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
                 self.finishPageTurn(moved: moved, direction: direction)
             }
         }
-        if interactive, !UIAccessibility.isReduceMotionEnabled {
+        if UIAccessibility.isReduceMotionEnabled {
+            pageEdge.update(progress: 0.72, direction: sign, palette: readerPalette)
             UIView.animate(
-                withDuration: 0.12,
+                withDuration: 0.1,
+                animations: { self.navigator.view.alpha = 0.78 }
+            ) { _ in completion() }
+        } else {
+            UIView.animate(
+                withDuration: interactive ? 0.12 : 0.22,
                 delay: 0,
                 options: [.curveEaseOut, .beginFromCurrentState, .allowUserInteraction],
                 animations: finishLift
             ) { _ in completion() }
-        } else {
-            completion()
         }
     }
 
@@ -1095,7 +1088,7 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         progress: CGFloat,
         direction: ReaderPageTurnDirection
     ) {
-        let clamped = max(-navigator.view.bounds.width * 0.28, min(navigator.view.bounds.width * 0.28, translation))
+        let clamped = max(-pageTurnTravel, min(pageTurnTravel, translation))
         if UIAccessibility.isReduceMotionEnabled {
             pageEdge.update(progress: progress, direction: visualSign(for: direction), palette: readerPalette)
             navigator.view.alpha = 1 - progress * 0.1
@@ -1115,6 +1108,10 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         navigator.view.layer.shadowRadius = 14
         navigator.view.layer.shadowOffset = CGSize(width: offset < 0 ? 7 : -7, height: 0)
         pageEdge.update(progress: progress, direction: offset < 0 ? -1 : 1, palette: readerPalette)
+    }
+
+    private var pageTurnTravel: CGFloat {
+        navigator.view.bounds.width * 0.28
     }
 
     private func direction(forTranslation translation: CGFloat) -> ReaderPageTurnDirection {

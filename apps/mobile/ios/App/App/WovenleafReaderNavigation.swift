@@ -91,6 +91,8 @@ struct ReaderNavigationState {
 
 @MainActor
 final class ReaderChapterRailView: UIView {
+    static let gutterWidth: CGFloat = 26
+
     var onNavigate: ((Link) -> Void)?
 
     private struct Entry {
@@ -101,9 +103,12 @@ final class ReaderChapterRailView: UIView {
     private var entries: [Entry] = []
     private var activeIndex = 0
     private var previewIndex: Int?
+    private var pulseIndex: Int?
     private var palette = ReaderPalette(theme: .paper)
     private var hideWorkItem: DispatchWorkItem?
-    private let railWidth: CGFloat = 44
+    private let railWidth = ReaderChapterRailView.gutterWidth
+    private let maxVisibleMarkers = 7
+    private let markerSpacing: CGFloat = 10
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -152,7 +157,16 @@ final class ReaderChapterRailView: UIView {
     }
 
     func revealActiveMomentarily() {
-        reveal(activeIndex, duration: 1.45)
+        guard entries.indices.contains(activeIndex) else { return }
+        hideWorkItem?.cancel()
+        pulseIndex = activeIndex
+        setNeedsDisplay()
+        let work = DispatchWorkItem { [weak self] in
+            self?.pulseIndex = nil
+            self?.setNeedsDisplay()
+        }
+        hideWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8, execute: work)
     }
 
     override func accessibilityIncrement() {
@@ -178,38 +192,41 @@ final class ReaderChapterRailView: UIView {
 
     override func draw(_ rect: CGRect) {
         guard !entries.isEmpty, let context = UIGraphicsGetCurrentContext() else { return }
-        let band = markerBand
-        let denominator = CGFloat(max(1, entries.count - 1))
-        for index in entries.indices {
-            let y = entries.count == 1
-                ? band.midY
-                : band.minY + (CGFloat(index) / denominator) * band.height
+        let visible = visibleIndices
+        for index in visible {
+            let y = markerY(for: index, visible: visible)
             let active = index == activeIndex
-            let hovering = index == previewIndex
-            let width: CGFloat = active ? 27 : hovering ? 22 : 13
-            context.setStrokeColor((active ? palette.ink : palette.secondaryInk).withAlphaComponent(active ? 0.95 : hovering ? 0.65 : 0.32).cgColor)
+            let emphasized = index == previewIndex || index == pulseIndex
+            let width: CGFloat = active ? 18 : emphasized ? 15 : 9
+            context.setStrokeColor((active ? palette.ink : palette.secondaryInk).withAlphaComponent(active ? 0.95 : emphasized ? 0.65 : 0.32).cgColor)
             context.setLineWidth(active ? 2.2 : 1.2)
             context.setLineCap(.round)
-            context.move(to: CGPoint(x: 12, y: y))
-            context.addLine(to: CGPoint(x: 12 + width, y: y))
+            context.move(to: CGPoint(x: 4, y: y))
+            context.addLine(to: CGPoint(x: 4 + width, y: y))
             context.strokePath()
         }
         if let previewIndex { drawPreview(index: previewIndex, context: context) }
     }
 
     private var markerBand: CGRect {
-        CGRect(x: 0, y: max(20, bounds.height * 0.16), width: railWidth, height: max(1, bounds.height * 0.68))
+        let markerHeight = CGFloat(max(0, visibleIndices.count - 1)) * markerSpacing
+        return CGRect(
+            x: 0,
+            y: bounds.midY - markerHeight / 2,
+            width: railWidth,
+            height: max(1, markerHeight)
+        )
     }
 
     private var previewRect: CGRect {
-        let width = min(330, max(210, bounds.width - 78))
-        return CGRect(x: 50, y: max(16, min(bounds.height - 156, previewAnchorY - 70)), width: width, height: 140)
+        let x = Self.gutterWidth + 8
+        let width = min(330, max(210, bounds.width - x - 14))
+        return CGRect(x: x, y: max(16, min(bounds.height - 148, previewAnchorY - 66)), width: width, height: 132)
     }
 
     private var previewAnchorY: CGFloat {
         guard let previewIndex, !entries.isEmpty else { return bounds.midY }
-        let denominator = CGFloat(max(1, entries.count - 1))
-        return markerBand.minY + (CGFloat(previewIndex) / denominator) * markerBand.height
+        return markerY(for: previewIndex, visible: visibleIndices)
     }
 
     private func drawPreview(index: Int, context: CGContext) {
@@ -292,6 +309,7 @@ final class ReaderChapterRailView: UIView {
     private func reveal(_ index: Int, duration: TimeInterval) {
         guard entries.indices.contains(index) else { return }
         hideWorkItem?.cancel()
+        pulseIndex = nil
         previewIndex = index
         refreshAccessibilityValue()
         setNeedsDisplay()
@@ -304,9 +322,24 @@ final class ReaderChapterRailView: UIView {
     }
 
     private func nearestIndex(to y: CGFloat) -> Int? {
-        guard !entries.isEmpty else { return nil }
-        let fraction = min(1, max(0, (y - markerBand.minY) / markerBand.height))
-        return Int((fraction * CGFloat(max(0, entries.count - 1))).rounded())
+        let visible = visibleIndices
+        return visible.min { left, right in
+            abs(markerY(for: left, visible: visible) - y) < abs(markerY(for: right, visible: visible) - y)
+        }
+    }
+
+    private var visibleIndices: [Int] {
+        guard !entries.isEmpty else { return [] }
+        let count = min(maxVisibleMarkers, entries.count)
+        let focus = previewIndex ?? activeIndex
+        let unclampedStart = focus - count / 2
+        let start = min(max(0, unclampedStart), entries.count - count)
+        return Array(start..<(start + count))
+    }
+
+    private func markerY(for index: Int, visible: [Int]) -> CGFloat {
+        guard let offset = visible.firstIndex(of: index), visible.count > 1 else { return bounds.midY }
+        return markerBand.minY + CGFloat(offset) * markerSpacing
     }
 
     private func refreshAccessibilityValue() {
