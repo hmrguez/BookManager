@@ -166,6 +166,7 @@ export function UpNextSection({
                   <div className={tw("up-next-book__actions")}>
                     <button
                       type="button"
+                      className={tw("up-next-book__move")}
                       onClick={() => onMove(book.id, index - 1)}
                       disabled={index === 0}
                       aria-label={`Move ${book.title} earlier`}
@@ -174,6 +175,7 @@ export function UpNextSection({
                     </button>
                     <button
                       type="button"
+                      className={tw("up-next-book__move")}
                       onClick={() => onMove(book.id, index + 1)}
                       disabled={index === displayedBooks.length - 1}
                       aria-label={`Move ${book.title} later`}
@@ -182,7 +184,7 @@ export function UpNextSection({
                     </button>
                     <button
                       type="button"
-                      className={tw("up-next-book__start")}
+                      className={tw("row-action up-next-book__start")}
                       onClick={() => onStart(book.id)}
                       aria-label={`Start reading ${book.title}`}
                     >
