@@ -4,6 +4,7 @@ import {
   progressSnapshotIdSchema,
   readingDeviceIdSchema,
   readingEventIdSchema,
+  readingPositionSchema,
   readingSessionIdSchema,
   type ReadingEvent,
   type ReadingPosition,
@@ -349,7 +350,7 @@ export class EpubReaderRepository {
         ...(snapshot ? { snapshots: [snapshot] } : {}),
       })
     }
-    await this.#saveCheckpoint(event)
+    await this.#saveCheckpoint(event, position?.normalizedProgress)
     return existing ? 'duplicate' : 'applied'
   }
 
@@ -469,12 +470,10 @@ export class EpubReaderRepository {
     await this.#database.persist()
   }
 
-  async #saveCheckpoint(event: NativeReaderEvent, explicitLocator?: ReadiumLocator): Promise<void> {
-    const locator = explicitLocator ?? (
+  async #saveCheckpoint(event: NativeReaderEvent, normalizedProgress?: number): Promise<void> {
+    const isReadingEvent =
       event.kind === 'start' || event.kind === 'location' || event.kind === 'session'
-        ? event.locator
-        : undefined
-    )
+    const locator = isReadingEvent ? event.locator : undefined
     const progression = locator?.locations.totalProgression
     await this.#database.run(
       `INSERT INTO epub_reader_checkpoints(
@@ -502,10 +501,12 @@ export class EpubReaderRepository {
         event.emittedAt,
       ],
     )
-    if (progression !== undefined) {
+    if (isReadingEvent) {
       const book = (await readLibraryBooks(this.#database)).find(({ id }) => id === event.bookId)
       if (book) {
-        const progress = Math.max(0, Math.min(99, Math.round(progression * 100)))
+        const progress = normalizedProgress === undefined
+          ? book.progress
+          : Math.max(0, Math.min(99, Math.round(normalizedProgress * 100)))
         await writeLibraryBook(this.#database, {
           ...book,
           shelf: book.shelf === 'finished' ? 'finished' : 'reading',
@@ -586,7 +587,7 @@ function toReadingEvent(
 function toReadingPosition(event: ReadingNativeReaderEvent): ReadingPosition {
   const locator = readiumLocatorSchema.parse(event.locator)
   const progression = locator.locations.totalProgression
-  return {
+  const candidate = {
     locator: {
       kind: 'epub',
       href: locator.href,
@@ -609,6 +610,20 @@ function toReadingPosition(event: ReadingNativeReaderEvent): ReadingPosition {
       ? { kind: 'none', confidence: 0, reason: 'Readium did not report total progression' }
       : { kind: 'epub-progression', confidence: 1 },
   }
+  const parsed = readingPositionSchema.safeParse(candidate)
+  if (parsed.success) return parsed.data
+
+  console.warn('Invalid EPUB progress; defaulting to 0 while preserving the reader locator.', {
+    eventId: event.id,
+    bookId: event.bookId,
+    issues: parsed.error.issues,
+  })
+  return readingPositionSchema.parse({
+    ...candidate,
+    locator: { ...candidate.locator, totalProgression: 0 },
+    normalizedProgress: 0,
+    normalization: { kind: 'epub-progression', confidence: 0 },
+  })
 }
 
 function readingEventId(nativeId: string) {

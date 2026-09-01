@@ -138,13 +138,16 @@ export const readingPositionSchema = z
       }
     }
     if (normalization.kind === 'epub-progression') {
-      if (locator.kind !== 'epub' || locator.progression === undefined) {
+      if (
+        locator.kind !== 'epub'
+        || (locator.totalProgression === undefined && locator.progression === undefined)
+      ) {
         addNormalizationIssue(
           context,
-          'EPUB-progression normalization requires an EPUB locator with progression',
+          'EPUB-progression normalization requires an EPUB locator with publication progression',
         )
       } else {
-        expected = locator.progression
+        expected = locator.totalProgression ?? locator.progression
       }
     }
     if (normalization.kind === 'chapter-map') {

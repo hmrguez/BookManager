@@ -18,6 +18,8 @@ import {
   uniqueAnnotationReanchorCandidate,
 } from '../src/reader/model'
 import { EpubReaderRepository } from '../src/reader/repository'
+import { libraryBookSchema } from '../src/library-model'
+import { LibraryRepository } from '../src/storage/library-repository'
 import { fixtureIds, representativeCatalog } from './fixtures/catalog'
 import { BunSqliteDatabase } from './storage-test-database'
 
@@ -73,6 +75,55 @@ describe('native EPUB resume checkpoints', () => {
       "SELECT id FROM reading_events WHERE id = 'reading-event:reader:test-1'",
     )
     expect(staleRows).toEqual([])
+    await database.close()
+  })
+
+  test('starts an Up Next book at zero and then tracks publication-wide EPUB progress', async () => {
+    const database = new BunSqliteDatabase()
+    await migrateStorage(database)
+    await new CatalogRepository(database).replace(representativeCatalog)
+    const library = new LibraryRepository(database)
+    await library.save(libraryBookSchema.parse({
+      id: 'book:left-hand-reader',
+      title: 'The Left Hand of Darkness',
+      authors: ['Ursula K. Le Guin'],
+      pageCount: 304,
+      shelf: 'next',
+      progress: 0,
+      currentPage: 0,
+      rating: 0,
+      notes: '',
+      addedAt: '2026-08-20T10:00:00.000Z',
+      lastUpdatedAt: '2026-08-20T10:00:00.000Z',
+    }))
+    const repository = new EpubReaderRepository(database)
+
+    expect(await repository.ingest(nativeReaderEventSchema.parse({
+      ...nativeEnvelope(1),
+      id: 'reading-event:reader:start-1',
+      kind: 'start',
+    }))).toBe('applied')
+    expect((await library.list())[0]).toMatchObject({
+      shelf: 'reading',
+      progress: 0,
+      startedAt: '2026-08-28T12:00:01.000Z',
+    })
+
+    expect(await repository.ingest(readerEvent({
+      sequence: 2,
+      progression: 0.27,
+      resourceProgression: 0.81,
+    }))).toBe('applied')
+    expect((await library.list())[0]).toMatchObject({ shelf: 'reading', progress: 27 })
+
+    const catalog = await new CatalogRepository(database).read()
+    expect(catalog.readingEvents.find(({ id }) => id === 'reading-event:reader:test-2'))
+      .toMatchObject({
+        position: {
+          locator: { kind: 'epub', progression: 0.81, totalProgression: 0.27 },
+          normalizedProgress: 0.27,
+        },
+      })
     await database.close()
   })
 
@@ -398,6 +449,7 @@ describe('full-fidelity EPUB annotations', () => {
 function readerEvent(options: {
   readonly sequence: number
   readonly progression: number
+  readonly resourceProgression?: number
   readonly locator?: typeof semanticLocator
   readonly editionId?: string
   readonly assetId?: string
@@ -407,7 +459,7 @@ function readerEvent(options: {
     ...semanticLocator,
     locations: {
       ...semanticLocator.locations,
-      progression: options.progression,
+      progression: options.resourceProgression ?? options.progression,
       totalProgression: options.progression,
     },
   })
