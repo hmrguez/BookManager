@@ -393,7 +393,7 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         content.addView(
             pageSurface,
             FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT).apply {
-                leftMargin = dp(ReaderChapterRailView.GUTTER_WIDTH_DP)
+                leftMargin = dp(ReaderChapterRailView.CONTENT_INSET_DP)
             },
         )
         chapterRail = ReaderChapterRailView(this) { link -> navigate(link, fromToc = true) }

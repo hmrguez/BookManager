@@ -90,6 +90,8 @@ internal class ReaderChapterRailView(
 ) : View(context) {
     companion object {
         const val GUTTER_WIDTH_DP = 26
+        const val RIGHT_PADDING_DP = 8
+        const val CONTENT_INSET_DP = GUTTER_WIDTH_DP + RIGHT_PADDING_DP
         private const val MAX_VISIBLE_MARKERS = 7
     }
 
@@ -214,7 +216,7 @@ internal class ReaderChapterRailView(
     }
 
     private fun drawPreview(canvas: Canvas, index: Int) {
-        val cardLeft = dp(GUTTER_WIDTH_DP + 8).toFloat()
+        val cardLeft = dp(CONTENT_INSET_DP).toFloat()
         val cardWidth = minOf(dp(330).toFloat(), maxOf(dp(210).toFloat(), width.toFloat() - cardLeft - dp(14)))
         val anchorY = markerY(index, visibleIndices())
         val cardTop = (anchorY - dp(66)).coerceIn(dp(16).toFloat(), height - dp(148).toFloat())

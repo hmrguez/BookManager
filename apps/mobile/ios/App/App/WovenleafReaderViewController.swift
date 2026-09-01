@@ -119,7 +119,7 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         NSLayoutConstraint.activate([
             navigator.view.leadingAnchor.constraint(
                 equalTo: view.leadingAnchor,
-                constant: ReaderChapterRailView.gutterWidth
+                constant: ReaderChapterRailView.contentInset
             ),
             navigator.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             navigator.view.topAnchor.constraint(equalTo: topChrome.bottomAnchor),
