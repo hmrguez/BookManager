@@ -1,5 +1,30 @@
 /* Keyframes and global reduced-motion enforcement remain CSS-only browser policy. */
 
+[data-shelf-motion='erase'],
+[data-shelf-motion='write'] {
+  position: relative;
+  isolation: isolate;
+}
+
+[data-shelf-motion='erase']::after,
+[data-shelf-motion='write']::after {
+  position: absolute;
+  z-index: 4;
+  inset: 0;
+  background: var(--surface-page);
+  content: '';
+  pointer-events: none;
+  will-change: clip-path;
+}
+
+[data-shelf-motion='erase']::after {
+  animation: motion-shelf-erase var(--motion-duration-shelf-ink) linear both;
+}
+
+[data-shelf-motion='write']::after {
+  animation: motion-shelf-write var(--motion-duration-shelf-ink) linear both;
+}
+
 @keyframes motion-page-enter {
   from {
     opacity: 0;
@@ -32,6 +57,16 @@
   }
 }
 
+@keyframes motion-shelf-erase {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+
+@keyframes motion-shelf-write {
+  from { clip-path: inset(0 0 0 0); }
+  to { clip-path: inset(0 0 0 100%); }
+}
+
 @keyframes motion-complete-mark {
   from {
     opacity: 0;
@@ -56,6 +91,7 @@
   --motion-duration-complete: 1ms;
   --motion-duration-feedback: 1ms;
   --motion-duration-move: 1ms;
+  --motion-duration-shelf-ink: 1ms;
   --motion-duration-navigate: 1ms;
   --motion-duration-progress: 1ms;
   --motion-duration-reveal: 1ms;
@@ -81,6 +117,7 @@
     --motion-duration-complete: 1ms;
     --motion-duration-feedback: 1ms;
     --motion-duration-move: 1ms;
+    --motion-duration-shelf-ink: 1ms;
     --motion-duration-navigate: 1ms;
     --motion-duration-progress: 1ms;
     --motion-duration-reveal: 1ms;

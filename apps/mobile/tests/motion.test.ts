@@ -2,10 +2,13 @@ import { describe, expect, test } from 'bun:test'
 import {
   MOTION_FRAME_BUDGET,
   MOTION_GRAMMAR,
+  SHELF_MOTION_TIMING,
   motionScrollBehavior,
+  shelfMotionTiming,
   shouldReduceMotion,
   type MotionFamily,
 } from '../src/design-system'
+import { shelfMotionDelays, type ShelfMotionEvent } from '../src/library/shelf-motion'
 
 const motionCssUrl = new URL('../src/design-system/motion.css', import.meta.url)
 const tokenCssUrl = new URL('../src/design-system/tokens.css', import.meta.url)
@@ -58,6 +61,34 @@ describe('Pulp motion grammar', () => {
     expect(motionScrollBehavior('system', false)).toBe('smooth')
     expect(motionScrollBehavior('system', true)).toBe('auto')
     expect(motionScrollBehavior('reduced', false)).toBe('auto')
+    expect(shelfMotionTiming('system', false)).toEqual(SHELF_MOTION_TIMING)
+    expect(shelfMotionTiming('reduced', false)).toEqual({
+      focusMs: 0,
+      eraseMs: 0,
+      settleMs: 0,
+      writeMs: 0,
+    })
+  })
+
+  test('sequences a shelf move through source focus, erase, settle, destination focus, and write', () => {
+    const event: ShelfMotionEvent = {
+      sequence: 1,
+      bookId: 'book-1',
+      from: 'tbr',
+      to: 'reading',
+    }
+
+    expect(shelfMotionDelays(event, 'tbr', SHELF_MOTION_TIMING)).toEqual({
+      eraseDelayMs: SHELF_MOTION_TIMING.focusMs,
+      writeDelayMs: 0,
+    })
+    expect(shelfMotionDelays(event, 'reading', SHELF_MOTION_TIMING)).toEqual({
+      eraseDelayMs: 0,
+      writeDelayMs: SHELF_MOTION_TIMING.focusMs
+        + SHELF_MOTION_TIMING.eraseMs
+        + SHELF_MOTION_TIMING.settleMs
+        + SHELF_MOTION_TIMING.focusMs,
+    })
   })
 
   test('globally shortens motion without hiding final information or introducing decorative loops', async () => {
@@ -73,12 +104,17 @@ describe('Pulp motion grammar', () => {
     expect(motionCss).not.toMatch(/display:\s*none/)
     expect(motionCss).not.toMatch(/visibility:\s*hidden/)
     expect(motionCss).not.toMatch(/\binfinite\b/)
+    expect(motionCss).toContain("[data-shelf-motion='erase']::after")
+    expect(motionCss).toContain("[data-shelf-motion='write']::after")
+    expect(motionCss).toContain('@keyframes motion-shelf-erase')
+    expect(motionCss).toContain('@keyframes motion-shelf-write')
 
     for (const token of [
       '--motion-duration-feedback',
       '--motion-duration-progress',
       '--motion-duration-reveal',
       '--motion-duration-move',
+      '--motion-duration-shelf-ink',
       '--motion-duration-navigate',
       '--motion-duration-complete',
       '--motion-ease-enter',

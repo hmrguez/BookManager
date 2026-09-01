@@ -25,6 +25,27 @@ export interface MotionRule {
   maxConcurrentElements: 1 | 2
 }
 
+export interface ShelfMotionTiming {
+  readonly focusMs: number
+  readonly eraseMs: number
+  readonly settleMs: number
+  readonly writeMs: number
+}
+
+export const SHELF_MOTION_TIMING: ShelfMotionTiming = {
+  focusMs: 180,
+  eraseMs: 280,
+  settleMs: 180,
+  writeMs: 280,
+}
+
+const REDUCED_SHELF_MOTION_TIMING: ShelfMotionTiming = {
+  focusMs: 0,
+  eraseMs: 0,
+  settleMs: 0,
+  writeMs: 0,
+}
+
 /**
  * The reviewable source of truth for Wovenleaf motion. Product motion must name one of these
  * semantic families; a visual flourish without a state-change trigger does not belong here.
@@ -70,12 +91,12 @@ export const MOTION_GRAMMAR: Readonly<Record<MotionFamily, MotionRule>> = {
     maxConcurrentElements: 2,
   },
   'move-shelf': {
-    purpose: 'Connect a book leaving one shelf with its settled state on another.',
-    trigger: 'A user moves, starts, or advances a book.',
-    durationMs: 180,
+    purpose: 'Connect a book leaving one shelf with its settled state on another through an ink-like erase and rewrite.',
+    trigger: 'A book is added, removed, moved, started, or advanced between shelf lists.',
+    durationMs: 280,
     easing: 'move',
     transformOrigin: 'left center',
-    interruption: 'A second move retargets the book immediately and replaces the prior feedback.',
+    interruption: 'A second list change retargets the rendered books immediately and replaces the prior sequence.',
     reversal: 'Undo returns the book to its recorded shelf and uses the undo feedback family.',
     gestureCoupling: 'If dragging is added, the book follows 1:1 and the shelf change commits only on a valid drop target.',
     reducedReplacement: 'Place the row immediately, update its shelf label, and show the same undoable status message.',
@@ -154,4 +175,14 @@ export function shouldReduceMotion(
 
 export function motionScrollBehavior(mode: MotionMode, systemPreference?: boolean): ScrollBehavior {
   return shouldReduceMotion(mode, systemPreference) ? 'auto' : 'smooth'
+}
+
+export function shelfMotionTiming(
+  mode: MotionMode,
+  systemPreference = typeof window !== 'undefined'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+): ShelfMotionTiming {
+  return shouldReduceMotion(mode, systemPreference)
+    ? REDUCED_SHELF_MOTION_TIMING
+    : SHELF_MOTION_TIMING
 }

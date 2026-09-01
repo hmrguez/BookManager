@@ -30,9 +30,12 @@ export {
   MOTION_FRAME_BUDGET,
   MOTION_GRAMMAR,
   MOTION_MODES,
+  SHELF_MOTION_TIMING,
   motionScrollBehavior,
+  shelfMotionTiming,
   shouldReduceMotion,
   type MotionFamily,
   type MotionMode,
   type MotionRule,
+  type ShelfMotionTiming,
 } from './motion'

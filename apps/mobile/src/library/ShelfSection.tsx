@@ -1,11 +1,11 @@
 import { useState, type ReactNode } from 'react'
 import { ArrowRight, Check, ChevronDown, CirclePlus, Plus, Search } from 'lucide-react'
-import { BookCover, ProgressMeter, RatingStars } from '../design-system'
+import { BookCover, ProgressMeter, RatingStars, type MotionMode } from '../design-system'
 import type { LibraryBook, ShelfId } from '../library'
 import type { LocalSearchResult, SearchHighlight } from '../search'
 import { shelfCopy } from '../app/config'
 import { tw } from '../tailwind/styles'
-import { motionStyles } from '../tailwind/motion'
+import { useAnimatedShelfBooks, type ShelfMotionEvent } from './shelf-motion'
 
 function SearchHighlightedText({ value, highlight }: { value: string; highlight?: SearchHighlight }) {
   if (!highlight?.ranges.length) return value
@@ -90,7 +90,8 @@ export function ShelfSection({
   onStart,
   onFinish,
   onRate,
-  movingBookId,
+  shelfMotion,
+  motionMode,
 }: {
   shelf: ShelfId
   books: LibraryBook[]
@@ -103,12 +104,26 @@ export function ShelfSection({
   onStart: (id: string) => void
   onFinish: (id: string) => void
   onRate: (id: string, rating: number) => void
-  movingBookId?: string
+  shelfMotion?: ShelfMotionEvent
+  motionMode: MotionMode
 }) {
   const meta = shelfCopy[shelf]
   const [collapsed, setCollapsed] = useState(false)
+  const [expandedForMotion, setExpandedForMotion] = useState<number>()
+  const relevantMotionSequence = shelfMotion?.from === shelf || shelfMotion?.to === shelf
+    ? shelfMotion.sequence
+    : undefined
+  if (relevantMotionSequence !== undefined && relevantMotionSequence !== expandedForMotion) {
+    setExpandedForMotion(relevantMotionSequence)
+    setCollapsed(false)
+  }
   const isCollapsed = collapsed && !isFiltering
-
+  const { displayedBooks, animating, setRowElement } = useAnimatedShelfBooks({
+    books,
+    shelf,
+    event: shelfMotion,
+    motionMode,
+  })
   return (
     <section className={tw(`shelf shelf--${shelf}`)} id={`shelf-${shelf}`} data-shelf={shelf}>
       <header className={tw('shelf-header')}>
@@ -132,8 +147,13 @@ export function ShelfSection({
         </button>
       </header>
 
-      <div className={tw('shelf-books')} id={`shelf-books-${shelf}`} hidden={isCollapsed}>
-        {books.length === 0 ? (
+      <div
+        className={tw('shelf-books')}
+        id={`shelf-books-${shelf}`}
+        hidden={isCollapsed}
+        aria-busy={animating || undefined}
+      >
+        {displayedBooks.length === 0 ? (
           isFiltering ? (
             <div className={tw('empty-shelf empty-shelf--filter')}>
               <Search aria-hidden="true" />
@@ -146,11 +166,12 @@ export function ShelfSection({
             </button>
           )
         ) : (
-          books.map((book) => (
+          displayedBooks.map(({ book, motion }) => (
             <article
-              className={tw('book-row', motionStyles.moveShelf)}
+              className={tw('book-row')}
               key={book.id}
-              data-motion-event={movingBookId === book.id ? 'move-shelf' : undefined}
+              ref={(element) => { setRowElement(book.id, element) }}
+              data-shelf-motion={motion === 'idle' ? undefined : motion}
             >
               <button className={tw('book-identity')} type="button" onClick={() => onDetails(book.id)}>
                 <BookCover book={book} />

@@ -11,8 +11,9 @@ import {
   Sparkles,
   X,
 } from 'lucide-react'
-import { BookCover } from './design-system'
+import { BookCover, type MotionMode } from './design-system'
 import type { LibraryBook } from './library-model'
+import { useAnimatedShelfBooks, type ShelfMotionEvent } from './library/shelf-motion'
 import {
   UP_NEXT_CRITERIA,
   UP_NEXT_CRITERION_COPY,
@@ -39,6 +40,8 @@ export function UpNextSection({
   onAddSuggestion,
   onDismissSuggestion,
   onReasonState,
+  shelfMotion,
+  motionMode,
 }: {
   books: readonly LibraryBook[]
   state: UpNextState
@@ -52,10 +55,25 @@ export function UpNextSection({
   onAddSuggestion: (bookId: string) => void
   onDismissSuggestion: (bookId: string) => void
   onReasonState: (criterion: UpNextCriterion, state: ReasonState) => void
+  shelfMotion?: ShelfMotionEvent
+  motionMode: MotionMode
 }) {
   const [collapsed, setCollapsed] = useState(false)
+  const [expandedForMotion, setExpandedForMotion] = useState<number>()
+  const relevantMotionSequence = shelfMotion?.from === 'next' || shelfMotion?.to === 'next'
+    ? shelfMotion.sequence
+    : undefined
+  if (relevantMotionSequence !== undefined && relevantMotionSequence !== expandedForMotion) {
+    setExpandedForMotion(relevantMotionSequence)
+    setCollapsed(false)
+  }
   const isCollapsed = collapsed && !isFiltering
-
+  const { displayedBooks, animating, setRowElement } = useAnimatedShelfBooks({
+    books,
+    shelf: 'next',
+    event: shelfMotion,
+    motionMode,
+  })
   return (
     <section className={tw("shelf shelf--next up-next")} id="shelf-next" data-shelf="next">
       <header className={tw("shelf-header up-next__header")}>
@@ -94,7 +112,12 @@ export function UpNextSection({
         </button>
       </header>
 
-      <div className={tw("shelf-books")} id="shelf-books-next" hidden={isCollapsed}>
+      <div
+        className={tw("shelf-books")}
+        id="shelf-books-next"
+        hidden={isCollapsed}
+        aria-busy={animating || undefined}
+      >
         {FEATURES.assistedUpNext && (
           <div className={tw("up-next__principle")}>
             <span>{state.mode === 'manual' ? 'Your order, exactly' : 'Your order stays in charge'}</span>
@@ -106,7 +129,7 @@ export function UpNextSection({
           </div>
         )}
 
-        {books.length === 0 ? (
+        {displayedBooks.length === 0 ? (
           <button className={tw("empty-shelf")} type="button" onClick={onAdd}>
             <Plus aria-hidden="true" />
             <span>
@@ -116,12 +139,13 @@ export function UpNextSection({
           </button>
         ) : (
           <div className={tw("up-next__queue")}>
-            {books.map((book, index) => {
+            {displayedBooks.map(({ book, motion }, index) => {
               return (
                 <article
                   className={tw('up-next-book')}
                   key={book.id}
-                  data-motion-event="reorder"
+                  ref={(element) => { setRowElement(book.id, element) }}
+                  data-shelf-motion={motion === 'idle' ? undefined : motion}
                 >
                   <span className={tw("up-next-book__number")} aria-label={`Position ${index + 1}`}>
                     {String(index + 1).padStart(2, '0')}
@@ -148,7 +172,7 @@ export function UpNextSection({
                     <button
                       type="button"
                       onClick={() => onMove(book.id, index + 1)}
-                      disabled={index === books.length - 1}
+                      disabled={index === displayedBooks.length - 1}
                       aria-label={`Move ${book.title} later`}
                     >
                       <ArrowDown aria-hidden="true" />

@@ -37,6 +37,7 @@ import type { AppView, ExportFormat, SheetState, ToastState } from './app/model'
 import { BottomNavigation } from './app/components/BottomNavigation'
 import { Sheet } from './app/components/Sheet'
 import { LibraryPage } from './library/LibraryPage'
+import type { ShelfMotionEvent } from './library/shelf-motion'
 import { useLibraryViewModel } from './library/useLibraryViewModel'
 import { SearchSheet } from './search/SearchSheet'
 import { CustomShelfEditorSheet } from './organization/CustomShelfComponents'
@@ -89,7 +90,6 @@ function App() {
     moveBook,
     setProgress,
     setCurrentPage,
-    finishBook,
     removeBook,
     reload,
   } = useLibrary()
@@ -132,7 +132,7 @@ function App() {
   const [librarySort, setLibrarySort] = useState<LocalSearchSort>('relevance')
   const [commandMenuOpen, setCommandMenuOpen] = useState(false)
   const [toast, setToast] = useState<ToastState>(null)
-  const [movingBookId, setMovingBookId] = useState<string>()
+  const [shelfMotion, setShelfMotion] = useState<ShelfMotionEvent>()
   const [appearance, setAppearance] = useState(() => readAppearance(getAppearanceStorage()))
   const [searchPreferences, setSearchPreferences] = useState(() =>
     readSearchPreferences(getSearchPreferencesStorage()),
@@ -161,6 +161,7 @@ function App() {
   const audiobookAbortRef = useRef<AbortController | undefined>(undefined)
   const audiobookSourcesRef = useRef<readonly AudiobookImportSource[]>([])
   const recoveryArchiveRef = useRef<string | undefined>(undefined)
+  const shelfMotionSequenceRef = useRef(0)
 
   const libraryViewModel = useLibraryViewModel({
     books,
@@ -345,12 +346,6 @@ function App() {
     const timer = window.setTimeout(() => setToast(null), toast.undo ? 5000 : 2400)
     return () => window.clearTimeout(timer)
   }, [toast])
-
-  useEffect(() => {
-    if (!movingBookId) return
-    const timer = window.setTimeout(() => setMovingBookId(undefined), 300)
-    return () => window.clearTimeout(timer)
-  }, [movingBookId])
 
   useLayoutEffect(() => {
     applyAppearance(document.documentElement, appearance)
@@ -871,10 +866,19 @@ function App() {
     })
   }
 
+  const beginShelfMotion = (bookId: string, from?: ShelfId, to?: ShelfId) => {
+    shelfMotionSequenceRef.current += 1
+    setShelfMotion({ sequence: shelfMotionSequenceRef.current, bookId, from, to })
+  }
+
   const moveToShelf = (id: string, shelf: ShelfId) => {
+    const book = books.find((item) => item.id === id)
+    if (!book || book.shelf === shelf) return false
+    beginShelfMotion(id, book.shelf, shelf)
     moveBook(id, shelf)
     if (shelf === 'next') addQueueBook(id)
     else removeQueueBook(id)
+    return true
   }
 
   const moveWithUndo = (id: string, shelf: ShelfId, message: string) => {
@@ -883,12 +887,10 @@ function App() {
 
     const previousShelf = book.shelf
     moveToShelf(id, shelf)
-    setMovingBookId(id)
     setToast({
       message,
       undo: () => {
         moveToShelf(id, previousShelf)
-        setMovingBookId(id)
         if (shelf === 'finished') closeSheet()
         setToast({
           message: `${book.title} returned to ${shelfCopy[previousShelf].label}`,
@@ -901,10 +903,10 @@ function App() {
   const handleAdd = (result: BookSearchResult, shelf: ShelfId) => {
     const previous = findLibraryBookForSearchResult(books, result)
     if (previous && previous.shelf !== shelf) {
+      beginShelfMotion(previous.id, previous.shelf, shelf)
       const { bookId } = addBook(result, shelf)
       if (shelf === 'next') addQueueBook(bookId)
       else removeQueueBook(bookId)
-      setMovingBookId(previous.id)
       setToast({ message: `Moved to ${shelfCopy[shelf].label}` })
       return
     }
@@ -912,7 +914,7 @@ function App() {
     const { bookId } = addBook(result, shelf)
     if (shelf === 'next') addQueueBook(bookId)
     else removeQueueBook(bookId)
-    setMovingBookId(bookId)
+    if (!previous) beginShelfMotion(bookId, undefined, shelf)
     setToast({ message: previous ? `Already in ${shelfCopy[shelf].label}` : `Added to ${shelfCopy[shelf].label}` })
   }
 
@@ -955,9 +957,7 @@ function App() {
   }
 
   const handleFinish = (id: string) => {
-    finishBook(id)
-    removeQueueBook(id)
-    setMovingBookId(id)
+    moveToShelf(id, 'finished')
     openSheet({ kind: 'finished', bookId: id })
   }
 
@@ -1058,7 +1058,7 @@ function App() {
             appearance={appearance}
             upNext={upNext}
             viewModel={libraryViewModel}
-            movingBookId={movingBookId}
+            shelfMotion={shelfMotion}
             librarySearchOpen={librarySearchOpen}
             libraryQuery={libraryQuery}
             libraryShelfFilter={libraryShelfFilter}
@@ -1193,7 +1193,6 @@ function App() {
               handleFinish(selectedBook.id)
             } else {
               moveToShelf(selectedBook.id, targetShelf)
-              setMovingBookId(selectedBook.id)
               setToast({ message: `Moved to ${shelfCopy[targetShelf].label}` })
             }
           }}
@@ -1217,6 +1216,7 @@ function App() {
           }}
           onTags={(tags) => setBookTags(selectedBook.id, tags)}
           onRemove={() => {
+            beginShelfMotion(selectedBook.id, selectedBook.shelf, undefined)
             removeBook(selectedBook.id)
             removeQueueBook(selectedBook.id)
             closeSheet()
@@ -1308,7 +1308,6 @@ function App() {
             handleFinish(bookId)
           } else {
             moveToShelf(bookId, targetShelf)
-            setMovingBookId(bookId)
             setToast({ message: `Moved to ${shelfCopy[targetShelf].label}` })
           }
         }}

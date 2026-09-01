@@ -135,6 +135,7 @@
   --motion-duration-progress: 140ms;
   --motion-duration-reveal: 180ms;
   --motion-duration-move: 180ms;
+  --motion-duration-shelf-ink: 280ms;
   --motion-duration-navigate: 240ms;
   --motion-duration-complete: 300ms;
   --motion-distance-lift: 4px;

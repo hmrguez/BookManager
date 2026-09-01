@@ -151,7 +151,7 @@ of truth is `motion.ts`; components combine `data-motion-event` with recipes fro
 | Navigate | Preserve place when primary navigation changes view or jumps to a shelf | 240 ms, enter, inline-end center | New navigation replaces the in-flight view. Reduced swaps immediately, updates `aria-current`, restores focus, and uses instant scrolling. |
 | Reveal | Expose requested search, disclosure, or modal detail | 180 ms, enter, top center; sheet origin is bottom center | Content is interactive on frame one and dismissal commits immediately. Reduced keeps the same heading, boundary, state, and focus order with a 1 ms reveal. |
 | Reorder | Keep a book identifiable when its sort position changes | 180 ms, move, center | A new order retargets current positions; it never queues. Reduced commits and announces the final position. |
-| Move shelf | Connect a row with its new shelf after Move, Next, or Start | 180 ms, move, inline-start center | A second move retargets immediately. Reduced places the row at once and retains shelf text plus the undoable status message. |
+| Move shelf | Connect a row with its new shelf after any add, remove, Move, Next, or Start | 280 ms ink wipe/reveal plus a 180 ms FLIP settle, inline-start | The source is centered, erased left-to-right, and closed before the destination is centered and written left-to-right. A second change retargets immediately. Reduced places the row at once and retains shelf text plus the undoable status message. |
 | Progress | Connect percent/page input to proportional progress | 140 ms, linear, inline-start center | Repeated input retargets the bar from its rendered width. Reduced updates number, page count, and bar together without interpolation. |
 | Complete | Confirm Finished once, without spectacle | 300 ms, enter, inline-start center | Rating and Done work immediately. Reduced shows the check, Finished heading, book identity, and rating controls at once. |
 | Undo | Confirm that a reversible shelf move was rolled back | 140 ms, exit, bottom center | Undo commits synchronously and replaces the prior message. Reduced restores the shelf and says “Move undone” immediately. |
@@ -159,8 +159,9 @@ of truth is `motion.ts`; components combine `data-motion-event` with recipes fro
 
 Enter uses `cubic-bezier(0.22, 1, 0.36, 1)`, exit uses
 `cubic-bezier(0.4, 0, 1, 1)`, and spatial movement uses
-`cubic-bezier(0.2, 0.8, 0.2, 1)`. Only opacity and transform are used for structural keyframes;
-progress interpolates one bounded meter fill while its numeric value updates synchronously.
+`cubic-bezier(0.2, 0.8, 0.2, 1)`. Structural movement uses opacity and transform; the shelf
+ink metaphor clips a page-color overlay without changing layout, and progress interpolates one
+bounded meter fill while its numeric value updates synchronously.
 
 At most one structural event and one feedback event may animate together. A sheet's surface and
 scrim count as the two parts of one reveal; list rows are not staggered as a group. A new event

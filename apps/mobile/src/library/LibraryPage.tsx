@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import {
   Archive,
   ChevronRight,
@@ -8,7 +9,7 @@ import {
   Search,
   X,
 } from 'lucide-react'
-import type { AppearancePreferences } from '../design-system'
+import { motionScrollBehavior, shelfMotionTiming, type AppearancePreferences } from '../design-system'
 import { SHELVES, type LibraryBook, type ShelfId } from '../library'
 import type { LibraryOrganization } from '../organization-model'
 import type { LocalSearchSort } from '../search'
@@ -16,12 +17,12 @@ import { SmartListSection } from '../smart-lists'
 import { UpNextSection } from '../UpNext'
 import type { UpNextCriterion, UpNextState } from '../up-next-model'
 import type { SheetState } from '../app/model'
-import { motionScrollBehavior } from '../design-system'
 import { CustomShelfSection } from '../organization/CustomShelfComponents'
 import { tw } from '../tailwind/styles'
 import { motionStyles } from '../tailwind/motion'
 import { FEATURES } from '../app/feature-flags'
 import { ShelfSection } from './ShelfSection'
+import type { ShelfMotionEvent } from './shelf-motion'
 import type { LibraryViewModel } from './useLibraryViewModel'
 
 type OpenSheet = (sheet: Exclude<SheetState, null>) => void
@@ -32,7 +33,7 @@ export function LibraryPage({
   appearance,
   upNext,
   viewModel,
-  movingBookId,
+  shelfMotion,
   librarySearchOpen,
   libraryQuery,
   libraryShelfFilter,
@@ -58,7 +59,7 @@ export function LibraryPage({
   appearance: AppearancePreferences
   upNext: UpNextState
   viewModel: LibraryViewModel
-  movingBookId?: string
+  shelfMotion?: ShelfMotionEvent
   librarySearchOpen: boolean
   libraryQuery: string
   libraryShelfFilter: ShelfId | 'all'
@@ -96,6 +97,28 @@ export function LibraryPage({
     upNextSuggestions,
     visibleBooks,
   } = viewModel
+
+  useEffect(() => {
+    if (!shelfMotion) return
+    const timing = shelfMotionTiming(appearance.motion)
+    const scrollToMotionShelf = (shelf: ShelfId) => {
+      document.getElementById(`shelf-${shelf}`)?.scrollIntoView({
+        behavior: motionScrollBehavior(appearance.motion),
+        block: 'center',
+        inline: 'nearest',
+      })
+    }
+
+    if (shelfMotion.from) scrollToMotionShelf(shelfMotion.from)
+    else if (shelfMotion.to) scrollToMotionShelf(shelfMotion.to)
+
+    if (!shelfMotion.to || !shelfMotion.from || shelfMotion.to === shelfMotion.from) return
+    const timer = window.setTimeout(
+      () => scrollToMotionShelf(shelfMotion.to!),
+      timing.focusMs + timing.eraseMs + timing.settleMs,
+    )
+    return () => window.clearTimeout(timer)
+  }, [appearance.motion, shelfMotion])
 
   return (
     <div className={tw('library-page', motionStyles.navigate)} data-motion-event="navigate">
@@ -261,6 +284,8 @@ export function LibraryPage({
                 onAddSuggestion={onNext}
                 onDismissSuggestion={onDismissSuggestion}
                 onReasonState={onReasonState}
+                shelfMotion={shelfMotion}
+                motionMode={appearance.motion}
               />
             ) : (
               <ShelfSection
@@ -269,7 +294,8 @@ export function LibraryPage({
                 books={booksByShelf[shelf.id]}
                 isFiltering={librarySearchActive}
                 searchResults={librarySearchResultById}
-                movingBookId={movingBookId}
+                shelfMotion={shelfMotion}
+                motionMode={appearance.motion}
                 onAdd={(targetShelf) => onOpenSheet({ kind: 'search', shelf: targetShelf })}
                 onDetails={(bookId) => onOpenSheet({ kind: 'detail', bookId })}
                 onProgress={(bookId) => onOpenSheet({ kind: 'progress', bookId })}
