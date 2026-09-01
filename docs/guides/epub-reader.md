@@ -104,6 +104,32 @@ and high-contrast palettes. It deliberately leaves device brightness to the oper
 explains how to match the luminous display to ambient light; an LCD/OLED phone cannot reproduce the
 reflective front-light hardware of an e-ink panel.
 
+## Reader shell and paper turns
+
+The native reader uses its own quiet chrome instead of inheriting a generic navigation bar,
+toolbar, or typeface dropdown. **Library**, the system back action, and Escape all leave the reader
+and return to the non-reader surface. Discontinuous in-book jump history remains available through
+Command-`[` on iOS and Alt-Left on Android, but is not presented as a misleading Back button.
+
+A slim chapter rail remains visible at the left edge. Every flattened TOC entry is represented by a
+mark; the active mark is longer and higher contrast. Pointer hover, touch-and-hold, and chapter-open
+feedback reveal the neighboring chapter names in a paper card, with the focused title larger and
+darker. Tapping or releasing on a mark navigates directly. The full navigation surface remains
+available for search, bookmarks, notes, and publications without a usable TOC.
+
+Paginated books accept horizontal swipe turns in both reading directions. The paper edge follows the
+finger, reverses below threshold, and commits through one non-animated Readium navigation call after
+the app-owned lift completes. Buttons, keys, and gestures share a single in-flight gate and a bounded
+three-turn queue, so fast input cannot double-advance or retain an unbounded history. The animation
+uses only transforms, opacity, and a drawn edge—never page bitmaps or publication snapshots. Scrolling
+mode keeps Readium's native movement.
+
+Reduced motion replaces the 3D edge lift with a directional ink edge and short crossfade. Chapter,
+bookmark, highlight, and finish feedback use the same restrained paper card and remain announced to
+assistive technology. A display-link/Choreographer probe runs only during a turn and records duration,
+frame count, late frames, reversal, and commit state in debug builds; it is detached immediately after
+the interaction to avoid long-session battery or memory cost.
+
 ## Accessibility and international content
 
 Every new import now stores a versioned compatibility profile before native open. Reflowable RTL,

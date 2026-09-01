@@ -4,7 +4,7 @@ import ReadiumShared
 import UIKit
 
 @MainActor
-final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelegate {
+final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelegate, UIGestureRecognizerDelegate {
     private let publication: Publication
     private let navigator: EPUBNavigatorViewController
     private let initialLocator: Locator?
@@ -27,19 +27,35 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
     private let speechSynthesizer = AVSpeechSynthesizer()
     private var presentedCompatibilityNotice = false
     private let progressControl = ReaderProgressControl()
-    private lazy var historyButton = UIBarButtonItem(
-        image: UIImage(systemName: "arrow.uturn.backward"),
-        style: .plain,
+    private let topChrome = UIView()
+    private let bottomChrome = UIView()
+    private let titleLabel = UILabel()
+    private lazy var libraryButton = ReaderChromeButton(title: "Library", target: self, action: #selector(closeReader))
+    private lazy var appearanceButton = ReaderChromeButton(symbol: "textformat.size", target: self, action: #selector(showReaderSettings))
+    private lazy var bookmarkButton = ReaderChromeButton(symbol: "bookmark", target: self, action: #selector(toggleBookmark))
+    private lazy var outlineButton = ReaderChromeButton(symbol: "line.3.horizontal.decrease", target: self, action: #selector(showReaderOutline))
+    private lazy var previousButton = ReaderChromeButton(
+        symbol: context.compatibility?.isRightToLeft == true ? "chevron.right" : "chevron.left",
         target: self,
-        action: #selector(goBackInBook)
+        action: #selector(previousPage)
     )
-    private lazy var bookmarkButton = UIBarButtonItem(
-        image: UIImage(systemName: "bookmark"),
-        style: .plain,
+    private lazy var nextButton = ReaderChromeButton(
+        symbol: context.compatibility?.isRightToLeft == true ? "chevron.left" : "chevron.right",
         target: self,
-        action: #selector(toggleBookmark)
+        action: #selector(nextPage)
     )
+    private lazy var compatibilityButton = ReaderChromeButton(symbol: "info.circle", target: self, action: #selector(showCompatibilityNotice))
     private let textureView = PaperTextureView()
+    private let chapterRail = ReaderChapterRailView()
+    private let feedbackView = ReaderFeedbackView()
+    private let pageEdge = ReaderPageEdgeView()
+    private var lastChapterHref: String?
+    private var didShowFinishFeedback = false
+    private var pageTurnInFlight = false
+    private var queuedPageTurns: [ReaderPageTurnDirection] = []
+    private var interactiveTurnDirection: ReaderPageTurnDirection?
+    private var interactiveTurnProgress: CGFloat = 0
+    private let motionProbe = ReaderMotionProbe()
 
     init(
         publication: Publication,
@@ -82,33 +98,20 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = context.title
-        navigationItem.largeTitleDisplayMode = .never
-        navigationItem.leftBarButtonItem = UIBarButtonItem(
-            title: "Library",
-            style: .plain,
-            target: self,
-            action: #selector(closeReader)
-        )
-        let appearanceButton = UIBarButtonItem(
-            image: UIImage(systemName: "textformat.size"),
-            style: .plain,
-            target: self,
-            action: #selector(showReaderSettings)
-        )
+        navigationController?.setNavigationBarHidden(true, animated: false)
+        navigationController?.setToolbarHidden(true, animated: false)
+        view.backgroundColor = readerPalette.page
+
+        libraryButton.accessibilityLabel = "Close reader and return to library"
         appearanceButton.accessibilityLabel = "Reading appearance"
         bookmarkButton.accessibilityLabel = "Add bookmark"
-        let compatibilityButton = context.compatibility?.notices.isEmpty == false
-            ? UIBarButtonItem(
-                image: UIImage(systemName: "info.circle"),
-                style: .plain,
-                target: self,
-                action: #selector(showCompatibilityNotice)
-            )
-            : nil
-        compatibilityButton?.accessibilityLabel = "Reading compatibility"
-        navigationItem.rightBarButtonItems = [appearanceButton, compatibilityButton, bookmarkButton]
-            .compactMap { $0 }
+        outlineButton.accessibilityLabel = "Browse chapters, bookmarks, notes, and search"
+        previousButton.accessibilityLabel = "Previous page"
+        nextButton.accessibilityLabel = "Next page"
+        compatibilityButton.accessibilityLabel = "Reading compatibility"
+        compatibilityButton.isHidden = context.compatibility?.notices.isEmpty != false
+
+        buildReaderChrome()
 
         addChild(navigator)
         navigator.view.translatesAutoresizingMaskIntoConstraints = false
@@ -116,8 +119,8 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         NSLayoutConstraint.activate([
             navigator.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             navigator.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            navigator.view.topAnchor.constraint(equalTo: view.topAnchor),
-            navigator.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            navigator.view.topAnchor.constraint(equalTo: topChrome.bottomAnchor),
+            navigator.view.bottomAnchor.constraint(equalTo: bottomChrome.topAnchor),
         ])
         navigator.didMove(toParent: self)
 
@@ -130,43 +133,36 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
             textureView.bottomAnchor.constraint(equalTo: navigator.view.bottomAnchor),
         ])
 
+        chapterRail.translatesAutoresizingMaskIntoConstraints = false
+        chapterRail.onNavigate = { [weak self] link in self?.navigate(to: link, fromToc: true) }
+        view.addSubview(chapterRail)
+        NSLayoutConstraint.activate([
+            chapterRail.leadingAnchor.constraint(equalTo: navigator.view.leadingAnchor),
+            chapterRail.trailingAnchor.constraint(equalTo: navigator.view.trailingAnchor),
+            chapterRail.topAnchor.constraint(equalTo: navigator.view.topAnchor),
+            chapterRail.bottomAnchor.constraint(equalTo: navigator.view.bottomAnchor),
+        ])
+
+        pageEdge.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(pageEdge)
+        NSLayoutConstraint.activate([
+            pageEdge.leadingAnchor.constraint(equalTo: navigator.view.leadingAnchor),
+            pageEdge.trailingAnchor.constraint(equalTo: navigator.view.trailingAnchor),
+            pageEdge.topAnchor.constraint(equalTo: navigator.view.topAnchor),
+            pageEdge.bottomAnchor.constraint(equalTo: navigator.view.bottomAnchor),
+        ])
+
+        feedbackView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(feedbackView)
+        NSLayoutConstraint.activate([
+            feedbackView.centerXAnchor.constraint(equalTo: navigator.view.centerXAnchor),
+            feedbackView.bottomAnchor.constraint(equalTo: navigator.view.bottomAnchor, constant: -18),
+            feedbackView.widthAnchor.constraint(lessThanOrEqualTo: navigator.view.widthAnchor, constant: -72),
+        ])
+
         progressControl.onCommit = { [weak self] progression in
             self?.scrub(to: progression)
         }
-        let flexibleSpace = UIBarButtonItem(
-            barButtonSystemItem: .flexibleSpace,
-            target: nil,
-            action: nil
-        )
-        toolbarItems = [
-            UIBarButtonItem(
-                image: UIImage(systemName: "list.bullet.indent"),
-                style: .plain,
-                target: self,
-                action: #selector(showReaderOutline)
-            ),
-            historyButton,
-            flexibleSpace,
-            UIBarButtonItem(customView: progressControl),
-            UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil),
-            UIBarButtonItem(
-                image: UIImage(systemName: context.compatibility?.isRightToLeft == true ? "chevron.right" : "chevron.left"),
-                style: .plain,
-                target: self,
-                action: #selector(previousPage)
-            ),
-            UIBarButtonItem(
-                image: UIImage(systemName: context.compatibility?.isRightToLeft == true ? "chevron.left" : "chevron.right"),
-                style: .plain,
-                target: self,
-                action: #selector(nextPage)
-            ),
-        ]
-        toolbarItems?[0].accessibilityLabel = "Contents, bookmarks, and search"
-        historyButton.accessibilityLabel = "Return to previous passage"
-        toolbarItems?[5].accessibilityLabel = "Previous page"
-        toolbarItems?[6].accessibilityLabel = "Next page"
-        navigationController?.setToolbarHidden(false, animated: false)
 
         NotificationCenter.default.addObserver(
             self,
@@ -175,9 +171,10 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
             object: nil
         )
         applyReaderPalette()
-        updateHistoryButton()
         updateBookmarkButton()
         setupReaderInput()
+        setupPageTurnGesture()
+        loadChapterRail()
         setupAnnotationInteractions()
         applyAnnotationDecorations()
         attemptAnnotationReanchoring()
@@ -234,10 +231,91 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         publication.close()
     }
 
+    private func buildReaderChrome() {
+        [topChrome, bottomChrome].forEach {
+            $0.translatesAutoresizingMaskIntoConstraints = false
+            view.addSubview($0)
+        }
+
+        titleLabel.text = context.title
+        titleLabel.font = .preferredFont(forTextStyle: .subheadline)
+        titleLabel.adjustsFontForContentSizeCategory = true
+        titleLabel.adjustsFontSizeToFitWidth = true
+        titleLabel.minimumScaleFactor = 0.72
+        titleLabel.textAlignment = .center
+        titleLabel.lineBreakMode = .byTruncatingTail
+        titleLabel.accessibilityTraits = .header
+
+        let trailing = UIStackView(arrangedSubviews: [bookmarkButton, compatibilityButton, appearanceButton])
+        trailing.axis = .horizontal
+        trailing.alignment = .center
+        trailing.spacing = 2
+
+        let topStack = UIStackView(arrangedSubviews: [libraryButton, titleLabel, trailing])
+        topStack.translatesAutoresizingMaskIntoConstraints = false
+        topStack.axis = .horizontal
+        topStack.alignment = .center
+        topStack.spacing = 8
+        topChrome.addSubview(topStack)
+
+        libraryButton.setContentHuggingPriority(.required, for: .horizontal)
+        trailing.setContentHuggingPriority(.required, for: .horizontal)
+        titleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+        let bottomStack = UIStackView(arrangedSubviews: [outlineButton, UIView(), progressControl, UIView(), previousButton, nextButton])
+        bottomStack.translatesAutoresizingMaskIntoConstraints = false
+        bottomStack.axis = .horizontal
+        bottomStack.alignment = .center
+        bottomStack.spacing = 4
+        bottomChrome.addSubview(bottomStack)
+
+        NSLayoutConstraint.activate([
+            topChrome.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            topChrome.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            topChrome.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            topChrome.heightAnchor.constraint(equalToConstant: 54),
+            bottomChrome.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            bottomChrome.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            bottomChrome.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
+            bottomChrome.heightAnchor.constraint(equalToConstant: 62),
+            topStack.leadingAnchor.constraint(equalTo: topChrome.leadingAnchor, constant: 10),
+            topStack.trailingAnchor.constraint(equalTo: topChrome.trailingAnchor, constant: -10),
+            topStack.topAnchor.constraint(equalTo: topChrome.topAnchor, constant: 5),
+            topStack.bottomAnchor.constraint(equalTo: topChrome.bottomAnchor, constant: -5),
+            bottomStack.leadingAnchor.constraint(equalTo: bottomChrome.leadingAnchor, constant: 10),
+            bottomStack.trailingAnchor.constraint(equalTo: bottomChrome.trailingAnchor, constant: -10),
+            bottomStack.topAnchor.constraint(equalTo: bottomChrome.topAnchor, constant: 5),
+            bottomStack.bottomAnchor.constraint(equalTo: bottomChrome.bottomAnchor, constant: -5),
+        ])
+    }
+
+    private func loadChapterRail() {
+        Task { [weak self] in
+            guard let self else { return }
+            let links = (try? await publication.tableOfContents().get()) ?? []
+            chapterRail.setLinks(links)
+            chapterRail.updateActive(locator: lastLocator ?? navigator.currentLocation)
+        }
+    }
+
     func navigator(_ navigator: Navigator, locationDidChange locator: Locator) {
+        let previousChapter = lastChapterHref
         lastLocator = locator
         updateProgress(locator)
         updateBookmarkButton()
+        chapterRail.updateActive(locator: locator)
+        lastChapterHref = locator.href.string
+        if let previousChapter, previousChapter != locator.href.string {
+            chapterRail.revealActiveMomentarily()
+            feedbackView.show(locator.title ?? "New chapter", symbol: "text.book.closed")
+        }
+        if (locator.locations.totalProgression ?? 0) >= 0.9995, !didShowFinishFeedback {
+            didShowFinishFeedback = true
+            feedbackView.show("End of book", symbol: "checkmark")
+            UIAccessibility.post(notification: .announcement, argument: "End of book")
+        } else if (locator.locations.totalProgression ?? 0) < 0.995 {
+            didShowFinishFeedback = false
+        }
         checkpointTimer?.invalidate()
         checkpointTimer = Timer.scheduledTimer(withTimeInterval: 0.75, repeats: false) { [weak self] _ in
             Task { @MainActor in self?.flushLocation() }
@@ -254,7 +332,6 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
             navigationHistory.append(origin)
         }
         pendingJumpOrigin = nil
-        updateHistoryButton()
     }
 
     func navigator(_ navigator: VisualNavigator, shouldNavigateToLink link: Link) -> Bool {
@@ -315,11 +392,11 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
     }
 
     @objc private func previousPage() {
-        Task { await navigator.goBackward(options: .animated) }
+        requestPageTurn(.previous)
     }
 
     @objc private func nextPage() {
-        Task { await navigator.goForward(options: .animated) }
+        requestPageTurn(.next)
     }
 
     @objc private func showReaderOutline() {
@@ -350,12 +427,10 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
     @objc private func goBackInBook() {
         guard let locator = navigationHistory.popLast() else { return }
         restoringHistory = true
-        updateHistoryButton()
         Task {
             if !(await navigator.go(to: locator, options: .animated)) {
                 restoringHistory = false
                 navigationHistory.append(locator)
-                updateHistoryButton()
             }
         }
     }
@@ -365,6 +440,7 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         if let existing = navigationState.bookmarks.first(where: { samePassage($0.locator, locator) }) {
             deleteBookmark(existing)
             UIAccessibility.post(notification: .announcement, argument: "Bookmark removed")
+            feedbackView.show("Bookmark removed", symbol: "bookmark.slash")
             return
         }
         let timestamp = ReaderOutbox.timestamp()
@@ -388,13 +464,13 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         )
         updateBookmarkButton()
         UIAccessibility.post(notification: .announcement, argument: "Bookmark added")
+        feedbackView.show("Page kept", symbol: "bookmark.fill")
+        bookmarkButton.pulse()
     }
 
     @objc private func handleEscape() {
         if presentedViewController != nil {
             dismiss(animated: !UIAccessibility.isReduceMotionEnabled)
-        } else if !navigationHistory.isEmpty {
-            goBackInBook()
         } else {
             closeReader()
         }
@@ -426,6 +502,7 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
 
     @objc private func closeReader() {
         checkpointTimer?.invalidate()
+        motionProbe.cancel()
         for token in inputObserverTokens {
             navigator.removeObserver(token)
         }
@@ -715,6 +792,7 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         navigator.clearSelection()
         applyAnnotationDecorations()
         UIAccessibility.post(notification: .announcement, argument: existing == nil ? "Highlight saved" : "Annotation updated")
+        feedbackView.show(existing == nil ? "Passage marked" : "Note updated", symbol: "pencil.line")
     }
 
     private func deleteAnnotation(_ annotation: ReaderAnnotationRecord) {
@@ -848,21 +926,220 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         navigator.apply(decorations: decorations, in: "annotations")
     }
 
+    private func setupPageTurnGesture() {
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePagePan(_:)))
+        pan.delegate = self
+        pan.maximumNumberOfTouches = 1
+        pan.cancelsTouchesInView = true
+        navigator.view.addGestureRecognizer(pan)
+    }
+
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        guard
+            effectivePreferences.layout == .paginated,
+            !pageTurnInFlight,
+            navigator.currentSelection == nil,
+            let pan = gestureRecognizer as? UIPanGestureRecognizer
+        else { return false }
+        let velocity = pan.velocity(in: navigator.view)
+        return abs(velocity.x) > max(30, abs(velocity.y) * 1.25)
+    }
+
+    @objc private func handlePagePan(_ gesture: UIPanGestureRecognizer) {
+        let width = max(1, navigator.view.bounds.width)
+        let translation = gesture.translation(in: navigator.view).x
+        switch gesture.state {
+        case .began:
+            guard !pageTurnInFlight else { return }
+            pageTurnInFlight = true
+            interactiveTurnDirection = direction(forTranslation: translation == 0 ? gesture.velocity(in: navigator.view).x : translation)
+            motionProbe.begin(interactive: true)
+        case .changed:
+            guard pageTurnInFlight else { return }
+            let direction = direction(forTranslation: translation)
+            interactiveTurnDirection = direction
+            interactiveTurnProgress = min(1, abs(translation) / (width * 0.28))
+            updateInteractiveTurn(translation: translation, progress: interactiveTurnProgress, direction: direction)
+        case .ended:
+            guard pageTurnInFlight, let direction = interactiveTurnDirection else { return }
+            let velocity = gesture.velocity(in: navigator.view).x
+            let shouldCommit = interactiveTurnProgress >= 0.48 || abs(velocity) >= 560
+            if shouldCommit {
+                commitPageTurn(direction, interactive: true)
+            } else {
+                reverseInteractiveTurn()
+            }
+        case .cancelled, .failed:
+            if pageTurnInFlight { reverseInteractiveTurn() }
+        default:
+            break
+        }
+    }
+
+    private func requestPageTurn(_ direction: ReaderPageTurnDirection) {
+        guard effectivePreferences.layout == .paginated else {
+            Task {
+                if direction == .next {
+                    _ = await navigator.goForward(options: .animated)
+                } else {
+                    _ = await navigator.goBackward(options: .animated)
+                }
+            }
+            return
+        }
+        guard !pageTurnInFlight else {
+            if queuedPageTurns.count < 3 { queuedPageTurns.append(direction) }
+            return
+        }
+        pageTurnInFlight = true
+        motionProbe.begin(interactive: false)
+        let sign = visualSign(for: direction)
+        if UIAccessibility.isReduceMotionEnabled {
+            pageEdge.update(progress: 0.72, direction: sign, palette: readerPalette)
+            UIView.animate(withDuration: 0.1, animations: { self.navigator.view.alpha = 0.78 }) { _ in
+                self.commitPageTurn(direction, interactive: false)
+            }
+        } else {
+            applyPageLift(offset: sign * min(84, navigator.view.bounds.width * 0.13), progress: 0.7)
+            UIView.animate(
+                withDuration: 0.16,
+                delay: 0,
+                options: [.curveEaseOut, .beginFromCurrentState, .allowUserInteraction],
+                animations: { self.applyPageLift(offset: sign * min(112, self.navigator.view.bounds.width * 0.18), progress: 1) }
+            ) { _ in self.commitPageTurn(direction, interactive: false) }
+        }
+    }
+
+    private func commitPageTurn(_ direction: ReaderPageTurnDirection, interactive: Bool) {
+        let sign = visualSign(for: direction)
+        let finishLift = { [weak self] in
+            guard let self else { return }
+            self.applyPageLift(offset: sign * min(112, self.navigator.view.bounds.width * 0.18), progress: 1)
+        }
+        let completion = { [weak self] in
+            guard let self else { return }
+            Task {
+                let moved = direction == .next
+                    ? await self.navigator.goForward(options: .none)
+                    : await self.navigator.goBackward(options: .none)
+                self.finishPageTurn(moved: moved, direction: direction)
+            }
+        }
+        if interactive, !UIAccessibility.isReduceMotionEnabled {
+            UIView.animate(
+                withDuration: 0.12,
+                delay: 0,
+                options: [.curveEaseOut, .beginFromCurrentState, .allowUserInteraction],
+                animations: finishLift
+            ) { _ in completion() }
+        } else {
+            completion()
+        }
+    }
+
+    private func finishPageTurn(moved: Bool, direction: ReaderPageTurnDirection) {
+        UIView.performWithoutAnimation {
+            navigator.view.layer.transform = CATransform3DIdentity
+            navigator.view.layer.shadowOpacity = 0
+            navigator.view.alpha = moved ? 0.76 : 1
+            pageEdge.reset()
+        }
+        let finish = { [weak self] in
+            guard let self else { return }
+            navigator.view.alpha = 1
+            interactiveTurnDirection = nil
+            interactiveTurnProgress = 0
+            pageTurnInFlight = false
+            motionProbe.finish(committed: moved, reversed: false)
+            if !moved, direction == .next {
+                feedbackView.show("End of book", symbol: "checkmark")
+            }
+            processQueuedPageTurn()
+        }
+        if UIAccessibility.isReduceMotionEnabled {
+            UIView.animate(withDuration: 0.11, animations: { self.navigator.view.alpha = 1 }) { _ in finish() }
+        } else {
+            UIView.animate(
+                withDuration: 0.18,
+                delay: 0,
+                options: [.curveEaseOut, .beginFromCurrentState, .allowUserInteraction],
+                animations: { self.navigator.view.alpha = 1 }
+            ) { _ in finish() }
+        }
+    }
+
+    private func reverseInteractiveTurn() {
+        UIView.animate(
+            withDuration: UIAccessibility.isReduceMotionEnabled ? 0.1 : 0.2,
+            delay: 0,
+            usingSpringWithDamping: 0.92,
+            initialSpringVelocity: 0,
+            options: [.beginFromCurrentState, .allowUserInteraction],
+            animations: {
+                self.navigator.view.layer.transform = CATransform3DIdentity
+                self.navigator.view.layer.shadowOpacity = 0
+                self.navigator.view.alpha = 1
+                self.pageEdge.reset()
+            }
+        ) { _ in
+            self.interactiveTurnDirection = nil
+            self.interactiveTurnProgress = 0
+            self.pageTurnInFlight = false
+            self.motionProbe.finish(committed: false, reversed: true)
+            self.processQueuedPageTurn()
+        }
+    }
+
+    private func updateInteractiveTurn(
+        translation: CGFloat,
+        progress: CGFloat,
+        direction: ReaderPageTurnDirection
+    ) {
+        let clamped = max(-navigator.view.bounds.width * 0.28, min(navigator.view.bounds.width * 0.28, translation))
+        if UIAccessibility.isReduceMotionEnabled {
+            pageEdge.update(progress: progress, direction: visualSign(for: direction), palette: readerPalette)
+            navigator.view.alpha = 1 - progress * 0.1
+        } else {
+            applyPageLift(offset: clamped, progress: progress)
+        }
+    }
+
+    private func applyPageLift(offset: CGFloat, progress: CGFloat) {
+        var transform = CATransform3DIdentity
+        transform.m34 = -1 / 900
+        transform = CATransform3DTranslate(transform, offset, 0, min(18, progress * 18))
+        transform = CATransform3DRotate(transform, (offset < 0 ? -1 : 1) * progress * 0.035, 0, 1, 0)
+        navigator.view.layer.transform = transform
+        navigator.view.layer.shadowColor = UIColor.black.cgColor
+        navigator.view.layer.shadowOpacity = Float(progress * 0.16)
+        navigator.view.layer.shadowRadius = 14
+        navigator.view.layer.shadowOffset = CGSize(width: offset < 0 ? 7 : -7, height: 0)
+        pageEdge.update(progress: progress, direction: offset < 0 ? -1 : 1, palette: readerPalette)
+    }
+
+    private func direction(forTranslation translation: CGFloat) -> ReaderPageTurnDirection {
+        let movingTowardEnd = context.compatibility?.isRightToLeft == true ? translation > 0 : translation < 0
+        return movingTowardEnd ? .next : .previous
+    }
+
+    private func visualSign(for direction: ReaderPageTurnDirection) -> CGFloat {
+        let nextSign: CGFloat = context.compatibility?.isRightToLeft == true ? 1 : -1
+        return direction == .next ? nextSign : -nextSign
+    }
+
+    private func processQueuedPageTurn() {
+        guard !queuedPageTurns.isEmpty else { return }
+        requestPageTurn(queuedPageTurns.removeFirst())
+    }
+
     private func updateBookmarkButton() {
         let locator = lastLocator ?? navigator.currentLocation
         let bookmarked = locator.map { current in
             navigationState.bookmarks.contains { samePassage($0.locator, current) }
         } ?? false
-        bookmarkButton.image = UIImage(systemName: bookmarked ? "bookmark.fill" : "bookmark")
+        bookmarkButton.setSymbol(bookmarked ? "bookmark.fill" : "bookmark")
         bookmarkButton.accessibilityLabel = bookmarked ? "Remove bookmark" : "Add bookmark"
         bookmarkButton.accessibilityValue = bookmarked ? "Bookmarked" : "Not bookmarked"
-    }
-
-    private func updateHistoryButton() {
-        historyButton.isEnabled = !navigationHistory.isEmpty
-        historyButton.accessibilityValue = navigationHistory.isEmpty
-            ? "No previous passage"
-            : "\(navigationHistory.count) previous passage\(navigationHistory.count == 1 ? "" : "s")"
     }
 
     private func samePassage(_ left: Locator, _ right: Locator) -> Bool {
@@ -961,27 +1238,19 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
             highContrast: UIAccessibility.isDarkerSystemColorsEnabled
         )
         view.backgroundColor = palette.page
+        topChrome.backgroundColor = palette.page
+        bottomChrome.backgroundColor = palette.page
+        topChrome.layer.borderColor = palette.rule.cgColor
+        topChrome.layer.borderWidth = 0.5
+        bottomChrome.layer.borderColor = palette.rule.cgColor
+        bottomChrome.layer.borderWidth = 0.5
+        titleLabel.textColor = palette.ink
+        [libraryButton, appearanceButton, bookmarkButton, outlineButton, previousButton, nextButton, compatibilityButton]
+            .forEach { $0.applyPalette(palette) }
         progressControl.applyPalette(palette)
+        chapterRail.applyPalette(palette)
+        feedbackView.applyPalette(palette)
         textureView.theme = effectivePreferences.theme
-        navigationController?.navigationBar.tintColor = palette.ink
-        navigationController?.toolbar.tintColor = palette.ink
-
-        let navigationAppearance = UINavigationBarAppearance()
-        navigationAppearance.configureWithOpaqueBackground()
-        navigationAppearance.backgroundColor = palette.page
-        navigationAppearance.shadowColor = palette.rule
-        navigationAppearance.titleTextAttributes = [.foregroundColor: palette.ink]
-        navigationController?.navigationBar.standardAppearance = navigationAppearance
-        navigationController?.navigationBar.scrollEdgeAppearance = navigationAppearance
-
-        let toolbarAppearance = UIToolbarAppearance()
-        toolbarAppearance.configureWithOpaqueBackground()
-        toolbarAppearance.backgroundColor = palette.page
-        toolbarAppearance.shadowColor = palette.rule
-        navigationController?.toolbar.standardAppearance = toolbarAppearance
-        if #available(iOS 15.0, *) {
-            navigationController?.toolbar.scrollEdgeAppearance = toolbarAppearance
-        }
         setNeedsStatusBarAppearanceUpdate()
     }
 }
@@ -1047,4 +1316,219 @@ private final class ReaderProgressControl: UIStackView {
     }
 
     @objc private func commit() { onCommit?(Double(slider.value)) }
+}
+
+private enum ReaderPageTurnDirection {
+    case previous
+    case next
+}
+
+@MainActor
+private final class ReaderChromeButton: UIButton {
+    init(title: String? = nil, symbol: String? = nil, target: Any?, action: Selector) {
+        super.init(frame: .zero)
+        translatesAutoresizingMaskIntoConstraints = false
+        heightAnchor.constraint(equalToConstant: 42).isActive = true
+        if let title {
+            setTitle(title, for: .normal)
+            titleLabel?.font = .preferredFont(forTextStyle: .footnote)
+            titleLabel?.adjustsFontForContentSizeCategory = true
+            contentEdgeInsets = UIEdgeInsets(top: 8, left: 10, bottom: 8, right: 10)
+        } else {
+            widthAnchor.constraint(equalToConstant: 42).isActive = true
+            setSymbol(symbol ?? "circle")
+        }
+        adjustsImageWhenHighlighted = false
+        layer.cornerRadius = 12
+        addTarget(target, action: action, for: .touchUpInside)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override var isHighlighted: Bool {
+        didSet {
+            UIView.animate(withDuration: 0.1) {
+                self.alpha = self.isHighlighted ? 0.5 : 1
+                self.transform = self.isHighlighted ? CGAffineTransform(scaleX: 0.96, y: 0.96) : .identity
+            }
+        }
+    }
+
+    func setSymbol(_ name: String) {
+        setImage(UIImage(systemName: name, withConfiguration: UIImage.SymbolConfiguration(pointSize: 15, weight: .medium)), for: .normal)
+    }
+
+    func applyPalette(_ palette: ReaderPalette) {
+        tintColor = palette.ink
+        setTitleColor(palette.ink, for: .normal)
+        backgroundColor = .clear
+    }
+
+    func pulse() {
+        guard !UIAccessibility.isReduceMotionEnabled else { return }
+        UIView.animateKeyframes(withDuration: 0.28, delay: 0, options: [.allowUserInteraction]) {
+            UIView.addKeyframe(withRelativeStartTime: 0, relativeDuration: 0.45) {
+                self.transform = CGAffineTransform(scaleX: 0.82, y: 0.82)
+            }
+            UIView.addKeyframe(withRelativeStartTime: 0.45, relativeDuration: 0.55) {
+                self.transform = .identity
+            }
+        }
+    }
+}
+
+@MainActor
+private final class ReaderFeedbackView: UIView {
+    private let icon = UIImageView()
+    private let label = UILabel()
+    private var hideWorkItem: DispatchWorkItem?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = false
+        alpha = 0
+        layer.cornerRadius = 16
+        layer.borderWidth = 0.5
+
+        icon.contentMode = .scaleAspectFit
+        icon.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 13, weight: .semibold)
+        icon.widthAnchor.constraint(equalToConstant: 17).isActive = true
+        label.font = .preferredFont(forTextStyle: .footnote)
+        label.adjustsFontForContentSizeCategory = true
+        label.numberOfLines = 1
+
+        let stack = UIStackView(arrangedSubviews: [icon, label])
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        stack.axis = .horizontal
+        stack.alignment = .center
+        stack.spacing = 8
+        addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 13),
+            stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -13),
+            stack.topAnchor.constraint(equalTo: topAnchor, constant: 8),
+            stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -8),
+        ])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    func applyPalette(_ palette: ReaderPalette) {
+        backgroundColor = palette.raised
+        layer.borderColor = palette.rule.cgColor
+        icon.tintColor = palette.ink
+        label.textColor = palette.ink
+    }
+
+    func show(_ text: String, symbol: String) {
+        hideWorkItem?.cancel()
+        label.text = text
+        icon.image = UIImage(systemName: symbol)
+        transform = UIAccessibility.isReduceMotionEnabled
+            ? .identity
+            : CGAffineTransform(translationX: 0, y: 8).scaledBy(x: 0.97, y: 0.97)
+        UIView.animate(
+            withDuration: UIAccessibility.isReduceMotionEnabled ? 0.1 : 0.2,
+            delay: 0,
+            options: [.curveEaseOut, .beginFromCurrentState, .allowUserInteraction],
+            animations: { self.alpha = 1; self.transform = .identity }
+        )
+        let work = DispatchWorkItem { [weak self] in
+            UIView.animate(withDuration: 0.2) { self?.alpha = 0 }
+        }
+        hideWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.7, execute: work)
+    }
+}
+
+@MainActor
+private final class ReaderPageEdgeView: UIView {
+    private var progress: CGFloat = 0
+    private var direction: CGFloat = 1
+    private var color = UIColor.clear
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = false
+        backgroundColor = .clear
+        isOpaque = false
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    func update(progress: CGFloat, direction: CGFloat, palette: ReaderPalette) {
+        self.progress = min(1, max(0, progress))
+        self.direction = direction
+        color = palette.ink
+        setNeedsDisplay()
+    }
+
+    func reset() {
+        progress = 0
+        setNeedsDisplay()
+    }
+
+    override func draw(_ rect: CGRect) {
+        guard progress > 0, let context = UIGraphicsGetCurrentContext() else { return }
+        let width = max(2, 14 * progress)
+        let edge = direction < 0 ? bounds.maxX - width : bounds.minX
+        let edgeRect = CGRect(x: edge, y: 0, width: width, height: bounds.height)
+        context.setFillColor(color.withAlphaComponent(0.05 + progress * 0.09).cgColor)
+        context.fill(edgeRect)
+        context.setFillColor(color.withAlphaComponent(0.28 + progress * 0.32).cgColor)
+        context.fill(CGRect(x: direction < 0 ? bounds.maxX - 1 : bounds.minX, y: 0, width: 1, height: bounds.height))
+    }
+}
+
+@MainActor
+private final class ReaderMotionProbe {
+    private var displayLink: CADisplayLink?
+    private var startedAt: CFTimeInterval = 0
+    private var previousFrame: CFTimeInterval = 0
+    private var frames = 0
+    private var lateFrames = 0
+    private var interactive = false
+
+    func begin(interactive: Bool) {
+        cancel()
+        self.interactive = interactive
+        startedAt = CACurrentMediaTime()
+        previousFrame = 0
+        frames = 0
+        lateFrames = 0
+        let link = CADisplayLink(target: self, selector: #selector(frame(_:)))
+        link.add(to: .main, forMode: .common)
+        displayLink = link
+    }
+
+    func finish(committed: Bool, reversed: Bool) {
+        guard displayLink != nil else { return }
+        let duration = (CACurrentMediaTime() - startedAt) * 1_000
+        cancel()
+        #if DEBUG
+        NSLog(
+            "Wovenleaf reader turn: %.1fms, %d frames, %d late, interactive=%@, committed=%@, reversed=%@",
+            duration,
+            frames,
+            lateFrames,
+            interactive.description,
+            committed.description,
+            reversed.description
+        )
+        #endif
+    }
+
+    func cancel() {
+        displayLink?.invalidate()
+        displayLink = nil
+    }
+
+    @objc private func frame(_ link: CADisplayLink) {
+        if previousFrame > 0, link.timestamp - previousFrame > link.duration * 1.55 { lateFrames += 1 }
+        previousFrame = link.timestamp
+        frames += 1
+    }
 }

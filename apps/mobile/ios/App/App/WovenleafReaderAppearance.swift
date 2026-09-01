@@ -217,7 +217,7 @@ final class ReaderSettingsViewController: UIViewController {
     private let contentStack = UIStackView()
     private let scopeControl = UISegmentedControl(items: ["All books", "This book"])
     private let themeControl = UISegmentedControl(items: ["Paper", "White", "Graphite"])
-    private let fontButton = UIButton(type: .system)
+    private let typefacePicker = ReaderTypefacePicker()
     private let sizeSlider = UISlider()
     private let weightSlider = UISlider()
     private let lineHeightSlider = UISlider()
@@ -299,13 +299,10 @@ final class ReaderSettingsViewController: UIViewController {
         themeControl.addTarget(self, action: #selector(themeChanged), for: .valueChanged)
         contentStack.addArrangedSubview(section(title: "Paper", views: [themeControl]))
 
-        fontButton.contentHorizontalAlignment = .leading
-        fontButton.showsMenuAsPrimaryAction = true
-        fontButton.layer.borderWidth = 1
-        fontButton.layer.cornerRadius = 4
-        fontButton.contentEdgeInsets = UIEdgeInsets(top: 11, left: 12, bottom: 11, right: 12)
-        fontButton.titleLabel?.font = .preferredFont(forTextStyle: .body)
-        contentStack.addArrangedSubview(section(title: "Typeface", views: [fontButton]))
+        typefacePicker.onSelect = { [weak self] choice in
+            self?.mutate { $0.fontFamily = choice }
+        }
+        contentStack.addArrangedSubview(section(title: "Typeface", views: [typefacePicker]))
 
         configure(slider: sizeSlider, minimum: 0.8, maximum: 2, action: #selector(sizeChanged))
         configure(slider: weightSlider, minimum: 0.75, maximum: 1.5, action: #selector(weightChanged))
@@ -433,12 +430,7 @@ final class ReaderSettingsViewController: UIViewController {
         let value = preferences
         scopeControl.selectedSegmentIndex = scope == .global ? 0 : 1
         themeControl.selectedSegmentIndex = [.paper, .white, .graphite].firstIndex(of: value.theme) ?? 0
-        fontButton.setTitle("\(value.fontFamily.label)  ›", for: .normal)
-        fontButton.menu = UIMenu(children: WovenleafReaderPreferences.FontFamilyChoice.allCases.map { choice in
-            UIAction(title: choice.label, state: choice == value.fontFamily ? .on : .off) { [weak self] _ in
-                self?.mutate { $0.fontFamily = choice }
-            }
-        })
+        typefacePicker.select(value.fontFamily)
         sizeSlider.value = Float(value.fontSize)
         weightSlider.value = Float(value.fontWeight)
         lineHeightSlider.value = Float(value.lineHeight)
@@ -453,7 +445,7 @@ final class ReaderSettingsViewController: UIViewController {
         layoutControl.selectedSegmentIndex = value.layout == .paginated ? 0 : 1
         publisherSwitch.isOn = value.publisherStyles
         let advancedEnabled = !value.publisherStyles
-        [fontButton, weightSlider, lineHeightSlider, alignmentControl, hyphenationSwitch].forEach {
+        [typefacePicker, weightSlider, lineHeightSlider, alignmentControl, hyphenationSwitch].forEach {
             $0.isUserInteractionEnabled = advancedEnabled
             $0.alpha = advancedEnabled ? 1 : 0.42
         }
@@ -478,6 +470,7 @@ final class ReaderSettingsViewController: UIViewController {
         navigationController?.navigationBar.standardAppearance = navigationAppearance
         navigationController?.navigationBar.scrollEdgeAppearance = navigationAppearance
         recolor(view, palette: palette)
+        typefacePicker.applyPalette(palette)
     }
 
     private func recolor(_ root: UIView, palette: ReaderPalette) {
@@ -553,6 +546,86 @@ final class ReaderSettingsViewController: UIViewController {
         }
         syncControls()
         applyPalette()
+    }
+}
+
+@MainActor
+private final class ReaderTypefacePicker: UIStackView {
+    var onSelect: ((WovenleafReaderPreferences.FontFamilyChoice) -> Void)?
+
+    private var selected: WovenleafReaderPreferences.FontFamilyChoice = .literary
+    private var palette = ReaderPalette(theme: .paper)
+    private var buttons: [WovenleafReaderPreferences.FontFamilyChoice: UIButton] = [:]
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        axis = .vertical
+        spacing = 7
+        let choices = WovenleafReaderPreferences.FontFamilyChoice.allCases
+        for start in stride(from: 0, to: choices.count, by: 2) {
+            let row = UIStackView()
+            row.axis = .horizontal
+            row.spacing = 7
+            row.distribution = .fillEqually
+            for choice in choices[start ..< min(start + 2, choices.count)] {
+                let button = UIButton(type: .custom)
+                button.tag = choices.firstIndex(of: choice) ?? 0
+                button.setTitle("Ag   \(choice.label)", for: .normal)
+                button.titleLabel?.font = sampleFont(for: choice)
+                button.titleLabel?.adjustsFontForContentSizeCategory = true
+                button.contentHorizontalAlignment = .leading
+                button.contentEdgeInsets = UIEdgeInsets(top: 12, left: 13, bottom: 12, right: 13)
+                button.layer.cornerRadius = 10
+                button.layer.borderWidth = 0.5
+                button.heightAnchor.constraint(greaterThanOrEqualToConstant: 48).isActive = true
+                button.accessibilityLabel = "\(choice.label) typeface"
+                button.addTarget(self, action: #selector(chosen(_:)), for: .touchUpInside)
+                buttons[choice] = button
+                row.addArrangedSubview(button)
+            }
+            addArrangedSubview(row)
+        }
+        refresh()
+    }
+
+    @available(*, unavailable)
+    required init(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    func select(_ choice: WovenleafReaderPreferences.FontFamilyChoice) {
+        selected = choice
+        refresh()
+    }
+
+    func applyPalette(_ palette: ReaderPalette) {
+        self.palette = palette
+        refresh()
+    }
+
+    @objc private func chosen(_ sender: UIButton) {
+        guard WovenleafReaderPreferences.FontFamilyChoice.allCases.indices.contains(sender.tag) else { return }
+        let choice = WovenleafReaderPreferences.FontFamilyChoice.allCases[sender.tag]
+        selected = choice
+        refresh()
+        onSelect?(choice)
+    }
+
+    private func refresh() {
+        buttons.forEach { choice, button in
+            let isSelected = choice == selected
+            button.backgroundColor = isSelected ? palette.ink : palette.raised
+            button.layer.borderColor = (isSelected ? palette.ink : palette.rule).cgColor
+            button.setTitleColor(isSelected ? palette.inverseInk : palette.ink, for: .normal)
+            button.accessibilityTraits = isSelected ? [.button, .selected] : .button
+        }
+    }
+
+    private func sampleFont(for choice: WovenleafReaderPreferences.FontFamilyChoice) -> UIFont {
+        switch choice {
+        case .literary: return UIFont(name: "IowanOldStyle-Roman", size: 15) ?? .preferredFont(forTextStyle: .body)
+        case .sans: return UIFont(name: "AvenirNext-Medium", size: 14) ?? .preferredFont(forTextStyle: .body)
+        case .mono: return .monospacedSystemFont(ofSize: 13, weight: .regular)
+        case .accessible: return .systemFont(ofSize: 14, weight: .semibold)
+        }
     }
 }
 

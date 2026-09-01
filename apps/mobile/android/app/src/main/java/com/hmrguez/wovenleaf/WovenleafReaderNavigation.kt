@@ -1,18 +1,24 @@
 package com.hmrguez.wovenleaf
 
+import android.app.Dialog
 import android.graphics.Typeface
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.RectF
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.Window
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.getSystemService
 import androidx.lifecycle.lifecycleScope
@@ -78,6 +84,189 @@ internal data class ReaderNavigationState(
     }
 }
 
+internal class ReaderChapterRailView(
+    context: android.content.Context,
+    private val onNavigate: (Link) -> Unit,
+) : View(context) {
+    private data class Entry(val link: Link, val depth: Int)
+
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val markerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.ROUND }
+    private var entries: List<Entry> = emptyList()
+    private var activeIndex = 0
+    private var previewIndex: Int? = null
+    private var palette = ReaderPalette("paper")
+    private val railWidth = dp(44).toFloat()
+    private val hidePreview = Runnable { previewIndex = null; invalidate() }
+
+    init {
+        isClickable = true
+        isFocusable = true
+        importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_YES
+        contentDescription = "Chapter rail"
+        setBackgroundColor(Color.TRANSPARENT)
+    }
+
+    fun setLinks(links: List<Link>) {
+        entries = flatten(links)
+        activeIndex = activeIndex.coerceIn(0, maxOf(0, entries.lastIndex))
+        refreshAccessibility()
+        invalidate()
+    }
+
+    fun updateActive(locator: Locator?) {
+        val href = locator?.href?.toString() ?: return
+        val match = entries.indexOfLast {
+            href.startsWith(it.link.url().toString()) || it.link.url().toString().startsWith(href)
+        }
+        if (match >= 0) {
+            activeIndex = match
+            refreshAccessibility()
+            invalidate()
+        }
+    }
+
+    fun applyPalette(value: ReaderPalette) {
+        palette = value
+        invalidate()
+    }
+
+    fun revealActiveMomentarily() {
+        reveal(activeIndex, 1_450)
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        if (entries.isEmpty()) return
+        val top = height * 0.16f
+        val bandHeight = maxOf(1f, height * 0.68f)
+        val denominator = maxOf(1, entries.lastIndex).toFloat()
+        entries.indices.forEach { index ->
+            val y = if (entries.size == 1) top + bandHeight / 2 else top + index / denominator * bandHeight
+            val active = index == activeIndex
+            val hovering = index == previewIndex
+            val width = dp(if (active) 27 else if (hovering) 22 else 13).toFloat()
+            markerPaint.strokeWidth = dp(if (active) 2 else 1).toFloat()
+            markerPaint.color = withAlpha(
+                if (active) palette.ink else palette.secondaryInk,
+                if (active) 0.95f else if (hovering) 0.65f else 0.32f,
+            )
+            canvas.drawLine(dp(12).toFloat(), y, dp(12).toFloat() + width, y, markerPaint)
+        }
+        previewIndex?.let { drawPreview(canvas, it, top, bandHeight, denominator) }
+    }
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (event.x > railWidth && event.actionMasked == MotionEvent.ACTION_DOWN) return false
+        val index = nearestIndex(event.y) ?: return false
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
+                removeCallbacks(hidePreview)
+                previewIndex = index
+                invalidate()
+                return true
+            }
+            MotionEvent.ACTION_UP -> {
+                activeIndex = index
+                previewIndex = index
+                onNavigate(entries[index].link)
+                performClick()
+                reveal(index, 1_200)
+                return true
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                previewIndex = null
+                invalidate()
+                return true
+            }
+        }
+        return super.onTouchEvent(event)
+    }
+
+    override fun onHoverEvent(event: MotionEvent): Boolean {
+        if (event.actionMasked == MotionEvent.ACTION_HOVER_EXIT) {
+            previewIndex = null
+            invalidate()
+            return true
+        }
+        if (event.x <= railWidth) {
+            previewIndex = nearestIndex(event.y)
+            invalidate()
+            return true
+        }
+        return false
+    }
+
+    override fun performClick(): Boolean {
+        super.performClick()
+        refreshAccessibility()
+        return true
+    }
+
+    private fun drawPreview(canvas: Canvas, index: Int, top: Float, bandHeight: Float, denominator: Float) {
+        val cardWidth = minOf(dp(330).toFloat(), maxOf(dp(210).toFloat(), width - dp(78).toFloat()))
+        val anchorY = if (entries.size == 1) top + bandHeight / 2 else top + index / denominator * bandHeight
+        val cardTop = (anchorY - dp(70)).coerceIn(dp(16).toFloat(), height - dp(156).toFloat())
+        val card = RectF(dp(50).toFloat(), cardTop, dp(50) + cardWidth, cardTop + dp(140))
+        paint.style = Paint.Style.FILL
+        paint.color = palette.raised
+        canvas.drawRoundRect(card, dp(17).toFloat(), dp(17).toFloat(), paint)
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 1f
+        paint.color = withAlpha(palette.rule, 0.72f)
+        canvas.drawRoundRect(card, dp(17).toFloat(), dp(17).toFloat(), paint)
+
+        var y = card.top + dp(27)
+        listOf(index - 1, index, index + 1).filter(entries.indices::contains).forEach { entryIndex ->
+            val focused = entryIndex == index
+            paint.style = Paint.Style.FILL
+            paint.color = if (focused) palette.ink else withAlpha(palette.secondaryInk, 0.72f)
+            paint.textSize = sp(if (focused) 17f else 14f)
+            paint.typeface = Typeface.create("serif", if (focused) Typeface.BOLD else Typeface.NORMAL)
+            val raw = entries[entryIndex].link.title?.trim().orEmpty().ifBlank { "Untitled section" }
+            val available = card.width() - dp(34 + minOf(entries[entryIndex].depth, 3) * 8)
+            val title = android.text.TextUtils.ellipsize(raw, android.text.TextPaint(paint), available, android.text.TextUtils.TruncateAt.END).toString()
+            canvas.drawText(title, card.left + dp(17 + minOf(entries[entryIndex].depth, 3) * 8), y, paint)
+            y += dp(if (focused) 46 else 31)
+        }
+    }
+
+    private fun reveal(index: Int, durationMs: Long) {
+        if (index !in entries.indices) return
+        removeCallbacks(hidePreview)
+        previewIndex = index
+        refreshAccessibility()
+        invalidate()
+        postDelayed(hidePreview, durationMs)
+    }
+
+    private fun nearestIndex(y: Float): Int? {
+        if (entries.isEmpty()) return null
+        val top = height * 0.16f
+        val fraction = ((y - top) / maxOf(1f, height * 0.68f)).coerceIn(0f, 1f)
+        return (fraction * maxOf(0, entries.lastIndex)).toInt().coerceIn(entries.indices)
+    }
+
+    private fun refreshAccessibility() {
+        val title = entries.getOrNull(activeIndex)?.link?.title ?: "No chapters"
+        contentDescription = "Chapter rail, $title"
+    }
+
+    private fun flatten(links: List<Link>, depth: Int = 0): List<Entry> = links.flatMap {
+        listOf(Entry(it, depth)) + flatten(it.children, depth + 1)
+    }
+
+    private fun withAlpha(color: Int, alpha: Float): Int = Color.argb(
+        (alpha.coerceIn(0f, 1f) * 255).toInt(),
+        Color.red(color),
+        Color.green(color),
+        Color.blue(color),
+    )
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+    private fun sp(value: Float): Float = value * resources.displayMetrics.scaledDensity
+}
+
 @OptIn(ExperimentalReadiumApi::class)
 internal class ReaderNavigationDialog(
     private val activity: AppCompatActivity,
@@ -99,7 +288,7 @@ internal class ReaderNavigationDialog(
     private var query = ""
     private var results: List<Locator> = emptyList()
     private var searchJob: Job? = null
-    private lateinit var dialog: AlertDialog
+    private lateinit var dialog: Dialog
     private lateinit var search: EditText
     private lateinit var list: LinearLayout
     private lateinit var contentsButton: Button
@@ -107,11 +296,24 @@ internal class ReaderNavigationDialog(
     private lateinit var notesButton: Button
 
     fun show(focusSearch: Boolean = false) {
-        val root = LinearLayout(activity).apply {
+        val shell = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), 0, dp(12), dp(8))
+            setPadding(dp(14), dp(12), dp(14), dp(10))
             setBackgroundColor(palette.page)
         }
+        val header = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        header.addView(TextView(activity).apply {
+            text = "Book map"
+            textSize = 22f
+            typeface = Typeface.create("serif", Typeface.NORMAL)
+            setTextColor(palette.ink)
+        }, LinearLayout.LayoutParams(0, dp(48), 1f))
+        header.addView(quietButton("Done") { dialog.dismiss() })
+        shell.addView(header)
+
         val modes = LinearLayout(activity).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
@@ -122,7 +324,7 @@ internal class ReaderNavigationDialog(
         modes.addView(contentsButton, LinearLayout.LayoutParams(0, dp(48), 1f))
         modes.addView(bookmarksButton, LinearLayout.LayoutParams(0, dp(48), 1f))
         modes.addView(notesButton, LinearLayout.LayoutParams(0, dp(48), 1f))
-        root.addView(modes)
+        shell.addView(modes)
 
         search = EditText(activity).apply {
             hint = if (publication.isSearchable) "Search in this book" else "Search unavailable for this book"
@@ -131,7 +333,11 @@ internal class ReaderNavigationDialog(
             isSingleLine = true
             setTextColor(palette.ink)
             setHintTextColor(palette.secondaryInk)
-            setBackgroundColor(palette.raised)
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(palette.raised)
+                setStroke(dp(1), palette.rule)
+                cornerRadius = dp(12).toFloat()
+            }
             setPadding(dp(14), 0, dp(14), 0)
             addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(value: CharSequence?, start: Int, count: Int, after: Int) = Unit
@@ -141,35 +347,53 @@ internal class ReaderNavigationDialog(
                 override fun afterTextChanged(value: Editable?) = Unit
             })
         }
-        root.addView(search, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48)))
+        shell.addView(search, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48)).apply {
+            topMargin = dp(4)
+            bottomMargin = dp(8)
+        })
 
         list = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
-        root.addView(
+        shell.addView(
             ScrollView(activity).apply { addView(list) },
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f),
         )
         refresh()
-        dialog = AlertDialog.Builder(activity)
-            .setTitle("Navigate")
-            .setView(root)
-            .setNegativeButton("Done", null)
-            .create()
+        dialog = Dialog(activity)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        dialog.setContentView(shell)
         dialog.setOnDismissListener { searchJob?.cancel() }
         dialog.setOnShowListener {
-            dialog.window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, (activity.resources.displayMetrics.heightPixels * 0.88).toInt())
+            dialog.window?.apply {
+                setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
+                setGravity(Gravity.BOTTOM)
+                setLayout(ViewGroup.LayoutParams.MATCH_PARENT, (activity.resources.displayMetrics.heightPixels * 0.9).toInt())
+                navigationBarColor = palette.page
+            }
             if (focusSearch) {
                 search.requestFocus()
                 search.post { activity.getSystemService<InputMethodManager>()?.showSoftInput(search, InputMethodManager.SHOW_IMPLICIT) }
             }
         }
         dialog.show()
+        dialog.window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, (activity.resources.displayMetrics.heightPixels * 0.9).toInt())
     }
 
     private fun modeButton(label: String, action: () -> Unit) = Button(activity).apply {
         text = label
         isAllCaps = false
-        setBackgroundColor(palette.page)
         setTextColor(palette.ink)
+        setOnClickListener { action() }
+    }
+
+    private fun quietButton(label: String, action: () -> Unit) = TextView(activity).apply {
+        text = label
+        textSize = 13f
+        gravity = Gravity.CENTER
+        setTextColor(palette.ink)
+        minWidth = dp(54)
+        minHeight = dp(42)
+        isClickable = true
+        isFocusable = true
         setOnClickListener { action() }
     }
 
@@ -203,9 +427,15 @@ internal class ReaderNavigationDialog(
     private fun refresh() {
         if (!::list.isInitialized) return
         list.removeAllViews()
-        contentsButton.isEnabled = mode != 0
-        bookmarksButton.isEnabled = mode != 1
-        notesButton.isEnabled = mode != 2
+        listOf(contentsButton, bookmarksButton, notesButton).forEachIndexed { index, button ->
+            val selected = index == mode
+            button.setTextColor(if (selected) palette.inverseInk else palette.ink)
+            button.background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(if (selected) palette.ink else Color.TRANSPARENT)
+                setStroke(dp(1), palette.rule)
+                cornerRadius = dp(10).toFloat()
+            }
+        }
         if (query.isNotEmpty()) {
             if (results.isEmpty()) status("No passages found.") else results.forEach(::addSearchResult)
         } else if (mode == 0) {

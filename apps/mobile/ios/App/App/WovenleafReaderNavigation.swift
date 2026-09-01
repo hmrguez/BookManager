@@ -89,6 +89,237 @@ struct ReaderNavigationState {
     }
 }
 
+@MainActor
+final class ReaderChapterRailView: UIView {
+    var onNavigate: ((Link) -> Void)?
+
+    private struct Entry {
+        let link: Link
+        let depth: Int
+    }
+
+    private var entries: [Entry] = []
+    private var activeIndex = 0
+    private var previewIndex: Int?
+    private var palette = ReaderPalette(theme: .paper)
+    private var hideWorkItem: DispatchWorkItem?
+    private let railWidth: CGFloat = 44
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .clear
+        isOpaque = false
+        clipsToBounds = false
+        isAccessibilityElement = true
+        accessibilityLabel = "Chapter rail"
+        accessibilityTraits = [.adjustable]
+
+        let hover = UIHoverGestureRecognizer(target: self, action: #selector(hovered(_:)))
+        addGestureRecognizer(hover)
+        let tap = UITapGestureRecognizer(target: self, action: #selector(tapped(_:)))
+        addGestureRecognizer(tap)
+        let hold = UILongPressGestureRecognizer(target: self, action: #selector(held(_:)))
+        hold.minimumPressDuration = 0.28
+        addGestureRecognizer(hold)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        point.x <= railWidth || (previewIndex != nil && previewRect.contains(point))
+    }
+
+    func setLinks(_ links: [Link]) {
+        entries = flatten(links)
+        activeIndex = min(activeIndex, max(0, entries.count - 1))
+        refreshAccessibilityValue()
+        setNeedsDisplay()
+    }
+
+    func updateActive(locator: Locator?) {
+        guard let href = locator?.href.string else { return }
+        if let match = entries.lastIndex(where: { href.hasPrefix($0.link.url().string) || $0.link.url().string.hasPrefix(href) }) {
+            activeIndex = match
+            refreshAccessibilityValue()
+            setNeedsDisplay()
+        }
+    }
+
+    func applyPalette(_ palette: ReaderPalette) {
+        self.palette = palette
+        setNeedsDisplay()
+    }
+
+    func revealActiveMomentarily() {
+        reveal(activeIndex, duration: 1.45)
+    }
+
+    override func accessibilityIncrement() {
+        guard !entries.isEmpty else { return }
+        activeIndex = min(entries.count - 1, activeIndex + 1)
+        onNavigate?(entries[activeIndex].link)
+        reveal(activeIndex, duration: 1.1)
+    }
+
+    override func accessibilityDecrement() {
+        guard !entries.isEmpty else { return }
+        activeIndex = max(0, activeIndex - 1)
+        onNavigate?(entries[activeIndex].link)
+        reveal(activeIndex, duration: 1.1)
+    }
+
+    override func accessibilityActivate() -> Bool {
+        guard entries.indices.contains(activeIndex) else { return false }
+        onNavigate?(entries[activeIndex].link)
+        reveal(activeIndex, duration: 1.1)
+        return true
+    }
+
+    override func draw(_ rect: CGRect) {
+        guard !entries.isEmpty, let context = UIGraphicsGetCurrentContext() else { return }
+        let band = markerBand
+        let denominator = CGFloat(max(1, entries.count - 1))
+        for index in entries.indices {
+            let y = entries.count == 1
+                ? band.midY
+                : band.minY + (CGFloat(index) / denominator) * band.height
+            let active = index == activeIndex
+            let hovering = index == previewIndex
+            let width: CGFloat = active ? 27 : hovering ? 22 : 13
+            context.setStrokeColor((active ? palette.ink : palette.secondaryInk).withAlphaComponent(active ? 0.95 : hovering ? 0.65 : 0.32).cgColor)
+            context.setLineWidth(active ? 2.2 : 1.2)
+            context.setLineCap(.round)
+            context.move(to: CGPoint(x: 12, y: y))
+            context.addLine(to: CGPoint(x: 12 + width, y: y))
+            context.strokePath()
+        }
+        if let previewIndex { drawPreview(index: previewIndex, context: context) }
+    }
+
+    private var markerBand: CGRect {
+        CGRect(x: 0, y: max(20, bounds.height * 0.16), width: railWidth, height: max(1, bounds.height * 0.68))
+    }
+
+    private var previewRect: CGRect {
+        let width = min(330, max(210, bounds.width - 78))
+        return CGRect(x: 50, y: max(16, min(bounds.height - 156, previewAnchorY - 70)), width: width, height: 140)
+    }
+
+    private var previewAnchorY: CGFloat {
+        guard let previewIndex, !entries.isEmpty else { return bounds.midY }
+        let denominator = CGFloat(max(1, entries.count - 1))
+        return markerBand.minY + (CGFloat(previewIndex) / denominator) * markerBand.height
+    }
+
+    private func drawPreview(index: Int, context: CGContext) {
+        let card = UIBezierPath(roundedRect: previewRect, cornerRadius: 17)
+        palette.raised.setFill()
+        card.fill()
+        palette.rule.withAlphaComponent(0.72).setStroke()
+        card.lineWidth = 0.5
+        card.stroke()
+
+        let visible = [index - 1, index, index + 1].filter(entries.indices.contains)
+        var y = previewRect.minY + 17
+        for entryIndex in visible {
+            let isFocused = entryIndex == index
+            let rawTitle = entries[entryIndex].link.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let title = rawTitle.isEmpty ? "Untitled section" : rawTitle
+            let font = isFocused
+                ? UIFont.preferredFont(forTextStyle: .headline)
+                : UIFont.preferredFont(forTextStyle: .subheadline)
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: font,
+                .foregroundColor: isFocused ? palette.ink : palette.secondaryInk.withAlphaComponent(0.72),
+            ]
+            let textRect = CGRect(
+                x: previewRect.minX + 17 + CGFloat(min(entries[entryIndex].depth, 3) * 8),
+                y: y,
+                width: previewRect.width - 34,
+                height: isFocused ? 43 : 27
+            )
+            (title as NSString).draw(
+                with: textRect,
+                options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine],
+                attributes: attributes,
+                context: nil
+            )
+            y += isFocused ? 48 : 31
+        }
+    }
+
+    @objc private func hovered(_ recognizer: UIHoverGestureRecognizer) {
+        switch recognizer.state {
+        case .began, .changed:
+            guard recognizer.location(in: self).x <= railWidth else { return }
+            previewIndex = nearestIndex(to: recognizer.location(in: self).y)
+            hideWorkItem?.cancel()
+            setNeedsDisplay()
+        case .ended, .cancelled:
+            previewIndex = nil
+            setNeedsDisplay()
+        default:
+            break
+        }
+    }
+
+    @objc private func tapped(_ recognizer: UITapGestureRecognizer) {
+        let point = recognizer.location(in: self)
+        guard point.x <= railWidth, let index = nearestIndex(to: point.y) else { return }
+        activeIndex = index
+        onNavigate?(entries[index].link)
+        reveal(index, duration: 1.2)
+    }
+
+    @objc private func held(_ recognizer: UILongPressGestureRecognizer) {
+        let point = recognizer.location(in: self)
+        guard point.x <= railWidth, let index = nearestIndex(to: point.y) else { return }
+        if recognizer.state == .began || recognizer.state == .changed {
+            hideWorkItem?.cancel()
+            previewIndex = index
+            setNeedsDisplay()
+        } else if recognizer.state == .ended {
+            activeIndex = index
+            onNavigate?(entries[index].link)
+            reveal(index, duration: 1.2)
+        } else if recognizer.state == .cancelled {
+            previewIndex = nil
+            setNeedsDisplay()
+        }
+    }
+
+    private func reveal(_ index: Int, duration: TimeInterval) {
+        guard entries.indices.contains(index) else { return }
+        hideWorkItem?.cancel()
+        previewIndex = index
+        refreshAccessibilityValue()
+        setNeedsDisplay()
+        let work = DispatchWorkItem { [weak self] in
+            self?.previewIndex = nil
+            self?.setNeedsDisplay()
+        }
+        hideWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration, execute: work)
+    }
+
+    private func nearestIndex(to y: CGFloat) -> Int? {
+        guard !entries.isEmpty else { return nil }
+        let fraction = min(1, max(0, (y - markerBand.minY) / markerBand.height))
+        return Int((fraction * CGFloat(max(0, entries.count - 1))).rounded())
+    }
+
+    private func refreshAccessibilityValue() {
+        accessibilityValue = entries.indices.contains(activeIndex)
+            ? entries[activeIndex].link.title ?? "Untitled section"
+            : "No chapters"
+    }
+
+    private func flatten(_ links: [Link], depth: Int = 0) -> [Entry] {
+        links.flatMap { [Entry(link: $0, depth: depth)] + flatten($0.children, depth: depth + 1) }
+    }
+}
+
 func readerLocator(from object: [String: Any]) -> Locator? {
     guard
         JSONSerialization.isValidJSONObject(object),

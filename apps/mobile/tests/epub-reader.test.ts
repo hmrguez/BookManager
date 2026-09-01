@@ -464,6 +464,56 @@ describe('full-fidelity EPUB annotations', () => {
   })
 })
 
+describe('paper page turns and reader chrome', () => {
+  test('keeps visible back behavior scoped to leaving the reader', async () => {
+    const [ios, android] = await Promise.all([
+      Bun.file(new URL('../ios/App/App/WovenleafReaderViewController.swift', import.meta.url)).text(),
+      Bun.file(new URL('../android/app/src/main/java/com/hmrguez/wovenleaf/WovenleafReaderActivity.kt', import.meta.url)).text(),
+    ])
+
+    expect(ios).toContain('libraryButton.accessibilityLabel = "Close reader and return to library"')
+    expect(ios).not.toContain('private lazy var historyButton')
+    expect(android).toContain('override fun onBackPressed() {\n        closeReader()')
+    expect(android).not.toContain('historyButton = textButton("Back")')
+  })
+
+  test('serializes swipe and button turns without snapshots or duplicate navigation', async () => {
+    const [ios, android] = await Promise.all([
+      Bun.file(new URL('../ios/App/App/WovenleafReaderViewController.swift', import.meta.url)).text(),
+      Bun.file(new URL('../android/app/src/main/java/com/hmrguez/wovenleaf/WovenleafReaderActivity.kt', import.meta.url)).text(),
+    ])
+
+    for (const source of [ios, android]) {
+      expect(source).toContain('pageTurnInFlight')
+      expect(source).toContain('queuedPageTurns')
+      expect(source).toContain('motionProbe')
+      expect(source).not.toContain('snapshotView')
+    }
+    expect(ios).toContain('UIPanGestureRecognizer')
+    expect(ios).toContain('goForward(options: .none)')
+    expect(android).toContain('onInterceptTouchEvent')
+    expect(android).toContain('goForward(animated = false)')
+  })
+
+  test('uses a persistent chapter rail and bespoke typeface choices on both platforms', async () => {
+    const [iosNavigation, iosAppearance, androidNavigation, androidAppearance] = await Promise.all([
+      Bun.file(new URL('../ios/App/App/WovenleafReaderNavigation.swift', import.meta.url)).text(),
+      Bun.file(new URL('../ios/App/App/WovenleafReaderAppearance.swift', import.meta.url)).text(),
+      Bun.file(new URL('../android/app/src/main/java/com/hmrguez/wovenleaf/WovenleafReaderNavigation.kt', import.meta.url)).text(),
+      Bun.file(new URL('../android/app/src/main/java/com/hmrguez/wovenleaf/WovenleafReaderAppearance.kt', import.meta.url)).text(),
+    ])
+
+    expect(iosNavigation).toContain('final class ReaderChapterRailView')
+    expect(iosNavigation).toContain('UIHoverGestureRecognizer')
+    expect(androidNavigation).toContain('class ReaderChapterRailView')
+    expect(androidNavigation).toContain('onHoverEvent')
+    expect(iosAppearance).toContain('ReaderTypefacePicker')
+    expect(iosAppearance).not.toContain('showsMenuAsPrimaryAction')
+    expect(androidAppearance).toContain('TypefacePicker')
+    expect(androidAppearance).not.toContain('Spinner(activity)')
+  })
+})
+
 function readerEvent(options: {
   readonly sequence: number
   readonly progression: number

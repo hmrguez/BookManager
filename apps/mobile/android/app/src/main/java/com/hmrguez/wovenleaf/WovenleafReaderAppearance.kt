@@ -13,13 +13,11 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.Window
-import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.SeekBar
-import android.widget.Spinner
 import android.widget.Switch
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -202,7 +200,7 @@ internal class ReaderSettingsDialog(
     private lateinit var alignmentSegment: SegmentedControl
     private lateinit var columnSegment: SegmentedControl
     private lateinit var layoutSegment: SegmentedControl
-    private lateinit var fontSpinner: Spinner
+    private lateinit var typefacePicker: TypefacePicker
     private lateinit var sizeSlider: SeekBar
     private lateinit var weightSlider: SeekBar
     private lateinit var lineSlider: SeekBar
@@ -278,16 +276,10 @@ internal class ReaderSettingsDialog(
         }
         section(stack, "Paper", themeSegment.view)
 
-        fontSpinner = Spinner(activity)
-        fontSpinner.adapter = ArrayAdapter(
-            activity,
-            android.R.layout.simple_spinner_dropdown_item,
-            listOf("Literary serif", "Clean sans", "Quiet mono", "Accessible"),
-        )
-        fontSpinner.onItemSelectedListener = SimpleItemSelectedListener { index ->
+        typefacePicker = TypefacePicker(activity) { index ->
             if (!syncing) mutate { it.copy(fontFamily = listOf("literary", "sans", "mono", "accessible")[index]) }
         }
-        section(stack, "Typeface", fontSpinner)
+        section(stack, "Typeface", typefacePicker.view)
 
         val size = sliderRow("Size", 0.8, 2.0) { current, value -> current.copy(fontSize = value) }
         sizeSlider = size.slider
@@ -374,7 +366,7 @@ internal class ReaderSettingsDialog(
         val value = preferences
         scopeSegment.select(if (scope == ReaderPreferenceScope.GLOBAL) 0 else 1)
         themeSegment.select(listOf("paper", "white", "graphite").indexOf(value.theme).coerceAtLeast(0))
-        fontSpinner.setSelection(listOf("literary", "sans", "mono", "accessible").indexOf(value.fontFamily).coerceAtLeast(0))
+        typefacePicker.select(listOf("literary", "sans", "mono", "accessible").indexOf(value.fontFamily).coerceAtLeast(0))
         setSlider(sizeSlider, sizeValue, value.fontSize, 0.8, 2.0, percent = true)
         setSlider(weightSlider, weightValue, value.fontWeight, 0.75, 1.5, percent = true)
         setSlider(lineSlider, lineValue, value.lineHeight, 1.2, 1.9)
@@ -385,7 +377,7 @@ internal class ReaderSettingsDialog(
         layoutSegment.select(if (value.layout == "paginated") 0 else 1)
         publisherSwitch.isChecked = value.publisherStyles
         val advancedEnabled = !value.publisherStyles
-        listOf(fontSpinner, weightSlider, lineSlider, alignmentSegment.view, hyphenSwitch).forEach {
+        listOf(typefacePicker.view, weightSlider, lineSlider, alignmentSegment.view, hyphenSwitch).forEach {
             it.isEnabled = advancedEnabled
             it.alpha = if (advancedEnabled) 1f else 0.42f
         }
@@ -406,6 +398,7 @@ internal class ReaderSettingsDialog(
         labels.forEach { it.setTextColor(palette.ink) }
         secondaryLabels.forEach { it.setTextColor(palette.secondaryInk) }
         segments.forEach { it.applyPalette(palette) }
+        typefacePicker.applyPalette(palette)
         listOf(sizeSlider, weightSlider, lineSlider, marginSlider).forEach {
             it.progressTintList = ColorStateList.valueOf(palette.ink)
             it.thumbTintList = ColorStateList.valueOf(palette.ink)
@@ -415,7 +408,6 @@ internal class ReaderSettingsDialog(
             it.thumbTintList = ColorStateList.valueOf(if (it.isChecked) palette.inverseInk else palette.raised)
             it.trackTintList = ColorStateList.valueOf(if (it.isChecked) palette.ink else palette.rule)
         }
-        fontSpinner.background = outlined(palette)
         dialog.window?.navigationBarColor = palette.page
     }
 
@@ -494,12 +486,6 @@ internal class ReaderSettingsDialog(
         label.text = if (percent) "${(value * 100).roundToInt()}%" else "%.2f".format(value)
     }
 
-    private fun outlined(palette: ReaderPalette) = GradientDrawable().apply {
-        setColor(Color.TRANSPARENT)
-        setStroke(dp(1), palette.rule)
-        cornerRadius = dp(4).toFloat()
-    }
-
     private fun palette() = ReaderPalette(preferences.theme, isHighContrast(activity))
 
     private fun margin(top: Int = 0, bottom: Int = 0) = LinearLayout.LayoutParams(
@@ -514,6 +500,77 @@ internal class ReaderSettingsDialog(
     private fun dp(value: Int) = (value * activity.resources.displayMetrics.density).roundToInt()
 
     private data class SliderRow(val view: View, val slider: SeekBar, val value: TextView)
+}
+
+private class TypefacePicker(
+    private val context: Context,
+    onSelect: (Int) -> Unit,
+) {
+    val view = LinearLayout(context).apply {
+        orientation = LinearLayout.VERTICAL
+    }
+    private val labels = listOf("Ag   Literary", "Ag   Sans", "Ag   Mono", "Ag   Accessible")
+    private val buttons = labels.mapIndexed { index, label ->
+        Button(context).apply {
+            text = label
+            textSize = 13f
+            isAllCaps = false
+            gravity = Gravity.START or Gravity.CENTER_VERTICAL
+            setPadding(dp(context, 13), 0, dp(context, 13), 0)
+            typeface = when (index) {
+                0 -> Typeface.create("serif", Typeface.NORMAL)
+                1 -> Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                2 -> Typeface.MONOSPACE
+                else -> Typeface.create("sans-serif", Typeface.BOLD)
+            }
+            minHeight = dp(context, 48)
+            setOnClickListener { onSelect(index) }
+        }
+    }
+    private var selectedIndex = 0
+    private var palette = ReaderPalette("paper")
+
+    init {
+        buttons.chunked(2).forEachIndexed { rowIndex, rowButtons ->
+            val row = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                if (rowIndex > 0) setPadding(0, dp(context, 7), 0, 0)
+            }
+            rowButtons.forEachIndexed { column, button ->
+                row.addView(
+                    button,
+                    LinearLayout.LayoutParams(0, dp(context, 48), 1f).apply {
+                        if (column > 0) leftMargin = dp(context, 7)
+                    },
+                )
+            }
+            view.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
+        refresh()
+    }
+
+    fun select(index: Int) {
+        selectedIndex = index
+        refresh()
+    }
+
+    fun applyPalette(value: ReaderPalette) {
+        palette = value
+        refresh()
+    }
+
+    private fun refresh() {
+        buttons.forEachIndexed { index, button ->
+            val selected = index == selectedIndex
+            button.setTextColor(if (selected) palette.inverseInk else palette.ink)
+            button.background = GradientDrawable().apply {
+                setColor(if (selected) palette.ink else palette.raised)
+                setStroke(dp(context, 1), if (selected) palette.ink else palette.rule)
+                cornerRadius = dp(context, 10).toFloat()
+            }
+            button.isSelected = selected
+        }
+    }
 }
 
 private class SegmentedControl(
@@ -620,14 +677,6 @@ private class SimpleSeekBarListener(private val onChange: (Int) -> Unit) : SeekB
     }
     override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
     override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
-}
-
-private class SimpleItemSelectedListener(private val onSelected: (Int) -> Unit) :
-    android.widget.AdapterView.OnItemSelectedListener {
-    override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
-        onSelected(position)
-    }
-    override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
 }
 
 internal fun isHighContrast(context: Context): Boolean = runCatching {

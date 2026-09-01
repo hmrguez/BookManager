@@ -4,11 +4,14 @@ import android.content.Intent
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.graphics.Color
+import android.graphics.Canvas
+import android.graphics.Paint
 import android.graphics.Typeface
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
+import android.provider.Settings
 import android.speech.tts.TextToSpeech
 import android.text.Html
 import android.text.TextUtils
@@ -18,12 +21,15 @@ import android.view.ActionMode
 import android.view.KeyEvent
 import android.view.Menu
 import android.view.MenuItem
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup
+import android.view.VelocityTracker
 import android.view.WindowManager
+import android.view.Choreographer
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
-import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ProgressBar
@@ -76,12 +82,15 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
     private lateinit var content: FrameLayout
     private lateinit var progress: TextView
     private lateinit var titleView: TextView
-    private lateinit var appearanceButton: Button
-    private lateinit var bookmarkButton: Button
-    private lateinit var historyButton: Button
+    private lateinit var appearanceButton: ReaderChromeButton
+    private lateinit var bookmarkButton: ReaderChromeButton
     private lateinit var scrubber: SeekBar
     private lateinit var loading: ProgressBar
     private lateinit var texture: PaperTextureView
+    private lateinit var navigatorHost: FrameLayout
+    private lateinit var pageSurface: ReaderPageSurface
+    private lateinit var chapterRail: ReaderChapterRailView
+    private lateinit var feedbackView: ReaderFeedbackView
     private var publication: Publication? = null
     private var navigator: EpubNavigatorFragment? = null
     private var lastLocator: Locator? = null
@@ -100,6 +109,11 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
     private var textToSpeech: TextToSpeech? = null
     private var speechReady = false
     private var presentedCompatibilityNotice = false
+    private var lastChapterHref: String? = null
+    private var didShowFinishFeedback = false
+    private var pageTurnInFlight = false
+    private val queuedPageTurns = ArrayDeque<ReaderPageTurnDirection>()
+    private val motionProbe = ReaderMotionProbe()
     private val annotationDecorationListener = object : DecorableNavigator.Listener {
         override fun onDecorationActivated(event: DecorableNavigator.OnActivatedEvent): Boolean {
             val annotation = readerContext.annotationState.annotations.firstOrNull {
@@ -147,6 +161,7 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         checkpointJob?.cancel()
         preferenceJob?.cancel()
         locationJob?.cancel()
+        motionProbe.cancel()
         textToSpeech?.stop()
         textToSpeech?.shutdown()
         if (isFinishing) publication?.close()
@@ -155,14 +170,14 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        if (!goBackInBook()) closeReader()
+        closeReader()
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action != KeyEvent.ACTION_DOWN) return super.dispatchKeyEvent(event)
         when {
             event.keyCode == KeyEvent.KEYCODE_ESCAPE -> {
-                if (!goBackInBook()) closeReader()
+                closeReader()
                 return true
             }
             event.isCtrlPressed && event.keyCode == KeyEvent.KEYCODE_F -> {
@@ -191,17 +206,17 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
             }
             event.keyCode == KeyEvent.KEYCODE_DPAD_LEFT -> {
                 if (readerContext.compatibility?.isRightToLeft == true) {
-                    navigator?.goForward(animated = true)
+                    requestPageTurn(ReaderPageTurnDirection.NEXT)
                 } else {
-                    navigator?.goBackward(animated = true)
+                    requestPageTurn(ReaderPageTurnDirection.PREVIOUS)
                 }
                 return true
             }
             event.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT -> {
                 if (readerContext.compatibility?.isRightToLeft == true) {
-                    navigator?.goBackward(animated = true)
+                    requestPageTurn(ReaderPageTurnDirection.PREVIOUS)
                 } else {
-                    navigator?.goForward(animated = true)
+                    requestPageTurn(ReaderPageTurnDirection.NEXT)
                 }
                 return true
             }
@@ -262,13 +277,15 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
             classLoader,
             EpubNavigatorFragment::class.java.name,
         ) as EpubNavigatorFragment
-        supportFragmentManager.beginTransaction().replace(content.id, fragment, "epub-navigator").commitNow()
+        supportFragmentManager.beginTransaction().replace(navigatorHost.id, fragment, "epub-navigator").commitNow()
         navigator = fragment
         fragment.addDecorationListener(ANNOTATION_GROUP, annotationDecorationListener)
         applyAnnotationDecorations()
         attemptAnnotationReanchoring()
         loading.visibility = View.GONE
-        texture.bringToFront()
+        chapterRail.setLinks(opened.tableOfContents)
+        chapterRail.bringToFront()
+        feedbackView.bringToFront()
         if (!presentedCompatibilityNotice && readerContext.compatibility?.notices?.isNotEmpty() == true) {
             presentedCompatibilityNotice = true
             showCompatibilityNotice()
@@ -285,9 +302,24 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         )
         locationJob = lifecycleScope.launch {
             fragment.currentLocator.collectLatest { locator ->
+                val previousChapter = lastChapterHref
                 lastLocator = locator
                 updateProgress(locator)
                 updateBookmarkButton()
+                chapterRail.updateActive(locator)
+                lastChapterHref = locator.href.toString()
+                if (previousChapter != null && previousChapter != lastChapterHref) {
+                    chapterRail.revealActiveMomentarily()
+                    feedbackView.show(locator.title ?: "New chapter", "§")
+                }
+                val total = locator.locations.totalProgression ?: 0.0
+                if (total >= 0.9995 && !didShowFinishFeedback) {
+                    didShowFinishFeedback = true
+                    feedbackView.show("End of book", "✓")
+                    content.announceForAccessibility("End of book")
+                } else if (total < 0.995) {
+                    didShowFinishFeedback = false
+                }
                 checkpointJob?.cancel()
                 checkpointJob = launch {
                     delay(750)
@@ -312,7 +344,7 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
             id = View.generateViewId()
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(12), dp(8), dp(12), dp(8))
+            setPadding(dp(10), dp(5), dp(10), dp(5))
         }
         topChrome.addView(textButton("Library") { closeReader() })
         titleView = TextView(this).apply {
@@ -322,13 +354,13 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
             maxLines = 1
             gravity = Gravity.CENTER
         }
-        topChrome.addView(titleView, LinearLayout.LayoutParams(0, dp(48), 1f))
-        bookmarkButton = textButton("Bookmark") { toggleBookmark() }.apply {
+        topChrome.addView(titleView, LinearLayout.LayoutParams(0, dp(44), 1f))
+        bookmarkButton = textButton("Keep") { toggleBookmark() }.apply {
             contentDescription = "Add bookmark"
         }
         topChrome.addView(bookmarkButton)
         if (readerContext.compatibility?.notices?.isNotEmpty() == true) {
-            topChrome.addView(textButton("Info") { showCompatibilityNotice() }.apply {
+            topChrome.addView(textButton("ⓘ") { showCompatibilityNotice() }.apply {
                 contentDescription = "Reading compatibility"
             })
         }
@@ -337,16 +369,47 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         appearanceButton.typeface = Typeface.create("serif", Typeface.BOLD)
         appearanceButton.textSize = 17f
         topChrome.addView(appearanceButton)
-        chrome.addView(topChrome, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(64)))
+        chrome.addView(topChrome, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(54)))
 
         content = FrameLayout(this).apply { id = View.generateViewId() }
-        loading = ProgressBar(this)
-        content.addView(loading, FrameLayout.LayoutParams(dp(32), dp(32), Gravity.CENTER))
+        navigatorHost = FrameLayout(this).apply { id = View.generateViewId() }
+        pageSurface = ReaderPageSurface(this).apply {
+            isTurnEnabled = { effectivePreferences().layout == "paginated" && !pageTurnInFlight }
+            isRightToLeft = { readerContext.compatibility?.isRightToLeft == true }
+            reduceMotion = { readerMotionReduced() }
+            onBegin = { beginInteractivePageTurn() }
+            onCommit = { direction -> commitInteractivePageTurn(direction) }
+            onCancel = { cancelInteractivePageTurn() }
+        }
+        pageSurface.addView(
+            navigatorHost,
+            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
+        )
         texture = PaperTextureView(this)
-        content.addView(texture, FrameLayout.LayoutParams(
+        pageSurface.addView(texture, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT,
         ))
+        content.addView(
+            pageSurface,
+            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
+        )
+        chapterRail = ReaderChapterRailView(this) { link -> navigate(link, fromToc = true) }
+        content.addView(
+            chapterRail,
+            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
+        )
+        feedbackView = ReaderFeedbackView(this)
+        content.addView(
+            feedbackView,
+            FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
+                bottomMargin = dp(18)
+                leftMargin = dp(36)
+                rightMargin = dp(36)
+            },
+        )
+        loading = ProgressBar(this)
+        content.addView(loading, FrameLayout.LayoutParams(dp(32), dp(32), Gravity.CENTER))
         loading.bringToFront()
         chrome.addView(content, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
 
@@ -354,16 +417,12 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
             id = View.generateViewId()
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(12), dp(4), dp(12), dp(8))
+            setPadding(dp(10), dp(4), dp(10), dp(5))
         }
-        bottomChrome.addView(textButton("Contents") { showNavigation() }.apply {
-            contentDescription = "Contents, bookmarks, and search"
+        bottomChrome.addView(textButton("☰") { showNavigation() }.apply {
+            textSize = 19f
+            contentDescription = "Browse chapters, bookmarks, notes, and search"
         })
-        historyButton = textButton("Back") { goBackInBook() }.apply {
-            contentDescription = "Return to previous passage"
-            isEnabled = false
-        }
-        bottomChrome.addView(historyButton)
         val progressGroup = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
@@ -389,21 +448,21 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
                 }
             })
         }
-        progressGroup.addView(scrubber, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(36)))
-        bottomChrome.addView(progressGroup, LinearLayout.LayoutParams(0, dp(64), 1f))
+        progressGroup.addView(scrubber, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(31)))
+        bottomChrome.addView(progressGroup, LinearLayout.LayoutParams(0, dp(54), 1f))
         bottomChrome.addView(textButton(if (readerContext.compatibility?.isRightToLeft == true) "›" else "‹") {
-            navigator?.goBackward(animated = true)
+            requestPageTurn(ReaderPageTurnDirection.PREVIOUS)
         }.apply {
             textSize = 24f
             contentDescription = "Previous page"
         })
         bottomChrome.addView(textButton(if (readerContext.compatibility?.isRightToLeft == true) "‹" else "›") {
-            navigator?.goForward(animated = true)
+            requestPageTurn(ReaderPageTurnDirection.NEXT)
         }.apply {
             textSize = 24f
             contentDescription = "Next page"
         })
-        chrome.addView(bottomChrome, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(76)))
+        chrome.addView(bottomChrome, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(62)))
         topChrome.accessibilityTraversalBefore = content.id
         content.accessibilityTraversalAfter = topChrome.id
         content.accessibilityTraversalBefore = bottomChrome.id
@@ -424,13 +483,7 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         ViewCompat.requestApplyInsets(chrome)
     }
 
-    private fun textButton(label: String, action: () -> Unit) = Button(this).apply {
-        text = label
-        textSize = 13f
-        isAllCaps = false
-        setBackgroundColor(Color.TRANSPARENT)
-        setOnClickListener { action() }
-    }
+    private fun textButton(label: String, action: () -> Unit) = ReaderChromeButton(this, label, action)
 
     private fun showReaderSettings() {
         ReaderSettingsDialog(
@@ -498,14 +551,80 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         }
     }
 
+    private fun beginInteractivePageTurn(): Boolean {
+        if (pageTurnInFlight || effectivePreferences().layout != "paginated") return false
+        pageTurnInFlight = true
+        motionProbe.begin(interactive = true)
+        return true
+    }
+
+    private fun commitInteractivePageTurn(direction: ReaderPageTurnDirection) {
+        pageSurface.animateInteractiveCommit {
+            performPageTurn(direction)
+        }
+    }
+
+    private fun cancelInteractivePageTurn() {
+        pageSurface.animateCancel {
+            pageTurnInFlight = false
+            motionProbe.finish(committed = false, reversed = true)
+            processQueuedPageTurn()
+        }
+    }
+
+    private fun requestPageTurn(direction: ReaderPageTurnDirection) {
+        if (effectivePreferences().layout != "paginated") {
+            if (direction == ReaderPageTurnDirection.NEXT) navigator?.goForward(animated = true)
+            else navigator?.goBackward(animated = true)
+            return
+        }
+        if (pageTurnInFlight) {
+            if (queuedPageTurns.size < 3) queuedPageTurns.addLast(direction)
+            return
+        }
+        pageTurnInFlight = true
+        motionProbe.begin(interactive = false)
+        pageSurface.animateRequested(visualSign(direction)) {
+            performPageTurn(direction)
+        }
+    }
+
+    private fun performPageTurn(direction: ReaderPageTurnDirection) {
+        val moved = if (direction == ReaderPageTurnDirection.NEXT) {
+            navigator?.goForward(animated = false) == true
+        } else {
+            navigator?.goBackward(animated = false) == true
+        }
+        pageSurface.resetAfterNavigation(moved) {
+            pageTurnInFlight = false
+            motionProbe.finish(committed = moved, reversed = false)
+            if (!moved && direction == ReaderPageTurnDirection.NEXT) {
+                feedbackView.show("End of book", "✓")
+            }
+            processQueuedPageTurn()
+        }
+    }
+
+    private fun processQueuedPageTurn() {
+        val direction = queuedPageTurns.removeFirstOrNull() ?: return
+        requestPageTurn(direction)
+    }
+
+    private fun visualSign(direction: ReaderPageTurnDirection): Float {
+        val nextSign = if (readerContext.compatibility?.isRightToLeft == true) 1f else -1f
+        return if (direction == ReaderPageTurnDirection.NEXT) nextSign else -nextSign
+    }
+
+    private fun readerMotionReduced(): Boolean = runCatching {
+        Settings.Global.getFloat(contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
+    }.getOrDefault(false)
+
     private fun goBackInBook(): Boolean {
         val locator = navigationHistory.removeLastOrNull() ?: return false
         restoringHistory = true
-        updateHistoryButton()
         if (navigator?.go(locator, animated = true) != true) {
             restoringHistory = false
             navigationHistory.addLast(locator)
-            updateHistoryButton()
             readerMessage("Passage unavailable", "The previous passage is no longer available.")
         }
         return true
@@ -540,6 +659,8 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         )
         updateBookmarkButton()
         bookmarkButton.announceForAccessibility("Bookmark added")
+        bookmarkButton.pulse()
+        feedbackView.show("Page kept", "◆")
     }
 
     private fun deleteBookmark(bookmark: ReaderBookmarkState) {
@@ -548,6 +669,7 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         ReaderOutbox.enqueueBookmark(this, readerContext, sessionId, "delete", bookmark.id)
         updateBookmarkButton()
         bookmarkButton.announceForAccessibility("Bookmark removed")
+        feedbackView.show("Bookmark removed", "◇")
     }
 
     private inner class ReaderSelectionActionModeCallback : ActionMode.Callback {
@@ -773,6 +895,7 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         navigator?.clearSelection()
         applyAnnotationDecorations()
         content.announceForAccessibility(if (existing == null) "Highlight saved" else "Annotation updated")
+        feedbackView.show(if (existing == null) "Passage marked" else "Note updated", "✎")
     }
 
     private fun deleteAnnotation(annotation: ReaderAnnotationRecord) {
@@ -891,7 +1014,7 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         val bookmarked = locator != null && readerContext.navigationState.bookmarks.any {
             samePassage(it.locator, locator)
         }
-        bookmarkButton.text = if (bookmarked) "Bookmarked" else "Bookmark"
+        bookmarkButton.text = if (bookmarked) "Kept" else "Keep"
         bookmarkButton.contentDescription = if (bookmarked) "Remove bookmark" else "Add bookmark"
         bookmarkButton.isSelected = bookmarked
     }
@@ -905,16 +1028,6 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
             left.locations.fragments == right.locations.fragments
         } else {
             kotlin.math.abs(leftProgression - rightProgression) < 0.002
-        }
-    }
-
-    private fun updateHistoryButton() {
-        if (!::historyButton.isInitialized) return
-        historyButton.isEnabled = navigationHistory.isNotEmpty()
-        historyButton.contentDescription = if (navigationHistory.isEmpty()) {
-            "No previous passage"
-        } else {
-            "Return to previous passage, ${navigationHistory.size} available"
         }
     }
 
@@ -936,7 +1049,6 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         if (origin != null && !samePassage(origin, locator)) {
             navigationHistory.addLast(origin)
             while (navigationHistory.size > 50) navigationHistory.removeFirst()
-            updateHistoryButton()
         }
     }
 
@@ -1171,10 +1283,17 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         chrome.setBackgroundColor(palette.page)
         topChrome.setBackgroundColor(palette.page)
         bottomChrome.setBackgroundColor(palette.page)
+        pageSurface.setBackgroundColor(palette.page)
         titleView.setTextColor(palette.ink)
         progress.setTextColor(palette.secondaryInk)
-        recolorButtons(topChrome, palette)
-        recolorButtons(bottomChrome, palette)
+        recolorChrome(topChrome, palette)
+        recolorChrome(bottomChrome, palette)
+        scrubber.progressTintList = android.content.res.ColorStateList.valueOf(palette.ink)
+        scrubber.thumbTintList = android.content.res.ColorStateList.valueOf(palette.ink)
+        scrubber.progressBackgroundTintList = android.content.res.ColorStateList.valueOf(palette.rule)
+        chapterRail.applyPalette(palette)
+        feedbackView.applyPalette(palette)
+        pageSurface.applyPalette(palette)
         texture.theme = preferences.theme
         texture.highContrast = isHighContrast(this)
         applyAnnotationDecorations()
@@ -1194,11 +1313,11 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         }
     }
 
-    private fun recolorButtons(root: ViewGroup, palette: ReaderPalette) {
+    private fun recolorChrome(root: ViewGroup, palette: ReaderPalette) {
         for (index in 0 until root.childCount) {
             when (val child = root.getChildAt(index)) {
-                is Button -> child.setTextColor(palette.ink)
-                is ViewGroup -> recolorButtons(child, palette)
+                is ReaderChromeButton -> child.applyPalette(palette)
+                is ViewGroup -> recolorChrome(child, palette)
             }
         }
     }
@@ -1230,3 +1349,319 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         """
     }
 }
+
+private enum class ReaderPageTurnDirection {
+    PREVIOUS,
+    NEXT,
+}
+
+private class ReaderChromeButton(
+    context: android.content.Context,
+    label: String,
+    action: () -> Unit,
+) : androidx.appcompat.widget.AppCompatTextView(context) {
+    init {
+        text = label
+        textSize = 13f
+        gravity = Gravity.CENTER
+        minWidth = readerDp(context, 42)
+        minHeight = readerDp(context, 42)
+        setPadding(readerDp(context, 10), 0, readerDp(context, 10), 0)
+        isClickable = true
+        isFocusable = true
+        background = null
+        setOnClickListener { action() }
+    }
+
+    fun applyPalette(palette: ReaderPalette) {
+        setTextColor(palette.ink)
+        background = android.graphics.drawable.StateListDrawable().apply {
+            addState(
+                intArrayOf(android.R.attr.state_pressed),
+                android.graphics.drawable.GradientDrawable().apply {
+                    setColor(palette.raised)
+                    cornerRadius = readerDp(context, 12).toFloat()
+                },
+            )
+            addState(intArrayOf(), android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
+        }
+    }
+
+    fun pulse() {
+        if (!isLaidOut) return
+        animate().cancel()
+        scaleX = 0.82f
+        scaleY = 0.82f
+        animate().scaleX(1f).scaleY(1f).setDuration(180).start()
+    }
+}
+
+private class ReaderFeedbackView(context: android.content.Context) : androidx.appcompat.widget.AppCompatTextView(context) {
+    private var hideAction: Runnable? = null
+    private var palette = ReaderPalette("paper")
+
+    init {
+        textSize = 13f
+        typeface = Typeface.create("serif", Typeface.NORMAL)
+        gravity = Gravity.CENTER
+        setPadding(readerDp(context, 14), readerDp(context, 8), readerDp(context, 14), readerDp(context, 8))
+        alpha = 0f
+        isClickable = false
+        importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
+        applyPalette(palette)
+    }
+
+    fun applyPalette(value: ReaderPalette) {
+        palette = value
+        setTextColor(value.ink)
+        background = android.graphics.drawable.GradientDrawable().apply {
+            setColor(value.raised)
+            setStroke(readerDp(context, 1), value.rule)
+            cornerRadius = readerDp(context, 16).toFloat()
+        }
+    }
+
+    fun show(message: String, mark: String) {
+        hideAction?.let(::removeCallbacks)
+        text = "$mark   $message"
+        animate().cancel()
+        translationY = if (motionReduced()) 0f else readerDp(context, 8).toFloat()
+        scaleX = if (motionReduced()) 1f else 0.97f
+        scaleY = scaleX
+        animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f).setDuration(if (motionReduced()) 90 else 180).start()
+        val action = Runnable { animate().alpha(0f).setDuration(180).start() }
+        hideAction = action
+        postDelayed(action, 1_700)
+    }
+
+    private fun motionReduced(): Boolean = runCatching {
+        Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
+    }.getOrDefault(false)
+}
+
+private class ReaderPageSurface(context: android.content.Context) : FrameLayout(context) {
+    var isTurnEnabled: () -> Boolean = { false }
+    var isRightToLeft: () -> Boolean = { false }
+    var reduceMotion: () -> Boolean = { false }
+    var onBegin: () -> Boolean = { false }
+    var onCommit: (ReaderPageTurnDirection) -> Unit = {}
+    var onCancel: () -> Unit = {}
+
+    private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop * 1.35f
+    private val edgePaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private var palette = ReaderPalette("paper")
+    private var downX = 0f
+    private var downY = 0f
+    private var tracking = false
+    private var eligible = false
+    private var edgeProgress = 0f
+    private var edgeDirection = 1f
+    private var velocityTracker: VelocityTracker? = null
+
+    init {
+        cameraDistance = resources.displayMetrics.density * 1_600
+        setWillNotDraw(false)
+    }
+
+    fun applyPalette(value: ReaderPalette) {
+        palette = value
+        invalidate()
+    }
+
+    override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                downX = event.x
+                downY = event.y
+                tracking = false
+                eligible = isTurnEnabled()
+                velocityTracker?.recycle()
+                velocityTracker = VelocityTracker.obtain().also { it.addMovement(event) }
+            }
+            MotionEvent.ACTION_MOVE -> {
+                velocityTracker?.addMovement(event)
+                val dx = event.x - downX
+                val dy = event.y - downY
+                if (eligible && !tracking && kotlin.math.abs(dx) > touchSlop && kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.3f) {
+                    tracking = onBegin()
+                    if (tracking) {
+                        parent.requestDisallowInterceptTouchEvent(true)
+                        renderDrag(dx)
+                        return true
+                    }
+                }
+            }
+            MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_UP -> releaseTracker()
+        }
+        return tracking || super.onInterceptTouchEvent(event)
+    }
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (!tracking) return super.onTouchEvent(event)
+        velocityTracker?.addMovement(event)
+        when (event.actionMasked) {
+            MotionEvent.ACTION_MOVE -> renderDrag(event.x - downX)
+            MotionEvent.ACTION_UP -> {
+                val dx = event.x - downX
+                velocityTracker?.computeCurrentVelocity(1_000)
+                val velocity = velocityTracker?.xVelocity ?: 0f
+                val commit = kotlin.math.abs(dx) >= width * 0.17f || kotlin.math.abs(velocity) >= 560f
+                if (commit) onCommit(direction(dx)) else onCancel()
+                releaseTracker()
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                onCancel()
+                releaseTracker()
+            }
+        }
+        return true
+    }
+
+    fun animateRequested(sign: Float, finished: () -> Unit) {
+        animate().cancel()
+        edgeDirection = sign
+        edgeProgress = 0.72f
+        invalidate()
+        if (reduceMotion()) {
+            animate().alpha(0.78f).setDuration(100).withEndAction(finished).start()
+        } else {
+            animate()
+                .translationX(sign * minOf(readerDp(context, 112).toFloat(), width * 0.18f))
+                .rotationY(sign * 2.1f)
+                .setDuration(160)
+                .withEndAction(finished)
+                .start()
+        }
+    }
+
+    fun animateInteractiveCommit(finished: () -> Unit) {
+        val sign = if (translationX < 0 || (translationX == 0f && edgeDirection < 0)) -1f else 1f
+        animate().cancel()
+        if (reduceMotion()) {
+            animate().alpha(0.78f).setDuration(100).withEndAction(finished).start()
+        } else {
+            animate()
+                .translationX(sign * minOf(readerDp(context, 112).toFloat(), width * 0.18f))
+                .rotationY(sign * 2.1f)
+                .setDuration(120)
+                .withEndAction(finished)
+                .start()
+        }
+    }
+
+    fun animateCancel(finished: () -> Unit) {
+        animate().cancel()
+        edgeProgress = 0f
+        invalidate()
+        animate()
+            .translationX(0f)
+            .rotationY(0f)
+            .alpha(1f)
+            .setDuration(if (reduceMotion()) 90 else 180)
+            .withEndAction {
+                elevation = 0f
+                finished()
+            }
+            .start()
+    }
+
+    fun resetAfterNavigation(moved: Boolean, finished: () -> Unit) {
+        animate().cancel()
+        translationX = 0f
+        rotationY = 0f
+        elevation = 0f
+        edgeProgress = 0f
+        alpha = if (moved) 0.76f else 1f
+        invalidate()
+        animate().alpha(1f).setDuration(if (reduceMotion()) 100 else 180).withEndAction(finished).start()
+    }
+
+    override fun dispatchDraw(canvas: Canvas) {
+        super.dispatchDraw(canvas)
+        if (edgeProgress <= 0f) return
+        val edgeWidth = maxOf(readerDp(context, 2).toFloat(), readerDp(context, 14) * edgeProgress)
+        edgePaint.color = Color.argb((18 + 34 * edgeProgress).toInt(), Color.red(palette.ink), Color.green(palette.ink), Color.blue(palette.ink))
+        val left = if (edgeDirection < 0) width - edgeWidth else 0f
+        canvas.drawRect(left, 0f, left + edgeWidth, height.toFloat(), edgePaint)
+        edgePaint.color = Color.argb((90 + 70 * edgeProgress).toInt(), Color.red(palette.ink), Color.green(palette.ink), Color.blue(palette.ink))
+        val ruleX = if (edgeDirection < 0) width - 1f else 0f
+        canvas.drawRect(ruleX, 0f, ruleX + 1f, height.toFloat(), edgePaint)
+    }
+
+    private fun renderDrag(dx: Float) {
+        val limit = width * 0.28f
+        val clamped = dx.coerceIn(-limit, limit)
+        val progress = (kotlin.math.abs(clamped) / maxOf(1f, limit)).coerceIn(0f, 1f)
+        edgeDirection = if (clamped < 0) -1f else 1f
+        edgeProgress = progress
+        if (reduceMotion()) {
+            alpha = 1f - progress * 0.1f
+        } else {
+            translationX = clamped
+            rotationY = edgeDirection * progress * 2.1f
+            elevation = readerDp(context, 10) * progress
+        }
+        invalidate()
+    }
+
+    private fun direction(dx: Float): ReaderPageTurnDirection {
+        val movingTowardEnd = if (isRightToLeft()) dx > 0 else dx < 0
+        return if (movingTowardEnd) ReaderPageTurnDirection.NEXT else ReaderPageTurnDirection.PREVIOUS
+    }
+
+    private fun releaseTracker() {
+        velocityTracker?.recycle()
+        velocityTracker = null
+        tracking = false
+        eligible = false
+        parent.requestDisallowInterceptTouchEvent(false)
+    }
+}
+
+private class ReaderMotionProbe : Choreographer.FrameCallback {
+    private var active = false
+    private var startedAt = 0L
+    private var previousFrame = 0L
+    private var frames = 0
+    private var lateFrames = 0
+    private var interactive = false
+
+    fun begin(interactive: Boolean) {
+        cancel()
+        this.interactive = interactive
+        active = true
+        startedAt = System.nanoTime()
+        previousFrame = 0
+        frames = 0
+        lateFrames = 0
+        Choreographer.getInstance().postFrameCallback(this)
+    }
+
+    override fun doFrame(frameTimeNanos: Long) {
+        if (!active) return
+        if (previousFrame > 0 && frameTimeNanos - previousFrame > 25_000_000L) lateFrames += 1
+        previousFrame = frameTimeNanos
+        frames += 1
+        Choreographer.getInstance().postFrameCallback(this)
+    }
+
+    fun finish(committed: Boolean, reversed: Boolean) {
+        if (!active) return
+        val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000.0
+        cancel()
+        if (android.util.Log.isLoggable("WovenleafReaderMotion", android.util.Log.DEBUG)) {
+            android.util.Log.d(
+                "WovenleafReaderMotion",
+                "turn=${"%.1f".format(elapsedMs)}ms frames=$frames late=$lateFrames interactive=$interactive committed=$committed reversed=$reversed",
+            )
+        }
+    }
+
+    fun cancel() {
+        active = false
+        Choreographer.getInstance().removeFrameCallback(this)
+    }
+}
+
+private fun readerDp(context: android.content.Context, value: Int): Int =
+    (value * context.resources.displayMetrics.density).toInt()
