@@ -1,4 +1,3 @@
-import { createStarterLibrary } from '../library-model'
 import { AudiobookImportService } from '../audiobooks'
 import { EpubImportService } from '../epub'
 import { EpubAssetLifecycleService } from '../epub/lifecycle'
@@ -72,9 +71,7 @@ async function initializeStorageRuntime(): Promise<StorageRuntime> {
   const legacyMigration = legacyStorage
     ? await migrateLegacyLibrary(database, legacyStorage)
     : ({ status: 'not-found' } as const)
-  if (legacyMigration.status === 'not-found') {
-    await library.seedIfEmpty(createStarterLibrary())
-  }
+  await library.retireUntouchedStarterBooks()
   const queries = new CatalogQueryService(database)
   installDevelopmentInspector(database, queries, recovery)
 

@@ -33,10 +33,10 @@ export interface ShelfMotionTiming {
 }
 
 export const SHELF_MOTION_TIMING: ShelfMotionTiming = {
-  focusMs: 220,
-  eraseMs: 520,
-  settleMs: 220,
-  writeMs: 520,
+  focusMs: 180,
+  eraseMs: 280,
+  settleMs: 180,
+  writeMs: 280,
 }
 
 const REDUCED_SHELF_MOTION_TIMING: ShelfMotionTiming = {
@@ -93,7 +93,7 @@ export const MOTION_GRAMMAR: Readonly<Record<MotionFamily, MotionRule>> = {
   'move-shelf': {
     purpose: 'Connect a book leaving one shelf with its settled state on another through an ink-like erase and rewrite.',
     trigger: 'A book is added, removed, moved, started, or advanced between shelf lists.',
-    durationMs: 520,
+    durationMs: 280,
     easing: 'move',
     transformOrigin: 'left center',
     interruption: 'A second list change retargets the rendered books immediately and replaces the prior sequence.',

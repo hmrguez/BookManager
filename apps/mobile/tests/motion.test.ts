@@ -8,7 +8,11 @@ import {
   shouldReduceMotion,
   type MotionFamily,
 } from '../src/design-system'
-import { shelfMotionDelays, type ShelfMotionEvent } from '../src/library/shelf-motion'
+import {
+  shelfMotionDelays,
+  shouldAnimateShelfChange,
+  type ShelfMotionEvent,
+} from '../src/library/shelf-motion'
 
 const motionCssUrl = new URL('../src/design-system/motion.css', import.meta.url)
 const tokenCssUrl = new URL('../src/design-system/tokens.css', import.meta.url)
@@ -33,7 +37,7 @@ describe('Pulp motion grammar', () => {
       expect(rule.purpose.length).toBeGreaterThan(20)
       expect(rule.trigger.length).toBeGreaterThan(20)
       expect(rule.durationMs).toBeGreaterThan(0)
-      expect(rule.durationMs).toBeLessThanOrEqual(family === 'move-shelf' ? 600 : 300)
+      expect(rule.durationMs).toBeLessThanOrEqual(300)
       expect(rule.interruption).toMatch(/immediate|retarget|first frame/i)
       expect(rule.reversal.length).toBeGreaterThan(20)
       expect(rule.gestureCoupling.length).toBeGreaterThan(15)
@@ -91,6 +95,12 @@ describe('Pulp motion grammar', () => {
     })
   })
 
+  test('treats initial library hydration as state restoration rather than a shelf change', () => {
+    expect(shouldAnimateShelfChange(false, false)).toBe(false)
+    expect(shouldAnimateShelfChange(false, true)).toBe(false)
+    expect(shouldAnimateShelfChange(true, true)).toBe(true)
+  })
+
   test('globally shortens motion without hiding final information or introducing decorative loops', async () => {
     const [motionCss, tokenCss] = await Promise.all([
       Bun.file(motionCssUrl).text(),
@@ -106,12 +116,10 @@ describe('Pulp motion grammar', () => {
     expect(motionCss).not.toMatch(/\binfinite\b/)
     expect(motionCss).toContain("[data-shelf-motion='erase']::after")
     expect(motionCss).toContain("[data-shelf-motion='write']::after")
-    expect(motionCss).toContain("[data-shelf-motion='erase']::before")
-    expect(motionCss).toContain("[data-shelf-motion='write']::before")
     expect(motionCss).toContain('@keyframes motion-shelf-erase')
     expect(motionCss).toContain('@keyframes motion-shelf-write')
-    expect(motionCss).toContain('@keyframes motion-shelf-eraser')
-    expect(motionCss).toContain('@keyframes motion-shelf-pencil')
+    expect(motionCss).not.toContain('motion-shelf-eraser')
+    expect(motionCss).not.toContain('motion-shelf-pencil')
 
     for (const token of [
       '--motion-duration-feedback',

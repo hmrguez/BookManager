@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { libraryBookSchema } from '../src/library-model'
+import { createStarterLibrary, libraryBookSchema } from '../src/library-model'
 import { LibraryRepository } from '../src/storage/library-repository'
 import { migrateStorage } from '../src/storage/migrations'
 import { BunSqliteDatabase } from './storage-test-database'
@@ -20,15 +20,32 @@ const savedBook = libraryBookSchema.parse({
 })
 
 describe('Wovenleaf library repository', () => {
-  test('seeds once and reads validated books through the repository boundary', async () => {
+  test('keeps a new library empty until the reader adds a book', async () => {
     const database = new BunSqliteDatabase()
     await migrateStorage(database)
     const repository = new LibraryRepository(database)
 
-    await repository.seedIfEmpty([savedBook])
-    await repository.seedIfEmpty([{ ...savedBook, title: 'Should not replace existing data' }])
+    expect(await repository.list()).toEqual([])
+    await database.close()
+  })
 
-    expect(await repository.list()).toEqual([savedBook])
+  test('retires untouched placeholder books without deleting reader changes', async () => {
+    const database = new BunSqliteDatabase()
+    await migrateStorage(database)
+    const repository = new LibraryRepository(database)
+    const [untouched, changed] = createStarterLibrary('2026-08-20T10:00:00.000Z')
+    if (!untouched || !changed) throw new Error('Expected two starter books')
+    const changedByReader = {
+      ...changed,
+      notes: 'Keep my progress and notes.',
+    }
+
+    await repository.save(untouched)
+    await repository.save(changedByReader)
+    await repository.save(savedBook)
+
+    expect(await repository.retireUntouchedStarterBooks()).toBe(1)
+    expect((await repository.list()).map(({ id }) => id)).toEqual([changedByReader.id, savedBook.id])
     await database.close()
   })
 

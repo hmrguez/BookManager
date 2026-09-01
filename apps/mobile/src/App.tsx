@@ -82,6 +82,7 @@ import { getMetadataSearchService } from './metadata'
 function App() {
   const {
     books,
+    hydrated: libraryHydrated,
     storageError,
     legacyRecoveryAvailable,
     downloadLegacyRecovery,
@@ -1054,6 +1055,7 @@ function App() {
         {view === 'library' ? (
           <LibraryPage
             books={books}
+            libraryHydrated={libraryHydrated}
             organization={organization}
             appearance={appearance}
             upNext={upNext}

@@ -92,6 +92,7 @@ export function ShelfSection({
   onRate,
   shelfMotion,
   motionMode,
+  libraryHydrated,
 }: {
   shelf: ShelfId
   books: LibraryBook[]
@@ -106,6 +107,7 @@ export function ShelfSection({
   onRate: (id: string, rating: number) => void
   shelfMotion?: ShelfMotionEvent
   motionMode: MotionMode
+  libraryHydrated: boolean
 }) {
   const meta = shelfCopy[shelf]
   const [collapsed, setCollapsed] = useState(false)
@@ -123,6 +125,7 @@ export function ShelfSection({
     shelf,
     event: shelfMotion,
     motionMode,
+    ready: libraryHydrated,
   })
   return (
     <section className={tw(`shelf shelf--${shelf}`)} id={`shelf-${shelf}`} data-shelf={shelf}>

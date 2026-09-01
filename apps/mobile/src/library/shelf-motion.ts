@@ -39,16 +39,22 @@ export function shelfMotionDelays(
   }
 }
 
+export function shouldAnimateShelfChange(wasReady: boolean, ready: boolean): boolean {
+  return wasReady && ready
+}
+
 export function useAnimatedShelfBooks({
   books,
   shelf,
   event,
   motionMode,
+  ready,
 }: {
   readonly books: readonly LibraryBook[]
   readonly shelf: ShelfId
   readonly event?: ShelfMotionEvent
   readonly motionMode: MotionMode
+  readonly ready: boolean
 }) {
   const [displayedBooks, setDisplayedBooks] = useState<AnimatedShelfBook[]>(
     () => books.map((book) => ({ book, motion: 'idle' })),
@@ -59,6 +65,7 @@ export function useAnimatedShelfBooks({
   const previousPositionsRef = useRef<Map<string, DOMRect> | undefined>(undefined)
   const layoutAnimationCleanupsRef = useRef(new Map<string, () => void>())
   const generationRef = useRef(0)
+  const readyRef = useRef(ready)
   const timing = shelfMotionTiming(motionMode)
 
   useLayoutEffect(() => {
@@ -114,6 +121,8 @@ export function useAnimatedShelfBooks({
   }, [])
 
   useEffect(() => {
+    const animationReady = shouldAnimateShelfChange(readyRef.current, ready)
+    readyRef.current = ready
     const generation = ++generationRef.current
     let cancelled = false
     const timers = new Map<ReturnType<typeof setTimeout>, (active: boolean) => void>()
@@ -151,6 +160,12 @@ export function useAnimatedShelfBooks({
     const isCurrent = () => !cancelled && generationRef.current === generation
 
     const run = async () => {
+      if (!animationReady) {
+        replaceDisplayed(targetBooks.map((book) => ({ book, motion: 'idle' })))
+        setAnimating(false)
+        return
+      }
+
       if (!removedIds.size && !addedIds.size) {
         replaceDisplayed(targetBooks.map((book) => ({ book, motion: 'idle' })), orderChanged)
         setAnimating(false)
@@ -217,7 +232,7 @@ export function useAnimatedShelfBooks({
       }
       timers.clear()
     }
-  }, [books, event, shelf, timing])
+  }, [books, event, ready, shelf, timing])
 
   const setRowElement = (bookId: string, element: HTMLElement | null) => {
     if (element) rowElementsRef.current.set(bookId, element)

@@ -42,6 +42,7 @@ export function UpNextSection({
   onReasonState,
   shelfMotion,
   motionMode,
+  libraryHydrated,
 }: {
   books: readonly LibraryBook[]
   state: UpNextState
@@ -57,6 +58,7 @@ export function UpNextSection({
   onReasonState: (criterion: UpNextCriterion, state: ReasonState) => void
   shelfMotion?: ShelfMotionEvent
   motionMode: MotionMode
+  libraryHydrated: boolean
 }) {
   const [collapsed, setCollapsed] = useState(false)
   const [expandedForMotion, setExpandedForMotion] = useState<number>()
@@ -73,6 +75,7 @@ export function UpNextSection({
     shelf: 'next',
     event: shelfMotion,
     motionMode,
+    ready: libraryHydrated,
   })
   return (
     <section className={tw("shelf shelf--next up-next")} id="shelf-next" data-shelf="next">

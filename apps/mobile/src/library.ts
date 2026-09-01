@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  createStarterLibrary,
   findLibraryBookForSearchResult,
   type BookSearchResult,
   type LibraryBook,
@@ -19,7 +18,8 @@ export const SHELVES: Array<{ id: ShelfId; label: string; shortLabel: string }> 
 ]
 
 export function useLibrary() {
-  const [books, setBooks] = useState<LibraryBook[]>(createStarterLibrary)
+  const [books, setBooks] = useState<LibraryBook[]>([])
+  const [hydrated, setHydrated] = useState(false)
   const [storageError, setStorageError] = useState<string>()
   const [legacyRecoveryAvailable, setLegacyRecoveryAvailable] = useState(false)
   const booksRef = useRef(books)
@@ -53,10 +53,15 @@ export function useLibrary() {
         return library.list()
       })
       .then((persistedBooks) => {
-        if (active && !hasMutatedRef.current) showBooks(persistedBooks)
+        if (!active) return
+        if (!hasMutatedRef.current) showBooks(persistedBooks)
+        setHydrated(true)
       })
       .catch((error: unknown) => {
-        if (active) setStorageError(error instanceof Error ? error.message : String(error))
+        if (active) {
+          setStorageError(error instanceof Error ? error.message : String(error))
+          setHydrated(true)
+        }
       })
     return () => {
       active = false
@@ -221,6 +226,7 @@ export function useLibrary() {
 
   return {
     books,
+    hydrated,
     storageError,
     legacyRecoveryAvailable,
     downloadLegacyRecovery,

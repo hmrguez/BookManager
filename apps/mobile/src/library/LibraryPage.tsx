@@ -29,6 +29,7 @@ type OpenSheet = (sheet: Exclude<SheetState, null>) => void
 
 export function LibraryPage({
   books,
+  libraryHydrated,
   organization,
   appearance,
   upNext,
@@ -55,6 +56,7 @@ export function LibraryPage({
   onReasonState,
 }: {
   books: LibraryBook[]
+  libraryHydrated: boolean
   organization: LibraryOrganization
   appearance: AppearancePreferences
   upNext: UpNextState
@@ -286,6 +288,7 @@ export function LibraryPage({
                 onReasonState={onReasonState}
                 shelfMotion={shelfMotion}
                 motionMode={appearance.motion}
+                libraryHydrated={libraryHydrated}
               />
             ) : (
               <ShelfSection
@@ -296,6 +299,7 @@ export function LibraryPage({
                 searchResults={librarySearchResultById}
                 shelfMotion={shelfMotion}
                 motionMode={appearance.motion}
+                libraryHydrated={libraryHydrated}
                 onAdd={(targetShelf) => onOpenSheet({ kind: 'search', shelf: targetShelf })}
                 onDetails={(bookId) => onOpenSheet({ kind: 'detail', bookId })}
                 onProgress={(bookId) => onOpenSheet({ kind: 'progress', bookId })}

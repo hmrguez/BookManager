@@ -430,7 +430,7 @@ export function SettingsPage({
               ))}
             </div>
             <small className={tw('appearance-field__hint')}>
-              Reduced is a global test mode: hierarchy, status, focus, and feedback stay intact.
+              Reduced turns off shelf and other optional animations while keeping status, focus, and feedback intact.
             </small>
           </fieldset>
 

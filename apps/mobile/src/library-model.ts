@@ -120,6 +120,12 @@ export function isStarterLibraryBookId(id: string): boolean {
   return starterLibraryBookIds.has(id)
 }
 
+export function isUntouchedStarterLibraryBook(book: LibraryBook): boolean {
+  if (!isStarterLibraryBookId(book.id)) return false
+  const original = createStarterLibrary(book.addedAt).find(({ id }) => id === book.id)
+  return original !== undefined && JSON.stringify(original) === JSON.stringify(book)
+}
+
 export function createStarterLibrary(timestamp = new Date().toISOString()): LibraryBook[] {
   const loanDueAt = new Date(new Date(timestamp).getTime() + 6 * 86_400_000).toISOString()
   return libraryBookSchema.array().parse([

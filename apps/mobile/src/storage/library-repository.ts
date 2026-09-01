@@ -1,4 +1,4 @@
-import { libraryBookSchema, type LibraryBook } from '../library-model'
+import { isUntouchedStarterLibraryBook, libraryBookSchema, type LibraryBook } from '../library-model'
 import { upNextStateSchema } from '../up-next-model'
 import type { SqlDatabase } from './database'
 import { readText } from './database'
@@ -15,22 +15,28 @@ export class LibraryRepository {
     return readLibraryBooks(this.#database)
   }
 
-  async seedIfEmpty(books: readonly LibraryBook[]): Promise<void> {
-    const [{ count } = { count: 0 }] = await this.#database.query<{ readonly count: number }>(
-      'SELECT COUNT(*) AS count FROM library_books',
+  async retireUntouchedStarterBooks(): Promise<number> {
+    const relationshipRows = await this.#database.query<{ readonly book_id: string }>(
+      `SELECT book_id FROM custom_shelf_entries
+       UNION
+       SELECT book_id FROM library_book_tags`,
     )
-    if (count !== 0) return
-
-    const validated = books.map((book) => libraryBookSchema.parse(book))
-    await this.#database.transaction(async (database) => {
-      const [{ count: transactionCount } = { count: 0 }] = await database.query<{
-        readonly count: number
-      }>('SELECT COUNT(*) AS count FROM library_books')
-      if (transactionCount !== 0) return
-      for (const book of validated) {
-        await writeLibraryBook(database, book)
-      }
-    })
+    const touchedBookIds = new Set(relationshipRows.map(({ book_id }) => book_id))
+    const [upNextRow] = await this.#database.query(
+      'SELECT payload_json FROM up_next_state WHERE id = ?',
+      ['primary'],
+    )
+    if (upNextRow) {
+      const upNext = upNextStateSchema.parse(JSON.parse(readText(upNextRow, 'payload_json')))
+      for (const bookId of upNext.queueBookIds) touchedBookIds.add(bookId)
+      if (upNext.pinnedBookId) touchedBookIds.add(upNext.pinnedBookId)
+      for (const { bookId } of upNext.dismissedSuggestions) touchedBookIds.add(bookId)
+    }
+    const retired = (await this.list()).filter((book) =>
+      isUntouchedStarterLibraryBook(book) && !touchedBookIds.has(book.id),
+    )
+    for (const book of retired) await this.remove(book.id)
+    return retired.length
   }
 
   async save(book: LibraryBook): Promise<void> {
