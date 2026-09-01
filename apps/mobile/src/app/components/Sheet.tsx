@@ -78,7 +78,9 @@ export function Sheet({
             <X aria-hidden="true" />
           </button>
         </header>
-        {children}
+        <div className={tw('sheet-content')}>
+          {children}
+        </div>
       </section>
     </div>
   )

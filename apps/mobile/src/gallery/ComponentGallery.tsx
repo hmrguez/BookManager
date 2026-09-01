@@ -291,18 +291,20 @@ function SheetStory() {
       <section className={tw("bottom-sheet")} role="dialog" aria-label="Update progress specimen">
         <div className={tw("sheet-handle")} aria-hidden="true" />
         <header className={tw("sheet-header")}><h2>Update progress</h2><span>Fixed state</span></header>
-        <div className={tw("sheet-book-line")}>
-          <BookCover book={galleryBook} />
-          <div><strong>{galleryBook.title}</strong><small>{galleryBook.authors.join(', ')}</small></div>
-        </div>
-        <div className={tw("progress-editor")}>
-          <button type="button" aria-label="Decrease by 5 percent"><Minus aria-hidden="true" /></button>
-          <output>67<span>%</span></output>
-          <button type="button" aria-label="Increase by 5 percent"><Plus aria-hidden="true" /></button>
-        </div>
-        <div className={tw("progress-presets")} aria-label="Progress presets">
-          <button type="button">25%</button><button type="button">50%</button>
-          <button type="button">75%</button><button type="button">Finished</button>
+        <div className={tw("sheet-content")}>
+          <div className={tw("sheet-book-line")}>
+            <BookCover book={galleryBook} />
+            <div><strong>{galleryBook.title}</strong><small>{galleryBook.authors.join(', ')}</small></div>
+          </div>
+          <div className={tw("progress-editor")}>
+            <button type="button" aria-label="Decrease by 5 percent"><Minus aria-hidden="true" /></button>
+            <output>67<span>%</span></output>
+            <button type="button" aria-label="Increase by 5 percent"><Plus aria-hidden="true" /></button>
+          </div>
+          <div className={tw("progress-presets")} aria-label="Progress presets">
+            <button type="button">25%</button><button type="button">50%</button>
+            <button type="button">75%</button><button type="button">Finished</button>
+          </div>
         </div>
       </section>
     </div>
