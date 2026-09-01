@@ -82,6 +82,7 @@ export function SearchSheet({
   const [manualAuthor, setManualAuthor] = useState('')
   const [manualPages, setManualPages] = useState('')
   const [isbnInput, setIsbnInput] = useState(initialCapture?.isbn.normalized ?? '')
+  const [isbnToolsOpen, setIsbnToolsOpen] = useState(Boolean(initialCapture))
   const [captureMethod, setCaptureMethod] = useState<CaptureMethod>(
     initialCapture?.method ?? 'manual-entry',
   )
@@ -393,42 +394,6 @@ export function SearchSheet({
         </form>
       ) : (
         <>
-          <section className={tw('capture-desk')} aria-labelledby="capture-desk-title">
-            <header>
-              <span><ScanLine aria-hidden="true" /></span>
-              <div>
-                <h3 id="capture-desk-title">Capture an ISBN</h3>
-                <p>Scan the back cover or use a number you copied.</p>
-              </div>
-              <small>Works offline</small>
-            </header>
-            <div className={tw('capture-desk__actions')}>
-              <button type="button" onClick={() => { void scanBarcode() }} disabled={captureBusy}>
-                <Camera aria-hidden="true" /><span><strong>Scan barcode</strong><small>Camera · ISBN-10/13</small></span>
-              </button>
-              <button type="button" onClick={() => { void pasteIsbn() }} disabled={captureBusy}>
-                <ClipboardPaste aria-hidden="true" /><span><strong>Paste ISBN</strong><small>From clipboard</small></span>
-              </button>
-            </div>
-            <p className={tw('capture-torch-note')}>
-              <Flashlight aria-hidden="true" /> Camera opens full screen. Use the torch control when the cover is dark or glossy.
-            </p>
-            <form className={tw('capture-isbn-entry')} onSubmit={submitIsbn}>
-              <input
-                ref={isbnInputRef}
-                value={isbnInput}
-                onChange={(event) => setIsbnInput(event.target.value)}
-                placeholder="Type ISBN-10 or ISBN-13"
-                aria-label="ISBN-10 or ISBN-13"
-                inputMode="numeric"
-                autoCapitalize="characters"
-              />
-              <button type="submit" disabled={captureBusy || !isbnInput.trim()}>Use ISBN</button>
-            </form>
-          </section>
-
-          {captureIssue && <CaptureIssue message={captureIssue} />}
-
           <form className={tw('book-search')} onSubmit={addFirstResult}>
             <Search aria-hidden="true" />
             <input
@@ -436,7 +401,7 @@ export function SearchSheet({
               type="search"
               value={query}
               onChange={(event) => updateQuery(event.target.value)}
-              placeholder="Title, author, or ISBN"
+              placeholder="Book title or author"
               aria-label="Search book catalogs"
               autoCapitalize="none"
               enterKeyHint="search"
@@ -476,6 +441,51 @@ export function SearchSheet({
               )}
             </div>
           )}
+
+          <div className={tw('isbn-tools')}>
+            <button
+              type="button"
+              aria-expanded={isbnToolsOpen}
+              aria-controls="isbn-tools-panel"
+              onClick={() => setIsbnToolsOpen((open) => !open)}
+            >
+              <ScanLine aria-hidden="true" />
+              <span>
+                <strong>Use an ISBN</strong>
+                <small>Scan, paste, or type</small>
+              </span>
+              <ChevronRight className={isbnToolsOpen ? 'is-open' : undefined} aria-hidden="true" />
+            </button>
+            {isbnToolsOpen && (
+              <div id="isbn-tools-panel" className={tw('capture-desk')}>
+                <div className={tw('capture-desk__actions')}>
+                  <button type="button" onClick={() => { void scanBarcode() }} disabled={captureBusy}>
+                    <Camera aria-hidden="true" /><span><strong>Scan barcode</strong><small>Camera · ISBN-10/13</small></span>
+                  </button>
+                  <button type="button" onClick={() => { void pasteIsbn() }} disabled={captureBusy}>
+                    <ClipboardPaste aria-hidden="true" /><span><strong>Paste ISBN</strong><small>From clipboard</small></span>
+                  </button>
+                </div>
+                <p className={tw('capture-torch-note')}>
+                  <Flashlight aria-hidden="true" /> Camera opens full screen. Use the torch control when the cover is dark or glossy.
+                </p>
+                <form className={tw('capture-isbn-entry')} onSubmit={submitIsbn}>
+                  <input
+                    ref={isbnInputRef}
+                    value={isbnInput}
+                    onChange={(event) => setIsbnInput(event.target.value)}
+                    placeholder="Type ISBN-10 or ISBN-13"
+                    aria-label="ISBN-10 or ISBN-13"
+                    inputMode="numeric"
+                    autoCapitalize="characters"
+                  />
+                  <button type="submit" disabled={captureBusy || !isbnInput.trim()}>Use ISBN</button>
+                </form>
+              </div>
+            )}
+          </div>
+
+          {captureIssue && <CaptureIssue message={captureIssue} />}
 
           <button className={tw('manual-entry-trigger')} type="button" onClick={openManualEntry}>
             <BookPlus aria-hidden="true" />

@@ -104,6 +104,8 @@ test('catalog search uses Open Library, reuses saved results offline, and keeps 
   await page.evaluate(() => document.fonts.ready)
   await page.waitForLoadState('networkidle')
   await page.getByRole('button', { name: 'Add Book' }).click()
+  await expect(page.getByPlaceholder('Book title or author')).toBeFocused()
+  await expect(page.getByRole('textbox', { name: 'ISBN-10 or ISBN-13' })).toBeHidden()
   await page.getByRole('searchbox', { name: 'Search book catalogs' }).fill('Invisible Cities')
 
   await expect(page.getByRole('heading', { name: 'Invisible Cities' })).toBeVisible()
@@ -115,6 +117,7 @@ test('catalog search uses Open Library, reuses saved results offline, and keeps 
   )
   await page.getByRole('button', { name: 'Add Invisible Cities' }).click()
   await expect(page.getByRole('button', { name: 'Invisible Cities already added' })).toBeDisabled()
+  await page.getByRole('button', { name: /Use an ISBN/ }).click()
   await page.getByRole('textbox', { name: 'ISBN-10 or ISBN-13' }).fill('9780156453806')
   await page.getByRole('button', { name: 'Use ISBN' }).click()
   await expect(page.getByRole('heading', { name: 'This ISBN is already in your library' })).toBeVisible()
