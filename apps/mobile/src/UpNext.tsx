@@ -14,6 +14,7 @@ import {
 import { BookCover, type MotionMode } from './design-system'
 import type { LibraryBook } from './library-model'
 import { useAnimatedShelfBooks, type ShelfMotionEvent } from './library/shelf-motion'
+import { shelfCascadeItem, useShelfCascade } from './library/shelf-cascade'
 import {
   UP_NEXT_CRITERIA,
   UP_NEXT_CRITERION_COPY,
@@ -60,16 +61,9 @@ export function UpNextSection({
   motionMode: MotionMode
   libraryHydrated: boolean
 }) {
-  const [collapsed, setCollapsed] = useState(false)
-  const [expandedForMotion, setExpandedForMotion] = useState<number>()
   const relevantMotionSequence = shelfMotion?.from === 'next' || shelfMotion?.to === 'next'
     ? shelfMotion.sequence
     : undefined
-  if (relevantMotionSequence !== undefined && relevantMotionSequence !== expandedForMotion) {
-    setExpandedForMotion(relevantMotionSequence)
-    setCollapsed(false)
-  }
-  const isCollapsed = collapsed && !isFiltering
   const { displayedBooks, animating, setRowElement } = useAnimatedShelfBooks({
     books,
     shelf: 'next',
@@ -77,13 +71,23 @@ export function UpNextSection({
     motionMode,
     ready: libraryHydrated,
   })
+  const showChoiceNotes = FEATURES.assistedUpNext && state.mode === 'assisted' && !isFiltering
+  const principleCount = FEATURES.assistedUpNext ? 1 : 0
+  const queueItemCount = Math.max(displayedBooks.length, 1)
+  const cascadeItemCount = principleCount + queueItemCount + (showChoiceNotes ? 1 : 0)
+  const { isCollapsed, toggle, cascadeProps } = useShelfCascade({
+    itemCount: cascadeItemCount,
+    motionMode,
+    forceOpen: isFiltering,
+    expansionKey: relevantMotionSequence,
+  })
   return (
     <section className={tw("shelf shelf--next up-next")} id="shelf-next" data-shelf="next">
       <header className={tw("shelf-header up-next__header")}>
         <button
           type="button"
           className={tw("shelf-toggle")}
-          onClick={() => setCollapsed((value) => !value)}
+          onClick={toggle}
           aria-expanded={!isCollapsed}
           aria-controls="shelf-books-next"
         >
@@ -118,11 +122,11 @@ export function UpNextSection({
       <div
         className={tw("shelf-books")}
         id="shelf-books-next"
-        hidden={isCollapsed}
+        {...cascadeProps}
         aria-busy={animating || undefined}
       >
         {FEATURES.assistedUpNext && (
-          <div className={tw("up-next__principle")}>
+          <div className={tw("up-next__principle")} {...shelfCascadeItem(0, cascadeItemCount)}>
             <span>{state.mode === 'manual' ? 'Your order, exactly' : 'Your order stays in charge'}</span>
             <small>
               {state.mode === 'manual'
@@ -133,7 +137,12 @@ export function UpNextSection({
         )}
 
         {displayedBooks.length === 0 ? (
-          <button className={tw("empty-shelf")} type="button" onClick={onAdd}>
+          <button
+            className={tw("empty-shelf")}
+            type="button"
+            onClick={onAdd}
+            {...shelfCascadeItem(principleCount, cascadeItemCount)}
+          >
             <Plus aria-hidden="true" />
             <span>
               <strong>Choose what comes next</strong>
@@ -149,6 +158,7 @@ export function UpNextSection({
                   key={book.id}
                   ref={(element) => { setRowElement(book.id, element) }}
                   data-shelf-motion={motion === 'idle' ? undefined : motion}
+                  {...shelfCascadeItem(principleCount + index, cascadeItemCount)}
                 >
                   <span className={tw("up-next-book__number")} aria-label={`Position ${index + 1}`}>
                     {String(index + 1).padStart(2, '0')}
@@ -197,8 +207,11 @@ export function UpNextSection({
           </div>
         )}
 
-        {FEATURES.assistedUpNext && state.mode === 'assisted' && !isFiltering && (
-          <aside className={tw(`choice-notes choice-notes--${suggestions.certainty}`)}>
+        {showChoiceNotes && (
+          <aside
+            className={tw(`choice-notes choice-notes--${suggestions.certainty}`)}
+            {...shelfCascadeItem(principleCount + queueItemCount, cascadeItemCount)}
+          >
             <header>
               <span><Sparkles aria-hidden="true" /> Choice notes</span>
               <button type="button" onClick={onManage}>Adjust signals</button>

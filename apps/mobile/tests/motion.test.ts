@@ -13,6 +13,7 @@ import {
   shouldAnimateShelfChange,
   type ShelfMotionEvent,
 } from '../src/library/shelf-motion'
+import { shelfCascadeItem } from '../src/library/shelf-cascade'
 
 const motionCssUrl = new URL('../src/design-system/motion.css', import.meta.url)
 const tokenCssUrl = new URL('../src/design-system/tokens.css', import.meta.url)
@@ -101,6 +102,21 @@ describe('Pulp motion grammar', () => {
     expect(shouldAnimateShelfChange(true, true)).toBe(true)
   })
 
+  test('cascades shelf disclosure forward on open and backward on close', () => {
+    expect(shelfCascadeItem(0, 4).style).toEqual({
+      '--shelf-cascade-open-delay': '0ms',
+      '--shelf-cascade-close-delay': '60ms',
+    })
+    expect(shelfCascadeItem(3, 4).style).toEqual({
+      '--shelf-cascade-open-delay': '60ms',
+      '--shelf-cascade-close-delay': '0ms',
+    })
+    expect(shelfCascadeItem(20, 24).style).toEqual({
+      '--shelf-cascade-open-delay': '140ms',
+      '--shelf-cascade-close-delay': '60ms',
+    })
+  })
+
   test('globally shortens motion without hiding final information or introducing decorative loops', async () => {
     const [motionCss, tokenCss] = await Promise.all([
       Bun.file(motionCssUrl).text(),
@@ -118,6 +134,10 @@ describe('Pulp motion grammar', () => {
     expect(motionCss).toContain("[data-shelf-motion='write']::after")
     expect(motionCss).toContain('@keyframes motion-shelf-erase')
     expect(motionCss).toContain('@keyframes motion-shelf-write')
+    expect(motionCss).toContain("[data-shelf-cascade='opening']")
+    expect(motionCss).toContain("[data-shelf-cascade='closing']")
+    expect(motionCss).toContain('@keyframes motion-shelf-cascade-open')
+    expect(motionCss).toContain('@keyframes motion-shelf-cascade-close')
     expect(motionCss).not.toContain('motion-shelf-eraser')
     expect(motionCss).not.toContain('motion-shelf-pencil')
 

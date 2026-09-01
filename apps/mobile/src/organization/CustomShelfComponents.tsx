@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Archive, ArchiveRestore, Check, ChevronDown, FolderCog, FolderPlus, Pin, Search, Trash2, X } from 'lucide-react'
-import { ActionButton, BookCover } from '../design-system'
+import { ActionButton, BookCover, type MotionMode } from '../design-system'
 import type { LibraryBook } from '../library'
 import type { ShelfDraft } from '../organization'
 import { orderedShelfEntries, tagsForBook, type CustomShelf, type LibraryOrganization } from '../organization-model'
@@ -8,6 +8,7 @@ import type { LocalSearchResult } from '../search'
 import { shelfCopy } from '../app/config'
 import { Sheet } from '../app/components/Sheet'
 import { SearchBookCopy } from '../library/ShelfSection'
+import { shelfCascadeItem, useShelfCascade } from '../library/shelf-cascade'
 import { tw } from '../tailwind/styles'
 
 function authorLine(authors: string[]) {
@@ -20,6 +21,7 @@ export function CustomShelfSection({
   organization,
   isFiltering,
   searchResults,
+  motionMode,
   onDetails,
   onManage,
 }: {
@@ -28,11 +30,17 @@ export function CustomShelfSection({
   organization: LibraryOrganization
   isFiltering: boolean
   searchResults: ReadonlyMap<string, LocalSearchResult>
+  motionMode: MotionMode
   onDetails: (id: string) => void
   onManage: () => void
 }) {
-  const [collapsed, setCollapsed] = useState(false)
-  const isCollapsed = collapsed && !isFiltering
+  const noteCount = shelf.notes ? 1 : 0
+  const cascadeItemCount = noteCount + Math.max(books.length, 1)
+  const { isCollapsed, toggle, cascadeProps } = useShelfCascade({
+    itemCount: cascadeItemCount,
+    motionMode,
+    forceOpen: isFiltering,
+  })
 
   return (
     <section className={tw('shelf custom-shelf')} id={`custom-shelf-${shelf.id}`}>
@@ -40,7 +48,7 @@ export function CustomShelfSection({
         <button
           type="button"
           className={tw('shelf-toggle')}
-          onClick={() => setCollapsed((value) => !value)}
+          onClick={toggle}
           aria-expanded={!isCollapsed}
           aria-controls={`custom-shelf-books-${shelf.id}`}
         >
@@ -60,25 +68,31 @@ export function CustomShelfSection({
         </button>
       </header>
 
-      <div className={tw('shelf-books')} id={`custom-shelf-books-${shelf.id}`} hidden={isCollapsed}>
-        {shelf.notes && <p className={tw('custom-shelf__note')}>{shelf.notes}</p>}
+      <div className={tw('shelf-books')} id={`custom-shelf-books-${shelf.id}`} {...cascadeProps}>
+        {shelf.notes && (
+          <p className={tw('custom-shelf__note')} {...shelfCascadeItem(0, cascadeItemCount)}>{shelf.notes}</p>
+        )}
         {books.length === 0 ? (
           isFiltering ? (
-            <div className={tw('empty-shelf empty-shelf--filter')}>
+            <div className={tw('empty-shelf empty-shelf--filter')} {...shelfCascadeItem(noteCount, cascadeItemCount)}>
               <Search aria-hidden="true" />
               <span><strong>No matches on this shelf</strong><small>Try another title, author, or tag</small></span>
             </div>
           ) : (
-            <button className={tw('empty-shelf')} type="button" onClick={onManage}>
+            <button className={tw('empty-shelf')} type="button" onClick={onManage} {...shelfCascadeItem(noteCount, cascadeItemCount)}>
               <FolderPlus aria-hidden="true" />
               <span><strong>Collect the first book</strong><small>Books keep their reading status</small></span>
             </button>
           )
         ) : (
-          books.map((book) => {
+          books.map((book, index) => {
             const tags = tagsForBook(organization, book.id)
             return (
-              <article className={tw('book-row custom-book-row')} key={book.id}>
+              <article
+                className={tw('book-row custom-book-row')}
+                key={book.id}
+                {...shelfCascadeItem(noteCount + index, cascadeItemCount)}
+              >
                 <button className={tw('book-identity')} type="button" onClick={() => onDetails(book.id)}>
                   <BookCover book={book} />
                   <SearchBookCopy book={book} result={searchResults.get(book.id)}>

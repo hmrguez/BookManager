@@ -328,6 +328,7 @@ export function LibraryPage({
                       list={list}
                       query={smartListQueries.get(list.id)!}
                       booksById={bookById}
+                      motionMode={appearance.motion}
                       onDetails={(bookId) => onOpenSheet({ kind: 'detail', bookId })}
                       onManage={() => onOpenSheet({ kind: 'smart-list', smartListId: list.id })}
                     />
@@ -374,6 +375,7 @@ export function LibraryPage({
                   organization={organization}
                   isFiltering={librarySearchActive}
                   searchResults={librarySearchResultById}
+                  motionMode={appearance.motion}
                   onDetails={(bookId) => onOpenSheet({ kind: 'detail', bookId })}
                   onManage={() => onOpenSheet({ kind: 'custom-shelf', shelfId: shelf.id })}
                 />

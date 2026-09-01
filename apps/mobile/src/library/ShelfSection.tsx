@@ -1,10 +1,11 @@
-import { useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { ArrowRight, Check, ChevronDown, CirclePlus, Plus, Search } from 'lucide-react'
 import { BookCover, ProgressMeter, RatingStars, type MotionMode } from '../design-system'
 import type { LibraryBook, ShelfId } from '../library'
 import type { LocalSearchResult, SearchHighlight } from '../search'
 import { shelfCopy } from '../app/config'
 import { tw } from '../tailwind/styles'
+import { shelfCascadeItem, useShelfCascade } from './shelf-cascade'
 import { useAnimatedShelfBooks, type ShelfMotionEvent } from './shelf-motion'
 
 function SearchHighlightedText({ value, highlight }: { value: string; highlight?: SearchHighlight }) {
@@ -110,16 +111,9 @@ export function ShelfSection({
   libraryHydrated: boolean
 }) {
   const meta = shelfCopy[shelf]
-  const [collapsed, setCollapsed] = useState(false)
-  const [expandedForMotion, setExpandedForMotion] = useState<number>()
   const relevantMotionSequence = shelfMotion?.from === shelf || shelfMotion?.to === shelf
     ? shelfMotion.sequence
     : undefined
-  if (relevantMotionSequence !== undefined && relevantMotionSequence !== expandedForMotion) {
-    setExpandedForMotion(relevantMotionSequence)
-    setCollapsed(false)
-  }
-  const isCollapsed = collapsed && !isFiltering
   const { displayedBooks, animating, setRowElement } = useAnimatedShelfBooks({
     books,
     shelf,
@@ -127,13 +121,20 @@ export function ShelfSection({
     motionMode,
     ready: libraryHydrated,
   })
+  const cascadeItemCount = Math.max(displayedBooks.length, 1)
+  const { isCollapsed, toggle, cascadeProps } = useShelfCascade({
+    itemCount: cascadeItemCount,
+    motionMode,
+    forceOpen: isFiltering,
+    expansionKey: relevantMotionSequence,
+  })
   return (
     <section className={tw(`shelf shelf--${shelf}`)} id={`shelf-${shelf}`} data-shelf={shelf}>
       <header className={tw('shelf-header')}>
         <button
           type="button"
           className={tw('shelf-toggle')}
-          onClick={() => setCollapsed((value) => !value)}
+          onClick={toggle}
           aria-expanded={!isCollapsed}
           aria-controls={`shelf-books-${shelf}`}
         >
@@ -153,28 +154,29 @@ export function ShelfSection({
       <div
         className={tw('shelf-books')}
         id={`shelf-books-${shelf}`}
-        hidden={isCollapsed}
+        {...cascadeProps}
         aria-busy={animating || undefined}
       >
         {displayedBooks.length === 0 ? (
           isFiltering ? (
-            <div className={tw('empty-shelf empty-shelf--filter')}>
+            <div className={tw('empty-shelf empty-shelf--filter')} {...shelfCascadeItem(0, cascadeItemCount)}>
               <Search aria-hidden="true" />
               <span><strong>No matches on this shelf</strong><small>Try another title or author</small></span>
             </div>
           ) : (
-            <button className={tw('empty-shelf')} type="button" onClick={() => onAdd(shelf)}>
+            <button className={tw('empty-shelf')} type="button" onClick={() => onAdd(shelf)} {...shelfCascadeItem(0, cascadeItemCount)}>
               <CirclePlus aria-hidden="true" />
               <span><strong>{meta.empty}</strong><small>Add a title to this shelf</small></span>
             </button>
           )
         ) : (
-          displayedBooks.map(({ book, motion }) => (
+          displayedBooks.map(({ book, motion }, index) => (
             <article
               className={tw('book-row')}
               key={book.id}
               ref={(element) => { setRowElement(book.id, element) }}
               data-shelf-motion={motion === 'idle' ? undefined : motion}
+              {...shelfCascadeItem(index, cascadeItemCount)}
             >
               <button className={tw('book-identity')} type="button" onClick={() => onDetails(book.id)}>
                 <BookCover book={book} />
