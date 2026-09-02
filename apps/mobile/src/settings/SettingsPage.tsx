@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
   Download,
   FileText,
   FileUp,
@@ -154,6 +155,7 @@ export function SettingsPage({
   const [includeExportEpubFiles, setIncludeExportEpubFiles] = useState(false)
   const [epubDropActive, setEpubDropActive] = useState(false)
   const [audiobookDropActive, setAudiobookDropActive] = useState(false)
+  const [advancedOpen, setAdvancedOpen] = useState(false)
   const ratedBooks = books.filter((book) => book.rating > 0).length
   const notedBooks = books.filter((book) => book.notes.trim()).length
 
@@ -560,14 +562,19 @@ export function SettingsPage({
           </button>
         </section>
 
-        <details className={tw('settings-advanced')}>
+        <details
+          className={tw('settings-advanced')}
+          onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}
+        >
           <summary className={tw('settings-advanced__summary')}>
             <span className={tw('settings-advanced__icon')}><SlidersHorizontal aria-hidden="true" /></span>
             <span>
               <strong>Advanced</strong>
               <small>Export, restore, and CSV tools</small>
             </span>
-            <ChevronDown className="settings-advanced__chevron" aria-hidden="true" />
+            {advancedOpen
+              ? <ChevronUp className="settings-advanced__chevron" aria-hidden="true" />
+              : <ChevronDown className="settings-advanced__chevron" aria-hidden="true" />}
           </summary>
 
           <div className={tw('settings-advanced__content')}>
