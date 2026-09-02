@@ -13,10 +13,10 @@ test('portable export explains its boundary and downloads a valid local archive'
   await page.getByRole('button', { name: 'Settings' }).click()
 
   const advanced = page.locator('details.settings-advanced')
-  await expect(advanced.locator('summary > .lucide-chevron-down')).toBeVisible()
+  await expect(advanced.locator('summary > .lucide-chevron-right')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Your library, with a way home.' })).toBeHidden()
   await advanced.locator('summary').click()
-  await expect(advanced.locator('summary > .lucide-chevron-up')).toBeVisible()
+  await expect(advanced.locator('summary > .lucide-chevron-down')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Your library, with a way home.' })).toBeVisible()
   await expect(page.getByText('Passwords, API keys, and secure credentials')).toBeVisible()
   await expect(page.getByText('Cover, ebook, and audiobook files')).toBeVisible()

@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
-  ChevronUp,
   Download,
   FileText,
   FileUp,
@@ -573,8 +572,8 @@ export function SettingsPage({
               <small>Export, restore, and CSV tools</small>
             </span>
             {advancedOpen
-              ? <ChevronUp className="settings-advanced__chevron" aria-hidden="true" />
-              : <ChevronDown className="settings-advanced__chevron" aria-hidden="true" />}
+              ? <ChevronDown className="settings-advanced__chevron" aria-hidden="true" />
+              : <ChevronRight className="settings-advanced__chevron" aria-hidden="true" />}
           </summary>
 
           <div className={tw('settings-advanced__content')}>
