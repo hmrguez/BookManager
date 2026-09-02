@@ -168,9 +168,9 @@ export function UpNextSection({
                     <span className={tw("book-copy")}>
                       <strong>{book.title}</strong>
                       <small>{book.authors.join(', ')}</small>
-                      <em className={tw("up-next-book__note")}>
-                        {book.format ?? 'Format not recorded'}
-                      </em>
+                      {book.format && (
+                        <em className={tw("up-next-book__note")}>{book.format}</em>
+                      )}
                     </span>
                   </button>
                   <div className={tw("up-next-book__actions")}>
