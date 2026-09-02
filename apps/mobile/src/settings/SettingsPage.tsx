@@ -4,6 +4,7 @@ import {
   AudioLines,
   BookOpen,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
   Download,
   FileText,
@@ -566,7 +567,7 @@ export function SettingsPage({
               <strong>Advanced</strong>
               <small>Export, restore, and CSV tools</small>
             </span>
-            <ChevronRight className="settings-advanced__chevron" aria-hidden="true" />
+            <ChevronDown className="settings-advanced__chevron" aria-hidden="true" />
           </summary>
 
           <div className={tw('settings-advanced__content')}>
