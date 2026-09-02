@@ -20,7 +20,6 @@ export type MetadataSearchCache = {
 }
 
 export type MetadataSearchOptions = {
-  readonly includeSecondary?: boolean
   readonly refresh?: boolean
   readonly signal?: AbortSignal
 }
@@ -34,21 +33,18 @@ type ProviderOutcome = {
 const DEFAULT_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1_000
 
 export class MetadataSearchService {
-  readonly #primary: MetadataProvider
-  readonly #secondary: MetadataProvider
+  readonly #provider: MetadataProvider
   readonly #cache: MetadataSearchCache
   readonly #now: () => Date
   readonly #cacheTtlMs: number
 
   constructor(options: {
-    readonly primary: MetadataProvider
-    readonly secondary: MetadataProvider
+    readonly provider: MetadataProvider
     readonly cache: MetadataSearchCache
     readonly now?: () => Date
     readonly cacheTtlMs?: number
   }) {
-    this.#primary = options.primary
-    this.#secondary = options.secondary
+    this.#provider = options.provider
     this.#cache = options.cache
     this.#now = options.now ?? (() => new Date())
     this.#cacheTtlMs = options.cacheTtlMs ?? DEFAULT_CACHE_TTL_MS
@@ -60,25 +56,11 @@ export class MetadataSearchService {
   ): Promise<MetadataSearchResponse<BookSearchResult>> {
     const query = metadataSearchQuerySchema.parse(input)
     const queryKey = metadataQueryKey(query.query, query.locale, query.limit)
-    const primary = await this.#searchProvider(this.#primary, query, queryKey, options)
-    const shouldSearchSecondary = this.#secondary.configured &&
-      (Boolean(options.includeSecondary) || primary.variants.length === 0)
-    const secondary = shouldSearchSecondary
-      ? await this.#searchProvider(this.#secondary, query, queryKey, options)
-      : notSearchedState(this.#secondary)
-    const outcomes = shouldSearchSecondary ? [primary, secondary] : [primary]
-    const variants = outcomes.flatMap(({ variants: providerVariants }) => providerVariants)
-    const freshness = outcomes.every(({ freshness: value }) => !value || value === 'live')
-      ? 'live'
-      : outcomes.every(({ freshness: value }) => !value || value === 'saved')
-        ? 'saved'
-        : 'mixed'
+    const outcome = await this.#searchProvider(this.#provider, query, queryKey, options)
 
     return {
-      results: combineProviderResults(variants, query.query, freshness),
-      providers: [primary.status, secondary.status],
-      canBroaden: this.#secondary.configured && !shouldSearchSecondary,
-      usedFallback: shouldSearchSecondary && !options.includeSecondary && primary.variants.length === 0,
+      results: combineProviderResults(outcome.variants, query.query, outcome.freshness ?? 'live'),
+      providers: [outcome.status],
     }
   }
 

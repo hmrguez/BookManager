@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'bun:test'
 import { findLibraryBookForSearchResult, libraryBookSchema } from '../src/library-model'
-import { GoogleBooksProvider } from '../src/metadata/google-books'
 import {
   metadataQueryKey,
   metadataSearchCacheEntrySchema,
@@ -102,46 +101,6 @@ describe('book metadata provider layer', () => {
     expect(variant?.pageCount).toBeUndefined()
   })
 
-  test('Google Books is disabled without a key and normalized when explicitly configured', async () => {
-    const disabled = new GoogleBooksProvider()
-    await expect(disabled.search({ query: 'Piranesi', locale: 'en-GB', limit: 10 }))
-      .rejects.toMatchObject({ code: 'not-configured' })
-
-    let requestedUrl: URL | undefined
-    const enabled = new GoogleBooksProvider({
-      apiKey: 'restricted-key',
-      now: () => new Date(NOW),
-      transport: new ProviderTransport({
-        maxRetries: 0,
-        fetch: mockFetch((url) => {
-          requestedUrl = url
-          return {
-            items: [{
-              id: 'google-volume-1',
-              volumeInfo: {
-                title: 'Piranesi',
-                authors: ['Susanna Clarke'],
-                language: 'en',
-                pageCount: 272,
-                industryIdentifiers: [{ type: 'ISBN_13', identifier: '9781635575637' }],
-                imageLinks: { thumbnail: 'http://books.google.test/cover.jpg' },
-              },
-            }],
-          }
-        }),
-      }),
-    })
-
-    const [variant] = await enabled.search({ query: 'Piranesi', locale: 'en-GB', limit: 10 })
-    expect(requestedUrl?.searchParams.get('key')).toBe('restricted-key')
-    expect(requestedUrl?.searchParams.get('langRestrict')).toBe('en')
-    expect(variant).toMatchObject({
-      provider: 'google-books',
-      externalKey: 'google-volume-1',
-      thumbnail: 'https://books.google.test/cover.jpg',
-    })
-  })
-
   test('merges exact editions deterministically while retaining conflicts and source choice', () => {
     const openLibrary = variant({
       provider: 'open-library',
@@ -198,55 +157,26 @@ describe('book metadata provider layer', () => {
       ?.metadataSelection?.variants).toHaveLength(2)
   })
 
-  test('uses Open Library first, falls back on empty results, and reuses the saved response', async () => {
+  test('uses Open Library exclusively and reuses its saved response', async () => {
     const cache = new MemoryMetadataCache()
-    const primary = new StubProvider('open-library', [])
-    const secondaryResult = variant({ provider: 'google-books', externalKey: 'fallback' })
-    const secondary = new StubProvider('google-books', [secondaryResult])
+    const provider = new StubProvider('open-library', [
+      variant({ provider: 'open-library', externalKey: 'OL-CACHED' }),
+    ])
     const service = new MetadataSearchService({
-      primary,
-      secondary,
+      provider,
       cache,
       now: () => new Date(NOW),
     })
 
     const first = await service.search({ query: 'The Dispossessed', locale: 'en', limit: 8 })
-    expect(first.usedFallback).toBe(true)
     expect(first.results).toHaveLength(1)
-    expect(primary.calls).toBe(1)
-    expect(secondary.calls).toBe(1)
+    expect(first.providers).toEqual([{ provider: 'open-library', state: 'live' }])
+    expect(provider.calls).toBe(1)
 
     const saved = await service.search({ query: 'The Dispossessed', locale: 'en', limit: 8 })
     expect(saved.results[0]?.metadataSelection?.freshness).toBe('saved')
-    expect(saved.providers.map(({ state }) => state)).toEqual(['saved', 'saved'])
-    expect(primary.calls).toBe(1)
-    expect(secondary.calls).toBe(1)
-  })
-
-  test('offers Google Books as an explicit broadening source when Open Library has matches', async () => {
-    const primary = new StubProvider('open-library', [
-      variant({ provider: 'open-library', externalKey: 'OL2M' }),
-    ])
-    const secondary = new StubProvider('google-books', [
-      variant({ provider: 'google-books', externalKey: 'google-2' }),
-    ])
-    const service = new MetadataSearchService({
-      primary,
-      secondary,
-      cache: new MemoryMetadataCache(),
-      now: () => new Date(NOW),
-    })
-
-    const primaryOnly = await service.search({ query: 'The Dispossessed', locale: 'en', limit: 8 })
-    expect(primaryOnly.canBroaden).toBe(true)
-    expect(secondary.calls).toBe(0)
-
-    const broadened = await service.search(
-      { query: 'The Dispossessed', locale: 'en', limit: 8 },
-      { includeSecondary: true },
-    )
-    expect(broadened.results[0]?.metadataSelection?.variants).toHaveLength(2)
-    expect(secondary.calls).toBe(1)
+    expect(saved.providers.map(({ state }) => state)).toEqual(['saved'])
+    expect(provider.calls).toBe(1)
   })
 
   test('returns stale saved metadata when the live provider is unavailable', async () => {
@@ -256,11 +186,10 @@ describe('book metadata provider layer', () => {
       variant({ provider: 'open-library', externalKey: 'saved' }),
     ], '2026-08-25T09:00:00.000Z'))
     const service = new MetadataSearchService({
-      primary: new StubProvider(
+      provider: new StubProvider(
         'open-library',
         new MetadataProviderError('open-library', 'unavailable', 'offline'),
       ),
-      secondary: new StubProvider('google-books', [], false),
       cache,
       now: () => new Date(NOW),
     })
@@ -273,40 +202,6 @@ describe('book metadata provider layer', () => {
     expect(response.results).toHaveLength(1)
     expect(response.providers[0]).toMatchObject({ state: 'saved' })
     expect(response.results[0]?.metadataSelection?.freshness).toBe('saved')
-  })
-
-  test('keeps a usable provider result when the other configured provider fails', async () => {
-    const secondaryResult = variant({ provider: 'google-books', externalKey: 'secondary-live' })
-    const primaryUnavailable = new MetadataSearchService({
-      primary: new StubProvider(
-        'open-library',
-        new MetadataProviderError('open-library', 'unavailable', 'offline'),
-      ),
-      secondary: new StubProvider('google-books', [secondaryResult]),
-      cache: new MemoryMetadataCache(),
-      now: () => new Date(NOW),
-    })
-
-    const fallback = await primaryUnavailable.search({ query: 'Piranesi', locale: 'en', limit: 8 })
-    expect(fallback.usedFallback).toBe(true)
-    expect(fallback.results[0]?.metadataSelection?.selectedProvider).toBe('google-books')
-
-    const primaryResult = variant({ provider: 'open-library', externalKey: 'primary-live' })
-    const secondaryUnavailable = new MetadataSearchService({
-      primary: new StubProvider('open-library', [primaryResult]),
-      secondary: new StubProvider(
-        'google-books',
-        new MetadataProviderError('google-books', 'unavailable', 'offline'),
-      ),
-      cache: new MemoryMetadataCache(),
-      now: () => new Date(NOW),
-    })
-    const broadened = await secondaryUnavailable.search(
-      { query: 'Piranesi', locale: 'en', limit: 8 },
-      { includeSecondary: true },
-    )
-    expect(broadened.results).toHaveLength(1)
-    expect(broadened.providers[1]?.state).toBe('unavailable')
   })
 
   test('enforces provider spacing and retries a rate limit with backoff', async () => {

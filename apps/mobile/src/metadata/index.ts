@@ -1,4 +1,3 @@
-export { GoogleBooksProvider } from './google-books'
 export { OpenLibraryProvider } from './open-library'
 export { getMetadataSearchService } from './runtime'
 export { MetadataSearchService } from './service'

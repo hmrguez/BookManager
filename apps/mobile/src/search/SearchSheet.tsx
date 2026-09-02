@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   AlertTriangle,
-  BookOpen,
   BookPlus,
   Camera,
   Check,
@@ -74,8 +73,6 @@ export function SearchSheet({
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<readonly BookSearchResult[]>([])
   const [providerStates, setProviderStates] = useState<readonly ProviderSearchState[]>([])
-  const [canBroaden, setCanBroaden] = useState(false)
-  const [usedFallback, setUsedFallback] = useState(false)
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
   const [manualMode, setManualMode] = useState(initialManual)
   const [manualTitle, setManualTitle] = useState('')
@@ -96,7 +93,7 @@ export function SearchSheet({
 
   const performSearch = useCallback(async (
     cleanQuery: string,
-    options: { readonly includeSecondary?: boolean; readonly refresh?: boolean } = {},
+    options: { readonly refresh?: boolean } = {},
     signal?: AbortSignal,
   ): Promise<MetadataSearchResponse<BookSearchResult> | undefined> => {
     const requestId = ++requestIdRef.current
@@ -111,8 +108,6 @@ export function SearchSheet({
       if (requestId !== requestIdRef.current) return undefined
       setResults(response.results)
       setProviderStates(response.providers)
-      setCanBroaden(response.canBroaden)
-      setUsedFallback(response.usedFallback)
       const available = response.providers.some(({ state }) =>
         state === 'live' || state === 'saved' || state === 'empty',
       )
@@ -201,8 +196,6 @@ export function SearchSheet({
       requestIdRef.current += 1
       setResults([])
       setProviderStates([])
-      setCanBroaden(false)
-      setUsedFallback(false)
       setStatus('idle')
     }
   }
@@ -286,11 +279,6 @@ export function SearchSheet({
       window.setTimeout(() => isbnInputRef.current?.focus(), 0)
     }
     setCaptureBusy(false)
-  }
-
-  const broadenSearch = () => {
-    const cleanQuery = query.trim()
-    if (cleanQuery.length >= 2) void performSearch(cleanQuery, { includeSecondary: true })
   }
 
   const refreshSearch = () => {
@@ -402,7 +390,7 @@ export function SearchSheet({
               value={query}
               onChange={(event) => updateQuery(event.target.value)}
               placeholder="Book title or author"
-              aria-label="Search book catalogs"
+              aria-label="Search Open Library"
               autoCapitalize="none"
               enterKeyHint="search"
             />
@@ -415,30 +403,20 @@ export function SearchSheet({
 
           <div className={tw('search-meta')} aria-live="polite">
             {status === 'idle' && <span>Open Library is ready. Tap once to add.</span>}
-            {status === 'loading' && <span>Looking through the catalogs…</span>}
+            {status === 'loading' && <span>Looking through Open Library…</span>}
             {status === 'ready' && (
-              <span>
-                {results.length ? `${results.length} books found` : 'No matching books found'}
-                {usedFallback ? ' · broadened with Google Books' : ''}
-              </span>
+              <span>{results.length ? `${results.length} books found` : 'No matching books found'}</span>
             )}
             {status === 'error' && (
-              <span>Book catalogs are unavailable. You can still add a personal record.</span>
+              <span>Open Library is unavailable. You can still add a personal record.</span>
             )}
           </div>
 
-          {(canBroaden || hasSavedResults) && (
+          {hasSavedResults && (
             <div className={tw('search-provider-actions')}>
-              {canBroaden && (
-                <button type="button" onClick={broadenSearch} disabled={status === 'loading'}>
-                  <BookOpen aria-hidden="true" /> Also search Google Books
-                </button>
-              )}
-              {hasSavedResults && (
-                <button type="button" onClick={refreshSearch} disabled={status === 'loading'}>
-                  <RefreshCw aria-hidden="true" /> Refresh saved results
-                </button>
-              )}
+              <button type="button" onClick={refreshSearch} disabled={status === 'loading'}>
+                <RefreshCw aria-hidden="true" /> Refresh saved results
+              </button>
             </div>
           )}
 
@@ -562,10 +540,7 @@ export function SearchSheet({
           </div>
 
           <p className={tw('search-attribution')}>
-            Book data from <a href="https://openlibrary.org/" target="_blank" rel="noreferrer">Open Library</a>
-            {providerStates.some(({ provider, state }) => provider === 'google-books' && state !== 'not-configured') && (
-              <> and <a href="https://books.google.com/" target="_blank" rel="noreferrer">Google Books</a></>
-            )}.
+            Book data from <a href="https://openlibrary.org/" target="_blank" rel="noreferrer">Open Library</a>.
           </p>
         </>
       )}
@@ -651,9 +626,6 @@ function isAbortError(error: unknown): boolean {
 }
 
 function providerUrl(variant: NonNullable<BookSearchResult['metadataSelection']>['variants'][number]): string {
-  if (variant.provider === 'google-books') {
-    return `https://books.google.com/books?id=${encodeURIComponent(variant.externalKey)}`
-  }
   const path = variant.editionKey ? `books/${variant.editionKey}` : `works/${variant.workKey}`
   return `https://openlibrary.org/${path}`
 }

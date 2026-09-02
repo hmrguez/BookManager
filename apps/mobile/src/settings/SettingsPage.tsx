@@ -2,7 +2,6 @@ import { useState, type DragEvent } from 'react'
 import {
   Archive,
   AudioLines,
-  BookPlus,
   BookOpen,
   CheckCircle2,
   ChevronRight,
@@ -15,8 +14,8 @@ import {
   Library,
   Palette,
   RotateCcw,
-  Search,
   ShieldCheck,
+  SlidersHorizontal,
   Table2,
   Vibrate,
   X,
@@ -33,7 +32,7 @@ import type { LibraryBook } from '../library'
 import type { SearchPreferences } from '../search'
 import type { SystemMediaPreferences } from '../playback'
 import type { FeedbackPreferences } from '../feedback'
-import { GOOGLE_BOOKS_KEY_CONFIGURED, appearanceLabels } from '../app/config'
+import { appearanceLabels } from '../app/config'
 import type { ExportFormat } from '../app/model'
 import { tw } from '../tailwind/styles'
 import { motionStyles } from '../tailwind/motion'
@@ -91,7 +90,6 @@ export function SettingsPage({
   onSearchPreferencesChange,
   onSystemMediaPreferencesChange,
   onFeedbackPreferencesChange,
-  onManualAdd,
   onImportFile,
   onImportEpubFiles,
   onCancelEpubImport,
@@ -132,7 +130,6 @@ export function SettingsPage({
   onSearchPreferencesChange: (preferences: SearchPreferences) => void
   onSystemMediaPreferencesChange: (preferences: SystemMediaPreferences) => void
   onFeedbackPreferencesChange: (preferences: FeedbackPreferences) => void
-  onManualAdd: () => void
   onImportFile: (file: File) => void
   onImportEpubFiles: (files: readonly File[]) => void
   onCancelEpubImport: () => void
@@ -512,7 +509,7 @@ export function SettingsPage({
           </button>
         </section>
 
-        <section className={tw('settings-card settings-card--privacy')}>
+        <section className={tw('settings-card')}>
           <div className={tw('settings-card__icon')}><ShieldCheck aria-hidden="true" /></div>
           <div className={tw('settings-card__heading')}>
             <span>Data & privacy</span><h2>Your reading life stays here.</h2>
@@ -562,7 +559,18 @@ export function SettingsPage({
           </button>
         </section>
 
-        <section className={tw('settings-card settings-card--export')}>
+        <details className={tw('settings-advanced')}>
+          <summary className={tw('settings-advanced__summary')}>
+            <span className={tw('settings-advanced__icon')}><SlidersHorizontal aria-hidden="true" /></span>
+            <span>
+              <strong>Advanced</strong>
+              <small>Export, restore, and CSV tools</small>
+            </span>
+            <ChevronRight className="settings-advanced__chevron" aria-hidden="true" />
+          </summary>
+
+          <div className={tw('settings-advanced__content')}>
+            <section className={tw('settings-card settings-card--export')}>
           <div className={tw('settings-card__icon')}><Archive aria-hidden="true" /></div>
           <div className={tw('settings-card__heading')}>
             <span>Portable export · Contract v1</span><h2>Your library, with a way home.</h2>
@@ -637,9 +645,9 @@ export function SettingsPage({
             </button>
           </div>
           {exportError && <p className={tw('settings-hint settings-hint--error export-error')} role="alert">{exportError}</p>}
-        </section>
+            </section>
 
-        <section className={tw('settings-card settings-card--recovery')}>
+            <section className={tw('settings-card settings-card--recovery')}>
           <div className={tw('settings-card__icon')}><RotateCcw aria-hidden="true" /></div>
           <div className={tw('settings-card__heading')}>
             <span>Backup & restore · Three-point rotation</span><h2>A quiet return point.</h2>
@@ -719,9 +727,9 @@ export function SettingsPage({
             </div>
           )}
           {recovery.error && <p className={tw('settings-hint settings-hint--error recovery-error')} role="alert">{recovery.error}</p>}
-        </section>
+            </section>
 
-        <section className={tw('settings-card settings-card--import')}>
+            <section className={tw('settings-card settings-card--import')}>
           <div className={tw('settings-card__icon')}><FileUp aria-hidden="true" /></div>
           <div className={tw('settings-card__heading')}>
             <span>Import & recovery</span><h2>Preview every row before it lands.</h2>
@@ -755,43 +763,9 @@ export function SettingsPage({
               ))}
             </div>
           )}
-        </section>
-
-        <section className={tw('settings-card')}>
-          <div className={tw('settings-card__icon')}><Search aria-hidden="true" /></div>
-          <div className={tw('settings-card__heading')}>
-            <span>Book search</span><h2>Open Library + Google Books</h2>
-            <p>Open Library is the primary catalog. Google Books can broaden a search when a restricted API key is configured.</p>
+            </section>
           </div>
-          <div className={tw('settings-status-row')}>
-            <span>Open Library</span>
-            <strong className={tw('is-ready')}>Primary · no key</strong>
-          </div>
-          <div className={tw('settings-status-row')}>
-            <span>Google Books fallback</span>
-            <strong className={tw(GOOGLE_BOOKS_KEY_CONFIGURED ? 'is-ready' : 'is-warning')}>
-              {GOOGLE_BOOKS_KEY_CONFIGURED ? 'Configured' : 'Not configured'}
-            </strong>
-          </div>
-          {!GOOGLE_BOOKS_KEY_CONFIGURED && (
-            <p className={tw('settings-hint')}>
-              Add a restricted <code>VITE_GOOGLE_BOOKS_API_KEY</code> to <code>.env.local</code> to enable the optional fallback.
-            </p>
-          )}
-        </section>
-
-        <section className={tw('settings-card')}>
-          <div className={tw('settings-card__icon')}><BookPlus aria-hidden="true" /></div>
-          <div className={tw('settings-card__heading')}>
-            <span>Local catalog</span><h2>Manual book entry</h2>
-            <p>Add a personal record when a catalog has no match or the device is offline.</p>
-          </div>
-          <button className={tw('settings-action')} type="button" onClick={onManualAdd}>
-            <BookPlus aria-hidden="true" />
-            <span><strong>Add a book manually</strong><small>Always available on this device</small></span>
-            <ChevronRight aria-hidden="true" />
-          </button>
-        </section>
+        </details>
       </div>
     </main>
   )

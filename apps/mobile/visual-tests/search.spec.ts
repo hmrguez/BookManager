@@ -106,7 +106,7 @@ test('catalog search uses Open Library, reuses saved results offline, and keeps 
   await page.getByRole('button', { name: 'Add Book' }).click()
   await expect(page.getByPlaceholder('Book title or author')).toBeFocused()
   await expect(page.getByRole('textbox', { name: 'ISBN-10 or ISBN-13' })).toBeHidden()
-  await page.getByRole('searchbox', { name: 'Search book catalogs' }).fill('Invisible Cities')
+  await page.getByRole('searchbox', { name: 'Search Open Library' }).fill('Invisible Cities')
 
   await expect(page.getByRole('heading', { name: 'Invisible Cities' })).toBeVisible()
   await expect(page.getByText('Open Library', { exact: true }).first()).toBeVisible()
@@ -128,7 +128,7 @@ test('catalog search uses Open Library, reuses saved results offline, and keeps 
 
   await context.setOffline(true)
   await page.getByRole('button', { name: 'Add Book' }).click()
-  await page.getByRole('searchbox', { name: 'Search book catalogs' }).fill('Invisible Cities')
+  await page.getByRole('searchbox', { name: 'Search Open Library' }).fill('Invisible Cities')
   await expect(page.getByText('Saved', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Refresh saved results' })).toBeVisible()
 

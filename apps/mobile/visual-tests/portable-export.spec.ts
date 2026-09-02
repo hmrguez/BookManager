@@ -12,6 +12,8 @@ test('portable export explains its boundary and downloads a valid local archive'
   await expect(page.getByRole('heading', { name: 'My Books', level: 1 })).toBeVisible()
   await page.getByRole('button', { name: 'Settings' }).click()
 
+  await expect(page.getByRole('heading', { name: 'Your library, with a way home.' })).toBeHidden()
+  await page.getByText('Advanced', { exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Your library, with a way home.' })).toBeVisible()
   await expect(page.getByText('Passwords, API keys, and secure credentials')).toBeVisible()
   await expect(page.getByText('Cover, ebook, and audiobook files')).toBeVisible()
@@ -45,12 +47,12 @@ test('portable export explains its boundary and downloads a valid local archive'
     expect.objectContaining({ path: 'data/catalog.json', fidelity: 'canonical' }),
     expect.objectContaining({ path: 'views/library.csv', fidelity: 'lossy' }),
   ]))
-  await expect(page.getByRole('status')).toContainText('Portable archive verified and ready')
+  await expect(page.getByRole('status')).toContainText('Portable archive verified; EPUB bytes are excluded')
 
   await page.locator('.recovery-picker input').setInputFiles(path!)
   await expect(page.getByText('Ready for an atomic restore.')).toBeVisible()
   await expect(page.getByText('Checksums, schema, relationships, and redaction boundary are valid.')).toBeVisible()
-  await expect(page.getByText('Contract 1 · Schema 4', { exact: true })).toBeVisible()
+  await expect(page.getByText('Contract 1 · Schema 7', { exact: true })).toBeVisible()
   await expect(page.getByText('0 files · 0 to relink')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Restore this backup' })).toBeEnabled()
   await expect(page.getByLabel('Local recovery points')).toBeVisible()

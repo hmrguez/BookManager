@@ -986,7 +986,7 @@ function App() {
         query,
         locale: navigator.language || 'en',
         limit: 16,
-      }, { includeSecondary: true, refresh: true })
+      }, { refresh: true })
       const result = capturedIsbn
         ? response.results.find((candidate) =>
             extractValidIsbn(candidate.identifiers?.join(' ') ?? '')?.canonical === capturedIsbn.canonical,
@@ -1199,7 +1199,6 @@ function App() {
             onSearchPreferencesChange={setSearchPreferences}
             onSystemMediaPreferencesChange={setSystemMediaPreferences}
             onFeedbackPreferencesChange={changeFeedbackPreferences}
-            onManualAdd={() => openSheet({ kind: 'search', shelf: 'tbr', manual: true })}
             onImportFile={(file) => { void handleImportFile(file) }}
             onImportEpubFiles={(files) => {
               void importEpubSources(files.map((file) => () => epubSourceFromFile(file)))

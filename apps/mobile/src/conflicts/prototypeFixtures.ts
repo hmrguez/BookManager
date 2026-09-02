@@ -95,13 +95,13 @@ export const PROTOTYPE_CONFLICTS: readonly ConflictPrototypeFixture[] = [
   },
   {
     eyebrow: 'Metadata · title',
-    title: 'Providers disagree on the subtitle',
+    title: 'Sources disagree on the subtitle',
     work: 'The Dispossessed · Ursula K. Le Guin',
-    summary: 'Both providers are useful observations. The newer response is not automatically the better title.',
+    summary: 'Both sources are useful observations. The newer value is not automatically the better title.',
     consequence: 'This changes the title shown throughout the library, but not identifiers or other fields.',
     recommendedCandidateId: 'conflict-candidate:metadata-open-library',
     displayValues: {
-      'conflict-candidate:metadata-google': 'The Dispossessed: A Novel',
+      'conflict-candidate:metadata-embedded': 'The Dispossessed: A Novel',
       'conflict-candidate:metadata-open-library': 'The Dispossessed',
     },
     item: conflictItemSchema.parse({
@@ -109,12 +109,12 @@ export const PROTOTYPE_CONFLICTS: readonly ConflictPrototypeFixture[] = [
       domain: 'metadata',
       subject: metadataSubject,
       field: 'work.title',
-      reason: 'Peer metadata providers have equal field-level trust and different values.',
+      reason: 'Catalog and embedded file metadata report different titles.',
       candidates: [
         candidate(
-          'conflict-candidate:metadata-google', metadataSubject, 'work.title', 'The Dispossessed: A Novel',
-          'google-books', 'observed', '2026-08-24T10:00:00.000Z', 0.91,
-          'A recent Google Books response includes marketing copy in the main title.',
+          'conflict-candidate:metadata-embedded', metadataSubject, 'work.title', 'The Dispossessed: A Novel',
+          'embedded-file', 'observed', '2026-08-24T10:00:00.000Z', 0.91,
+          'A recently attached EPUB includes marketing copy in the main title.',
         ),
         candidate(
           'conflict-candidate:metadata-open-library', metadataSubject, 'work.title', 'The Dispossessed',

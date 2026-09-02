@@ -6,7 +6,7 @@ React and Capacitor for web, iOS, and Android. It keeps a deliberately small wor
 
 ## What it does
 
-- Finds books by title, author, or ISBN through Open Library, with Google Books as an optional fallback.
+- Finds books by title, author, or ISBN through Open Library.
 - Keeps provider evidence and metadata disagreements visible instead of silently overwriting a result.
 - Can always add a personal, local-only book record when catalogs have no result.
 - Adds a result directly to any of the four built-in shelves.
@@ -36,16 +36,10 @@ All four flags default to `false`.
 
 ## Book metadata providers
 
-Open Library is the primary provider and needs no API key. Requests are rate-limited to its
+Open Library is the catalog provider and needs no API key. Requests are rate-limited to its
 published unauthenticated limit, locale-aware, and cached on device for seven days. If live search
-is unavailable, Wovenleaf can show the last saved result with a visible freshness label.
-
-Google Books is an optional secondary provider. Copy `apps/mobile/.env.example` to
-`apps/mobile/.env.local` and add a Google Books API key to enable automatic fallback for an empty
-Open Library search and the explicit “Also search Google Books” action. Because Vite includes this
-value in the client bundle, restrict the key to the Books API and to the app's allowed
-origins/application identifiers in Google Cloud. Manual entry is always available, including
-offline and in release builds.
+is unavailable, Wovenleaf can show the last saved result with a visible freshness label. Manual
+entry is always available from the Add Book panel, including offline and in release builds.
 
 ## Stack
 
@@ -117,7 +111,6 @@ Release credentials remain local and are not committed:
   automatic or manual distribution signing before creating an archive.
 - For Google Play, create and securely back up an upload keystore, configure the release signing
   values outside Git, and let Play App Signing manage the distribution key.
-- Restrict the Google Books API key to the production identifiers/origins and the Books API.
 
 `make android-release` intentionally produces an unsigned APK until local signing is configured.
 

@@ -232,7 +232,7 @@ function denseTaintedCupModel(book: LibraryBook): WorkDetailModel {
     id: `work:${book.id}`,
     title: book.title,
     authors: book.authors,
-    identitySource: 'Work identity · Reader confirmed · Google Books',
+    identitySource: 'Work identity · Reader confirmed · Open Library',
     summary: 'Ana Dolabra investigates an impossible murder in a mansion at the edge of a contagion-stricken empire.',
     overallProgress: book.progress,
     overallProgressLabel: `${book.progress}% across one reading history`,
@@ -251,12 +251,12 @@ function denseTaintedCupModel(book: LibraryBook): WorkDetailModel {
         progressLabel: 'Page 96 of 400',
         facts: [
           { label: 'Length', value: '400 pages', source: 'Printed colophon' },
-          { label: 'Published', value: 'February 2024', source: 'Google Books' },
+          { label: 'Published', value: 'February 2024', source: 'Open Library' },
           { label: 'Publisher', value: 'Del Rey', source: 'Printed colophon' },
           { label: 'Language', value: 'English', source: 'Reader confirmed' },
           { label: 'ISBN-13', value: '9781984820709', source: 'Barcode scan' },
         ],
-        sources: ['Barcode scan', 'Printed colophon', 'Google Books'],
+        sources: ['Barcode scan', 'Printed colophon', 'Open Library'],
       },
       {
         id: epubId,
@@ -373,7 +373,7 @@ function denseTaintedCupModel(book: LibraryBook): WorkDetailModel {
       { id: 'history:progress', when: 'Yesterday', title: 'EPUB progress updated', detail: 'Local reader · 67%' },
       { id: 'history:loan', when: 'Aug 21', title: 'Libby loan borrowed', detail: 'Due Sep 4 · access derived from loan' },
       { id: 'history:audio', when: 'Aug 18', title: 'Audiobook linked', detail: 'Libro.fm metadata retained' },
-      { id: 'history:added', when: 'Feb 9', title: 'Work added to Reading', detail: 'Google Books · reader confirmed identity' },
+      { id: 'history:added', when: 'Feb 9', title: 'Work added to Reading', detail: 'Open Library · reader confirmed identity' },
     ],
   }
 }

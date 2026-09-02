@@ -87,8 +87,6 @@ export type ProviderSearchState = {
 export type MetadataSearchResponse<Result> = {
   readonly results: readonly Result[]
   readonly providers: readonly ProviderSearchState[]
-  readonly canBroaden: boolean
-  readonly usedFallback: boolean
 }
 
 export function normalizeIsbn(value: string): string | undefined {
