@@ -25,7 +25,7 @@ export const goodreadsSourceBookSchema = z.object({
   publisher: z.string().min(1).optional(),
   binding: z.string().min(1).optional(),
   yearPublished: z.number().int().positive().optional(),
-  originalPublicationYear: z.number().int().positive().optional(),
+  originalPublicationYear: z.number().int().optional(),
   dateRead: z.string().min(1).optional(),
   dateAdded: z.string().min(1).optional(),
   bookshelves: z.array(z.string().min(1)),

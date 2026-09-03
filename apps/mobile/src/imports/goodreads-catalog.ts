@@ -97,9 +97,9 @@ export async function planGoodreadsCatalog(input: {
       observedAt,
       confidence: field === 'edition.language' ? 0.2 : 0.9,
     }
-    const existingIndex = claims.findIndex(({ id }) => id === item.id)
-    if (existingIndex === -1) claims.push(item)
-    else claims[existingIndex] = item
+    const existing = claims.find(({ id }) => id === item.id)
+    if (existing) return existing
+    claims.push(item)
     return item
   }
   const sourcedField = (target: MetadataTarget, field: MetadataField, value: JsonValue, suffix: string) => {
@@ -245,7 +245,7 @@ export async function planGoodreadsCatalog(input: {
     sourceRecordId,
     checkpointId: checkpoint.id,
     timestamp,
-  })
+  }).filter((event) => !input.catalog.readingEvents.some(({ id }) => id === event.id))
   const snapshotId = progressSnapshotIdSchema.parse(`progress:goodreads:${token}`)
   const hasGoodreadsSnapshot = input.catalog.progressSnapshots.some(({ id }) => id === snapshotId)
   const snapshot = events.length && (!matchedEdition || hasGoodreadsSnapshot)

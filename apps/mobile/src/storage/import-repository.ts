@@ -82,7 +82,12 @@ export class ImportRepository {
     if (canonicalAdapter) {
       const catalog = await new CatalogRepository(this.#database).read()
       const proposals = await Promise.all(preview.proposals.map(async (proposal) => {
-        if (!proposal.record || !proposal.targetId || proposal.kind === 'error') return proposal
+        if (
+          !proposal.record
+          || !proposal.targetId
+          || proposal.kind === 'error'
+          || proposal.duplicateOfBatchId
+        ) return proposal
         const plan = await canonicalAdapter.plan({
           proposal,
           targetBookId: proposal.targetId,

@@ -165,6 +165,27 @@ describe('isolated CSV parser', () => {
     })
   })
 
+  test('accepts current Goodreads numeric formatting and historical publication years', () => {
+    const [row] = goodreadsCsvParser.parse([
+      'Book Id,Title,Author,Exclusive Shelf,ISBN,ISBN13,My Rating,Original Publication Year',
+      '314,An Ancient Work,A. Writer,to-read,="",="",3.0,-399',
+    ].join('\n'))
+
+    expect(goodreadsCsvParser.normalize(row!)).toEqual({
+      ok: true,
+      record: expect.objectContaining({
+        externalKey: '314',
+        rating: 3,
+        identifiers: undefined,
+        goodreads: expect.objectContaining({
+          isbn10: undefined,
+          isbn13: undefined,
+          originalPublicationYear: -399,
+        }),
+      }),
+    })
+  })
+
   test('fails a Goodreads-like schema closed and handles a large export deterministically', () => {
     const changedSchema = [
       'Book Id,Title,Author,Author l-f,ISBN13,My Rating,Bookshelves with positions,Read Count,Owned Copies',
@@ -445,6 +466,32 @@ describe('durable import repository', () => {
     )
     expect(checkpoints).toHaveLength(2)
     expect(checkpoints[1]?.previous_checkpoint_id).toBe(checkpoints[0]?.id)
+    await database.close()
+  })
+
+  test('previews an identical Goodreads export without projecting its reading events twice', async () => {
+    const database = new BunSqliteDatabase()
+    await migrateStorage(database)
+    let now = timestamp
+    let sequence = 0
+    const repository = new ImportRepository(database, {
+      now: () => new Date(now),
+      createId: (kind) => `import-${kind}:repeat-goodreads-${sequence += 1}`,
+    })
+    const content = await Bun.file(goodreadsFixtureUrl).text()
+
+    const firstPreview = await repository.previewCsv('first-goodreads.csv', content)
+    await repository.commit(firstPreview.id)
+    now = laterTimestamp
+    const repeatedPreview = await repository.previewCsv('repeated-goodreads.csv', content)
+    const repeated = await repository.commit(repeatedPreview.id)
+
+    expect(repeatedPreview.proposals.every(({ kind, duplicateOfBatchId }) =>
+      kind === 'skip' && duplicateOfBatchId,
+    )).toBe(true)
+    expect(repeated).toMatchObject({ appliedRows: 0, appliedChanges: 0, duplicateRows: 2 })
+    const catalog = await new CatalogRepository(database).read()
+    expect(new Set(catalog.readingEvents.map(({ id }) => id)).size).toBe(catalog.readingEvents.length)
     await database.close()
   })
 

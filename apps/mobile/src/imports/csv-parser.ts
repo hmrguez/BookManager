@@ -163,14 +163,11 @@ export const goodreadsCsvParser: ImportParser = {
     const isbn13 = parseGoodreadsIsbn(value('isbn13'), 13, errors)
     const identifiers = unique([isbn10, isbn13].filter((entry): entry is string => Boolean(entry)))
     const pageCount = parseInteger(value('number_of_pages'), 'Number of Pages', 0, undefined, errors)
-    const ratingValue = parseInteger(value('my_rating'), 'My Rating', 0, 5, errors)
+    const ratingValue = parseGoodreadsRating(value('my_rating'), errors)
     const averageRating = parseNumber(value('average_rating'), 'Average Rating', 0, 5, errors)
     const yearPublished = parseInteger(value('year_published'), 'Year Published', 1, undefined, errors)
-    const originalPublicationYear = parseInteger(
+    const originalPublicationYear = parseGoodreadsOriginalPublicationYear(
       value('original_publication_year'),
-      'Original Publication Year',
-      1,
-      undefined,
       errors,
     )
     const readCount = parseInteger(value('read_count'), 'Read Count', 0, undefined, errors)
@@ -306,12 +303,40 @@ function parseGoodreadsIsbn(
 ): string | undefined {
   if (!value) return undefined
   const unwrapped = value.replace(/^=\s*"(.*)"$/, '$1')
+  if (!unwrapped) return undefined
   const normalized = normalizeIsbn(unwrapped)
   if (!normalized || normalized.length !== length) {
     errors.push(`ISBN${length} is not a valid ISBN-${length}`)
     return undefined
   }
   return normalized
+}
+
+function parseGoodreadsRating(value: string | undefined, errors: string[]): number | undefined {
+  if (!value) return undefined
+  const parsed = Number(value)
+  if (!Number.isInteger(parsed)) {
+    errors.push('My Rating must be a whole number')
+    return undefined
+  }
+  return parseBoundedNumber(parsed, 'My Rating', 0, 5, errors)
+}
+
+function parseGoodreadsOriginalPublicationYear(
+  value: string | undefined,
+  errors: string[],
+): number | undefined {
+  if (!value) return undefined
+  if (!/^-?\d+$/.test(value)) {
+    errors.push('Original Publication Year must be a whole number')
+    return undefined
+  }
+  const parsed = Number(value)
+  if (!Number.isSafeInteger(parsed)) {
+    errors.push('Original Publication Year is outside the supported range')
+    return undefined
+  }
+  return parsed
 }
 
 function parseGoodreadsDate(value: string | undefined, label: string, errors: string[]): string | undefined {
