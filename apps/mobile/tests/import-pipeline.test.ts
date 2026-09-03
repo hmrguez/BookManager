@@ -1,16 +1,33 @@
 import { describe, expect, test } from 'bun:test'
-import { wovenleafCsvParser } from '../src/imports/csv-parser'
+import {
+  goodreadsCsvParser,
+  isGoodreadsCsv,
+  selectCsvParser,
+  wovenleafCsvParser,
+} from '../src/imports/csv-parser'
 import { importedLibraryBookId } from '../src/imports/commit-rules'
-import { createImportPreview, WOVENLEAF_CSV_SOURCE } from '../src/imports/pipeline'
+import {
+  goodreadsCsvFromIncomingUrl,
+  IncomingFileDeliveryGuard,
+  UnrecognizedGoodreadsCsvError,
+} from '../src/imports/incoming'
+import {
+  createImportPreview,
+  GOODREADS_CSV_SOURCE,
+  WOVENLEAF_CSV_SOURCE,
+} from '../src/imports/pipeline'
 import { libraryBookSchema } from '../src/library-model'
 import { ImportRepository } from '../src/storage/import-repository'
 import { LibraryRepository } from '../src/storage/library-repository'
 import { migrateStorage } from '../src/storage/migrations'
+import { CatalogRepository } from '../src/storage/catalog-repository'
 import { BunSqliteDatabase } from './storage-test-database'
 
 const timestamp = '2026-08-25T10:00:00.000Z'
 const laterTimestamp = '2026-08-25T12:00:00.000Z'
 const fixtureUrl = new URL('./fixtures/imports/wovenleaf-library.csv', import.meta.url)
+const goodreadsFixtureUrl = new URL('./fixtures/imports/goodreads-library.csv', import.meta.url)
+const goodreadsEdgeFixtureUrl = new URL('./fixtures/imports/goodreads-edge-cases.csv', import.meta.url)
 
 const existingBook = libraryBookSchema.parse({
   id: 'fixture-left-hand',
@@ -60,6 +77,114 @@ describe('isolated CSV parser', () => {
     expect(wovenleafCsvParser.normalize(unclosed!)).toEqual({
       ok: false,
       errors: expect.arrayContaining(['The final quoted field is not closed']),
+    })
+  })
+
+  test('recognizes a renamed Goodreads export by its contract and preserves its migration data', async () => {
+    const content = await Bun.file(goodreadsFixtureUrl).text()
+    expect(isGoodreadsCsv(content)).toBe(true)
+    expect(selectCsvParser('anything.csv', content)).toBe(goodreadsCsvParser)
+    expect(isGoodreadsCsv('title,author\nPiranesi,Susanna Clarke')).toBe(false)
+
+    const rows = goodreadsCsvParser.parse(content)
+    expect(rows).toHaveLength(2)
+    expect(goodreadsCsvParser.normalize(rows[0]!)).toEqual({
+      ok: true,
+      record: expect.objectContaining({
+        externalKey: '18423',
+        title: 'The Left Hand of Darkness',
+        authors: ['Ursula K. Le Guin'],
+        identifiers: ['0441478123', '9780441478125'],
+        shelf: 'finished',
+        rating: 5,
+        pageCount: 304,
+        addedAt: '2024-01-03T00:00:00.000Z',
+        finishedAt: '2025-02-14T00:00:00.000Z',
+        listNames: ['science-fiction', 'favorites'],
+        notes: 'Review\nCold, humane, and beautifully strange.\n\nPrivate note\nRevisit the ice crossing.',
+        goodreads: expect.objectContaining({
+          bookId: '18423',
+          averageRating: 4.09,
+          readCount: 1,
+          ownedCopies: 1,
+        }),
+      }),
+    })
+  })
+
+  test('content-detects provider URLs without filenames and rejects unrelated CSVs', async () => {
+    const content = await Bun.file(goodreadsFixtureUrl).text()
+    const received = await goodreadsCsvFromIncomingUrl(
+      `data:text/plain;base64,${btoa(content)}`,
+      'download-without-extension',
+    )
+
+    expect(received).toEqual({ name: 'download-without-extension', content })
+    await expect(goodreadsCsvFromIncomingUrl(
+      `data:text/csv;base64,${btoa('title,author\nPiranesi,Susanna Clarke')}`,
+    )).rejects.toBeInstanceOf(UnrecognizedGoodreadsCsvError)
+  })
+
+  test('coalesces duplicate native delivery callbacks without blocking a later deliberate open', () => {
+    const guard = new IncomingFileDeliveryGuard(1_000)
+
+    expect(guard.accept('content://provider/export', 10_000)).toBe(true)
+    expect(guard.accept('content://provider/export', 10_100)).toBe(false)
+    expect(guard.accept('content://provider/other', 10_100)).toBe(true)
+    expect(guard.accept('content://provider/export', 11_000)).toBe(true)
+  })
+
+  test('rejects calendar dates that JavaScript would otherwise roll into the next month', () => {
+    const [row] = goodreadsCsvParser.parse([
+      'Book Id,Title,Author,Exclusive Shelf,Date Added,ISBN',
+      '1,Piranesi,Susanna Clarke,read,2025/02/30,',
+    ].join('\n'))
+
+    expect(goodreadsCsvParser.normalize(row!)).toEqual({
+      ok: false,
+      errors: expect.arrayContaining(['Date Added is not a valid date']),
+    })
+  })
+
+  test('preserves missing identifiers, additional contributors, DNF evidence, and reread counts', async () => {
+    const [row] = goodreadsCsvParser.parse(await Bun.file(goodreadsEdgeFixtureUrl).text())
+    const normalized = goodreadsCsvParser.normalize(row!)
+
+    expect(normalized).toEqual({
+      ok: true,
+      record: expect.objectContaining({
+        externalKey: '99001',
+        title: 'A Book, With a Comma',
+        authors: ['Primary Author', 'Second Contributor', 'Third Contributor'],
+        identifiers: undefined,
+        shelf: 'tbr',
+        listNames: ['did-not-finish', 'owned'],
+        addedAt: '2026-01-31T00:00:00.000Z',
+        goodreads: expect.objectContaining({ readCount: 2, ownedCopies: 0, spoiler: true }),
+      }),
+    })
+  })
+
+  test('fails a Goodreads-like schema closed and handles a large export deterministically', () => {
+    const changedSchema = [
+      'Book Id,Title,Author,Author l-f,ISBN13,My Rating,Bookshelves with positions,Read Count,Owned Copies',
+      '1,Piranesi,Susanna Clarke,"Clarke, Susanna",9781635575637,5,,1,1',
+    ].join('\n')
+    expect(() => selectCsvParser('library.csv', changedSchema)).toThrow(
+      'missing: exclusive_shelf',
+    )
+
+    const header = 'Book Id,Title,Author,Exclusive Shelf,Date Added'
+    const content = [
+      header,
+      ...Array.from({ length: 10_000 }, (_, index) =>
+        `${index + 1},Book ${index + 1},Author ${index + 1},to-read,2026/01/01`),
+    ].join('\n')
+    const rows = goodreadsCsvParser.parse(content)
+    expect(rows).toHaveLength(10_000)
+    expect(goodreadsCsvParser.normalize(rows.at(-1)!)).toMatchObject({
+      ok: true,
+      record: { externalKey: '10000', title: 'Book 10000' },
     })
   })
 })
@@ -135,9 +260,169 @@ describe('previewable import pipeline', () => {
       'fixture-left-hand',
     ])
   })
+
+  test('matches equivalent ISBN-10 and ISBN-13 values before fuzzy title evidence', async () => {
+    const localEdition = libraryBookSchema.parse({
+      ...existingBook,
+      identifiers: ['9780441478125'],
+    })
+    const content = [
+      'Book Id,Title,Author,ISBN,ISBN13,Exclusive Shelf,Date Added',
+      '18423,A translated title,Ursula K. Le Guin,0441478123,,read,2024/01/03',
+    ].join('\n')
+    const preview = await createImportPreview({
+      id: 'import-batch:isbn-equivalence',
+      fileName: 'renamed.csv',
+      content,
+      createdAt: timestamp,
+      parser: goodreadsCsvParser,
+      source: GOODREADS_CSV_SOURCE,
+      existingBooks: [localEdition],
+    })
+
+    expect(preview.proposals[0]).toMatchObject({
+      targetId: localEdition.id,
+      defaultIncluded: true,
+      match: { confidence: 'high', reasons: ['An edition ISBN matches exactly.'] },
+    })
+  })
 })
 
 describe('durable import repository', () => {
+  test('commits and undoes a Goodreads export across compatibility and canonical records', async () => {
+    const database = new BunSqliteDatabase()
+    await migrateStorage(database)
+    const repository = createRepository(database)
+    const content = await Bun.file(goodreadsFixtureUrl).text()
+
+    const preview = await repository.previewCsv('renamed-library.csv', content)
+    expect(preview.source.key).toBe('goodreads-csv')
+    expect(preview.proposals).toHaveLength(2)
+    expect(preview.proposals[0]?.entities.map(({ entityType }) => entityType)).toEqual(
+      expect.arrayContaining([
+        'work',
+        'edition',
+        'source-record',
+        'identifier',
+        'person',
+        'contributor',
+        'list',
+        'list-entry',
+        'integration-checkpoint',
+        'reading-event',
+        'progress-snapshot',
+      ]),
+    )
+    expect(preview.proposals[0]?.entities[0]).toMatchObject({
+      sourceKey: 'goodreads-csv',
+      confidence: 'none',
+      rationale: expect.any(String),
+    })
+
+    const committed = await repository.commit(preview.id)
+    expect(committed.appliedRows).toBe(2)
+    expect(committed.appliedChanges).toBeGreaterThan(20)
+    const books = await new LibraryRepository(database).list()
+    expect(books).toHaveLength(2)
+    expect(books[0]).toMatchObject({
+      shelf: 'finished',
+      progress: 100,
+      rating: 5,
+      sourceNames: ['Goodreads'],
+      listNames: ['science-fiction', 'favorites'],
+    })
+    const catalog = await new CatalogRepository(database).read()
+    expect(catalog.works).toHaveLength(2)
+    expect(catalog.editions).toHaveLength(2)
+    expect(catalog.sourceRecords).toHaveLength(2)
+    expect(catalog.integrationCheckpoints).toHaveLength(1)
+    expect(catalog.readingEvents.some(({ kind }) => kind === 'finish')).toBe(true)
+    expect(catalog.lists.map(({ slug }) => slug)).toEqual(expect.arrayContaining([
+      'goodreads-read',
+      'goodreads-science-fiction',
+      'goodreads-currently-reading',
+    ]))
+
+    const undo = await repository.undo(preview.id)
+    expect(undo.preservedChanges).toBe(0)
+    expect(await new LibraryRepository(database).list()).toEqual([])
+    const restoredCatalog = await new CatalogRepository(database).read()
+    expect(restoredCatalog.works).toEqual([])
+    expect(restoredCatalog.sourceRecords).toEqual([])
+
+    const repeated = await repository.previewCsv('different-name.csv', content)
+    expect(repeated.proposals.every(({ kind }) => kind === 'add')).toBe(true)
+    await database.close()
+  })
+
+  test('maps unknown-role contributors and preserves future source columns without guessing', async () => {
+    const database = new BunSqliteDatabase()
+    await migrateStorage(database)
+    const repository = createRepository(database)
+    const preview = await repository.previewCsv(
+      'edge-cases.csv',
+      await Bun.file(goodreadsEdgeFixtureUrl).text(),
+    )
+    await repository.commit(preview.id)
+
+    const catalog = await new CatalogRepository(database).read()
+    expect(catalog.contributors.map(({ role }) => role)).toEqual(['author', 'other', 'other'])
+    expect(catalog.lists.map(({ slug }) => slug)).toEqual(expect.arrayContaining([
+      'goodreads-to-read',
+      'goodreads-did-not-finish',
+      'goodreads-owned',
+    ]))
+    expect(catalog.sourceRecords[0]?.rawPayload).toMatchObject({
+      revisions: [{ row: { future_column: 'future evidence' } }],
+    })
+    await database.close()
+  })
+
+  test('treats a revised Goodreads export as new evidence without overwriting an existing local rating', async () => {
+    const database = new BunSqliteDatabase()
+    await migrateStorage(database)
+    let now = timestamp
+    let sequence = 0
+    const repository = new ImportRepository(database, {
+      now: () => new Date(now),
+      createId: (kind) => `import-${kind}:revision-${sequence += 1}`,
+    })
+    const content = await Bun.file(goodreadsFixtureUrl).text()
+    const firstContent = [content.split('\n')[0], content.split('\n')[1]].join('\n')
+    const first = await repository.previewCsv('first.csv', firstContent)
+    await repository.commit(first.id)
+
+    now = laterTimestamp
+    const revisedContent = firstContent
+      .replace(',5,4.09,', ',4,4.09,')
+      .replace('Cold, humane, and beautifully strange.', 'A revised Goodreads review.')
+    const revised = await repository.previewCsv('revised.csv', revisedContent)
+    expect(revised.proposals[0]).toMatchObject({ kind: 'update', defaultIncluded: true })
+    const committed = await repository.commit(revised.id)
+    expect(committed.appliedChanges).toBeGreaterThan(0)
+    expect((await new LibraryRepository(database).list())[0]?.rating).toBe(5)
+    const revisedCatalog = await new CatalogRepository(database).read()
+    expect(revisedCatalog.readingEvents.filter(({ kind }) => kind === 'rating')).toHaveLength(2)
+    expect(revisedCatalog.sourceRecords[0]?.claims.some(({ observedAt }) => observedAt === timestamp)).toBe(true)
+    expect(revisedCatalog.sourceRecords[0]?.claims.some(({ observedAt }) => observedAt === laterTimestamp)).toBe(true)
+    expect(revisedCatalog.sourceRecords[0]?.rawPayload).toMatchObject({
+      format: 'goodreads-library-export',
+      latestRowHash: revised.proposals[0]?.rowHash,
+      revisions: [{ rowHash: first.proposals[0]?.rowHash }, { rowHash: revised.proposals[0]?.rowHash }],
+    })
+
+    const undone = await repository.undo(revised.id)
+    expect(undone.preservedChanges).toBe(0)
+    const restoredCatalog = await new CatalogRepository(database).read()
+    expect(restoredCatalog.readingEvents.filter(({ kind }) => kind === 'rating')).toHaveLength(1)
+    expect(restoredCatalog.sourceRecords[0]?.claims.every(({ observedAt }) => observedAt === timestamp)).toBe(true)
+    expect(restoredCatalog.sourceRecords[0]?.rawPayload).toMatchObject({
+      latestRowHash: first.proposals[0]?.rowHash,
+      revisions: [{ rowHash: first.proposals[0]?.rowHash }],
+    })
+    await database.close()
+  })
+
   test('commits the same file twice with zero duplicate changes and durable checkpoints', async () => {
     const database = new BunSqliteDatabase()
     await migrateStorage(database)

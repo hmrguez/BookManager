@@ -1,6 +1,10 @@
 import { Capacitor } from '@capacitor/core'
 import { Clipboard } from '@capacitor/clipboard'
-import { CapacitorShareTarget, type ShareReceivedEvent } from '@capgo/capacitor-share-target'
+import {
+  CapacitorShareTarget,
+  type SharedFile,
+  type ShareReceivedEvent,
+} from '@capgo/capacitor-share-target'
 import { extractValidIsbn, inspectIsbnInput, type IsbnInspection, type ValidIsbn } from './isbn'
 
 export async function readClipboardIsbn(): Promise<IsbnInspection> {
@@ -29,4 +33,14 @@ export async function listenForSharedIsbn(
 
 export function isbnFromShare(event: Pick<ShareReceivedEvent, 'title' | 'texts'>): ValidIsbn | undefined {
   return extractValidIsbn([event.title, ...event.texts].join('\n'))
+}
+
+export async function listenForSharedFiles(
+  listener: (files: readonly SharedFile[]) => void,
+): Promise<() => Promise<void>> {
+  if (!Capacitor.isNativePlatform()) return async () => undefined
+  const handle = await CapacitorShareTarget.addListener('shareReceived', (event) => {
+    if (event.files.length) listener(event.files)
+  })
+  return () => handle.remove()
 }

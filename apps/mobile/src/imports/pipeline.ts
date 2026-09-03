@@ -1,4 +1,5 @@
 import type { LibraryBook } from '../library-model'
+import { canonicalEditionIsbn } from '../metadata/model'
 import { planLibraryBookCommit, importedLibraryBookId } from './commit-rules'
 import type { ImportParser } from './csv-parser'
 import {
@@ -42,6 +43,34 @@ export const WOVENLEAF_CSV_SOURCE: ImportSource = {
   ],
 }
 
+export const GOODREADS_CSV_SOURCE: ImportSource = {
+  key: 'goodreads-csv',
+  name: 'Goodreads library export',
+  permissions: [
+    {
+      scope: 'local-file:read',
+      access: 'read',
+      required: true,
+      label: 'Read this export only',
+      explanation: 'Wovenleaf receives the file you choose or share; it cannot browse your Downloads folder.',
+    },
+    {
+      scope: 'library:write',
+      access: 'write',
+      required: true,
+      label: 'Add the library you review',
+      explanation: 'Books, shelves, ratings, notes, and reading dates are written together after confirmation.',
+    },
+    {
+      scope: 'network:none',
+      access: 'none',
+      required: false,
+      label: 'No account connection',
+      explanation: 'The export is recognized, parsed, matched, and committed entirely on this device.',
+    },
+  ],
+}
+
 export type CreateImportPreviewInput = {
   readonly id: string
   readonly fileName: string
@@ -55,7 +84,7 @@ export type CreateImportPreviewInput = {
 
 export async function createImportPreview(input: CreateImportPreviewInput): Promise<ImportPreview> {
   const source = input.source ?? WOVENLEAF_CSV_SOURCE
-  if (!input.parser.accepts(input.fileName)) {
+  if (!input.parser.accepts(input.fileName, input.content)) {
     throw new Error(`${input.parser.id} cannot parse ${input.fileName}`)
   }
   const byteLength = new TextEncoder().encode(input.content).byteLength
@@ -91,6 +120,7 @@ export async function createImportPreview(input: CreateImportPreviewInput): Prom
           reasons: ['The row could not become a normalized import record.'],
         },
         changes: [],
+        entities: [],
         reason: 'Fix the source row or exclude it before committing.',
         validationErrors: [...normalized.errors],
         defaultIncluded: false,
@@ -114,6 +144,7 @@ export async function createImportPreview(input: CreateImportPreviewInput): Prom
           reasons: [`The source-local identity already appears on row ${firstRow}.`],
         },
         changes: [],
+        entities: [],
         reason: 'Repeated source identities are quarantined instead of being merged by row order.',
         validationErrors: [`External key “${normalized.record.externalKey}” repeats row ${firstRow}`],
         defaultIncluded: false,
@@ -140,6 +171,7 @@ export async function createImportPreview(input: CreateImportPreviewInput): Prom
           reasons: ['This exact source row already has a committed receipt.'],
         },
         changes: [],
+        entities: [],
         reason: 'Already imported; repeating it creates zero changes.',
         validationErrors: [],
         defaultIncluded: false,
@@ -206,11 +238,68 @@ function proposeRow(input: {
         reasons: ['The source-local identifier matches exactly.'],
       },
       changes: [...plan.changes],
+      entities: [],
       reason: plan.changes.length
         ? `Update ${plan.changes.length} reviewed field${plan.changes.length === 1 ? '' : 's'} on the exact match.`
         : 'The canonical record already has every proposed value.',
       validationErrors: [],
       defaultIncluded: true,
+    }
+  }
+
+  const importedIdentifiers = new Set(
+    (input.record.identifiers ?? []).flatMap((identifier) => canonicalEditionIsbn(identifier) ?? []),
+  )
+  const identifierMatches = importedIdentifiers.size
+    ? input.existingBooks.filter((book) => book.identifiers?.some((identifier) => {
+        const canonical = canonicalEditionIsbn(identifier)
+        return canonical ? importedIdentifiers.has(canonical) : false
+      }))
+    : []
+  if (identifierMatches.length === 1) {
+    const [book] = identifierMatches
+    const plan = planLibraryBookCommit(input.record, input.source.key, input.timestamp, book)
+    return {
+      id: input.id,
+      rowNumber: input.rowNumber,
+      raw: input.raw,
+      externalKey: input.record.externalKey,
+      rowHash: input.rowHash,
+      kind: plan.changes.length ? 'update' : 'skip',
+      record: input.record,
+      targetId: book.id,
+      match: {
+        confidence: 'high',
+        targetId: book.id,
+        candidates: [candidate(book, 0.98, ['An edition ISBN matches exactly.'])],
+        reasons: ['An edition ISBN matches exactly.'],
+      },
+      changes: [...plan.changes],
+      entities: [],
+      reason: 'The exported edition identifier matches one book already in this library.',
+      validationErrors: [],
+      defaultIncluded: true,
+    }
+  }
+  if (identifierMatches.length > 1) {
+    return {
+      id: input.id,
+      rowNumber: input.rowNumber,
+      raw: input.raw,
+      externalKey: input.record.externalKey,
+      rowHash: input.rowHash,
+      kind: 'conflict',
+      record: input.record,
+      match: {
+        confidence: 'high',
+        candidates: identifierMatches.map((book) => candidate(book, 0.98, ['An edition ISBN matches exactly.'])),
+        reasons: ['The same edition ISBN appears on more than one local record.'],
+      },
+      changes: [],
+      entities: [],
+      reason: 'Choose which local record owns this Goodreads row; Wovenleaf will not merge duplicates silently.',
+      validationErrors: [],
+      defaultIncluded: false,
     }
   }
 
@@ -238,6 +327,7 @@ function proposeRow(input: {
         reasons: match.reasons,
       },
       changes: [...plan.changes],
+      entities: [],
       reason: 'Title and author suggest one match, but no stable identifier proves it.',
       validationErrors: [],
       defaultIncluded: false,
@@ -259,6 +349,7 @@ function proposeRow(input: {
         reasons: ['More than one library record has comparable title and author evidence.'],
       },
       changes: [],
+      entities: [],
       reason: 'Choose the intended book or create a new record; Wovenleaf will not guess.',
       validationErrors: [],
       defaultIncluded: false,
@@ -281,6 +372,7 @@ function proposeRow(input: {
       reasons: ['No stable identifier or strong title-and-author match exists in this library.'],
     },
     changes: [...plan.changes],
+    entities: [],
     reason: 'Create a new library record with a stable source-local identity.',
     validationErrors: [],
     defaultIncluded: true,

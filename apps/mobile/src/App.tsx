@@ -1,6 +1,7 @@
 import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react'
 import { AlertTriangle, Check, Download } from 'lucide-react'
 import { App as CapacitorApp } from '@capacitor/app'
+import type { SharedFile } from '@capgo/capacitor-share-target'
 import {
   applyAppearance,
   getAppearanceStorage,
@@ -83,9 +84,16 @@ import {
   type AudiobookImportSource,
 } from './audiobooks'
 import { FEATURES } from './app/feature-flags'
-import { extractValidIsbn, listenForSharedIsbn } from './capture'
+import { extractValidIsbn, listenForSharedFiles, listenForSharedIsbn } from './capture'
 import { enrichCapturedBook } from './capture'
 import { getMetadataSearchService } from './metadata'
+import {
+  goodreadsCsvFromIncomingUrl,
+  goodreadsCsvFromSharedFile,
+  IncomingFileDeliveryGuard,
+  looksLikeSharedCsv,
+  UnrecognizedGoodreadsCsvError,
+} from './imports'
 
 function App() {
   const {
@@ -174,6 +182,7 @@ function App() {
   const audiobookSourcesRef = useRef<readonly AudiobookImportSource[]>([])
   const recoveryArchiveRef = useRef<string | undefined>(undefined)
   const shelfMotionSequenceRef = useRef(0)
+  const incomingDeliveryGuardRef = useRef(new IncomingFileDeliveryGuard())
 
   const libraryViewModel = useLibraryViewModel({
     books,
@@ -570,12 +579,12 @@ function App() {
     }))
   }
 
-  const handleImportFile = async (file: File) => {
+  const prepareImportPreview = async (fileName: string, content: string) => {
     setImportBusy(true)
     setImportError(undefined)
     try {
       await reload()
-      const preview = await (await getStorageRuntime()).imports.previewCsv(file.name, await file.text())
+      const preview = await (await getStorageRuntime()).imports.previewCsv(fileName, content)
       setImportPreview(preview)
       setView('import')
       window.scrollTo({ top: 0, behavior: motionScrollBehavior(appearance.motion) })
@@ -585,6 +594,8 @@ function App() {
       setImportBusy(false)
     }
   }
+
+  const handleImportFile = async (file: File) => prepareImportPreview(file.name, await file.text())
 
   const importEpubSources = async (
     sources: readonly (() => Promise<EpubImportSource>)[],
@@ -703,18 +714,72 @@ function App() {
       if (isbn) openSharedIsbn(isbn)
       return
     }
-    if (!/^(?:file|content):/i.test(url)) return
+    if (!/^(?:file|content|capacitor):/i.test(url)) return
+    if (!incomingDeliveryGuardRef.current.accept(`url:${url}`)) return
     showSettings()
+    const explicitCsv = /\.csv(?:[?#]|$)/i.test(url)
+    const explicitBookMedia = /\.(?:epub|m4b|mp3)(?:[?#]|$)/i.test(url)
+    if (!explicitBookMedia) {
+      void goodreadsCsvFromIncomingUrl(url)
+        .then(({ name, content }) => prepareImportPreview(name, content))
+        .catch((error: unknown) => {
+          if (!explicitCsv && !(error instanceof UnrecognizedGoodreadsCsvError)) {
+            void routeIncomingBookFile(url)
+            return
+          }
+          const message = error instanceof Error ? error.message : String(error)
+          setImportError(message)
+          setToast({ message })
+          void feedback.emit('error')
+        })
+      return
+    }
     void routeIncomingBookFile(url)
+  })
+
+  const onSharedFiles = useEffectEvent((files: readonly SharedFile[]) => {
+    const file = files.find(looksLikeSharedCsv)
+    if (!file) return
+    if (!incomingDeliveryGuardRef.current.accept(`share:${file.uri}:${file.name}:${file.mimeType}`)) return
+    showSettings()
+    setToast({ message: 'Goodreads export received · preparing your private preview' })
+    void goodreadsCsvFromSharedFile(file)
+      .then(({ name, content }) => prepareImportPreview(name, content))
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error)
+        setImportError(message)
+        setToast({ message })
+        void feedback.emit('error')
+      })
   })
 
   useEffect(() => {
     let disposed = false
     let removeListener: (() => Promise<void>) | undefined
+    void CapacitorApp.getLaunchUrl().then((launch) => {
+      if (!disposed && launch?.url) onIncomingBookFile(launch.url)
+    })
     void CapacitorApp.addListener('appUrlOpen', ({ url }) => onIncomingBookFile(url))
       .then((handle) => {
         if (disposed) void handle.remove()
         else removeListener = () => handle.remove()
+      })
+    return () => {
+      disposed = true
+      if (removeListener) void removeListener()
+    }
+  }, [])
+
+  useEffect(() => {
+    let disposed = false
+    let removeListener: (() => Promise<void>) | undefined
+    void listenForSharedFiles((files) => onSharedFiles(files))
+      .then((remove) => {
+        if (disposed) void remove()
+        else removeListener = remove
+      })
+      .catch(() => {
+        // The file picker remains available if a platform share target is unavailable.
       })
     return () => {
       disposed = true
@@ -846,6 +911,7 @@ function App() {
     try {
       const result = await (await getStorageRuntime()).imports.undo(batchId)
       await reload()
+      setSmartListCatalog(await (await getStorageRuntime()).catalog.read())
       await refreshImportHistory()
       setToast({
         message: result.preservedChanges
@@ -870,12 +936,17 @@ function App() {
     try {
       const result = await (await getStorageRuntime()).imports.commit(importPreview.id, decisions)
       await reload()
+      setSmartListCatalog(await (await getStorageRuntime()).catalog.read())
       await refreshImportHistory()
       setView('library')
+      const migratedLabel = importPreview.source.key === 'goodreads-csv' ? 'books' : 'rows'
+      const changedRows = result.appliedRows - result.skippedRows
+      const untouched = result.skippedRows + result.duplicateRows
+      const remainder = result.excludedRows
       setToast({
         message: result.appliedChanges
-          ? `Imported ${result.appliedRows} rows with ${result.appliedChanges} reviewed changes`
-          : 'Import checked; no duplicate changes were made',
+          ? `Imported ${changedRows} ${migratedLabel} · ${untouched} unchanged · ${remainder} left for later`
+          : `Import checked · ${untouched} unchanged · ${remainder} left for later`,
         undo: result.appliedChanges ? () => { void undoImportBatch(result.batchId) } : undefined,
       })
     } catch (error) {
@@ -1200,6 +1271,9 @@ function App() {
             onSystemMediaPreferencesChange={setSystemMediaPreferences}
             onFeedbackPreferencesChange={changeFeedbackPreferences}
             onImportFile={(file) => { void handleImportFile(file) }}
+            onOpenGoodreadsExport={() => {
+              window.open('https://www.goodreads.com/review/import', '_blank', 'noopener,noreferrer')
+            }}
             onImportEpubFiles={(files) => {
               void importEpubSources(files.map((file) => () => epubSourceFromFile(file)))
             }}

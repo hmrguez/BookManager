@@ -47,6 +47,7 @@ export function ImportReviewPage({
   onBack: () => void
   onCommit: (decisions: readonly ImportReviewDecision[]) => Promise<void>
 }) {
+  const isGoodreads = preview.source.key === 'goodreads-csv'
   const [decisions, setDecisions] = useState<Record<string, ImportReviewDecision>>(() =>
     Object.fromEntries(preview.proposals.map((proposal) => [
       proposal.id,
@@ -89,16 +90,20 @@ export function ImportReviewPage({
           <ArrowLeft aria-hidden="true" />
         </button>
         <div>
-          <span>Wovenleaf · import desk</span>
-          <h1>Review before it lands</h1>
-          <p>{preview.fileName} · {preview.proposals.length} parsed rows · local only</p>
+          <span>{isGoodreads ? 'Goodreads · private migration' : 'Wovenleaf · import desk'}</span>
+          <h1>{isGoodreads ? 'Your library is ready' : 'Review before it lands'}</h1>
+          <p>{isGoodreads
+            ? `${preview.proposals.length} books found · check the exceptions, then bring them home`
+            : `${preview.fileName} · ${preview.proposals.length} parsed rows · local only`}</p>
         </div>
         <div className={tw("import-review__seal")}>
           <ShieldCheck aria-hidden="true" />
-          <span><strong>Nothing writes yet</strong><small>Every mutation is listed below.</small></span>
+          <span><strong>Nothing writes yet</strong><small>{isGoodreads ? 'Goodreads never connects to Wovenleaf.' : 'Every mutation is listed below.'}</small></span>
         </div>
       </header>
 
+      <details className={tw("import-technical")} open={!isGoodreads}>
+        <summary>{isGoodreads ? 'Privacy & migration details' : 'Import pipeline & permissions'}</summary>
       <ol className={tw("import-stage-rail")} aria-label="Import pipeline stages">
         {IMPORT_STAGES.map((stage, index) => {
           const completed = preview.completedStages.includes(stage)
@@ -125,11 +130,12 @@ export function ImportReviewPage({
           ))}
         </ul>
       </section>
+      </details>
 
       <section className={tw("import-workbench")}>
         <aside className={tw("import-summary")} aria-label="Import proposal summary">
-          <header><span>Change set</span><h2>What this file proposes</h2></header>
-          <div className={tw("import-summary__count")}><strong>{included.length}</strong><span>rows selected to commit</span></div>
+          <header><span>{isGoodreads ? 'Migration' : 'Change set'}</span><h2>{isGoodreads ? 'What comes with you' : 'What this file proposes'}</h2></header>
+          <div className={tw("import-summary__count")}><strong>{included.length}</strong><span>{isGoodreads ? 'books ready to import' : 'rows selected to commit'}</span></div>
           <div className={tw("import-filter-list")}>
             <FilterButton label="All rows" count={preview.proposals.length} active={filter === 'all'} onClick={() => setFilter('all')} />
             {(Object.keys(proposalCopy) as Array<keyof typeof proposalCopy>).map((kind) => (
@@ -137,7 +143,7 @@ export function ImportReviewPage({
             ))}
             <FilterButton label="Low confidence" count={summary.low} active={filter === 'low'} onClick={() => setFilter('low')} />
           </div>
-          <p><RotateCcw aria-hidden="true" /> Commit creates a checkpoint and field-level undo record.</p>
+          <p><RotateCcw aria-hidden="true" /> {isGoodreads ? 'One tap in Settings can undo this migration.' : 'Commit creates a checkpoint and field-level undo record.'}</p>
         </aside>
 
         <div className={tw("import-proposals")} aria-label="Import rows">
@@ -158,7 +164,7 @@ export function ImportReviewPage({
 
       <footer className={tw("import-commit-bar")}>
         <div>
-          <strong>{unresolved.length ? `${unresolved.length} selected rows need attention` : 'Ready for a transactional commit'}</strong>
+          <strong>{unresolved.length ? `${unresolved.length} selected rows need attention` : isGoodreads ? 'Ready to bring your library home' : 'Ready for a transactional commit'}</strong>
           <span>{included.length} included · {preview.proposals.length - included.length} excluded · undo remains available in Settings</span>
           {error && <small role="alert">{error}</small>}
         </div>
@@ -168,7 +174,7 @@ export function ImportReviewPage({
           onClick={() => void onCommit(Object.values(decisions))}
         >
           <FileCheck2 aria-hidden="true" />
-          {busy ? 'Committing…' : `Commit ${included.length} rows`}
+          {busy ? (isGoodreads ? 'Importing…' : 'Committing…') : isGoodreads ? `Import ${included.length} books` : `Commit ${included.length} rows`}
         </button>
       </footer>
     </main>
@@ -282,6 +288,29 @@ function ProposalCard({
                 ))}
               </dl>
             )}
+            {proposal.entities.length > 0 && (
+              <div className={tw("import-entity-ledger")}>
+                <span>Preserved behind each book</span>
+                <ul>
+                  {entitySummary(proposal).map(({ label, count }) => (
+                    <li key={label}><strong>{count}</strong>{label}</li>
+                  ))}
+                </ul>
+                <details className={tw("import-entity-details")}>
+                  <summary>Source, targets & rationale</summary>
+                  <ul>
+                    {proposal.entities.map((entity) => (
+                      <li key={`${entity.entityType}:${entity.entityId}`}>
+                        <strong>{entity.label}</strong>
+                        <span>{entity.sourceKey} · {entity.confidence} confidence · {entity.action}</span>
+                        <small>{entity.rationale}</small>
+                        <code>{entity.entityId}</code>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              </div>
+            )}
             {createdValue && typeof createdValue === 'object' && !Array.isArray(createdValue) && (
               <dl className={tw("import-change-list import-change-list--create")}>
                 {Object.entries(createdValue)
@@ -322,4 +351,26 @@ function displayValue(value: unknown): string {
   if (value === undefined) return 'Not set'
   if (Array.isArray(value)) return value.join(', ')
   return String(value)
+}
+
+function entitySummary(proposal: ImportProposal): Array<{ readonly label: string; readonly count: number }> {
+  const labels: Record<ImportProposal['entities'][number]['entityType'], string> = {
+    work: 'work',
+    edition: 'edition',
+    'source-record': 'source record',
+    identifier: 'identifier',
+    person: 'person',
+    contributor: 'credit',
+    list: 'shelf',
+    'list-entry': 'shelf placement',
+    'integration-checkpoint': 'checkpoint',
+    'reading-event': 'reading event',
+    'progress-snapshot': 'reading state',
+  }
+  const counts = new Map<string, number>()
+  proposal.entities.forEach(({ entityType }) => {
+    const label = labels[entityType]
+    counts.set(label, (counts.get(label) ?? 0) + 1)
+  })
+  return [...counts].map(([label, count]) => ({ label: count === 1 ? label : `${label}s`, count }))
 }

@@ -1,6 +1,7 @@
 import { libraryBookSchema, type LibraryBook } from '../library-model'
 import { planLibraryBookCommit } from '../imports/commit-rules'
-import { wovenleafCsvParser } from '../imports/csv-parser'
+import { canonicalImportAdapterFor } from '../imports/canonical-adapters'
+import { selectCsvParser } from '../imports/csv-parser'
 import {
   IMPORT_STAGES,
   importPreviewSchema,
@@ -16,10 +17,17 @@ import {
   type ImportStoredValue,
   type ImportUndoResult,
 } from '../imports/model'
-import { createImportPreview } from '../imports/pipeline'
+import { createImportPreview, GOODREADS_CSV_SOURCE, WOVENLEAF_CSV_SOURCE } from '../imports/pipeline'
 import type { SqlDatabase, SqlRow } from './database'
 import { readNumber, readText } from './database'
 import { readLibraryBooks, writeLibraryBook } from './library-repository'
+import {
+  CatalogRepository,
+  deleteImportableCatalogEntity,
+  readImportableCatalogEntity,
+  upsertImportableCatalogEntity,
+  type ImportableCatalogEntityType,
+} from './catalog-repository'
 
 export type ImportRepositoryOptions = {
   readonly now?: () => Date
@@ -39,6 +47,7 @@ type BatchRow = SqlRow & {
 type ChangeRow = SqlRow & {
   readonly id: string
   readonly row_id: string
+  readonly entity_type: string
   readonly entity_id: string
   readonly field: string
   readonly before_json: string
@@ -57,15 +66,42 @@ export class ImportRepository {
   }
 
   async previewCsv(fileName: string, content: string): Promise<ImportPreview> {
-    const preview = await createImportPreview({
+    const parser = selectCsvParser(fileName, content)
+    const source = parser.id === 'goodreads-library-export' ? GOODREADS_CSV_SOURCE : WOVENLEAF_CSV_SOURCE
+    let preview = await createImportPreview({
       id: this.#createId('batch'),
       fileName,
       content,
       createdAt: this.#now().toISOString(),
-      parser: wovenleafCsvParser,
+      parser,
+      source,
       existingBooks: await readLibraryBooks(this.#database),
       receipts: await this.#listReceipts(),
     })
+    const canonicalAdapter = canonicalImportAdapterFor(source.key)
+    if (canonicalAdapter) {
+      const catalog = await new CatalogRepository(this.#database).read()
+      const proposals = await Promise.all(preview.proposals.map(async (proposal) => {
+        if (!proposal.record || !proposal.targetId || proposal.kind === 'error') return proposal
+        const plan = await canonicalAdapter.plan({
+          proposal,
+          targetBookId: proposal.targetId,
+          batchId: preview.id,
+          timestamp: preview.createdAt,
+          catalog,
+        })
+        const hasCanonicalChanges = plan.entities.some(({ action }) => action !== 'unchanged')
+        return {
+          ...proposal,
+          kind: proposal.kind === 'skip' && hasCanonicalChanges ? 'update' as const : proposal.kind,
+          reason: proposal.kind === 'skip' && hasCanonicalChanges
+            ? 'The book is current; new Goodreads source or reading-history evidence will be added.'
+            : proposal.reason,
+          entities: plan.entities,
+        }
+      }))
+      preview = importPreviewSchema.parse({ ...preview, proposals })
+    }
     await this.#stage(preview)
     return preview
   }
@@ -186,12 +222,47 @@ export class ImportRepository {
               ],
             )
           }
-          appliedChanges += plan.changes.length
-        } else {
-          skippedRows += 1
         }
+        let canonicalChangeCount = 0
+        const canonicalAdapter = canonicalImportAdapterFor(preview.source.key)
+        if (canonicalAdapter) {
+          const catalog = await new CatalogRepository(database).read()
+          const canonicalPlan = await canonicalAdapter.plan({
+            proposal,
+            targetBookId: plan.targetId,
+            batchId,
+            timestamp: preview.createdAt,
+            catalog,
+          })
+          for (const change of canonicalPlan.changes) {
+            await upsertImportableCatalogEntity(database, change.entityType, change.after)
+            sequence += 1
+            await database.run(
+              `INSERT INTO import_changes(
+                 id, batch_id, row_id, sequence, entity_type, entity_id, field,
+                 before_json, after_json, reason, applied_at
+               ) VALUES (?, ?, ?, ?, ?, ?, '$record', ?, ?, ?, ?)`,
+              [
+                this.#createId('change'),
+                batchId,
+                proposal.id,
+                sequence,
+                change.entityType,
+                change.entityId,
+                JSON.stringify(stored(change.before)),
+                JSON.stringify(stored(change.after)),
+                change.reason,
+                committedAt,
+              ],
+            )
+          }
+          canonicalChangeCount = canonicalPlan.changes.length
+        }
+        const rowChangeCount = plan.changes.length + canonicalChangeCount
+        appliedChanges += rowChangeCount
+        if (!rowChangeCount) skippedRows += 1
         appliedRows += 1
-        await setRowDecision(database, proposal.id, plan.changes.length ? 'included' : 'skipped', plan.targetId)
+        await setRowDecision(database, proposal.id, rowChangeCount ? 'included' : 'skipped', plan.targetId)
       }
 
       const previousRows = await database.query(
@@ -241,7 +312,7 @@ export class ImportRepository {
       const status = await readBatchStatus(database, batchId)
       if (status !== 'committed') throw new Error(`Import batch ${batchId} is ${status}, not committed`)
       const rows = await database.query<ChangeRow>(
-        `SELECT id, row_id, entity_id, field, before_json, after_json
+        `SELECT id, row_id, entity_type, entity_id, field, before_json, after_json
          FROM import_changes WHERE batch_id = ? ORDER BY sequence DESC`,
         [batchId],
       )
@@ -254,22 +325,51 @@ export class ImportRepository {
       for (const row of rows) {
         const changeId = readText(row, 'id')
         const rowId = readText(row, 'row_id')
+        const entityType = readText(row, 'entity_type')
         const entityId = readText(row, 'entity_id')
         const field = readText(row, 'field')
         const before = importStoredValueSchema.parse(JSON.parse(readText(row, 'before_json')))
         const after = importStoredValueSchema.parse(JSON.parse(readText(row, 'after_json')))
-        const current = books.get(entityId)
+        const current = entityType === 'library-book'
+          ? books.get(entityId)
+          : await readImportableCatalogEntity(
+              database,
+              entityType as ImportableCatalogEntityType,
+              entityId,
+            )
         let restored = false
 
         if (field === '$record') {
           if (current && sameStored(stored(current), after)) {
-            await database.run('DELETE FROM library_books WHERE id = ?', [entityId])
-            books.delete(entityId)
-            restored = true
-            deletedEntities += 1
+            if (before.present) {
+              if (entityType === 'library-book') {
+                const restoredBook = libraryBookSchema.parse(before.value)
+                await writeLibraryBook(database, restoredBook)
+                books.set(entityId, restoredBook)
+              } else {
+                await upsertImportableCatalogEntity(
+                  database,
+                  entityType as ImportableCatalogEntityType,
+                  before.value,
+                )
+              }
+              restored = true
+            } else if (entityType === 'library-book') {
+              await database.run('DELETE FROM library_books WHERE id = ?', [entityId])
+              books.delete(entityId)
+              restored = true
+              deletedEntities += 1
+            } else {
+              restored = await deleteImportableCatalogEntity(
+                database,
+                entityType as ImportableCatalogEntityType,
+                entityId,
+              )
+              if (restored) deletedEntities += 1
+            }
           }
-        } else if (current && sameStored(storedField(current, field), after)) {
-          const restoredBook = restoreField(current, field, before)
+        } else if (entityType === 'library-book' && current && sameStored(storedField(current as LibraryBook, field), after)) {
+          const restoredBook = restoreField(current as LibraryBook, field, before)
           await writeLibraryBook(database, restoredBook)
           books.set(entityId, restoredBook)
           restored = true

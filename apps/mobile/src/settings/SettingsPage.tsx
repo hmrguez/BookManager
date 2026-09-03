@@ -7,6 +7,7 @@ import {
   ChevronDown,
   ChevronRight,
   Download,
+  ExternalLink,
   FileText,
   FileUp,
   FolderOpen,
@@ -92,6 +93,7 @@ export function SettingsPage({
   onSystemMediaPreferencesChange,
   onFeedbackPreferencesChange,
   onImportFile,
+  onOpenGoodreadsExport,
   onImportEpubFiles,
   onCancelEpubImport,
   onRefreshEpubStorage,
@@ -132,6 +134,7 @@ export function SettingsPage({
   onSystemMediaPreferencesChange: (preferences: SystemMediaPreferences) => void
   onFeedbackPreferencesChange: (preferences: FeedbackPreferences) => void
   onImportFile: (file: File) => void
+  onOpenGoodreadsExport: () => void
   onImportEpubFiles: (files: readonly File[]) => void
   onCancelEpubImport: () => void
   onRefreshEpubStorage: () => void
@@ -511,6 +514,54 @@ export function SettingsPage({
           </button>
         </section>
 
+        <section className={tw('settings-card goodreads-migration')}>
+          <div className={tw('settings-card__icon goodreads-migration__mark')}>
+            <img src="/favicon.svg" alt="" />
+          </div>
+          <div className={tw('settings-card__heading')}>
+            <span>Move from Goodreads</span><h2>Your old library, without the spreadsheet work.</h2>
+            <p>Ask Goodreads for your library, then open or share the downloaded file with Wovenleaf. Matching and migration stay entirely on this device.</p>
+          </div>
+          <ol className={tw('goodreads-migration__route')} aria-label="Goodreads migration steps">
+            <li><strong>1</strong><span>Open Goodreads<small>Sign in on their official page</small></span></li>
+            <li><strong>2</strong><span>Export your library<small>Goodreads downloads one file</small></span></li>
+            <li><strong>3</strong><span>Open in Wovenleaf<small>Review once, then import</small></span></li>
+          </ol>
+          <button className={tw('settings-action goodreads-migration__open')} type="button" onClick={onOpenGoodreadsExport}>
+            <ExternalLink aria-hidden="true" />
+            <span><strong>Open Goodreads export</strong><small>Continues in your browser · no embedded login</small></span>
+            <ChevronRight aria-hidden="true" />
+          </button>
+          <label className={tw(`settings-action import-file-picker goodreads-migration__picker${importBusy ? ' is-busy' : ''}`)}>
+            <FileUp aria-hidden="true" />
+            <span><strong>{importBusy ? 'Preparing your library…' : 'I already have the file'}</strong><small>Choose or share it · the filename does not matter</small></span>
+            <ChevronRight aria-hidden="true" />
+            <input
+              type="file"
+              accept=".csv,text/csv,text/comma-separated-values"
+              disabled={importBusy}
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0]
+                if (file) onImportFile(file)
+                event.currentTarget.value = ''
+              }}
+            />
+          </label>
+          {importError && <p className={tw('settings-hint settings-hint--error')} role="alert">{importError}</p>}
+          {importHistory.length > 0 && (
+            <div className={tw('import-history')} aria-label="Recent import batches">
+              <div className={tw('import-history__heading')}><History aria-hidden="true" /><span>Recent migrations</span></div>
+              {importHistory.slice(0, 3).map((batch) => (
+                <div className={tw('import-history__row')} key={batch.id}>
+                  <span><strong>{batch.sourceName}</strong><small>{batch.appliedRows} books · {batch.changeCount} recorded changes</small></span>
+                  <span className={tw(`import-history__status is-${batch.status}`)}>{batch.status}</span>
+                  {batch.status === 'committed' && <button type="button" onClick={() => onUndoImport(batch.id)}>Undo</button>}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
         <section className={tw('settings-card')}>
           <div className={tw('settings-card__icon')}><ShieldCheck aria-hidden="true" /></div>
           <div className={tw('settings-card__heading')}>
@@ -739,8 +790,8 @@ export function SettingsPage({
             <section className={tw('settings-card settings-card--import')}>
           <div className={tw('settings-card__icon')}><FileUp aria-hidden="true" /></div>
           <div className={tw('settings-card__heading')}>
-            <span>Import & recovery</span><h2>Preview every row before it lands.</h2>
-            <p>Use a Wovenleaf CSV now. Matching, changes, validation errors, and file permissions stay visible until you commit.</p>
+            <span>Wovenleaf CSV</span><h2>Preview every row before it lands.</h2>
+            <p>For manually prepared Wovenleaf tables. Matching, validation errors, and field changes remain visible until you commit.</p>
           </div>
           <label className={tw(`settings-action import-file-picker${importBusy ? ' is-busy' : ''}`)}>
             <FileUp aria-hidden="true" />
@@ -757,19 +808,6 @@ export function SettingsPage({
               }}
             />
           </label>
-          {importError && <p className={tw('settings-hint settings-hint--error')} role="alert">{importError}</p>}
-          {importHistory.length > 0 && (
-            <div className={tw('import-history')} aria-label="Recent import batches">
-              <div className={tw('import-history__heading')}><History aria-hidden="true" /><span>Recent checkpoints</span></div>
-              {importHistory.slice(0, 3).map((batch) => (
-                <div className={tw('import-history__row')} key={batch.id}>
-                  <span><strong>{batch.fileName}</strong><small>{batch.appliedRows} rows · {batch.changeCount} changes</small></span>
-                  <span className={tw(`import-history__status is-${batch.status}`)}>{batch.status}</span>
-                  {batch.status === 'committed' && <button type="button" onClick={() => onUndoImport(batch.id)}>Undo</button>}
-                </div>
-              ))}
-            </div>
-          )}
             </section>
           </div>
         </details>

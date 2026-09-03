@@ -203,6 +203,8 @@ describe('native privacy configuration', () => {
 
     expect(manifest).toContain('android:allowBackup="false"')
     expect(manifest).toContain('android:host="handoff"')
+    expect(manifest).toContain('android:mimeType="text/csv"')
+    expect(manifest).toContain('android:mimeType="application/csv"')
     expect(activity).toContain('WindowManager.LayoutParams.FLAG_SECURE')
     expect(filePaths).toContain('path="shared-exports/"')
     expect(filePaths).not.toContain('<external-path')
@@ -222,5 +224,31 @@ describe('native privacy configuration', () => {
     expect(sceneDelegate).toContain('privacyShield')
     expect(sceneDelegate).toContain('func sceneDidBecomeActive')
     expect(appDelegate).toContain('values.isExcludedFromBackup = true')
+  })
+
+  test('limits the iOS share handoff to one selected file and app-group storage', async () => {
+    const shareInfo = await Bun.file(
+      new URL('../ios/App/ShareExtension/Info.plist', import.meta.url),
+    ).text()
+    const shareController = await Bun.file(
+      new URL('../ios/App/ShareExtension/ShareViewController.swift', import.meta.url),
+    ).text()
+
+    expect(shareInfo).toContain('NSExtensionActivationSupportsFileWithMaxCount')
+    expect(shareController).toContain('group.com.hmrguez.wovenleaf')
+    expect(shareController).toContain('UTType.commaSeparatedText')
+    expect(shareController).toContain('IncomingShares')
+  })
+
+  test('handles native file opens on both cold launch and while the app is running', async () => {
+    const app = await Bun.file(new URL('../src/App.tsx', import.meta.url)).text()
+    const incoming = await Bun.file(new URL('../src/imports/incoming.ts', import.meta.url)).text()
+
+    expect(app).toContain('CapacitorApp.getLaunchUrl()')
+    expect(app).toContain("CapacitorApp.addListener('appUrlOpen'")
+    expect(app).toContain('file|content|capacitor')
+    expect(app).toContain('IncomingFileDeliveryGuard')
+    expect(incoming).toContain('Filesystem.deleteFile')
+    expect(incoming).toContain('IncomingShares')
   })
 })

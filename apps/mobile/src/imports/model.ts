@@ -15,6 +15,29 @@ export const importStageSchema = z.enum(IMPORT_STAGES)
 export const importProposalKindSchema = z.enum(['add', 'update', 'conflict', 'skip', 'error'])
 export const importMatchConfidenceSchema = z.enum(['exact', 'high', 'low', 'none'])
 
+export const goodreadsSourceBookSchema = z.object({
+  bookId: z.string().min(1),
+  authorSort: z.string().min(1).optional(),
+  additionalAuthors: z.array(z.string().min(1)),
+  isbn10: z.string().min(1).optional(),
+  isbn13: z.string().min(1).optional(),
+  averageRating: z.number().min(0).max(5).optional(),
+  publisher: z.string().min(1).optional(),
+  binding: z.string().min(1).optional(),
+  yearPublished: z.number().int().positive().optional(),
+  originalPublicationYear: z.number().int().positive().optional(),
+  dateRead: z.string().min(1).optional(),
+  dateAdded: z.string().min(1).optional(),
+  bookshelves: z.array(z.string().min(1)),
+  bookshelvesWithPositions: z.string().min(1).optional(),
+  exclusiveShelf: z.string().min(1),
+  review: z.string().min(1).optional(),
+  privateNotes: z.string().min(1).optional(),
+  spoiler: z.boolean().optional(),
+  readCount: z.number().int().nonnegative().optional(),
+  ownedCopies: z.number().int().nonnegative().optional(),
+})
+
 export const normalizedLibraryBookSchema = z.object({
   externalKey: z.string().min(1),
   title: z.string().min(1),
@@ -25,9 +48,39 @@ export const normalizedLibraryBookSchema = z.object({
   currentPage: libraryBookSchema.shape.currentPage.optional(),
   rating: libraryBookSchema.shape.rating.optional(),
   notes: libraryBookSchema.shape.notes.optional(),
+  identifiers: libraryBookSchema.shape.identifiers,
+  listNames: libraryBookSchema.shape.listNames,
+  sourceNames: libraryBookSchema.shape.sourceNames,
+  editionTitle: libraryBookSchema.shape.editionTitle,
+  format: libraryBookSchema.shape.format,
+  publisher: z.string().min(1).optional(),
+  publicationDate: z.string().min(4).optional(),
   addedAt: libraryBookSchema.shape.addedAt.optional(),
   startedAt: libraryBookSchema.shape.startedAt,
   finishedAt: libraryBookSchema.shape.finishedAt,
+  goodreads: goodreadsSourceBookSchema.optional(),
+})
+
+export const importEntityProposalSchema = z.object({
+  entityType: z.enum([
+    'work',
+    'edition',
+    'source-record',
+    'identifier',
+    'person',
+    'contributor',
+    'list',
+    'list-entry',
+    'integration-checkpoint',
+    'reading-event',
+    'progress-snapshot',
+  ]),
+  entityId: z.string().min(1),
+  action: z.enum(['add', 'update', 'unchanged']),
+  label: z.string().min(1),
+  sourceKey: z.string().min(1),
+  confidence: importMatchConfidenceSchema,
+  rationale: z.string().min(1),
 })
 
 export const importStoredValueSchema = z.object({
@@ -75,6 +128,7 @@ export const importProposalSchema = z.object({
   targetId: z.string().min(1).optional(),
   match: importMatchSchema,
   changes: z.array(importFieldChangeSchema),
+  entities: z.array(importEntityProposalSchema).default([]),
   reason: z.string().min(1),
   validationErrors: z.array(z.string().min(1)),
   defaultIncluded: z.boolean(),
@@ -115,6 +169,8 @@ export const importReviewDecisionSchema = z.object({
 })
 
 export type NormalizedLibraryBook = z.infer<typeof normalizedLibraryBookSchema>
+export type GoodreadsSourceBook = z.infer<typeof goodreadsSourceBookSchema>
+export type ImportEntityProposal = z.infer<typeof importEntityProposalSchema>
 export type ImportStoredValue = z.infer<typeof importStoredValueSchema>
 export type ImportFieldChange = z.infer<typeof importFieldChangeSchema>
 export type ImportProposalKind = z.infer<typeof importProposalKindSchema>

@@ -10,6 +10,11 @@ const UPDATE_FIELDS = [
   'currentPage',
   'rating',
   'notes',
+  'identifiers',
+  'listNames',
+  'sourceNames',
+  'editionTitle',
+  'format',
   'addedAt',
   'startedAt',
   'finishedAt',
@@ -51,7 +56,14 @@ export function planLibraryBookCommit(
   const candidate: LibraryBook = { ...existing }
   for (const field of UPDATE_FIELDS) {
     const value = record[field]
-    if (value !== undefined) assign(candidate, field, value)
+    if (value === undefined) continue
+    if (ARRAY_MERGE_FIELDS.has(field)) {
+      assign(candidate, field, uniqueValues(existing[field] as readonly string[] | undefined, value as readonly string[]) as never)
+    } else if (sourceKey === 'goodreads-csv' && (field === 'notes' || field === 'rating') && existing[field]) {
+      // Goodreads is migration evidence. An existing local note or rating remains authoritative.
+    } else {
+      assign(candidate, field, value)
+    }
   }
 
   if (record.shelf === 'finished') {
@@ -121,11 +133,22 @@ function createImportedBook(
     currentPage,
     rating: record.rating ?? 0,
     notes: record.notes ?? '',
+    identifiers: record.identifiers,
+    listNames: record.listNames,
+    sourceNames: record.sourceNames,
+    editionTitle: record.editionTitle,
+    format: record.format,
     addedAt: record.addedAt ?? timestamp,
     startedAt: record.startedAt ?? (shelf === 'reading' ? timestamp : undefined),
     finishedAt: record.finishedAt ?? (shelf === 'finished' ? timestamp : undefined),
     lastUpdatedAt: timestamp,
   })
+}
+
+const ARRAY_MERGE_FIELDS = new Set<keyof LibraryBook>(['identifiers', 'listNames', 'sourceNames'])
+
+function uniqueValues(left: readonly string[] | undefined, right: readonly string[]): string[] {
+  return [...new Set([...(left ?? []), ...right])]
 }
 
 function stored(value: unknown): ImportStoredValue {
