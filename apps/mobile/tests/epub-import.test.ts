@@ -11,7 +11,7 @@ import {
 } from '../src/epub'
 import { CatalogRepository } from '../src/storage/catalog-repository'
 import { migrateStorage } from '../src/storage/migrations'
-import { writeLibraryBook } from '../src/storage/library-repository'
+import { readLibraryBooks, writeLibraryBook } from '../src/storage/library-repository'
 import { BunSqliteDatabase } from './storage-test-database'
 
 describe('safe EPUB inspection', () => {
@@ -103,6 +103,46 @@ describe('safe EPUB inspection', () => {
 })
 
 describe('managed EPUB import', () => {
+
+  test.each([
+    { existing: undefined, overwrite: false, cover: true },
+    { existing: 'data:image/png;base64,bWFudWFs', overwrite: false, cover: true },
+    { existing: 'data:image/png;base64,bWFudWFs', overwrite: true, cover: true },
+    { existing: 'data:image/png;base64,bWFudWFs', overwrite: true, cover: false },
+  ])('applies attachment cover policy %j and supports reattachment', async ({ existing, overwrite, cover }) => {
+    const database = new BunSqliteDatabase()
+    await migrateStorage(database)
+    await writeLibraryBook(database, {
+      id: 'cover-book', title: 'Chosen title', authors: ['Chosen author'],
+      pageCount: 100, shelf: 'next', progress: 0, currentPage: 0,
+      rating: 0, notes: '', thumbnail: existing,
+      addedAt: '2026-08-01T12:00:00.000Z', lastUpdatedAt: '2026-08-01T12:00:00.000Z',
+    })
+    const service = new EpubImportService(database, {
+      managedStore: new MemoryManagedAssetStore(),
+      createId: sequentialIds(),
+    })
+    const source = await sourceFor({ title: 'Cover book', cover })
+    const importFile = () => service.import(source, {
+      targetBookId: 'cover-book', overwriteCover: overwrite,
+    })
+    await importFile()
+    const [book] = await readLibraryBooks(database)
+    expect(book?.title).toBe('Chosen title')
+    if (cover && (!existing || overwrite)) {
+      expect(book?.thumbnail).toStartWith('data:image/png;base64,')
+      expect(book?.thumbnail).not.toBe(existing)
+    } else {
+      expect(book?.thumbnail).toBe(existing)
+    }
+    // Simulate an older import whose cover was never applied, then attach the same file again.
+    await writeLibraryBook(database, { ...book!, thumbnail: existing })
+    expect((await importFile()).outcome).toBe('duplicate')
+    const books = await readLibraryBooks(database)
+    expect(books).toHaveLength(1)
+    expect(books[0]?.thumbnail).toBe(book?.thumbnail)
+    await database.close()
+  })
   test('attaches a selected EPUB to the existing library book', async () => {
     const database = new BunSqliteDatabase()
     await migrateStorage(database)

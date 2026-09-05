@@ -335,6 +335,7 @@ function App() {
   const prepareAudiobookSources = async (
     loadSources: () => Promise<readonly AudiobookImportSource[]>,
     targetBook?: LibraryBook,
+    overwriteCover = false,
   ) => {
     if (audiobookBusy) return
     const controller = new AbortController()
@@ -363,6 +364,7 @@ function App() {
       const result = await runtime.audiobooks.import(sources, review, {
         signal: controller.signal,
         targetBookId: targetBook.id,
+        overwriteCover,
         onProgress: (progress) => setAudiobookImport({ progress }),
       })
       audiobookSourcesRef.current = []
@@ -387,9 +389,9 @@ function App() {
     return prepareAudiobookSources(() => audiobookSourcesFromFiles(files))
   }
 
-  const attachAudiobookFiles = (book: LibraryBook, files: readonly File[]) => {
+  const attachAudiobookFiles = (book: LibraryBook, files: readonly File[], overwriteCover = false) => {
     if (files.length === 0) return
-    return prepareAudiobookSources(() => audiobookSourcesFromFiles(files), book)
+    return prepareAudiobookSources(() => audiobookSourcesFromFiles(files), book, overwriteCover)
   }
 
   const commitAudiobook = async (review: AudiobookImportReview) => {
@@ -665,6 +667,7 @@ function App() {
   const importEpubSources = async (
     sources: readonly (() => Promise<EpubImportSource>)[],
     targetBookId?: string,
+    overwriteCover = false,
   ) => {
     if (epubBusy || sources.length === 0) return
     const controller = new AbortController()
@@ -679,6 +682,7 @@ function App() {
         const result = await runtime.epubs.import(source, {
           signal: controller.signal,
           ...(targetBookId ? { targetBookId } : {}),
+          overwriteCover,
           onProgress: (progress) => setEpubImport({ progress }),
         })
         results.push(result)
@@ -1471,13 +1475,14 @@ function App() {
             closeSheet()
             setToast({ message: 'Removed from your library' })
           }}
-          onAttachEpub={(files) => {
+          onAttachEpub={(files, overwriteCover) => {
             void importEpubSources(
               files.map((file) => () => epubSourceFromFile(file)),
               selectedBook.id,
+              overwriteCover,
             )
           }}
-          onAttachAudiobook={(files) => { void attachAudiobookFiles(selectedBook, files) }}
+          onAttachAudiobook={(files, overwriteCover) => { void attachAudiobookFiles(selectedBook, files, overwriteCover) }}
           epubBusy={epubBusy}
           epubImport={epubImport}
           audiobookBusy={audiobookBusy}

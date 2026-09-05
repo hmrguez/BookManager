@@ -1,4 +1,5 @@
 import type { SqlDatabase } from '../storage/database'
+import { applyEmbeddedCover } from '../covers/embedded-cover'
 import type { EpubImportSource } from './incoming'
 import {
   CapacitorManagedAssetStore,
@@ -18,10 +19,12 @@ export type EpubImportServiceOptions = EpubImportRepositoryOptions & {
 }
 
 export class EpubImportService {
+  readonly #database: SqlDatabase
   readonly #repository: EpubImportRepository
   readonly #managedStore: ManagedAssetStore
 
   constructor(database: SqlDatabase, options: EpubImportServiceOptions = {}) {
+    this.#database = database
     this.#repository = new EpubImportRepository(database, options)
     this.#managedStore = options.managedStore ?? new CapacitorManagedAssetStore()
   }
@@ -32,6 +35,7 @@ export class EpubImportService {
       readonly signal?: AbortSignal
       readonly onProgress?: (progress: EpubImportProgress) => void
       readonly targetBookId?: string
+      readonly overwriteCover?: boolean
     } = {},
   ): Promise<EpubImportResult> {
     const { signal, onProgress } = options
@@ -46,6 +50,11 @@ export class EpubImportService {
     })
     const duplicate = await this.#repository.findByFingerprint(inspection.contentHash)
     if (duplicate) {
+      if (!options.targetBookId || options.targetBookId === duplicate.bookId) {
+        await this.#database.transaction((database) =>
+          applyEmbeddedCover(database, duplicate.bookId, inspection.cover, options.overwriteCover),
+        )
+      }
       onProgress?.({ stage: 'complete', fileName: source.name, detail: 'This exact EPUB is already managed' })
       return { ...duplicate, title: inspection.title, originalName: source.name }
     }
@@ -68,6 +77,7 @@ export class EpubImportService {
         inspection,
         contentRelativePath,
         ...(options.targetBookId ? { targetBookId: options.targetBookId } : {}),
+        overwriteCover: options.overwriteCover,
         ...(coverRelativePath ? { coverRelativePath } : {}),
       })
       onProgress?.({

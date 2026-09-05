@@ -30,6 +30,7 @@ import {
   type SourceClaim,
 } from '../domain/catalog'
 import { libraryBookSchema, type LibraryBook } from '../library-model'
+import { applyEmbeddedCover } from '../covers/embedded-cover'
 import type { SqlDatabase, SqlRow } from '../storage/database'
 import { readText } from '../storage/database'
 import { readLibraryBooks, writeLibraryBook } from '../storage/library-repository'
@@ -41,6 +42,7 @@ export type EpubCommitInput = {
   readonly contentRelativePath: string
   readonly coverRelativePath?: string
   readonly targetBookId?: string
+  readonly overwriteCover?: boolean
 }
 
 export type EpubImportRepositoryOptions = {
@@ -217,6 +219,7 @@ export class EpubImportRepository {
             lastUpdatedAt: importedAt,
           })
       await writeLibraryBook(database, book)
+      await applyEmbeddedCover(database, bookId, input.inspection.cover, input.overwriteCover)
       if (!association.book) await ensureToBeReadListEntry(database, workId, importedAt, this.#createId)
 
       const outcome = association.previousImport ? 'revision' : 'imported'

@@ -29,6 +29,7 @@ import {
   type Work,
 } from '../domain/catalog'
 import { libraryBookSchema, type LibraryBook } from '../library-model'
+import { applyEmbeddedCover } from '../covers/embedded-cover'
 import type { SqlDatabase, SqlRow } from '../storage/database'
 import { readText } from '../storage/database'
 import { readLibraryBooks, writeLibraryBook } from '../storage/library-repository'
@@ -50,6 +51,7 @@ export type AudiobookCommitInput = {
   readonly storedSegments: readonly StoredAudiobookSegment[]
   readonly coverRelativePath?: string
   readonly targetBookId?: string
+  readonly overwriteCover?: boolean
 }
 
 export type AudiobookImportRepositoryOptions = {
@@ -249,6 +251,7 @@ export class AudiobookImportRepository {
             lastUpdatedAt: importedAt,
           })
       await writeLibraryBook(database, currentBook)
+      await applyEmbeddedCover(database, bookId, input.audiobook.cover, input.overwriteCover)
       if (!association.book) await ensureToBeReadListEntry(database, workId, importedAt, this.#createId)
 
       const initialAbsolutePositionMs = await latestAudioPosition(database, editionId)

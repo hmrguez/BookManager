@@ -51,8 +51,8 @@ export function DetailSheet({
   onCustomShelves: (shelfIds: readonly string[]) => void
   onTags: (tags: readonly string[]) => void
   onRemove: () => void
-  onAttachEpub: (files: readonly File[]) => void
-  onAttachAudiobook: (files: readonly File[]) => void
+  onAttachEpub: (files: readonly File[], overwriteCover: boolean) => void
+  onAttachAudiobook: (files: readonly File[], overwriteCover: boolean) => void
   epubBusy: boolean
   epubImport: EpubAttachmentState
   audiobookBusy: boolean

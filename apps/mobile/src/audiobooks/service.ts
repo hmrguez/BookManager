@@ -1,4 +1,5 @@
 import type { SqlDatabase } from '../storage/database'
+import { applyEmbeddedCover } from '../covers/embedded-cover'
 import { extension } from './binary'
 import { inspectAudiobook, normalizeAudiobookReview } from './inspect'
 import {
@@ -27,11 +28,13 @@ export type AudiobookImportServiceOptions = AudiobookImportRepositoryOptions & {
 }
 
 export class AudiobookImportService {
+  readonly #database: SqlDatabase
   readonly #repository: AudiobookImportRepository
   readonly #managedStore: ManagedAudiobookStore
   readonly #createCapabilityId: () => string
 
   constructor(database: SqlDatabase, options: AudiobookImportServiceOptions = {}) {
+    this.#database = database
     this.#repository = new AudiobookImportRepository(database, options)
     this.#managedStore = options.managedStore ?? new CapacitorManagedAudiobookStore()
     this.#createCapabilityId = options.createCapabilityId
@@ -55,6 +58,7 @@ export class AudiobookImportService {
       readonly signal?: AbortSignal
       readonly onProgress?: (progress: AudiobookImportProgress) => void
       readonly targetBookId?: string
+      readonly overwriteCover?: boolean
     } = {},
   ): Promise<AudiobookImportResult> {
     const { signal, onProgress } = options
@@ -63,6 +67,11 @@ export class AudiobookImportService {
     const audiobook = await normalizeAudiobookReview(draft, review)
     const duplicate = await this.#repository.findByFingerprint(audiobook.fingerprint)
     if (duplicate) {
+      if (!options.targetBookId || options.targetBookId === duplicate.bookId) {
+        await this.#database.transaction((database) =>
+          applyEmbeddedCover(database, duplicate.bookId, audiobook.cover, options.overwriteCover),
+        )
+      }
       onProgress?.({
         stage: 'complete',
         fileName: audiobook.metadata.title,
@@ -115,6 +124,7 @@ export class AudiobookImportService {
         bundleRelativePath,
         storedSegments,
         ...(options.targetBookId ? { targetBookId: options.targetBookId } : {}),
+        overwriteCover: options.overwriteCover,
         ...(coverRelativePath ? { coverRelativePath } : {}),
       })
       onProgress?.({

@@ -79,8 +79,8 @@ type WorkDetailExperienceProps = {
   readonly onCustomShelves: (shelfIds: readonly string[]) => void
   readonly onTags: (tags: readonly string[]) => void
   readonly onRemove: () => void
-  readonly onAttachEpub: (files: readonly File[]) => void
-  readonly onAttachAudiobook: (files: readonly File[]) => void
+  readonly onAttachEpub: (files: readonly File[], overwriteCover: boolean) => void
+  readonly onAttachAudiobook: (files: readonly File[], overwriteCover: boolean) => void
   readonly epubBusy: boolean
   readonly epubImport: EpubAttachmentState
   readonly audiobookBusy: boolean
@@ -377,6 +377,7 @@ function SimpleBookDetail({
   const [author, setAuthor] = useState(book.authors.join(', '))
   const [pageCount, setPageCount] = useState(book.pageCount ? String(book.pageCount) : '')
   const [confirmRemove, setConfirmRemove] = useState(false)
+  const [overwriteCover, setOverwriteCover] = useState(false)
   const hasReadableFile = ['EPUB', 'AUDIOBOOK'].includes(book.format?.toLocaleUpperCase() ?? '')
   const epubResult = epubImport.result?.bookId === book.id ? epubImport.result : undefined
   const audiobookResult = audiobookImport.result?.bookId === book.id ? audiobookImport.result : undefined
@@ -422,7 +423,7 @@ function SimpleBookDetail({
               accept=".epub,application/epub+zip"
               disabled={epubBusy}
               onChange={(event) => {
-                if (event.currentTarget.files?.length) onAttachEpub(Array.from(event.currentTarget.files))
+                if (event.currentTarget.files?.length) onAttachEpub(Array.from(event.currentTarget.files), overwriteCover)
                 event.currentTarget.value = ''
               }}
             />
@@ -437,12 +438,18 @@ function SimpleBookDetail({
               multiple
               disabled={audiobookBusy}
               onChange={(event) => {
-                if (event.currentTarget.files?.length) onAttachAudiobook(Array.from(event.currentTarget.files))
+                if (event.currentTarget.files?.length) onAttachAudiobook(Array.from(event.currentTarget.files), overwriteCover)
                 event.currentTarget.value = ''
               }}
             />
           </label>
         </div>
+        <label className="flex min-h-11 items-center gap-2 text-sm">
+          <input type="checkbox" checked={overwriteCover} disabled={epubBusy || audiobookBusy}
+            onChange={(event) => setOverwriteCover(event.target.checked)} />
+          <span>Overwrite existing cover</span>
+        </label>
+        <p className="text-xs text-[var(--text-secondary)]">Use the file’s cover when available. Missing covers are filled automatically.</p>
         {(epubBusy || epubResult || epubImport.error) && (
           <AttachmentMessage
             busy={epubBusy}
