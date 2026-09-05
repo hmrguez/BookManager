@@ -1,6 +1,12 @@
 export { planLibraryBookCommit, importedLibraryBookId } from './commit-rules'
-export { GoodreadsCoverEnrichmentService } from './cover-enrichment'
-export type { GoodreadsCoverEnrichmentResult } from './cover-enrichment'
+export {
+  countGoodreadsBooksMissingCovers,
+  GoodreadsCoverEnrichmentService,
+} from './cover-enrichment'
+export type {
+  GoodreadsCoverEnrichmentProgress,
+  GoodreadsCoverEnrichmentResult,
+} from './cover-enrichment'
 export { goodreadsCsvParser, isGoodreadsCsv, selectCsvParser, wovenleafCsvParser } from './csv-parser'
 export type { ImportParser, NormalizedImportResult, ParsedImportRow } from './csv-parser'
 export * from './model'

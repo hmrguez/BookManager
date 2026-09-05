@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'bun:test'
-import { GoodreadsCoverEnrichmentService } from '../src/imports/cover-enrichment'
+import {
+  countGoodreadsBooksMissingCovers,
+  GoodreadsCoverEnrichmentService,
+} from '../src/imports/cover-enrichment'
 import { libraryBookSchema, type BookSearchResult, type LibraryBook } from '../src/library-model'
 import { canonicalEditionIsbn } from '../src/metadata/model'
 
@@ -37,12 +40,14 @@ describe('Goodreads cover enrichment', () => {
       },
     }
     const covers = new Map<string, string>()
+    const progress: Array<{ candidateBooks: number; resolvedBooks: number }> = []
 
     const enriched = await new GoodreadsCoverEnrichmentService(metadata).enrich(
       [isbnBook, titleBook, alreadyCovered, localBook],
       {
         locale: 'en',
         onCover: (bookId, thumbnail) => { covers.set(bookId, thumbnail) },
+        onProgress: (value) => { progress.push(value) },
       },
     )
 
@@ -58,6 +63,19 @@ describe('Goodreads cover enrichment', () => {
       'isbn-book': ISBN_COVER,
       'title-book': SEARCH_COVER,
     })
+    expect(progress).toEqual([
+      { candidateBooks: 2, resolvedBooks: 0 },
+      { candidateBooks: 2, resolvedBooks: 1 },
+      { candidateBooks: 2, resolvedBooks: 2 },
+    ])
+  })
+
+  test('counts only uncovered Goodreads books as candidates', () => {
+    expect(countGoodreadsBooksMissingCovers([
+      book({ id: 'missing' }),
+      book({ id: 'covered', thumbnail: ISBN_COVER }),
+      book({ id: 'manual', sourceNames: ['Manual'] }),
+    ])).toBe(1)
   })
 
   test('does not attach a plausible cover when fallback identity evidence disagrees', async () => {

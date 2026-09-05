@@ -13,6 +13,11 @@ export type GoodreadsCoverEnrichmentResult = {
   readonly complete: boolean
 }
 
+export type GoodreadsCoverEnrichmentProgress = {
+  readonly candidateBooks: number
+  readonly resolvedBooks: number
+}
+
 export class GoodreadsCoverEnrichmentService {
   readonly #metadata: Pick<MetadataSearchService, 'search' | 'searchIsbns'>
 
@@ -26,11 +31,11 @@ export class GoodreadsCoverEnrichmentService {
       readonly locale: string
       readonly signal?: AbortSignal
       readonly onCover: (bookId: string, thumbnail: string) => void | Promise<void>
+      readonly onProgress?: (progress: GoodreadsCoverEnrichmentProgress) => void
     },
   ): Promise<GoodreadsCoverEnrichmentResult> {
-    const candidates = books.filter((book) =>
-      !book.thumbnail && book.sourceNames?.includes(GOODREADS_SOURCE),
-    )
+    const candidates = goodreadsBooksMissingCovers(books)
+    options.onProgress?.({ candidateBooks: candidates.length, resolvedBooks: 0 })
     const isbnBatch = await this.#metadata.searchIsbns(
       unique(candidates.flatMap(({ identifiers }) => identifiers ?? [])),
       options.locale,
@@ -46,6 +51,7 @@ export class GoodreadsCoverEnrichmentService {
       await options.onCover(book.id, thumbnail)
       resolved.add(book.id)
       matchedByIsbn += 1
+      options.onProgress?.({ candidateBooks: candidates.length, resolvedBooks: resolved.size })
     }
 
     let complete = isbnBatch.complete
@@ -75,6 +81,7 @@ export class GoodreadsCoverEnrichmentService {
         await options.onCover(book.id, thumbnail)
         resolved.add(book.id)
         matchedBySearch += 1
+        options.onProgress?.({ candidateBooks: candidates.length, resolvedBooks: resolved.size })
       }
     }
 
@@ -86,6 +93,16 @@ export class GoodreadsCoverEnrichmentService {
       complete,
     }
   }
+}
+
+export function countGoodreadsBooksMissingCovers(books: readonly LibraryBook[]): number {
+  return goodreadsBooksMissingCovers(books).length
+}
+
+function goodreadsBooksMissingCovers(books: readonly LibraryBook[]): LibraryBook[] {
+  return books.filter((book) =>
+    !book.thumbnail && book.sourceNames?.includes(GOODREADS_SOURCE),
+  )
 }
 
 function isbnThumbnail(

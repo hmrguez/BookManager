@@ -38,7 +38,7 @@ import { downloadTextFile } from './app/download'
 import type { AppView, ExportFormat, SheetState, ToastState } from './app/model'
 import { BottomNavigation } from './app/components/BottomNavigation'
 import { Sheet } from './app/components/Sheet'
-import { LibraryPage } from './library/LibraryPage'
+import { LibraryPage, type CoverEnrichmentStatus } from './library/LibraryPage'
 import type { ShelfMotionEvent } from './library/shelf-motion'
 import { useLibraryViewModel } from './library/useLibraryViewModel'
 import { SearchSheet } from './search/SearchSheet'
@@ -89,6 +89,7 @@ import { enrichCapturedBook } from './capture'
 import { getMetadataSearchService } from './metadata'
 import {
   GoodreadsCoverEnrichmentService,
+  countGoodreadsBooksMissingCovers,
   goodreadsCsvFromIncomingUrl,
   goodreadsCsvFromSharedFile,
   IncomingFileDeliveryGuard,
@@ -178,6 +179,7 @@ function App() {
   const [smartListCatalog, setSmartListCatalog] = useState<Catalog>()
   const [readerRecovery, setReaderRecovery] = useState<(ReaderRecovery & { readonly bookId: string })>()
   const [readerBusyBookId, setReaderBusyBookId] = useState<string>()
+  const [coverEnrichmentStatus, setCoverEnrichmentStatus] = useState<CoverEnrichmentStatus>()
   const sheetTriggerRef = useRef<HTMLElement | null>(null)
   const epubAbortRef = useRef<AbortController | undefined>(undefined)
   const epubRelinkSourceRef = useRef<EpubImportSource | undefined>(undefined)
@@ -228,17 +230,32 @@ function App() {
       coverEnrichmentQueuedRef.current = true
       return
     }
+    let pending = countGoodreadsBooksMissingCovers(booksSnapshotRef.current)
     const task = (async () => {
       do {
         coverEnrichmentQueuedRef.current = false
+        pending = countGoodreadsBooksMissingCovers(booksSnapshotRef.current)
+        if (!pending) {
+          setCoverEnrichmentStatus(undefined)
+          continue
+        }
+        setCoverEnrichmentStatus({ state: 'checking', pending })
         const metadata = await getMetadataSearchService()
-        await new GoodreadsCoverEnrichmentService(metadata).enrich(booksSnapshotRef.current, {
+        const result = await new GoodreadsCoverEnrichmentService(metadata).enrich(booksSnapshotRef.current, {
           locale: navigator.language || 'en',
           onCover: setThumbnailIfMissing,
+          onProgress: ({ candidateBooks, resolvedBooks }) => {
+            pending = candidateBooks - resolvedBooks
+            if (pending > 0) setCoverEnrichmentStatus({ state: 'checking', pending })
+          },
         })
+        pending = result.unresolvedBooks
+        setCoverEnrichmentStatus(pending > 0
+          ? { state: result.complete ? 'unresolved' : 'paused', pending }
+          : undefined)
       } while (coverEnrichmentQueuedRef.current)
     })().catch(() => {
-      // Cover enrichment is optional and resumes from cached/missing books on the next launch.
+      setCoverEnrichmentStatus(pending > 0 ? { state: 'paused', pending } : undefined)
     }).finally(() => {
       coverEnrichmentRef.current = undefined
     })
@@ -248,6 +265,18 @@ function App() {
   useEffect(() => {
     if (libraryHydrated) enrichGoodreadsCovers()
   }, [libraryHydrated, books.length])
+
+  useEffect(() => {
+    let removeListener: (() => Promise<void>) | undefined
+    void CapacitorApp.addListener('appStateChange', ({ isActive }) => {
+      if (isActive && libraryHydrated) enrichGoodreadsCovers()
+    }).then((handle) => {
+      removeListener = () => handle.remove()
+    })
+    return () => {
+      if (removeListener) void removeListener()
+    }
+  }, [libraryHydrated])
 
   useEffect(() => {
     let active = true
@@ -1257,6 +1286,7 @@ function App() {
             upNext={upNext}
             viewModel={libraryViewModel}
             shelfMotion={shelfMotion}
+            coverEnrichmentStatus={coverEnrichmentStatus}
             librarySearchOpen={librarySearchOpen}
             libraryQuery={libraryQuery}
             libraryShelfFilter={libraryShelfFilter}

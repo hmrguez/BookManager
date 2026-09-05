@@ -9,7 +9,12 @@ import {
   Search,
   X,
 } from 'lucide-react'
-import { motionScrollBehavior, shelfMotionTiming, type AppearancePreferences } from '../design-system'
+import {
+  FeedbackNotice,
+  motionScrollBehavior,
+  shelfMotionTiming,
+  type AppearancePreferences,
+} from '../design-system'
 import { SHELVES, type LibraryBook, type ShelfId } from '../library'
 import type { LibraryOrganization } from '../organization-model'
 import type { LocalSearchSort } from '../search'
@@ -27,6 +32,11 @@ import type { LibraryViewModel } from './useLibraryViewModel'
 
 type OpenSheet = (sheet: Exclude<SheetState, null>) => void
 
+export type CoverEnrichmentStatus = {
+  readonly state: 'checking' | 'paused' | 'unresolved'
+  readonly pending: number
+}
+
 export function LibraryPage({
   books,
   libraryHydrated,
@@ -35,6 +45,7 @@ export function LibraryPage({
   upNext,
   viewModel,
   shelfMotion,
+  coverEnrichmentStatus,
   librarySearchOpen,
   libraryQuery,
   libraryShelfFilter,
@@ -62,6 +73,7 @@ export function LibraryPage({
   upNext: UpNextState
   viewModel: LibraryViewModel
   shelfMotion?: ShelfMotionEvent
+  coverEnrichmentStatus?: CoverEnrichmentStatus
   librarySearchOpen: boolean
   libraryQuery: string
   libraryShelfFilter: ShelfId | 'all'
@@ -258,6 +270,18 @@ export function LibraryPage({
       </header>
 
       <main className={tw('shelf-stack')}>
+        {coverEnrichmentStatus && (
+          <FeedbackNotice
+            tone={coverEnrichmentStatus.state === 'checking' ? 'loading' : 'info'}
+            title={coverEnrichmentStatus.state === 'checking'
+              ? 'Picking up covers'
+              : coverEnrichmentStatus.state === 'paused'
+                ? 'Cover search paused'
+                : 'Covers checked'}
+          >
+            {coverEnrichmentCopy(coverEnrichmentStatus)}
+          </FeedbackNotice>
+        )}
         {librarySearchActive && visibleBooks.length === 0 ? (
           <div className={tw('library-no-results')}>
             <Search aria-hidden="true" />
@@ -404,4 +428,15 @@ export function LibraryPage({
       </main>
     </div>
   )
+}
+
+function coverEnrichmentCopy(status: CoverEnrichmentStatus): string {
+  const books = `${status.pending} ${status.pending === 1 ? 'book' : 'books'}`
+  if (status.state === 'checking') {
+    return `${books} still to check. Keep Wovenleaf open for a moment.`
+  }
+  if (status.state === 'paused') {
+    return `${books} still to check. Wovenleaf will continue when the catalog is available.`
+  }
+  return `${books} still need a match from another catalog.`
 }
