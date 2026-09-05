@@ -41,6 +41,32 @@ const openLibraryResponseSchema = z.object({
   docs: z.array(openLibraryDocumentSchema).default([]),
 })
 
+const openLibraryReadCoverSchema = z.object({
+  small: z.string().nullish(),
+  medium: z.string().nullish(),
+  large: z.string().nullish(),
+})
+
+const openLibraryReadRecordSchema = z.object({
+  data: z.object({
+    key: z.string().nullish(),
+    title: z.string().min(1).nullish(),
+    authors: z.array(z.object({ name: z.string().min(1).nullish() })).nullish(),
+    cover: openLibraryReadCoverSchema.nullish(),
+  }).nullish(),
+})
+
+const openLibraryReadEntrySchema = z.object({
+  records: z.record(z.string(), openLibraryReadRecordSchema).default({}),
+  items: z.array(z.object({
+    match: z.string().nullish(),
+    fromRecord: z.string().nullish(),
+    cover: openLibraryReadCoverSchema.nullish(),
+  })).default([]),
+})
+
+const openLibraryReadResponseSchema = z.record(z.string(), openLibraryReadEntrySchema)
+
 const OPEN_LIBRARY_FIELDS = [
   'key',
   'title',
@@ -102,7 +128,71 @@ export class OpenLibraryProvider implements MetadataProvider {
     url.searchParams.set('limit', String(OPEN_LIBRARY_ISBN_BATCH_SIZE))
     url.searchParams.set('fields', OPEN_LIBRARY_FIELDS)
     const canonicalIsbns = new Set(isbns.flatMap((isbn) => canonicalEditionIsbn(isbn) ?? []))
-    return this.#search(url, isbns.join(' '), signal, canonicalIsbns)
+    const variants = await this.#search(url, isbns.join(' '), signal, canonicalIsbns)
+    const coveredIsbns = new Set(variants.flatMap((variant) => variant.thumbnail
+      ? variant.identifiers.flatMap(({ normalizedValue }) => canonicalEditionIsbn(normalizedValue) ?? [])
+      : [],
+    ))
+    const unresolvedIsbns = isbns.filter((isbn) => {
+      const canonical = canonicalEditionIsbn(isbn)
+      return canonical ? !coveredIsbns.has(canonical) : false
+    })
+    if (!unresolvedIsbns.length) return variants
+
+    const deepCoverVariants = await this.#readCovers(unresolvedIsbns, signal, variants.length)
+    return [...variants, ...deepCoverVariants]
+  }
+
+  async #readCovers(
+    isbns: readonly string[],
+    signal: AbortSignal | undefined,
+    providerRankOffset: number,
+  ): Promise<ProviderBookVariant[]> {
+    const requestList = isbns.map((isbn) => `isbn:${isbn}`).join('|')
+    const url = new URL(`https://openlibrary.org/api/volumes/brief/json/${requestList}`)
+    const payload = await this.#transport.json(this.id, url, { signal, minimumIntervalMs: 1_000 })
+    const parsed = openLibraryReadResponseSchema.safeParse(payload)
+    if (!parsed.success) {
+      throw new MetadataProviderError(this.id, 'invalid-response', 'Open Library returned invalid cover data')
+    }
+
+    const observedAt = this.#now().toISOString()
+    return isbns.flatMap((isbn, index) => {
+      const entry = readEntryForIsbn(parsed.data, isbn)
+      if (!entry) return []
+      const recordEntries = Object.entries(entry.records)
+      const coveredRecord = recordEntries.find(([, record]) => preferredCover(record.data?.cover))
+        ?? recordEntries[0]
+      const exactItem = entry.items.find((item) => item.match === 'exact' && preferredCover(item.cover))
+      const similarItem = entry.items.find((item) => item.match === 'similar' && preferredCover(item.cover))
+      const thumbnail = preferredCover(coveredRecord?.[1].data?.cover)
+        ?? preferredCover(exactItem?.cover)
+        ?? preferredCover(similarItem?.cover)
+      if (!thumbnail) return []
+
+      const recordKey = coveredRecord?.[1].data?.key ?? coveredRecord?.[0]
+        ?? exactItem?.fromRecord ?? similarItem?.fromRecord
+      const externalKey = `${trimOpenLibraryKey(recordKey ?? `isbn-${isbn}`)}@${isbn}`
+      const title = coveredRecord?.[1].data?.title ?? `ISBN ${isbn}`
+      const observedAuthors = coveredRecord?.[1].data?.authors?.flatMap(({ name }) => name ?? [])
+      const authors = observedAuthors?.length ? observedAuthors : ['Unknown author']
+
+      return [providerBookVariantSchema.parse({
+        id: providerVariantKey(this.id, externalKey),
+        provider: this.id,
+        providerName: this.name,
+        externalKey,
+        editionKey: recordKey?.startsWith('/books/') ? trimOpenLibraryKey(recordKey) : undefined,
+        title,
+        workTitle: title,
+        authors,
+        identifiers: editionIdentifiers([isbn]),
+        thumbnail: ensureHttps(thumbnail),
+        confidence: coveredRecord || exactItem ? 0.99 : 0.9,
+        providerRank: providerRankOffset + index,
+        observedAt,
+      })]
+    })
   }
 
   async #search(
@@ -155,6 +245,23 @@ export class OpenLibraryProvider implements MetadataProvider {
 
 function trimOpenLibraryKey(value: string): string {
   return value.replace(/^\/(?:works|books)\//, '')
+}
+
+function readEntryForIsbn(
+  response: z.infer<typeof openLibraryReadResponseSchema>,
+  isbn: string,
+): z.infer<typeof openLibraryReadEntrySchema> | undefined {
+  const exact = response[`isbn:${isbn}`]
+  if (exact) return exact
+  return Object.entries(response).find(([key]) => normalizeIsbn(key.replace(/^isbn:/, '')) === isbn)?.[1]
+}
+
+function preferredCover(cover: z.infer<typeof openLibraryReadCoverSchema> | null | undefined): string | undefined {
+  return cover?.medium ?? cover?.large ?? cover?.small ?? undefined
+}
+
+function ensureHttps(value: string): string {
+  return value.replace(/^http:\/\//, 'https://')
 }
 
 function primaryLanguage(locale: string): string {

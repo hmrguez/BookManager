@@ -1441,6 +1441,19 @@ function App() {
             updateBook(selectedBook.id, changes)
             setToast({ message: 'Local book details saved as your preferred values' })
           }}
+          onCover={(thumbnail) => {
+            const resolvedPendingCover = !selectedBook.thumbnail
+              && selectedBook.sourceNames?.includes('Goodreads')
+            updateBook(selectedBook.id, { thumbnail })
+            if (resolvedPendingCover) {
+              setCoverEnrichmentStatus((current) => {
+                if (!current) return current
+                const pending = Math.max(0, current.pending - 1)
+                return pending ? { ...current, pending } : undefined
+              })
+            }
+            setToast({ message: 'Cover updated and kept on this device' })
+          }}
           onEnrich={() => enrichBook(selectedBook)}
           onCustomShelves={(activeShelfIds) => {
             const archivedMemberships = organization.entries

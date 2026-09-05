@@ -85,7 +85,7 @@ function resultFromVariant(
     authors: variant.authors,
     identifiers: variant.identifiers.map(({ normalizedValue }) => normalizedValue),
     sourceNames: metadataSelection.variants.map(({ providerName }) => providerName),
-    thumbnail: variant.thumbnail,
+    thumbnail: variant.thumbnail ?? metadataSelection.variants.find(({ thumbnail }) => thumbnail)?.thumbnail,
     pageCount: variant.pageCount ?? 0,
     metadataSelection,
   }

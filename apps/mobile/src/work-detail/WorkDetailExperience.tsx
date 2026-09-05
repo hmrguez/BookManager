@@ -15,6 +15,7 @@ import {
   Hash,
   Headphones,
   History,
+  ImagePlus,
   Library,
   Pin,
   Pencil,
@@ -45,6 +46,7 @@ import { applyManualBookEdits, inspectIsbnInput } from '../capture'
 import { FEATURES } from '../app/feature-flags'
 import type { EpubImportProgress, EpubImportResult } from '../epub'
 import type { AudiobookImportDraft, AudiobookImportProgress, AudiobookImportResult } from '../audiobooks'
+import { ManualCoverError, prepareManualCover } from '../covers/manual-cover'
 
 export type EpubAttachmentState = {
   readonly progress?: EpubImportProgress
@@ -72,6 +74,7 @@ type WorkDetailExperienceProps = {
   readonly onRate: (rating: number) => void
   readonly onNotes: (notes: string) => void
   readonly onMetadata: (changes: Partial<LibraryBook>) => void
+  readonly onCover: (thumbnail: string) => void
   readonly onEnrich: () => Promise<boolean>
   readonly onCustomShelves: (shelfIds: readonly string[]) => void
   readonly onTags: (tags: readonly string[]) => void
@@ -122,6 +125,7 @@ export function WorkDetailExperience({
   onRate,
   onNotes,
   onMetadata,
+  onCover,
   onEnrich,
   onCustomShelves,
   onTags,
@@ -159,6 +163,7 @@ export function WorkDetailExperience({
         onRate={onRate}
         onNotes={onNotes}
         onMetadata={onMetadata}
+        onCover={onCover}
         onCustomShelves={onCustomShelves}
         onTags={onTags}
         onRemove={onRemove}
@@ -213,7 +218,7 @@ export function WorkDetailExperience({
   return (
     <div className={tw("work-detail")} data-density={model.editions.length > 1 ? 'dense' : 'sparse'}>
       <header className={tw("work-detail__hero")}>
-        <BookCover book={book} large />
+        <EditableBookCover book={book} onCover={onCover} />
         <div className={tw("work-detail__identity")}>
           <div className={tw("work-detail__eyebrow")}>
             <span>Work record</span>
@@ -356,6 +361,7 @@ function SimpleBookDetail({
   onRate,
   onNotes,
   onMetadata,
+  onCover,
   onCustomShelves,
   onTags,
   onRemove,
@@ -390,7 +396,7 @@ function SimpleBookDetail({
   return (
     <div className={tw('work-detail simple-book-detail')}>
       <header className={tw('work-detail__hero simple-book-detail__hero')}>
-        <BookCover book={book} large />
+        <EditableBookCover book={book} onCover={onCover} />
         <div className={tw('work-detail__identity')}>
           <span className={tw('simple-book-detail__status')}>{SHELVES.find(({ id }) => id === book.shelf)?.label}</span>
           <h3>{book.title}</h3>
@@ -528,6 +534,61 @@ function SimpleBookDetail({
           <ChevronRight aria-hidden="true" />
         </button>
       </section>
+    </div>
+  )
+}
+
+function EditableBookCover({
+  book,
+  onCover,
+}: {
+  readonly book: LibraryBook
+  readonly onCover: (thumbnail: string) => void
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<string>()
+
+  const chooseCover = async (file: File | undefined) => {
+    if (!file || busy) return
+    setBusy(true)
+    setMessage(undefined)
+    try {
+      onCover(await prepareManualCover(file))
+      setMessage('Cover saved on this device.')
+    } catch (error) {
+      setMessage(error instanceof ManualCoverError
+        ? error.message
+        : 'Wovenleaf could not save that cover. Try another image.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className={tw('editable-book-cover')}>
+      <button
+        type="button"
+        disabled={busy}
+        aria-label={book.thumbnail ? `Change cover for ${book.title}` : `Add cover for ${book.title}`}
+        onClick={() => inputRef.current?.click()}
+      >
+        <BookCover book={book} large />
+        <span><ImagePlus aria-hidden="true" />{busy ? 'Preparing…' : book.thumbnail ? 'Change' : 'Add cover'}</span>
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        aria-hidden="true"
+        tabIndex={-1}
+        disabled={busy}
+        onChange={(event) => {
+          void chooseCover(event.currentTarget.files?.[0])
+          event.currentTarget.value = ''
+        }}
+      />
+      {message && <small role="status">{message}</small>}
     </div>
   )
 }

@@ -40,6 +40,7 @@ type ProviderOutcome = {
 const DEFAULT_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1_000
 const ISBN_BATCH_SIZE = 40
 const ISBN_CACHE_LIMIT = 8
+const ISBN_COVER_LOOKUP_VERSION = 'covers-v2'
 
 export class MetadataSearchService {
   readonly #provider: MetadataProvider
@@ -99,7 +100,7 @@ export class MetadataSearchService {
     const uncached: string[] = []
     let usedSaved = false
     for (const isbn of isbns) {
-      const queryKey = metadataQueryKey(isbn, locale, ISBN_CACHE_LIMIT)
+      const queryKey = isbnCacheKey(isbn, locale)
       const cached = await this.#cache.get(this.#provider.id, queryKey)
       if (cached) stale.set(isbn, cached)
       if (!options.refresh && cached && Date.parse(cached.expiresAt) >= this.#now().getTime()) {
@@ -132,7 +133,7 @@ export class MetadataSearchService {
           })
           await this.#cache.put(metadataSearchCacheEntrySchema.parse({
             provider: this.#provider.id,
-            queryKey: metadataQueryKey(isbn, locale, ISBN_CACHE_LIMIT),
+            queryKey: isbnCacheKey(isbn, locale),
             locale,
             observedAt: observedAt.toISOString(),
             expiresAt: new Date(observedAt.getTime() + this.#cacheTtlMs).toISOString(),
@@ -225,6 +226,10 @@ export class MetadataSearchService {
       }
     }
   }
+}
+
+function isbnCacheKey(isbn: string, locale: string): string {
+  return metadataQueryKey(`${ISBN_COVER_LOOKUP_VERSION} ${isbn}`, locale, ISBN_CACHE_LIMIT)
 }
 
 function notSearchedState(provider: MetadataProvider): ProviderOutcome {

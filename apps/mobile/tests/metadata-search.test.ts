@@ -139,6 +139,73 @@ describe('book metadata provider layer', () => {
     ])
   })
 
+  test('deep-checks unresolved ISBNs and accepts exact-record or similar-edition covers', async () => {
+    const requestedUrls: URL[] = []
+    const provider = new OpenLibraryProvider({
+      now: () => new Date(NOW),
+      transport: new ProviderTransport({
+        now: () => 1_000,
+        sleep: async () => undefined,
+        maxRetries: 0,
+        fetch: mockFetch((url) => {
+          requestedUrls.push(url)
+          if (url.pathname === '/search.json') {
+            return {
+              docs: [{
+                key: '/works/OL1W',
+                title: 'Exact Record',
+                author_name: ['First Author'],
+                isbn: ['9780061054884'],
+              }, {
+                key: '/works/OL2W',
+                title: 'Similar Edition',
+                author_name: ['Second Author'],
+                isbn: ['9780156453806'],
+              }],
+            }
+          }
+          return {
+            'isbn:9780061054884': {
+              records: {
+                '/books/OL1M': {
+                  data: {
+                    key: '/books/OL1M',
+                    title: 'Exact Record',
+                    authors: [{ name: 'First Author' }],
+                    cover: { medium: 'https://covers.openlibrary.org/b/id/301-M.jpg' },
+                  },
+                },
+              },
+              items: [],
+            },
+            'isbn:9780156453806': {
+              records: {},
+              items: [{
+                match: 'similar',
+                fromRecord: '/books/OL2M',
+                cover: { medium: 'http://covers.openlibrary.org/b/id/302-M.jpg' },
+              }],
+            },
+          }
+        }),
+      }),
+    })
+
+    const variants = await provider.searchIsbns(['9780061054884', '9780156453806'], 'en')
+
+    expect(requestedUrls.map(({ pathname }) => pathname)).toEqual([
+      '/search.json',
+      '/api/volumes/brief/json/isbn:9780061054884|isbn:9780156453806',
+    ])
+    expect(variants.flatMap(({ thumbnail }) => thumbnail ?? [])).toEqual([
+      'https://covers.openlibrary.org/b/id/301-M.jpg',
+      'https://covers.openlibrary.org/b/id/302-M.jpg',
+    ])
+    const results = combineProviderResults(variants, '9780156453806', 'live')
+    expect(results.find(({ identifiers }) => identifiers?.includes('9780156453806'))?.thumbnail)
+      .toBe('https://covers.openlibrary.org/b/id/302-M.jpg')
+  })
+
   test('merges exact editions deterministically while retaining conflicts and source choice', () => {
     const openLibrary = variant({
       provider: 'open-library',

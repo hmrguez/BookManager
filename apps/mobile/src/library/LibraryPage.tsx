@@ -438,5 +438,5 @@ function coverEnrichmentCopy(status: CoverEnrichmentStatus): string {
   if (status.state === 'paused') {
     return `${books} still to check. Wovenleaf will continue when the catalog is available.`
   }
-  return `${books} still need a match from another catalog.`
+  return `${books} still need a cover. Open a book and tap its cover to add one.`
 }

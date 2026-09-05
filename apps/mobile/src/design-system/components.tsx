@@ -33,7 +33,7 @@ export function ActionButton({
 }
 
 export function BookCover({ book, large = false }: { book: CoverData; large?: boolean }) {
-  const [imageFailed, setImageFailed] = useState(false)
+  const [failedThumbnail, setFailedThumbnail] = useState<string>()
   const colorIndex = [...book.title].reduce((sum, character) => sum + character.charCodeAt(0), 0) % 6
   const initials = book.title
     .replace(/^(the|a|an)\s+/i, '')
@@ -48,8 +48,8 @@ export function BookCover({ book, large = false }: { book: CoverData; large?: bo
       style={{ '--cover-index': colorIndex } as CSSProperties}
       aria-hidden="true"
     >
-      {book.thumbnail && !imageFailed ? (
-        <img src={book.thumbnail} alt="" onError={() => setImageFailed(true)} />
+      {book.thumbnail && failedThumbnail !== book.thumbnail ? (
+        <img src={book.thumbnail} alt="" onError={() => setFailedThumbnail(book.thumbnail)} />
       ) : (
         <>
           <span className={tw("cover-rule")} />
