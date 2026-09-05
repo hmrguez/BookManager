@@ -14,7 +14,7 @@ BRAND_LOCAL_OUTPUT ?= branding/final/platform
 .PHONY: help install dev gallery conflicts gallery-test preview lint test build check clean doctor versions brand-assets sync cap-doctor \
 	native-add ios-add android-add ios-open android-open ios-list android-list \
 	ios-build android-build android-release ios-simulator android-run \
-	android-device android-live android-install android-devices
+	android-device android-live android-install android-devices version-patch version-minor
 
 help: ## Show every available command
 	@awk 'BEGIN {FS = ":.*## "; printf "Wovenleaf commands\n\n"} /^[a-zA-Z0-9_-]+:.*## / {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -59,6 +59,12 @@ versions: ## Print the core tool versions
 	@printf 'Vite:       '; cd $(MOBILE_DIR) && bunx vite --version
 	@printf 'TypeScript: '; cd $(MOBILE_DIR) && bunx tsc --version
 	@printf 'Capacitor:  '; cd $(MOBILE_DIR) && bunx cap --version
+
+version-patch: ## Bump the Android patch version and version code
+	cd $(MOBILE_DIR) && bun scripts/bump-android-version.ts patch
+
+version-minor: ## Bump the Android minor version and version code
+	cd $(MOBILE_DIR) && bun scripts/bump-android-version.ts minor
 
 brand-assets: ## Regenerate and validate iOS, Android, web, splash, and store artwork
 	uv run --no-project --with-requirements $(MOBILE_DIR)/scripts/brand-assets-requirements.txt \
