@@ -11,6 +11,7 @@
     "gallery:test": "playwright test",
     "gallery:update": "playwright test --update-snapshots",
     "build": "bun run typecheck && vite build",
+    "build:dev": "bun run typecheck && vite build --mode development",
     "capacitor:sync:after": "bun scripts/configure-ios-spm.ts",
     "capacitor:update:after": "bun scripts/configure-ios-spm.ts",
     "lint": "oxlint",
@@ -22,11 +23,14 @@
     "preview": "vite preview",
     "assets:generate": "uv run --no-project --with-requirements scripts/brand-assets-requirements.txt scripts/generate-brand-assets.py --source-png ../../branding/source/wovenleaf-mark-color-2048px.png --source-svg ../../branding/source/wovenleaf-mark-color.svg --local-output ../../branding/final/platform",
     "cap:sync": "bun run build && cap sync",
+    "cap:sync:dev": "bun run build:dev && cap sync",
     "cap:doctor": "cap doctor",
     "android:open": "bun run cap:sync && cap open android",
     "android:run": "bun run cap:sync && cap run android",
+    "android:run:dev": "bun run cap:sync:dev && cap run android",
     "ios:open": "bun run cap:sync && cap open ios",
-    "ios:run": "bun run cap:sync && cap run ios"
+    "ios:run": "bun run cap:sync && cap run ios",
+    "ios:run:dev": "bun run cap:sync:dev && cap run ios"
   },
   "dependencies": {
     "@aparajita/capacitor-secure-storage": "8.0.0",

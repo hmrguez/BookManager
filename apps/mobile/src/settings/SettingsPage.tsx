@@ -813,7 +813,7 @@ export function SettingsPage({
           </label>
             </section>
 
-            {import.meta.env.DEV && (
+            {FEATURES.devTools && (
               <section className={tw('settings-card settings-card--developer')}>
                 <div className={tw('settings-card__icon')}><Trash2 aria-hidden="true" /></div>
                 <div className={tw('settings-card__heading')}>
