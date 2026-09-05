@@ -194,6 +194,16 @@ export function useLibrary() {
     [enqueuePersistence, showBooks],
   )
 
+  const clearBooks = useCallback(() => {
+    const bookIds = booksRef.current.map(({ id }) => id)
+    if (bookIds.length === 0) return
+    hasMutatedRef.current = true
+    showBooks([])
+    enqueuePersistence(async (repository) => {
+      for (const id of bookIds) await repository.remove(id)
+    })
+  }, [enqueuePersistence, showBooks])
+
   const reload = useCallback(async () => {
     await persistenceTailRef.current
     try {
@@ -237,6 +247,7 @@ export function useLibrary() {
     setCurrentPage,
     finishBook,
     removeBook,
+    clearBooks,
     reload,
   }
 }

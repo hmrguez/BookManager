@@ -108,6 +108,7 @@ function App() {
     setProgress,
     setCurrentPage,
     removeBook,
+    clearBooks,
     reload,
   } = useLibrary()
   const {
@@ -1293,6 +1294,10 @@ function App() {
             onRecoveryFile={(file) => { void handleRecoveryFile(file) }}
             onCreateRecoveryPoint={() => { void createRecoveryPoint() }}
             onRestoreBackup={() => { void restoreBackup() }}
+            onClearBooks={() => {
+              clearBooks()
+              setToast({ message: 'Development library cleared' })
+            }}
           />
         )}
 

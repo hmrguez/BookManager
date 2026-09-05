@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Table2,
+  Trash2,
   Vibrate,
   X,
 } from 'lucide-react'
@@ -111,6 +112,7 @@ export function SettingsPage({
   onRecoveryFile,
   onCreateRecoveryPoint,
   onRestoreBackup,
+  onClearBooks,
 }: {
   books: LibraryBook[]
   appearance: AppearancePreferences
@@ -152,6 +154,7 @@ export function SettingsPage({
   onRecoveryFile: (file: File) => void
   onCreateRecoveryPoint: () => void
   onRestoreBackup: () => void
+  onClearBooks: () => void
 }) {
   const [includeExportAnnotations, setIncludeExportAnnotations] = useState(true)
   const [includeExportEpubFiles, setIncludeExportEpubFiles] = useState(false)
@@ -809,6 +812,32 @@ export function SettingsPage({
             />
           </label>
             </section>
+
+            {import.meta.env.DEV && (
+              <section className={tw('settings-card settings-card--developer')}>
+                <div className={tw('settings-card__icon')}><Trash2 aria-hidden="true" /></div>
+                <div className={tw('settings-card__heading')}>
+                  <span>Development only</span><h2>Reset the library.</h2>
+                  <p>Remove every book and its library relationships from this development database.</p>
+                </div>
+                <button
+                  className={tw('settings-action settings-action--destructive')}
+                  type="button"
+                  disabled={books.length === 0}
+                  onClick={() => {
+                    if (window.confirm(`Clear all ${books.length} books from this development library? This cannot be undone.`)) {
+                      onClearBooks()
+                    }
+                  }}
+                >
+                  <Trash2 aria-hidden="true" />
+                  <span>
+                    <strong>{books.length === 0 ? 'Library is already empty' : `Clear all ${books.length} books`}</strong>
+                    <small>Requires confirmation · cannot be undone</small>
+                  </span>
+                </button>
+              </section>
+            )}
           </div>
         </details>
       </div>
