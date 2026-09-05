@@ -9,6 +9,11 @@ export type MetadataProvider = {
   readonly name: string
   readonly configured: boolean
   search(query: MetadataSearchQuery, signal?: AbortSignal): Promise<ProviderBookVariant[]>
+  searchIsbns?(
+    isbns: readonly string[],
+    locale: string,
+    signal?: AbortSignal,
+  ): Promise<ProviderBookVariant[]>
 }
 
 export type MetadataProviderErrorCode =

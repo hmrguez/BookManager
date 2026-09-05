@@ -1,8 +1,10 @@
 import { z } from 'zod'
 import {
+  canonicalEditionIsbn,
   editionIdentifiers,
   metadataProviderNames,
   metadataSearchQuerySchema,
+  normalizeIsbn,
   providerBookVariantSchema,
   providerVariantKey,
   type MetadataSearchQuery,
@@ -59,6 +61,8 @@ const OPEN_LIBRARY_FIELDS = [
   'editions.cover_i',
 ].join(',')
 
+export const OPEN_LIBRARY_ISBN_BATCH_SIZE = 40
+
 export class OpenLibraryProvider implements MetadataProvider {
   readonly id = 'open-library' as const
   readonly name = metadataProviderNames[this.id]
@@ -79,10 +83,35 @@ export class OpenLibraryProvider implements MetadataProvider {
     url.searchParams.set('limit', String(validated.limit))
     url.searchParams.set('fields', OPEN_LIBRARY_FIELDS)
 
-    const payload = await this.#transport.json(this.id, url, {
-      signal,
-      minimumIntervalMs: 1_000,
-    })
+    return this.#search(url, validated.query, signal)
+  }
+
+  async searchIsbns(
+    inputIsbns: readonly string[],
+    locale: string,
+    signal?: AbortSignal,
+  ): Promise<ProviderBookVariant[]> {
+    const isbns = [...new Set(inputIsbns.flatMap((value) => normalizeIsbn(value) ?? []))]
+    if (!isbns.length) return []
+    if (isbns.length > OPEN_LIBRARY_ISBN_BATCH_SIZE) {
+      throw new Error(`Open Library ISBN batches are limited to ${OPEN_LIBRARY_ISBN_BATCH_SIZE} books`)
+    }
+    const url = new URL('https://openlibrary.org/search.json')
+    url.searchParams.set('q', `isbn:(${isbns.join(' OR ')})`)
+    url.searchParams.set('lang', primaryLanguage(locale))
+    url.searchParams.set('limit', String(OPEN_LIBRARY_ISBN_BATCH_SIZE))
+    url.searchParams.set('fields', OPEN_LIBRARY_FIELDS)
+    const canonicalIsbns = new Set(isbns.flatMap((isbn) => canonicalEditionIsbn(isbn) ?? []))
+    return this.#search(url, isbns.join(' '), signal, canonicalIsbns)
+  }
+
+  async #search(
+    url: URL,
+    query: string,
+    signal?: AbortSignal,
+    exactIsbns?: ReadonlySet<string>,
+  ): Promise<ProviderBookVariant[]> {
+    const payload = await this.#transport.json(this.id, url, { signal, minimumIntervalMs: 1_000 })
     const parsed = openLibraryResponseSchema.safeParse(payload)
     if (!parsed.success) {
       throw new MetadataProviderError(this.id, 'invalid-response', 'Open Library returned invalid metadata')
@@ -91,11 +120,11 @@ export class OpenLibraryProvider implements MetadataProvider {
     const observedAt = this.#now().toISOString()
     return parsed.data.docs.map((document, providerRank) => {
       const edition = document.editions?.docs[0]
-      const identifiers = editionIdentifiers(edition?.isbn ?? document.isbn)
+      const identifiers = editionIdentifiers([...(edition?.isbn ?? []), ...(document.isbn ?? [])])
       const coverId = edition?.cover_i ?? document.cover_i
       const authors = document.author_name?.length ? document.author_name : ['Unknown author']
       const externalKey = trimOpenLibraryKey(edition?.key ?? document.key)
-      const confidence = confidenceFor(document, edition, identifiers, validated.query)
+      const confidence = confidenceFor(document, edition, identifiers, query, exactIsbns)
 
       return providerBookVariantSchema.parse({
         id: providerVariantKey(this.id, externalKey),
@@ -141,7 +170,12 @@ function confidenceFor(
   edition: z.infer<typeof openLibraryEditionSchema> | undefined,
   identifiers: ReturnType<typeof editionIdentifiers>,
   query: string,
+  exactIsbns?: ReadonlySet<string>,
 ): number {
+  if (exactIsbns && identifiers.some(({ normalizedValue }) => {
+    const canonical = canonicalEditionIsbn(normalizedValue)
+    return canonical ? exactIsbns.has(canonical) : false
+  })) return 0.98
   if (isIsbnQuery(query) && identifiers.length) return 0.98
   let confidence = 0.76
   if (edition) confidence += 0.07

@@ -633,6 +633,29 @@ describe('durable import repository', () => {
     })
     await database.close()
   })
+
+  test('undo removes an imported add after automatic cover-only enrichment', async () => {
+    const database = new BunSqliteDatabase()
+    await migrateStorage(database)
+    const repository = createRepository(database)
+    const library = new LibraryRepository(database)
+    const content = await Bun.file(goodreadsFixtureUrl).text()
+    const singleRow = content.split('\n').slice(0, 2).join('\n')
+    const preview = await repository.previewCsv('goodreads.csv', singleRow)
+    await repository.commit(preview.id)
+    const [imported] = await library.list()
+    await library.save({
+      ...imported!,
+      thumbnail: 'https://covers.openlibrary.org/b/id/101-M.jpg?default=false',
+      lastUpdatedAt: laterTimestamp,
+    })
+
+    const undone = await repository.undo(preview.id)
+
+    expect(undone.preservedChanges).toBe(0)
+    expect(await library.list()).toEqual([])
+    await database.close()
+  })
 })
 
 function createRepository(database: BunSqliteDatabase): ImportRepository {

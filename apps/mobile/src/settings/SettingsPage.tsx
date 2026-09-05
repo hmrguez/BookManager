@@ -523,7 +523,7 @@ export function SettingsPage({
           </div>
           <div className={tw('settings-card__heading')}>
             <span>Move from Goodreads</span><h2>Your old library, without the spreadsheet work.</h2>
-            <p>Ask Goodreads for your library, then open or share the downloaded file with Wovenleaf. Matching and migration stay entirely on this device.</p>
+            <p>Ask Goodreads for your library, then open or share the downloaded file with Wovenleaf. The migration stays on this device; cover art fills in afterward from Open Library.</p>
           </div>
           <ol className={tw('goodreads-migration__route')} aria-label="Goodreads migration steps">
             <li><strong>1</strong><span>Open Goodreads<small>Sign in on their official page</small></span></li>

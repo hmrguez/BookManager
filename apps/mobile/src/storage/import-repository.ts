@@ -345,7 +345,15 @@ export class ImportRepository {
         let restored = false
 
         if (field === '$record') {
-          if (current && sameStored(stored(current), after)) {
+          const matchesCommittedValue = current && (
+            sameStored(stored(current), after)
+            || (
+              entityType === 'library-book'
+              && !before.present
+              && matchesCoverEnrichedImport(current as LibraryBook, after)
+            )
+          )
+          if (current && matchesCommittedValue) {
             if (before.present) {
               if (entityType === 'library-book') {
                 const restoredBook = libraryBookSchema.parse(before.value)
@@ -589,6 +597,17 @@ function stored(value: unknown): ImportStoredValue {
 
 function sameStored(left: ImportStoredValue, right: ImportStoredValue): boolean {
   return left.present === right.present && JSON.stringify(left.value) === JSON.stringify(right.value)
+}
+
+function matchesCoverEnrichedImport(current: LibraryBook, imported: ImportStoredValue): boolean {
+  if (!imported.present) return false
+  const parsed = libraryBookSchema.safeParse(imported.value)
+  if (!parsed.success || !current.thumbnail || parsed.data.thumbnail) return false
+  return sameStored(stored({
+    ...current,
+    thumbnail: undefined,
+    lastUpdatedAt: parsed.data.lastUpdatedAt,
+  }), imported)
 }
 
 function nullableText(row: SqlRow, column: string): string | undefined {

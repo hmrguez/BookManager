@@ -1,5 +1,6 @@
 import type { BookSearchResult } from '../library-model'
 import {
+  canonicalEditionIsbn,
   metadataQueryKey,
   metadataSearchCacheEntrySchema,
   metadataSearchQuerySchema,
@@ -24,6 +25,12 @@ export type MetadataSearchOptions = {
   readonly signal?: AbortSignal
 }
 
+export type MetadataIsbnSearchResponse = {
+  readonly results: ReadonlyMap<string, readonly BookSearchResult[]>
+  readonly provider: ProviderSearchState
+  readonly complete: boolean
+}
+
 type ProviderOutcome = {
   readonly variants: readonly ProviderBookVariant[]
   readonly status: ProviderSearchState
@@ -31,6 +38,8 @@ type ProviderOutcome = {
 }
 
 const DEFAULT_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1_000
+const ISBN_BATCH_SIZE = 40
+const ISBN_CACHE_LIMIT = 8
 
 export class MetadataSearchService {
   readonly #provider: MetadataProvider
@@ -61,6 +70,106 @@ export class MetadataSearchService {
     return {
       results: combineProviderResults(outcome.variants, query.query, outcome.freshness ?? 'live'),
       providers: [outcome.status],
+    }
+  }
+
+  async searchIsbns(
+    inputIsbns: readonly string[],
+    locale: string,
+    options: MetadataSearchOptions = {},
+  ): Promise<MetadataIsbnSearchResponse> {
+    const isbns = [...new Set(inputIsbns.flatMap((value) => canonicalEditionIsbn(value) ?? []))]
+    const results = new Map<string, readonly BookSearchResult[]>()
+    if (!isbns.length) {
+      return {
+        results,
+        provider: { provider: this.#provider.id, state: 'empty' },
+        complete: true,
+      }
+    }
+    if (!this.#provider.configured) {
+      return {
+        results,
+        provider: notSearchedState(this.#provider).status,
+        complete: false,
+      }
+    }
+
+    const stale = new Map<string, MetadataSearchCacheEntry>()
+    const uncached: string[] = []
+    let usedSaved = false
+    for (const isbn of isbns) {
+      const queryKey = metadataQueryKey(isbn, locale, ISBN_CACHE_LIMIT)
+      const cached = await this.#cache.get(this.#provider.id, queryKey)
+      if (cached) stale.set(isbn, cached)
+      if (!options.refresh && cached && Date.parse(cached.expiresAt) >= this.#now().getTime()) {
+        results.set(isbn, combineProviderResults(cached.variants, isbn, 'saved'))
+        usedSaved = true
+      } else {
+        uncached.push(isbn)
+      }
+    }
+
+    let liveBatches = 0
+    let failure: unknown
+    for (let offset = 0; offset < uncached.length; offset += ISBN_BATCH_SIZE) {
+      const batch = uncached.slice(offset, offset + ISBN_BATCH_SIZE)
+      try {
+        const variants = this.#provider.searchIsbns
+          ? await this.#provider.searchIsbns(batch, locale, options.signal)
+          : (await Promise.all(batch.map((isbn) => this.#provider.search({
+              query: isbn,
+              locale,
+              limit: ISBN_CACHE_LIMIT,
+            }, options.signal)))).flat()
+        const observedAt = this.#now()
+        for (const isbn of batch) {
+          const matching = variants.flatMap((variant) => {
+            const identifiers = variant.identifiers.filter(({ normalizedValue }) =>
+              canonicalEditionIsbn(normalizedValue) === isbn,
+            )
+            return identifiers.length ? [{ ...variant, identifiers }] : []
+          })
+          await this.#cache.put(metadataSearchCacheEntrySchema.parse({
+            provider: this.#provider.id,
+            queryKey: metadataQueryKey(isbn, locale, ISBN_CACHE_LIMIT),
+            locale,
+            observedAt: observedAt.toISOString(),
+            expiresAt: new Date(observedAt.getTime() + this.#cacheTtlMs).toISOString(),
+            variants: matching,
+          }))
+          results.set(isbn, combineProviderResults(matching, isbn, 'live'))
+        }
+        liveBatches += 1
+      } catch (error) {
+        if (isAbortError(error)) throw error
+        failure = error
+        for (const isbn of uncached.slice(offset)) {
+          const cached = stale.get(isbn)
+          if (cached) {
+            results.set(isbn, combineProviderResults(cached.variants, isbn, 'saved'))
+            usedSaved = true
+          }
+        }
+        break
+      }
+    }
+
+    return {
+      results,
+      provider: failure
+        ? usedSaved || liveBatches > 0
+          ? {
+              provider: this.#provider.id,
+              state: usedSaved ? 'saved' : 'live',
+              message: 'Some ISBN covers will resume when the catalog is available again.',
+            }
+          : providerErrorState(this.#provider.id, failure)
+        : {
+            provider: this.#provider.id,
+            state: liveBatches > 0 ? 'live' : 'saved',
+          },
+      complete: !failure,
     }
   }
 

@@ -94,6 +94,17 @@ export function useLibrary() {
     [saveChangedBook],
   )
 
+  const setThumbnailIfMissing = useCallback(
+    (id: string, thumbnail: string) => {
+      saveChangedBook(id, (book) => book.thumbnail ? book : {
+        ...book,
+        thumbnail,
+        lastUpdatedAt: new Date().toISOString(),
+      })
+    },
+    [saveChangedBook],
+  )
+
   const addBook = useCallback(
     (result: BookSearchResult, shelf: ShelfId) => {
       const current = booksRef.current
@@ -242,6 +253,7 @@ export function useLibrary() {
     downloadLegacyRecovery,
     addBook,
     updateBook,
+    setThumbnailIfMissing,
     moveBook,
     setProgress,
     setCurrentPage,

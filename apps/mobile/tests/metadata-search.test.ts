@@ -101,6 +101,44 @@ describe('book metadata provider layer', () => {
     expect(variant?.pageCount).toBeUndefined()
   })
 
+  test('looks up a batch of ISBN covers in one Open Library search request', async () => {
+    let requestedUrl: URL | undefined
+    const provider = new OpenLibraryProvider({
+      now: () => new Date(NOW),
+      transport: new ProviderTransport({
+        maxRetries: 0,
+        fetch: mockFetch((url) => {
+          requestedUrl = url
+          return {
+            docs: [{
+              key: '/works/OL1W',
+              title: 'First Book',
+              author_name: ['First Author'],
+              isbn: ['9780061054884'],
+              cover_i: 101,
+            }, {
+              key: '/works/OL2W',
+              title: 'Second Book',
+              author_name: ['Second Author'],
+              isbn: ['9780156453806'],
+              cover_i: 202,
+            }],
+          }
+        }),
+      }),
+    })
+
+    const variants = await provider.searchIsbns(['9780061054884', '9780156453806'], 'en')
+
+    expect(requestedUrl?.searchParams.get('q')).toBe(
+      'isbn:(9780061054884 OR 9780156453806)',
+    )
+    expect(variants.map(({ thumbnail }) => thumbnail)).toEqual([
+      'https://covers.openlibrary.org/b/id/101-M.jpg?default=false',
+      'https://covers.openlibrary.org/b/id/202-M.jpg?default=false',
+    ])
+  })
+
   test('merges exact editions deterministically while retaining conflicts and source choice', () => {
     const openLibrary = variant({
       provider: 'open-library',
@@ -177,6 +215,26 @@ describe('book metadata provider layer', () => {
     expect(saved.results[0]?.metadataSelection?.freshness).toBe('saved')
     expect(saved.providers.map(({ state }) => state)).toEqual(['saved'])
     expect(provider.calls).toBe(1)
+  })
+
+  test('batches ISBN metadata and stores an individual positive or negative cache result', async () => {
+    const cache = new MemoryMetadataCache()
+    const provider = new BatchStubProvider()
+    const service = new MetadataSearchService({
+      provider,
+      cache,
+      now: () => new Date(NOW),
+    })
+    const isbns = Array.from({ length: 41 }, (_, index) => createIsbn13(index + 1))
+
+    const live = await service.searchIsbns(isbns, 'en')
+    const saved = await service.searchIsbns(isbns, 'en')
+
+    expect(provider.isbnBatchSizes).toEqual([40, 1])
+    expect(live.results.size).toBe(41)
+    expect(live.provider.state).toBe('live')
+    expect(saved.results.size).toBe(41)
+    expect(saved.provider.state).toBe('saved')
   })
 
   test('returns stale saved metadata when the live provider is unavailable', async () => {
@@ -303,6 +361,40 @@ class StubProvider implements MetadataProvider {
   }
 }
 
+class BatchStubProvider implements MetadataProvider {
+  readonly id = 'open-library' as const
+  readonly name = 'Open Library'
+  readonly configured = true
+  readonly isbnBatchSizes: number[] = []
+
+  async search(): Promise<ProviderBookVariant[]> {
+    throw new Error('Individual search was not expected')
+  }
+
+  async searchIsbns(isbns: readonly string[]): Promise<ProviderBookVariant[]> {
+    this.isbnBatchSizes.push(isbns.length)
+    return isbns.slice(0, -1).map((isbn, index) => providerBookVariantSchema.parse({
+      id: `open-library:batch-${isbn}`,
+      provider: 'open-library',
+      providerName: 'Open Library',
+      externalKey: `OL${index}M`,
+      title: `Batch Book ${index}`,
+      workTitle: `Batch Book ${index}`,
+      authors: ['Batch Author'],
+      identifiers: [{
+        owner: 'edition',
+        scheme: 'isbn-13',
+        value: isbn,
+        normalizedValue: isbn,
+      }],
+      thumbnail: `https://covers.openlibrary.org/b/id/${index + 1}-M.jpg?default=false`,
+      confidence: 0.98,
+      providerRank: index,
+      observedAt: NOW,
+    }))
+  }
+}
+
 function variant(overrides: {
   provider: MetadataProviderId
   externalKey: string
@@ -359,4 +451,13 @@ function mockFetch(
     const value = response(new URL(String(input)))
     return value instanceof Response ? value : Response.json(value)
   }) as typeof globalThis.fetch
+}
+
+function createIsbn13(index: number): string {
+  const body = `978${String(index).padStart(9, '0')}`
+  const weighted = [...body].reduce(
+    (sum, digit, position) => sum + Number(digit) * (position % 2 === 0 ? 1 : 3),
+    0,
+  )
+  return `${body}${(10 - weighted % 10) % 10}`
 }

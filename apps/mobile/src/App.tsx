@@ -88,6 +88,7 @@ import { extractValidIsbn, listenForSharedFiles, listenForSharedIsbn } from './c
 import { enrichCapturedBook } from './capture'
 import { getMetadataSearchService } from './metadata'
 import {
+  GoodreadsCoverEnrichmentService,
   goodreadsCsvFromIncomingUrl,
   goodreadsCsvFromSharedFile,
   IncomingFileDeliveryGuard,
@@ -104,6 +105,7 @@ function App() {
     downloadLegacyRecovery,
     addBook,
     updateBook,
+    setThumbnailIfMissing,
     moveBook,
     setProgress,
     setCurrentPage,
@@ -184,6 +186,9 @@ function App() {
   const recoveryArchiveRef = useRef<string | undefined>(undefined)
   const shelfMotionSequenceRef = useRef(0)
   const incomingDeliveryGuardRef = useRef(new IncomingFileDeliveryGuard())
+  const coverEnrichmentRef = useRef<Promise<void> | undefined>(undefined)
+  const coverEnrichmentQueuedRef = useRef(false)
+  const booksSnapshotRef = useRef(books)
 
   const libraryViewModel = useLibraryViewModel({
     books,
@@ -213,6 +218,36 @@ function App() {
   const selectedSmartList = sheet?.kind === 'smart-list' && sheet.smartListId
     ? smartLists.find((list) => list.id === sheet.smartListId)
     : undefined
+
+  useEffect(() => {
+    booksSnapshotRef.current = books
+  }, [books])
+
+  const enrichGoodreadsCovers = useEffectEvent(() => {
+    if (coverEnrichmentRef.current) {
+      coverEnrichmentQueuedRef.current = true
+      return
+    }
+    const task = (async () => {
+      do {
+        coverEnrichmentQueuedRef.current = false
+        const metadata = await getMetadataSearchService()
+        await new GoodreadsCoverEnrichmentService(metadata).enrich(booksSnapshotRef.current, {
+          locale: navigator.language || 'en',
+          onCover: setThumbnailIfMissing,
+        })
+      } while (coverEnrichmentQueuedRef.current)
+    })().catch(() => {
+      // Cover enrichment is optional and resumes from cached/missing books on the next launch.
+    }).finally(() => {
+      coverEnrichmentRef.current = undefined
+    })
+    coverEnrichmentRef.current = task
+  })
+
+  useEffect(() => {
+    if (libraryHydrated) enrichGoodreadsCovers()
+  }, [libraryHydrated, books.length])
 
   useEffect(() => {
     let active = true
@@ -944,9 +979,12 @@ function App() {
       const changedRows = result.appliedRows - result.skippedRows
       const untouched = result.skippedRows + result.duplicateRows
       const remainder = result.excludedRows
+      const coverSuffix = importPreview.source.key === 'goodreads-csv' && result.appliedRows
+        ? ' · covers filling in quietly'
+        : ''
       setToast({
         message: result.appliedChanges
-          ? `Imported ${changedRows} ${migratedLabel} · ${untouched} unchanged · ${remainder} left for later`
+          ? `Imported ${changedRows} ${migratedLabel} · ${untouched} unchanged · ${remainder} left for later${coverSuffix}`
           : `Import checked · ${untouched} unchanged · ${remainder} left for later`,
         undo: result.appliedChanges ? () => { void undoImportBatch(result.batchId) } : undefined,
       })
