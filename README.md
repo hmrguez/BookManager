@@ -237,3 +237,12 @@ Official references:
 - [Capacitor documentation](https://capacitorjs.com/docs)
 - [Android: run apps on a hardware device](https://developer.android.com/studio/run/device)
 - [Apple: run apps on simulated or physical devices](https://developer.apple.com/documentation/xcode/running-your-app-on-simulated-or-physical-devices)
+
+## Marketing site
+
+The Astro landing page lives in `apps/landing` and integrates the three Track, Read,
+and Listen campaign infographics. Run `bun install` and `bun run dev` in that
+folder to open it at `http://127.0.0.1:4321`. See
+[`apps/landing/README.md`](apps/landing/README.md) for build and app-link configuration,
+and [`branding/marketing/README.md`](branding/marketing/README.md) for the Canva design,
+mobile screenshots, asset sources, and capture limitations.
