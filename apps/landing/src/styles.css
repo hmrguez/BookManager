@@ -600,3 +600,11 @@ img.library-screen {
   height: 22px;
   filter: brightness(0);
 }
+
+.hero-brand {
+  margin-bottom: 40px;
+}
+.hero-brand .brand {
+  width: fit-content;
+  font-size: 28px;
+}
