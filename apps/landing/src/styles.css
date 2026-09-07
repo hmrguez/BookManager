@@ -152,7 +152,7 @@ em {
 }
 .hero-art {
   width: 100%;
-  max-width: 390px;
+  max-width: 300px;
   justify-self: end;
   position: relative;
   margin: 0 8px 0 10px;
@@ -166,15 +166,16 @@ em {
   margin: 0 0 20px;
   color: #6f7667;
 }
-.campaign-frame {
+.screen-frame {
   padding: 10px;
   background: #e2e4d8;
   border: 1px solid #cbd0bf;
   box-shadow: 18px 20px 0 #eae9df;
-  transform: rotate(2deg);
+  border-radius: 22px;
 }
-.campaign-frame img {
+.screen-frame img {
   width: 100%;
+  border-radius: 12px;
 }
 .art-caption {
   display: flex;
@@ -223,12 +224,18 @@ em {
   order: 2;
 }
 .story-image {
-  padding: 18px;
+  width: 100%;
+  max-width: 340px;
+  justify-self: center;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: 12px;
   background: #e7e9df;
   display: block;
 }
 .story-image img {
   width: 100%;
+  border-radius: 12px;
   transition: transform 0.3s;
 }
 .story-image:hover img {
@@ -405,9 +412,9 @@ footer > a:last-child {
   }
   .hero-art {
     width: 100%;
-    max-width: 390px;
+    max-width: 300px;
     justify-self: end;
-    max-width: 360px;
+
     margin-inline: auto;
     padding-inline: 12px;
   }
@@ -444,7 +451,7 @@ footer > a:last-child {
     max-width: none;
   }
   .story-image {
-    max-width: 420px;
+    max-width: 340px;
     width: 100%;
     margin-inline: auto;
   }

@@ -1,8 +1,10 @@
 # Wovenleaf landing
 
 Astro landing page for the Capacitor app: a fast, simple book tracker, EPUB reader,
-and audiobook player. The three campaign panels are integrated as local assets,
-with full-size views linked from each feature section.
+and audiobook player. Marketing headings and feature descriptions are semantic HTML. Each feature
+section uses an original mobile screenshot, with a link to its full-size view.
+Screenshots in `public/screenshots` preserve their original proportions; the
+text-bearing campaign artwork is reserved for social media.
 
 ## Run
 
