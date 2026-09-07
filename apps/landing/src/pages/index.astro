@@ -110,6 +110,7 @@ const stories = [
           <span class="annotation">A quieter kind of all-in-one.</span>
           <div class="screen-frame">
             <img
+              class="library-screen"
               src="/screenshots/library.jpg"
               alt="Wovenleaf’s book tracker with four shelves, reading progress, ratings, and complete book covers."
               width="390"
@@ -144,6 +145,7 @@ const stories = [
               >
                 <>
                   <img
+                    class:list={{ 'library-screen': story.id === 'track' }}
                     src={`/screenshots/${story.image}`}
                     alt={story.alt}
                     width={story.width}

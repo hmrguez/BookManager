@@ -503,3 +503,10 @@ footer > a:last-child {
     animation: none !important;
   }
 }
+
+/* Trim the 14px web scrollbar gutter from the library capture. */
+img.library-screen {
+  aspect-ratio: 376 / 844;
+  object-fit: cover;
+  object-position: left;
+}
