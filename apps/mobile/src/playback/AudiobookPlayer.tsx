@@ -44,12 +44,20 @@ const skipPresets = [10_000, 15_000, 30_000, 45_000, 60_000] as const
 const sleepPresets = [10, 20, 30, 45, 60] as const
 const MAX_VOICE_NOTE_MS = 90_000
 
-export function AudiobookPlayer({ book }: { readonly book: LibraryBook }) {
+export type AudiobookPlayerPreview = {
+  readonly snapshot: PlaybackSnapshot
+  readonly context: AudiobookPlaybackContext
+  readonly preferences: AudiobookControlPreferenceState
+}
+
+export function AudiobookPlayer({ book, preview }: { readonly book: LibraryBook; readonly preview?: AudiobookPlayerPreview }) {
+  // Static capture data is accepted only by the development build.
+  const capture = import.meta.env.DEV ? preview : undefined
   const bookId = book.id
   const [service, setService] = useState<AudiobookPlaybackService>()
-  const [snapshot, setSnapshot] = useState<PlaybackSnapshot>()
-  const [context, setContext] = useState<AudiobookPlaybackContext>()
-  const [preferences, setPreferences] = useState<AudiobookControlPreferenceState>()
+  const [snapshot, setSnapshot] = useState<PlaybackSnapshot | undefined>(capture?.snapshot)
+  const [context, setContext] = useState<AudiobookPlaybackContext | undefined>(capture?.context)
+  const [preferences, setPreferences] = useState<AudiobookControlPreferenceState | undefined>(capture?.preferences)
   const [annotations, setAnnotations] = useState<readonly AudiobookAnnotation[]>([])
   const [seekUndo, setSeekUndo] = useState<PlaybackSeekUndo>()
   const [seekDraft, setSeekDraft] = useState<number>()
@@ -76,6 +84,7 @@ export function AudiobookPlayer({ book }: { readonly book: LibraryBook }) {
   }, [])
 
   useEffect(() => {
+    if (capture) return
     let disposed = false
     let unsubscribeSnapshot: (() => void) | undefined
     let unsubscribeSeek: (() => void) | undefined
@@ -112,7 +121,7 @@ export function AudiobookPlayer({ book }: { readonly book: LibraryBook }) {
       void playbackService?.flush().catch(() => undefined)
       cancelVoiceCapture()
     }
-  }, [bookId])
+  }, [bookId, capture])
 
   const refreshAnnotations = async (playback = service) => {
     if (!playback) return

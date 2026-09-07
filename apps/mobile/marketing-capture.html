@@ -27,6 +27,9 @@
       height="844"
     ></iframe>
     <script>
+      if (new URLSearchParams(location.search).has("player")) {
+        document.querySelector("iframe").src = "/__marketing-player";
+      }
       if (new URLSearchParams(location.search).has("landing")) {
         document.querySelector("iframe").src = "http://127.0.0.1:4321/";
         document.querySelector("iframe").title =

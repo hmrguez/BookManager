@@ -8,7 +8,10 @@ const isDevelopmentGallery = import.meta.env.DEV && window.location.pathname ===
 const isDevelopmentConflictInbox = import.meta.env.DEV && window.location.pathname === '/__conflicts'
 const isDevelopmentDuplicateReview = import.meta.env.DEV && window.location.pathname === '/__duplicates'
 
-if (isDevelopmentGallery) {
+if (import.meta.env.DEV && window.location.pathname === '/__marketing-player') {
+  const { MarketingPlayer } = await import('./marketing/MarketingPlayer')
+  root.render(<StrictMode><MarketingPlayer /></StrictMode>)
+} else if (isDevelopmentGallery) {
   const { ComponentGallery } = await import('./gallery/ComponentGallery')
   root.render(<StrictMode><ComponentGallery /></StrictMode>)
 } else if (isDevelopmentConflictInbox) {
