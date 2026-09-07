@@ -138,7 +138,11 @@ const stories = [
             >
               <a
                 class="story-image"
-                href={`/screenshots/${story.image}`}
+                href={
+                  story.id === 'track'
+                    ? '/screenshots/library/'
+                    : `/screenshots/${story.image}`
+                }
                 target="_blank"
                 rel="noopener"
                 aria-label={`View the ${story.id} app screenshot full size (opens in a new tab)`}
