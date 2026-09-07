@@ -15,7 +15,6 @@ import {
   Hash,
   Headphones,
   History,
-  ImagePlus,
   Library,
   Pin,
   Pencil,
@@ -28,7 +27,7 @@ import {
   WifiOff,
   X,
 } from 'lucide-react'
-import { BookCover, RatingStars, StatusBadge } from '../design-system'
+import { RatingStars, StatusBadge } from '../design-system'
 import { SHELVES, type LibraryBook, type ShelfId } from '../library'
 import type { CustomShelf } from '../organization-model'
 import {
@@ -46,7 +45,7 @@ import { applyManualBookEdits, inspectIsbnInput } from '../capture'
 import { FEATURES } from '../app/feature-flags'
 import type { EpubImportProgress, EpubImportResult } from '../epub'
 import type { AudiobookImportDraft, AudiobookImportProgress, AudiobookImportResult } from '../audiobooks'
-import { ManualCoverError, prepareManualCover } from '../covers/manual-cover'
+import { EditableBookCover } from './EditableBookCover'
 
 export type EpubAttachmentState = {
   readonly progress?: EpubImportProgress
@@ -541,61 +540,6 @@ function SimpleBookDetail({
           <ChevronRight aria-hidden="true" />
         </button>
       </section>
-    </div>
-  )
-}
-
-function EditableBookCover({
-  book,
-  onCover,
-}: {
-  readonly book: LibraryBook
-  readonly onCover: (thumbnail: string) => void
-}) {
-  const inputRef = useRef<HTMLInputElement>(null)
-  const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState<string>()
-
-  const chooseCover = async (file: File | undefined) => {
-    if (!file || busy) return
-    setBusy(true)
-    setMessage(undefined)
-    try {
-      onCover(await prepareManualCover(file))
-      setMessage('Cover saved on this device.')
-    } catch (error) {
-      setMessage(error instanceof ManualCoverError
-        ? error.message
-        : 'Wovenleaf could not save that cover. Try another image.')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <div className={tw('editable-book-cover')}>
-      <button
-        type="button"
-        disabled={busy}
-        aria-label={book.thumbnail ? `Change cover for ${book.title}` : `Add cover for ${book.title}`}
-        onClick={() => inputRef.current?.click()}
-      >
-        <BookCover book={book} large />
-        <span><ImagePlus aria-hidden="true" />{busy ? 'Preparing…' : book.thumbnail ? 'Change' : 'Add cover'}</span>
-      </button>
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        aria-hidden="true"
-        tabIndex={-1}
-        disabled={busy}
-        onChange={(event) => {
-          void chooseCover(event.currentTarget.files?.[0])
-          event.currentTarget.value = ''
-        }}
-      />
-      {message && <small role="status">{message}</small>}
     </div>
   )
 }
