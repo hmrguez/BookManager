@@ -9,6 +9,7 @@ import {
   type ReadingEvent,
   type ReadingPosition,
 } from '../domain/catalog'
+import { libraryBookSchema } from '../library-model'
 import { ReadingLedgerRepository } from '../storage/catalog-repository'
 import type { SqlDatabase, SqlRow } from '../storage/database'
 import { readNumber, readText } from '../storage/database'
@@ -43,6 +44,7 @@ type CapabilityRow = SqlRow & {
   readonly content_asset_id: string
   readonly content_hash: string
   readonly original_name: string
+  readonly book_payload: string | null
   readonly asset_payload: string
   readonly import_payload: string
 }
@@ -80,9 +82,11 @@ export class EpubReaderRepository {
   async capabilityForBook(bookId: string): Promise<EpubReaderCapability | undefined> {
     const [row] = await this.#database.query<CapabilityRow>(
       `SELECT i.book_id, i.edition_id, i.content_asset_id, i.content_hash, i.original_name,
-              a.payload_json AS asset_payload, i.payload_json AS import_payload
+              b.payload_json AS book_payload, a.payload_json AS asset_payload,
+              i.payload_json AS import_payload
        FROM epub_imports i
        JOIN assets a ON a.id = i.content_asset_id
+       LEFT JOIN library_books b ON b.id = i.book_id
        WHERE i.book_id = ?
        ORDER BY i.imported_at DESC, i.id DESC
        LIMIT 1`,
@@ -105,7 +109,9 @@ export class EpubReaderRepository {
       assetId: readText(row, 'content_asset_id'),
       assetFingerprint: readText(row, 'content_hash'),
       relativePath: payload.location.relativePath,
-      title: readText(row, 'original_name').replace(/\.epub$/i, ''),
+      title: row.book_payload === null
+        ? readText(row, 'original_name').replace(/\.epub$/i, '')
+        : libraryBookSchema.parse(JSON.parse(readText(row, 'book_payload'))).title,
       ...(compatibility.success ? { compatibility: compatibility.data } : {}),
     }
   }
