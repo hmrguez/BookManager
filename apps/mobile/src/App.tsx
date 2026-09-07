@@ -310,12 +310,17 @@ function App() {
   useEffect(() => {
     let disposed = false
     let disconnect: (() => Promise<void>) | undefined
+    let unsubscribeProgress: (() => void) | undefined
     let removeLifecycleListener: (() => Promise<void>) | undefined
     void getStorageRuntime().then(async (runtime) => {
+      if (disposed) return
+      unsubscribeProgress = runtime.playback.subscribeProgress(() => {
+        if (!disposed) void reload().catch(() => undefined)
+      })
       await runtime.playback.connect()
       disconnect = () => runtime.playback.disconnect()
-      const handle = await CapacitorApp.addListener('appStateChange', ({ isActive }) => {
-        if (!isActive) void runtime.playback.flush().catch(() => undefined)
+      const handle = await CapacitorApp.addListener('appStateChange', () => {
+        void runtime.playback.flush().catch(() => undefined)
       })
       removeLifecycleListener = () => handle.remove()
       if (disposed) {
@@ -327,10 +332,11 @@ function App() {
     })
     return () => {
       disposed = true
+      unsubscribeProgress?.()
       if (removeLifecycleListener) void removeLifecycleListener().catch(() => undefined)
       if (disconnect) void disconnect().catch(() => undefined)
     }
-  }, [])
+  }, [reload])
 
   const prepareAudiobookSources = async (
     loadSources: () => Promise<readonly AudiobookImportSource[]>,
@@ -1491,7 +1497,7 @@ function App() {
       )}
       {sheet?.kind === 'audiobook-player' && selectedBook && (
         <Sheet title="Audiobook player" onClose={closeSheet} tall>
-          <AudiobookPlayer key={selectedBook.id} bookId={selectedBook.id} />
+          <AudiobookPlayer key={selectedBook.id} book={selectedBook} />
         </Sheet>
       )}
       {sheet?.kind === 'custom-shelf' && (

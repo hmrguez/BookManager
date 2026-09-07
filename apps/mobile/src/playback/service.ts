@@ -50,6 +50,7 @@ export class AudiobookPlaybackService {
   readonly #controls: AudiobookControlsRepository
   readonly #plugin: WovenleafPlaybackPlugin
   readonly #listeners = new Set<(snapshot: PlaybackSnapshot) => void>()
+  readonly #progressListeners = new Set<() => void>()
   readonly #seekListeners = new Set<(seek: PlaybackSeekUndo | undefined) => void>()
   #snapshot?: PlaybackSnapshot
   #currentBookId?: string
@@ -83,6 +84,12 @@ export class AudiobookPlaybackService {
     this.#listeners.add(listener)
     if (this.#snapshot) listener(this.#snapshot)
     return () => this.#listeners.delete(listener)
+  }
+
+  /** Library consumers refresh only after progress has committed to storage. */
+  subscribeProgress(listener: () => void): () => void {
+    this.#progressListeners.add(listener)
+    return () => this.#progressListeners.delete(listener)
   }
 
   async connect(): Promise<PlaybackSnapshot> {
@@ -398,6 +405,7 @@ export class AudiobookPlaybackService {
       const availableIds = new Set(events.map(({ id }) => id))
       const ids = [...new Set(consumed ?? availableIds)].filter((id) => availableIds.has(id))
       if (!ids.length) return
+      this.#progressListeners.forEach((listener) => listener())
       await this.#plugin.acknowledgeJournal({ ids })
       if (ids.length < events.length) return
     }
@@ -491,7 +499,11 @@ export class AudiobookPlaybackService {
       absolutePositionMs: snapshot.absolutePositionMs,
       observedAt: snapshot.observedAt,
     })
-    return this.#runProgress(() => this.#progress.checkpointSnapshot(snapshot, force))
+    return this.#runProgress(async () => {
+      const result = await this.#progress.checkpointSnapshot(snapshot, force)
+      if (result === 'saved') this.#progressListeners.forEach((listener) => listener())
+      return result
+    })
   }
 }
 

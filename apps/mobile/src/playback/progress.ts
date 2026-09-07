@@ -158,6 +158,7 @@ export class AudiobookProgressRepository {
       const libraryProgress = new Map<string, {
         readonly fraction: number
         readonly observedAt: string
+        readonly startedAt: string
       }>()
       const consumed: string[] = []
 
@@ -195,6 +196,8 @@ export class AudiobookProgressRepository {
           checkpoint.intervalStartChapterId = event.chapterId
           checkpoint.intervalStartActiveDurationMs = event.activeDurationMs
         }
+        const hasListening = checkpoint.intervalStartedAt !== null || event.activeDurationMs > 0
+        const startedAt = checkpoint.intervalStartedAt ?? event.observedAt
 
         const positionEvent = playbackPositionEvent(
           event,
@@ -231,12 +234,13 @@ export class AudiobookProgressRepository {
           checkpoint.transportState,
           event.observedAt,
         ))
-        if (position.normalizedProgress !== undefined) {
+        if (hasListening && position.normalizedProgress !== undefined) {
           const current = libraryProgress.get(binding.bookId)
           if (!current || Date.parse(event.observedAt) >= Date.parse(current.observedAt)) {
             libraryProgress.set(binding.bookId, {
               fraction: position.normalizedProgress,
               observedAt: event.observedAt,
+              startedAt: current?.startedAt ?? startedAt,
             })
           }
         }
@@ -253,7 +257,7 @@ export class AudiobookProgressRepository {
         if (checkpoint) await saveCheckpoint(database, checkpoint)
       }
       for (const [bookId, progress] of libraryProgress) {
-        await updateLibraryProgress(database, bookId, progress.fraction, progress.observedAt)
+        await updateLibraryProgress(database, bookId, progress.fraction, progress.observedAt, progress.startedAt)
       }
       return consumed
     })
@@ -286,6 +290,10 @@ export class AudiobookProgressRepository {
 
       const recordedAt = this.#now().toISOString()
       const checkpoint = existing ?? checkpointFromSnapshot(snapshot, binding, recordedAt)
+      const hasListening = snapshot.state === 'playing'
+        || checkpoint.intervalStartedAt !== null
+        || snapshot.activeDurationMs > 0
+      const startedAt = checkpoint.intervalStartedAt ?? snapshot.observedAt
       const canonicalEvents: ReadingEvent[] = []
       if (
         checkpoint.intervalStartedAt !== null &&
@@ -310,8 +318,7 @@ export class AudiobookProgressRepository {
       checkpoint.observedAt = snapshot.observedAt
       checkpoint.recordedAt = recordedAt
 
-      if (canonicalEvents.length) {
-        const source = canonicalEvents[0]!
+      if (hasListening) {
         const position = audioPosition(
           snapshot.absolutePositionMs,
           binding.manifest,
@@ -319,18 +326,33 @@ export class AudiobookProgressRepository {
           snapshot.segmentId,
           snapshot.suppressionReason === 'process-recreated' ? 0.75 : 1,
         )
+        const source = canonicalEvents[0] ?? readingEventSchema.parse({
+          id: readingEventIdSchema.parse(`reading-event:audio:checkpoint:${safeId(snapshot.playbackSessionId!)}:${safeId(snapshot.engineEpoch)}:${snapshot.revision}`),
+          editionId: binding.editionId,
+          assetId: binding.assetId,
+          source: { kind: 'local', method: 'audio-player' },
+          deviceId: playbackDeviceId(snapshot.engineEpoch),
+          observedAt: snapshot.observedAt,
+          effectiveAt: snapshot.observedAt,
+          recordedAt,
+          timeConfidence: snapshot.suppressionReason === 'process-recreated' ? 0.75 : 1,
+          kind: 'location',
+          position,
+        })
+        if (!canonicalEvents.length && !await readingEventExists(database, source.id)) canonicalEvents.push(source)
         await appendReadingLedgerBatch(database, {
           events: canonicalEvents,
           snapshots: [progressSnapshot(binding, source, position, snapshot.state, snapshot.observedAt)],
         })
       }
       await saveCheckpoint(database, checkpoint)
-      if (binding.manifest.segments.at(-1)?.absoluteEndMs) {
+      if (hasListening && binding.manifest.segments.at(-1)?.absoluteEndMs) {
         await updateLibraryProgress(
           database,
           binding.bookId,
           snapshot.absolutePositionMs / binding.manifest.segments.at(-1)!.absoluteEndMs,
           snapshot.observedAt,
+          startedAt,
         )
       }
       return 'saved'
@@ -901,6 +923,7 @@ async function updateLibraryProgress(
   bookId: string,
   fraction: number,
   observedAt: string,
+  startedAt: string,
 ): Promise<void> {
   const [row] = await database.query('SELECT payload_json FROM library_books WHERE id = ? LIMIT 1', [bookId])
   if (!row) return
@@ -910,7 +933,7 @@ async function updateLibraryProgress(
     ...book,
     shelf: 'reading',
     progress: Math.max(0, Math.min(99, Math.round(fraction * 100))),
-    startedAt: book.startedAt ?? observedAt,
+    startedAt: book.startedAt ?? startedAt,
     lastUpdatedAt: observedAt,
   })
 }

@@ -12,6 +12,7 @@ import {
   type PlaybackSnapshot,
 } from '../src/playback/model'
 import { AudiobookPlaybackService } from '../src/playback/service'
+import { AudiobookProgressRepository } from '../src/playback/progress'
 import { migrateStorage } from '../src/storage/migrations'
 import { BunSqliteDatabase } from './storage-test-database'
 
@@ -209,6 +210,42 @@ function fakePlugin(initial = snapshot()): {
 }
 
 describe('native audiobook playback contract', () => {
+  test('notifies library consumers after durable checkpoints, skipping throttled and failed saves', async () => {
+    const database = new BunSqliteDatabase()
+    await migrateStorage(database)
+    const fake = fakePlugin()
+    let savedRevision = 0
+    let failSave = false
+    class ProgressRepository extends AudiobookProgressRepository {
+      override async checkpointSnapshot(candidate: PlaybackSnapshot) {
+        if (failSave) throw new Error('Storage unavailable')
+        await Promise.resolve()
+        savedRevision = candidate.revision
+        return 'saved' as const
+      }
+    }
+    const service = new AudiobookPlaybackService(database, {
+      plugin: fake.plugin, progressRepository: new ProgressRepository(database),
+    })
+    const notifications: number[] = []
+    const unsubscribe = service.subscribeProgress(() => notifications.push(savedRevision))
+    await service.connect()
+    expect(notifications).toEqual([1])
+    fake.emitSnapshot(snapshot({ revision: 2, absolutePositionMs: 2_000 }))
+    await Promise.resolve()
+    expect(notifications).toEqual([1])
+    await service.play()
+    expect(notifications).toEqual([1, 3])
+    failSave = true
+    await expect(service.flush()).rejects.toThrow('Storage unavailable')
+    expect(notifications).toEqual([1, 3])
+    failSave = false
+    unsubscribe()
+    await service.disconnect()
+    expect(notifications).toEqual([1, 3])
+    await database.close()
+  })
+
   test('rejects a queue when an opaque source capability does not match immutable evidence', () => {
     const request = {
       manifest: {
@@ -290,8 +327,11 @@ describe('native audiobook playback contract', () => {
       plugin: fake.plugin,
       journalConsumer: async () => ['event:one'],
     })
+    let notifications = 0
+    service.subscribeProgress(() => { notifications += 1 })
 
     await service.connect()
+    expect(notifications).toBe(1)
     expect(fake.acknowledged).toEqual(['event:one'])
     expect(fake.journal.map(({ id }) => id)).toEqual(['event:two'])
     await service.disconnect()

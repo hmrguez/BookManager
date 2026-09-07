@@ -24,6 +24,75 @@ const queueId = 'queue:audiobook-progress-test'
 const bookId = 'book:audiobook-progress-test'
 
 describe('audiobook progress and listening sessions', () => {
+  test('opening and configuring an unplayed audiobook keeps it on its original shelf', async () => {
+    const database = await progressDatabase()
+    const repository = new AudiobookProgressRepository(database)
+    await repository.checkpointSnapshot(playbackSnapshot({ state: 'paused', playIntent: false }), true)
+    await repository.ingestJournal([
+      playbackEvent('rate-change', 2, '2026-08-29T12:00:01.000Z', 0, 0, 1.5),
+      playbackEvent('seek', 3, '2026-08-29T12:00:02.000Z', 15_000, 0, 1.5, 0),
+    ])
+    const [book] = await new LibraryRepository(database).list()
+    expect(book).toMatchObject({ shelf: 'tbr', progress: 0 })
+    expect(book?.startedAt).toBeUndefined()
+    await database.close()
+  })
+
+  test('play at zero starts reading and checkpoints update library and canonical progress before pause', async () => {
+    const database = await progressDatabase()
+    const repository = new AudiobookProgressRepository(database)
+    const startedAt = '2026-08-29T12:00:00.000Z'
+    await repository.ingestJournal([playbackEvent('play', 1, startedAt, 0, 0, 1)])
+    expect((await new LibraryRepository(database).list())[0]).toMatchObject({
+      shelf: 'reading', progress: 0, startedAt,
+    })
+
+    const current = playbackSnapshot({
+      playbackSessionId: 'session:listening', revision: 2,
+      absolutePositionMs: durationMs / 4, activeDurationMs: 30_000,
+      observedAt: '2026-08-29T12:00:30.000Z',
+    })
+    await repository.checkpointSnapshot(current)
+    expect((await new LibraryRepository(database).list())[0]).toMatchObject({
+      shelf: 'reading', progress: 25, startedAt,
+    })
+    const ledger = await new ReadingLedgerRepository(database).read()
+    const catalog = await new CatalogRepository(database).read()
+    expect(catalog.progressSnapshots.find(({ id }) => id === `progress:audio:${fixtureIds.assets.leftHandM4b}`)).toMatchObject({
+      status: 'reading', normalizedProgress: 0.25,
+      position: { locator: { kind: 'audio-time', positionMs: durationMs / 4 } },
+    })
+    expect(await new AudiobookProgressRepository(database).resolvePositionForBook(bookId)).toMatchObject({
+      status: 'resolved', positionMs: durationMs / 4,
+    })
+    await repository.checkpointSnapshot(current, true)
+    expect((await new ReadingLedgerRepository(database).read()).events).toHaveLength(ledger.events.length)
+
+    await repository.ingestJournal([
+      playbackEvent('seek', 3, '2026-08-29T12:00:31.000Z', durationMs / 10, 30_000, 1, durationMs / 4),
+      playbackEvent('pause', 4, '2026-08-29T12:00:32.000Z', durationMs / 10, 30_000, 1),
+    ])
+    expect((await new LibraryRepository(database).list())[0]).toMatchObject({
+      shelf: 'reading', progress: 10, startedAt,
+    })
+    const pausedLedger = await new ReadingLedgerRepository(database).read()
+    expect(pausedLedger.events.find(({ kind }) => kind === 'session')).toMatchObject({ activeDurationMs: 30_000 })
+    await database.close()
+  })
+
+  test('recovered playback leaves explicitly finished books finished', async () => {
+    const database = await progressDatabase()
+    const library = new LibraryRepository(database)
+    const book = (await library.list())[0]!
+    await library.save({ ...book, shelf: 'finished', progress: 100, finishedAt: book.lastUpdatedAt })
+    await new AudiobookProgressRepository(database).checkpointSnapshot(playbackSnapshot({
+      state: 'paused', playIntent: false, activeDurationMs: 20_000,
+      absolutePositionMs: durationMs / 2, suppressionReason: 'process-recreated',
+    }), true)
+    expect((await library.list())[0]).toMatchObject({ shelf: 'finished', progress: 100 })
+    await database.close()
+  })
+
   test('uses active wall time for sessions while seeks and speed affect only media progress', async () => {
     const database = await progressDatabase()
     const repository = new AudiobookProgressRepository(database, {
@@ -56,7 +125,7 @@ describe('audiobook progress and listening sessions', () => {
       id: bookId,
       shelf: 'reading',
       progress: 1,
-      startedAt: '2026-08-29T10:01:00.000Z',
+      startedAt: '2026-08-29T10:00:00.000Z',
     })
 
     const beforeReplay = ledger.events.length

@@ -14,6 +14,14 @@ native active-time delta, and the media positions at both boundaries. Playback s
 progress but never multiplies listening time. A seek or rewind is a discontinuity: its destination
 becomes the new progress position, but the distance jumped never becomes listened minutes.
 
+Loading the player or adjusting controls before the first play leaves the book on its current
+shelf. Starting playback moves it to Reading, records its start time, and changes the book action
+to Continue even while the displayed percentage still rounds to zero. Committed journal events
+and checkpoints refresh the library; ordinary listening checkpoints also update the canonical
+progress snapshot. Closing the player saves the latest position without stopping playback, and
+app state changes reconcile progress from background listening. Explicitly finished books stay
+finished, matching the EPUB reader's completion behavior.
+
 ## Durability and lifecycle
 
 The native player checkpoints its absolute position, chapter, segment, rate, and monotonic active

@@ -24,6 +24,8 @@ import {
   Trash2,
 } from 'lucide-react'
 import { downloadTextFile } from '../app/download'
+import { BookCover } from '../design-system/components'
+import type { LibraryBook } from '../library-model'
 import { getStorageRuntime } from '../storage/runtime'
 import { tw } from '../tailwind/styles'
 import type { AudiobookPlaybackService } from './service'
@@ -42,7 +44,8 @@ const skipPresets = [10_000, 15_000, 30_000, 45_000, 60_000] as const
 const sleepPresets = [10, 20, 30, 45, 60] as const
 const MAX_VOICE_NOTE_MS = 90_000
 
-export function AudiobookPlayer({ bookId }: { readonly bookId: string }) {
+export function AudiobookPlayer({ book }: { readonly book: LibraryBook }) {
+  const bookId = book.id
   const [service, setService] = useState<AudiobookPlaybackService>()
   const [snapshot, setSnapshot] = useState<PlaybackSnapshot>()
   const [context, setContext] = useState<AudiobookPlaybackContext>()
@@ -76,8 +79,10 @@ export function AudiobookPlayer({ bookId }: { readonly bookId: string }) {
     let disposed = false
     let unsubscribeSnapshot: (() => void) | undefined
     let unsubscribeSeek: (() => void) | undefined
+    let playbackService: AudiobookPlaybackService | undefined
     void getStorageRuntime().then(async (runtime) => {
       const playback = runtime.playback
+      playbackService = playback
       const bookContext = await playback.contextForBook(bookId)
       if (!bookContext) throw new Error('No playable audiobook is attached to this book.')
       await playback.connect()
@@ -104,6 +109,7 @@ export function AudiobookPlayer({ bookId }: { readonly bookId: string }) {
       disposed = true
       unsubscribeSnapshot?.()
       unsubscribeSeek?.()
+      void playbackService?.flush().catch(() => undefined)
       cancelVoiceCapture()
     }
   }, [bookId])
@@ -312,6 +318,9 @@ export function AudiobookPlayer({ bookId }: { readonly bookId: string }) {
   return (
     <div className={tw('audiobook-player')} aria-busy={busy}>
       <header className={tw('audiobook-player__identity')}>
+        <div className={tw('audiobook-player__cover')}>
+          <BookCover book={book} large />
+        </div>
         <span>Now listening</span>
         <h3>{context.title}</h3>
         <p>{context.authors.join(', ') || context.narrators.join(', ') || 'Local audiobook'}</p>
@@ -338,6 +347,7 @@ export function AudiobookPlayer({ bookId }: { readonly bookId: string }) {
         />
         <div className={tw('audiobook-player__times')}>
           <strong>{formatAudioTime(position)}</strong>
+          <span>{Math.min(100, Math.round(position / Math.max(1, snapshot.durationMs) * 100))}% complete</span>
           <span>−{formatAudioTime(Math.max(0, snapshot.durationMs - position))}</span>
         </div>
       </section>

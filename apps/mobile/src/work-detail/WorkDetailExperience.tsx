@@ -402,7 +402,7 @@ function SimpleBookDetail({
           <h3>{book.title}</h3>
           <p>{book.authors.join(', ') || 'Unknown author'}</p>
           <div className={tw('work-detail__work-state')}>
-            <strong>{book.progress > 0 ? `${book.progress}% complete` : book.format ?? 'No file attached'}</strong>
+            <strong>{book.startedAt || book.progress > 0 ? `${book.progress}% complete` : book.format ?? 'No file attached'}</strong>
           </div>
         </div>
       </header>
@@ -471,7 +471,7 @@ function SimpleBookDetail({
         {hasReadableFile && (
           <button type="button" className={tw('is-primary')} onClick={onRead}>
             {book.format?.toLocaleUpperCase() === 'AUDIOBOOK' ? <Headphones aria-hidden="true" /> : <BookOpen aria-hidden="true" />}
-            {book.progress > 0 ? 'Continue' : 'Start'}
+            {book.startedAt || book.progress > 0 ? 'Continue' : 'Start'}
           </button>
         )}
         <button type="button" onClick={onProgress}><Clock3 aria-hidden="true" /> Update progress</button>
@@ -792,10 +792,10 @@ function ReadingPanel({
         </div>
         <div className={tw("reading-overview__actions")}>
           {book.format?.toLocaleUpperCase() === 'EPUB' && (
-            <button type="button" onClick={onRead}><BookOpen aria-hidden="true" />{book.progress > 0 ? 'Continue reading' : 'Start reading'}</button>
+            <button type="button" onClick={onRead}><BookOpen aria-hidden="true" />{book.startedAt || book.progress > 0 ? 'Continue reading' : 'Start reading'}</button>
           )}
           {book.format?.toLocaleUpperCase() === 'AUDIOBOOK' && (
-            <button type="button" onClick={onRead}><Headphones aria-hidden="true" />{book.progress > 0 ? 'Continue listening' : 'Start listening'}</button>
+            <button type="button" onClick={onRead}><Headphones aria-hidden="true" />{book.startedAt || book.progress > 0 ? 'Continue listening' : 'Start listening'}</button>
           )}
           <button type="button" onClick={onProgress} disabled={book.shelf === 'finished'}>Update progress</button>
           {book.shelf !== 'finished' && <button type="button" onClick={onFinish}><BookCheck aria-hidden="true" /> Mark finished</button>}
