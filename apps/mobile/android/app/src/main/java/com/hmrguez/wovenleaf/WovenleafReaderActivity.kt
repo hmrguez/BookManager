@@ -26,7 +26,6 @@ import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.VelocityTracker
-import android.view.WindowManager
 import android.view.Choreographer
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
@@ -127,7 +126,6 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
     override fun onCreate(savedInstanceState: Bundle?) {
         supportFragmentManager.fragmentFactory = EpubNavigatorFragment.createDummyFactory()
         super.onCreate(savedInstanceState)
-        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         readerContext = readContext() ?: run {
             finish()

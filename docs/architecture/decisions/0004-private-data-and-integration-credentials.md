@@ -101,7 +101,7 @@ when it can disclose Secret or broad Private data without another rare failure.
 | R4 | Disconnect leaves a reusable token locally or remotely; rotation deletes the only usable credential before replacement is committed | High | Adapter author | Rotation stores/tests replacement, switches metadata, revokes old remote token, then removes old vault item; disconnect stops jobs, revokes remotely when supported, deletes locally, and retains only non-secret provenance |
 | R5 | Malicious deep link or browser page injects a credential, commands a write, replays a handoff, or exfiltrates private state through an error URL | High | QUI-54/QUI-56 owners | Only `wovenleaf://handoff`; exact allowlist of `request` and high-entropy one-time `nonce`; no token/payload/command; expiry, replay cache, user confirmation, and origin/tab binding before extension delivery |
 | R6 | Provider, extension, or future cloud transport can read/write data beyond the user's selected feature | High | Adapter/transport owner | Data minimization, per-operation capability checks, TLS, explicit preview for writes, checkpoint/reconciliation journal, no silent canonical deletion, and documented provider retention/revocation behavior |
-| R7 | Lock screen, task switcher, screenshot, recording, notification, or clipboard reveals library/notes/credentials | High | Native shell and feature UI owners | Opaque task-switcher shield; Android `FLAG_SECURE`; no secret reveal UI; no private notification text; clipboard is opt-in and secrets are forbidden; iOS screenshot limitation is disclosed below |
+| R7 | Lock screen, task switcher, screenshot, recording, notification, or clipboard reveals library/notes/credentials | High | Native shell and feature UI owners | iOS task-switcher shield; user-controlled Android screenshots and recordings; no secret reveal UI; no private notification text; clipboard is opt-in and secrets are forbidden; screen-capture behavior is disclosed below |
 | R8 | Imported filenames, EPUB/OPDS content, archive paths, or provider payloads escape their sandbox or trigger parser/resource exhaustion | High | Import/reader/backup owners | Schema and size limits, normalized paths, no unrestricted absolute paths, no executable content, bounded decompression, isolated parsers, and adversarial fixtures before accepting each format |
 | R9 | User assumes local-first means encrypted against someone using their unlocked device | Medium | Product/privacy owner | State the device-lock assumption plainly; optional app lock/database encryption requires a separate reviewed design; provide whole-library erasure and credential disconnect |
 | R10 | Dependency or release-pipeline compromise captures credentials at runtime | Medium | Supply-chain/release owner; QUI-82 | Lock dependencies, minimize native plugins, audit updates, protect signing keys, and never send credentials to build/analytics services |
@@ -185,9 +185,11 @@ Share-safe export remains opt-in and follows the per-event rules in ADR 0003.
 
 - The app shows an opaque Wovenleaf shield whenever iOS leaves the active foreground, keeping private
   content out of task-switcher and lock-screen snapshots.
-- Android treats the current entire app window as sensitive and sets `FLAG_SECURE`, which blocks
-  screenshots, recordings, Recents previews, and non-secure displays. Route-scoped relaxation needs a
-  later privacy review; it must never include notes, account/library-card, credential, or export-key UI.
+- Android allows user-initiated screenshots and screen recordings in both the main app and native
+  EPUB reader. Neither activity sets `FLAG_SECURE`; Android may also show the visible content in
+  Recents and on external displays. This replaces the original blanket capture restriction following
+  the product decision on 2026-09-07. Credential masking and the no-stored-token-display rule below
+  still apply.
 - iOS provides no supported guarantee that prevents a user-initiated screenshot. Wovenleaf shields
   background snapshots and must react to active capture for future high-sensitivity screens, but does
   not claim that visible content cannot be photographed or captured on a compromised device.
@@ -256,7 +258,8 @@ The current tests prove that:
 - adversarial token, PIN, password, library-card, and reading-note fixtures do not survive any
   diagnostic channel;
 - credential-bearing or over-broad handoff URLs are rejected;
-- Android backup/transfer, file sharing, deep-link, and screenshot configuration remain constrained;
+- Android backup/transfer, file sharing, and deep-link configuration remain constrained;
+- Android main and reader activities allow screenshots without `FLAG_SECURE`;
 - iOS retains the task-switcher shield and automatic-backup exclusion.
 
 QUI-17 must apply the same classification to SQLite and verify OS data-protection behavior on real

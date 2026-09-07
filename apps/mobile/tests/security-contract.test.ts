@@ -184,7 +184,7 @@ describe('diagnostic and handoff boundaries', () => {
 })
 
 describe('native privacy configuration', () => {
-  test('disables Android backup, limits deep links and sharing, and protects capture', async () => {
+  test('disables Android backup, limits deep links and sharing, and allows screenshots', async () => {
     const manifest = await Bun.file(
       new URL('../android/app/src/main/AndroidManifest.xml', import.meta.url),
     ).text()
@@ -205,7 +205,14 @@ describe('native privacy configuration', () => {
     expect(manifest).toContain('android:host="handoff"')
     expect(manifest).toContain('android:mimeType="text/csv"')
     expect(manifest).toContain('android:mimeType="application/csv"')
-    expect(activity).toContain('WindowManager.LayoutParams.FLAG_SECURE')
+    const readerActivity = await Bun.file(
+      new URL(
+        '../android/app/src/main/java/com/hmrguez/wovenleaf/WovenleafReaderActivity.kt',
+        import.meta.url,
+      ),
+    ).text()
+    expect(activity).not.toContain('FLAG_SECURE')
+    expect(readerActivity).not.toContain('FLAG_SECURE')
     expect(filePaths).toContain('path="shared-exports/"')
     expect(filePaths).not.toContain('<external-path')
     expect(extractionRules).toContain('<cloud-backup>')
