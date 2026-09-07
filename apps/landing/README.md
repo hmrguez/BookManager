@@ -13,8 +13,7 @@ bun install
 bun run dev
 ```
 
-The landing page runs at `http://127.0.0.1:4321`. Start the mobile web app separately
-with `cd ../mobile && bun run dev --host 127.0.0.1` to use the development CTA.
+The landing page runs at `http://127.0.0.1:4321`. Wovenleaf is a mobile app; the landing page does not link to a web app.
 
 ## Check and build
 
@@ -24,10 +23,10 @@ bun run typecheck
 bun run build
 ```
 
-Output is static HTML and assets in `dist`. Production links default to the feature
-section until a real app destination is supplied. Set `PUBLIC_APP_URL` at build time
-to the approved app/download URL. No invented store links, signups, analytics, or
-remote image requests are included.
+Output is static HTML and assets in `dist`. App Store and Google Play buttons are labelled “Coming soon” and temporarily link
+to the store home pages. Set `PUBLIC_APP_STORE_URL` and `PUBLIC_GOOGLE_PLAY_URL`
+at build time to the published listings, then update the coming-soon labels when
+the app launches. No invented app listing IDs are used.
 
 ## Campaign
 

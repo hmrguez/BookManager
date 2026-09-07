@@ -3,14 +3,7 @@ import playerImage from '../../../../branding/marketing/screenshots/03-audiobook
 import '@fontsource-variable/literata';
 import '@fontsource-variable/ibm-plex-sans';
 import '../styles.css';
-const configuredAppUrl = import.meta.env.PUBLIC_APP_URL;
-const appUrl =
-  configuredAppUrl ||
-  (import.meta.env.DEV ? 'http://localhost:5173/' : '#track');
-const actionLabel =
-  configuredAppUrl || import.meta.env.DEV
-    ? 'Open Wovenleaf'
-    : 'Explore Wovenleaf';
+import StoreLinks from '../components/StoreLinks.astro';
 const stories = [
   {
     id: 'track',
@@ -87,9 +80,7 @@ const stories = [
           >Listen</a
         >
       </nav>
-      <a class="nav-cta" href={appUrl}
-        >{actionLabel} <span aria-hidden="true">↗</span></a
-      >
+      <StoreLinks compact />
     </header>
     <main id="main">
       <section class="hero wrap">
@@ -102,9 +93,7 @@ const stories = [
             A fast, simple book tracker, EPUB reader, and audiobook player.
             Together, at last.
           </p>
-          <a class="button" href={appUrl}
-            >Make room for a good book <span aria-hidden="true">↗</span></a
-          >
+          <StoreLinks />
           <p class="small-note">Made for iOS and Android. No account needed.</p>
         </div>
         <div class="hero-art">
@@ -202,9 +191,7 @@ const stories = [
           A book tracker.<br />A reader. A player.<br /><em
             >A simpler reading life.</em
           >
-        </h2><a class="button" href={appUrl}
-          >{actionLabel} <span aria-hidden="true">↗</span></a
-        >
+        </h2><StoreLinks />
       </section>
     </main>
     <footer class="wrap">

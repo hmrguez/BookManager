@@ -1,0 +1,40 @@
+---
+const { compact = false } = Astro.props;
+const stores = [
+  {
+    name: 'App Store',
+    url: import.meta.env.PUBLIC_APP_STORE_URL || 'https://apps.apple.com/',
+  },
+  {
+    name: 'Google Play',
+    url:
+      import.meta.env.PUBLIC_GOOGLE_PLAY_URL ||
+      'https://play.google.com/store/apps',
+  },
+];
+---
+
+<div
+  class:list={['store-links', { compact }]}
+  aria-label="Coming soon on iOS and Android"
+>
+  {
+    stores.map((store) => (
+      <a
+        class="store-link"
+        href={store.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={`Wovenleaf is coming soon to ${store.name} (opens store in a new tab)`}
+      >
+        <span class="store-link-copy">
+          <>
+            <small>Coming soon to</small>
+            <strong>{store.name}</strong>
+          </>
+        </span>
+        <span aria-hidden="true">↗</span>
+      </a>
+    ))
+  }
+</div>
