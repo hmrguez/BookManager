@@ -31,6 +31,7 @@ canonical checkpoint, session-duration, seek, speed, and provenance behavior add
 
 | Scenario | Stimulus | Required result | iOS | Android |
 | --- | --- | --- | --- | --- |
+| Large local import | Attach an MP3 larger than 512 MiB, then repeat with an M4B and a shared local file | Copy completes without a file-sized bridge string; stored byte size and SHA-256 match the original; cover, chapters, play/pause, seek, and saved position work through the existing player | ☐ | ☐ |
 | M4B endurance | Play locked/backgrounded for one hour at 1× and again at 2× | No stop or stall; position, active time, battery, thermal state, and system surface remain coherent | ☐ | ☐ |
 | MP3 endurance | Play the 30-or-more-segment fixture locked/backgrounded for one hour at 1× and again at 2× | File transitions remain monotonic and journaled once; no queue loss or runaway resource use | ☐ | ☐ |
 | Lock/background | Lock the device, then leave it locked for two checkpoint intervals | Audio and system controls continue; queue, rate, artwork privacy, and position remain coherent | ☐ | ☐ |
@@ -69,3 +70,36 @@ at-least-once journal acknowledgement, checkpoint throttling, process-loss recon
 buffering exclusion, seek/speed semantics, and stale external-progress precedence. The physical
 matrix remains mandatory before release because CI cannot faithfully generate calls, alarms, route
 loss, or OS process termination.
+
+## Large-file import regression
+
+Native audiobook writes transfer at most 1 MiB of binary data per call. Each independently encoded
+chunk is decoded and appended to the same temporary file; only a complete size-checked file is
+renamed into managed storage. Failed or canceled transfers remove the partial copy before catalog
+records are committed. Web imports retain Blob storage. Shared native files use bounded reads, and
+fingerprinting avoids an additional full-file JavaScript buffer copy.
+
+The managed paths, original audio bytes, SHA-256 fingerprints, playback capabilities, manifest,
+and catalog schema are unchanged. Existing imports, revisions, and listening progress therefore
+use the same playback resolution and validation paths. Inspection still holds the original bytes
+in memory; bounded transfers do not remove the WebView's memory limits for inspecting very large
+files or selections.
+
+`audiobook-file-transfer.test.ts` checks binary fidelity across padded chunk boundaries, web Blob
+storage, cancellation, partial-write cleanup, truncation detection, duplicate copies, shared-file
+reads, and hashing an offset view. `audiobook-import.test.ts` also checks that chunked MP3 audio and
+covers produce the expected catalog records, chapters, fingerprints, and playback capabilities.
+
+Embedded cover MIME types are identified from the image bytes during inspection. Playback also
+accepts the legacy `image/jpg` alias as `image/jpeg`, so existing imports remain playable without
+another copy. Unsupported optional artwork is omitted before queue validation and cannot block
+otherwise valid audio.
+
+Device check on 2026-09-07: Pixel 9, Android 17, debug build. A 865,096,461-byte MP3
+completed the normal attachment flow. Original and managed-file SHA-256 both matched
+`749630a5bb1a2de44d495696b6a489d17160e8d69ff4722c2743cb253fd599e1`.
+The existing Media3 player loaded the 43,183,416 ms timeline with the legacy JPEG cover,
+played, skipped forward 30 seconds, paused, and resumed without errors. After a full process
+restart it restored paused at 36,025 ms, within 109 ms of the last paused snapshot. The player
+was then returned to the beginning. This check does not mark the broader endurance matrix or
+physical iOS/M4B/shared-file checks complete.

@@ -1,7 +1,9 @@
 import { AudiobookImportError } from './model'
 
 export async function sha256(bytes: Uint8Array): Promise<string> {
-  const input = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+  const input = bytes.buffer instanceof ArrayBuffer
+    ? new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+    : new Uint8Array(bytes)
   const digest = await crypto.subtle.digest('SHA-256', input)
   return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, '0')).join('')
 }
@@ -144,11 +146,15 @@ export function mimeTypeForImage(bytes: Uint8Array, fallback = ''): string | und
   if (readAscii(bytes, 0, 8) === '\u0089PNG\r\n\u001a\n') return 'image/png'
   if (readAscii(bytes, 0, 6) === 'GIF87a' || readAscii(bytes, 0, 6) === 'GIF89a') return 'image/gif'
   if (readAscii(bytes, 0, 4) === 'RIFF' && readAscii(bytes, 8, 4) === 'WEBP') return 'image/webp'
-  const fallbackType = fallback.split(';', 1)[0].toLocaleLowerCase()
-  if (['image/avif', 'image/gif', 'image/jpeg', 'image/png', 'image/webp'].includes(fallbackType)) {
-    return fallbackType
-  }
-  return undefined
+  return normalizeImageMediaType(fallback)
+}
+
+export function normalizeImageMediaType(value: string): string | undefined {
+  const mediaType = value.split(';', 1)[0].trim().toLocaleLowerCase()
+  if (mediaType === 'image/jpg') return 'image/jpeg'
+  return ['image/avif', 'image/gif', 'image/jpeg', 'image/png', 'image/webp'].includes(mediaType)
+    ? mediaType
+    : undefined
 }
 
 export function parsePositiveInteger(value: string | undefined): number | undefined {

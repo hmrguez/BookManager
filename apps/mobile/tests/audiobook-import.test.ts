@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   AudiobookImportError,
   AudiobookImportService,
+  CapacitorManagedAudiobookStore,
   MemoryManagedAudiobookStore,
   defaultAudiobookReview,
   inspectAudiobook,
@@ -22,6 +23,8 @@ import { migrateStorage } from '../src/storage/migrations'
 import { readLibraryBooks, writeLibraryBook } from '../src/storage/library-repository'
 import { PortableArchiveService } from '../src/storage/portable-archive'
 import { BunSqliteDatabase } from './storage-test-database'
+import { AudiobookTestFilesystem } from './fixtures/audiobook-filesystem'
+import { AudiobookPlaybackRepository } from '../src/playback/repository'
 
 describe('audiobook inspection and normalization', () => {
   test('uses track evidence to make one deterministic absolute MP3 timeline', async () => {
@@ -69,6 +72,11 @@ describe('audiobook inspection and normalization', () => {
       orderConfirmed: true,
     })
     expect(normalized.segments.map(({ fileName }) => fileName)).toEqual(['finale.mp3', 'alpha.mp3'])
+  })
+
+  test.each(['image/jpg', 'image/png', 'image/unknown'])('recognizes JPEG cover bytes despite the embedded %s label', async (coverMediaType) => {
+    const draft = await inspectAudiobook([mp3Source('cover.mp3', { cover: true, coverMediaType })])
+    expect(draft.cover?.mediaType).toBe('image/jpeg')
   })
 
   test('reads M4B metadata, cover, duration, and embedded chapters from container atoms', async () => {
@@ -121,6 +129,54 @@ describe('audiobook inspection and normalization', () => {
 })
 
 describe('managed audiobook import', () => {
+
+  test('catalogs chunked MP3 files and covers with the original playback capabilities and fingerprints', async () => {
+    const database = new BunSqliteDatabase()
+    await migrateStorage(database)
+    const filesystem = new AudiobookTestFilesystem()
+    const service = new AudiobookImportService(database, {
+      managedStore: new CapacitorManagedAudiobookStore({ filesystem, platform: 'android' }),
+    })
+    const sources = [
+      mp3Source('01.mp3', { track: 1, frames: 6_000, cover: true, coverMediaType: 'image/jpg' }),
+      mp3Source('02.mp3', { track: 2, frames: 6_000 }),
+    ]
+    const draft = await service.prepare(sources)
+    const result = await service.import(sources, defaultAudiobookReview(draft))
+    const files = await database.query<{
+      relative_path: string; capability_id: string; fingerprint: string; byte_size: number
+    }>('SELECT relative_path, capability_id, fingerprint, byte_size FROM audiobook_files ORDER BY position')
+
+    expect(files).toHaveLength(2)
+    for (const [index, file] of files.entries()) {
+      expect(filesystem.bytes(file.relative_path)).toEqual(sources[index]!.bytes)
+      expect(file.byte_size).toBe(sources[index]!.bytes.length)
+      expect(result.manifest.segments[index]).toMatchObject({
+        playableCapability: file.capability_id,
+        fingerprint: file.fingerprint,
+        durationMs: draft.segments[index]!.durationMs,
+      })
+    }
+    expect([...filesystem.files.keys()].filter((path) => path.startsWith('assets/covers/'))).toHaveLength(1)
+    expect(result.manifest.chapters.map(({ title }) => title)).toEqual(['Opening', 'Part one'])
+    expect(draft.cover?.mediaType).toBe('image/jpeg')
+    const playback = new AudiobookPlaybackRepository(database, { filesystem })
+    const queue = await playback.queueForBook(result.bookId)
+    expect(queue?.manifest).toMatchObject({ assetId: result.assetId, chapters: result.manifest.chapters })
+    expect(queue?.sources.map(({ byteSize }) => byteSize)).toEqual(sources.map(({ bytes }) => bytes.length))
+    expect(queue?.artwork?.mediaType).toBe('image/jpeg')
+
+    // Earlier imports retained the nonstandard ID3 MIME type. They must also play
+    // without forcing the reader to re-import the original large audio file.
+    await database.run("UPDATE assets SET payload_json = json_set(payload_json, '$.mediaType', ?) WHERE role = 'cover'", ['image/jpg'])
+    expect((await playback.queueForBook(result.bookId))?.artwork?.mediaType).toBe('image/jpeg')
+    await database.run("UPDATE assets SET payload_json = json_set(payload_json, '$.mediaType', ?) WHERE role = 'cover'", ['image/unsupported'])
+    const withoutArtwork = await playback.queueForBook(result.bookId)
+    expect(withoutArtwork?.artwork).toBeUndefined()
+    expect(withoutArtwork?.sources).toEqual(queue?.sources)
+    expect(await service.import(sources, defaultAudiobookReview(draft))).toMatchObject({ outcome: 'duplicate', assetId: result.assetId })
+    await database.close()
+  })
 
   test.each([
     { existing: undefined, overwrite: false, cover: true },
@@ -339,6 +395,7 @@ type Mp3Options = {
   readonly track?: number
   readonly frames?: number
   readonly cover?: boolean
+  readonly coverMediaType?: string
 }
 
 function mp3Source(path: string, options: Mp3Options = {}): AudiobookImportSource {
@@ -355,7 +412,7 @@ function mp3Source(path: string, options: Mp3Options = {}): AudiobookImportSourc
   if (options.cover) {
     frames.push(id3Frame('APIC', concat(
       Uint8Array.from([3]),
-      new TextEncoder().encode('image/jpeg'),
+      new TextEncoder().encode(options.coverMediaType ?? 'image/jpeg'),
       Uint8Array.from([0, 3, 0, 0xff, 0xd8, 0xff, 0xd9]),
     )))
     frames.push(chapterFrame('Opening', 0, 500))

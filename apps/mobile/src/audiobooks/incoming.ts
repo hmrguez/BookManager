@@ -1,5 +1,7 @@
+import { Capacitor } from '@capacitor/core'
 import { Filesystem } from '@capacitor/filesystem'
 import { extension, safeRelativePath } from './binary'
+import { base64ToBytes, readNativeAudiobookFile } from './file-transfer'
 import { AUDIOBOOK_IMPORT_LIMITS } from './inspect'
 import { AudiobookImportError, type AudiobookImportSource } from './model'
 
@@ -41,13 +43,19 @@ export async function audiobookSourceFromIncomingUrl(url: string): Promise<Audio
     )
   }
   try {
-    const result = await Filesystem.readFile({ path: url })
-    const bytes = result.data instanceof Blob
-      ? new Uint8Array(await result.data.arrayBuffer())
-      : base64ToBytes(result.data)
+    let bytes: Uint8Array
+    if (Capacitor.isNativePlatform()) {
+      bytes = await readNativeAudiobookFile(url, AUDIOBOOK_IMPORT_LIMITS.maxTotalBytes)
+    } else {
+      const result = await Filesystem.readFile({ path: url })
+      bytes = result.data instanceof Blob
+        ? new Uint8Array(await result.data.arrayBuffer())
+        : base64ToBytes(result.data)
+    }
     const name = incomingName(url)
     return { name, relativePath: name, mediaType: mediaTypeFromName(name), bytes }
   } catch (error) {
+    if (error instanceof AudiobookImportError) throw error
     throw new AudiobookImportError(
       'storage-failed',
       'The shared audiobook file could not be read. Choose it again to grant Wovenleaf access.',
@@ -92,8 +100,3 @@ const SUPPORTED_IMAGE_TYPES = new Set([
   'image/png',
   'image/webp',
 ])
-
-function base64ToBytes(encoded: string): Uint8Array {
-  const binary = atob(encoded.replace(/^data:[^,]+,/, ''))
-  return Uint8Array.from(binary, (character) => character.charCodeAt(0))
-}

@@ -526,10 +526,12 @@ async function chooseCover(
       return { mediaType, bytes: sidecar.bytes.slice(), sha256: await sha256(sidecar.bytes), provenance: 'sidecar' }
     }
   }
-  const embedded = inspected.find(({ metadata }) => metadata.cover)?.metadata.cover
-  return embedded
-    ? { ...embedded, sha256: await sha256(embedded.bytes) }
-    : undefined
+  for (const { metadata: { cover } } of inspected) {
+    if (!cover) continue
+    const mediaType = mimeTypeForImage(cover.bytes, cover.mediaType)
+    if (mediaType) return { ...cover, mediaType, sha256: await sha256(cover.bytes) }
+  }
+  return undefined
 }
 
 function requireSegment(

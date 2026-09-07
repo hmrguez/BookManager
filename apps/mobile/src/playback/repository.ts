@@ -1,10 +1,11 @@
-import { Directory, Filesystem } from '@capacitor/filesystem'
+import { Directory, Filesystem, type FilesystemPlugin } from '@capacitor/filesystem'
+import { normalizeImageMediaType } from '../audiobooks/binary'
 import { immutablePlaybackManifest } from '../audiobooks/manifest'
 import type { PlaybackManifest } from '../audiobooks/model'
 import { assetSchema } from '../domain/catalog'
 import type { SqlDatabase, SqlRow } from '../storage/database'
 import { readNumber, readText } from '../storage/database'
-import { AudiobookPlaybackError, playbackQueueRequestSchema, type PlaybackQueueRequest } from './model'
+import { AudiobookPlaybackError, playbackArtworkSchema, playbackQueueRequestSchema, type PlaybackQueueRequest } from './model'
 import { AudiobookProgressRepository } from './progress'
 import { AudiobookControlsRepository } from './controls'
 
@@ -24,15 +25,19 @@ type PlaybackFileRow = SqlRow & {
   readonly media_type: string
 }
 
+type PlaybackFilesystem = Pick<FilesystemPlugin, 'stat' | 'getUri'>
+
 export class AudiobookPlaybackRepository {
   readonly #database: SqlDatabase
   readonly #progress: AudiobookProgressRepository
   readonly #controls: AudiobookControlsRepository
+  readonly #filesystem: PlaybackFilesystem
 
-  constructor(database: SqlDatabase) {
+  constructor(database: SqlDatabase, options: { readonly filesystem?: PlaybackFilesystem } = {}) {
     this.#database = database
     this.#progress = new AudiobookProgressRepository(database)
     this.#controls = new AudiobookControlsRepository(database)
+    this.#filesystem = options.filesystem ?? Filesystem
   }
 
   async queueForBook(bookId: string): Promise<PlaybackQueueRequest | undefined> {
@@ -99,7 +104,7 @@ export class AudiobookPlaybackRepository {
       const capability = readText(row, 'capability_id')
       const relativePath = readText(row, 'relative_path')
       try {
-        const stat = await Filesystem.stat({ path: relativePath, directory: Directory.LibraryNoCloud })
+        const stat = await this.#filesystem.stat({ path: relativePath, directory: Directory.LibraryNoCloud })
         const expectedSize = readNumber(row, 'byte_size')
         if (stat.size !== expectedSize) {
           throw new AudiobookPlaybackError(
@@ -108,7 +113,7 @@ export class AudiobookPlaybackRepository {
             { recoverable: true },
           )
         }
-        const { uri } = await Filesystem.getUri({ path: relativePath, directory: Directory.LibraryNoCloud })
+        const { uri } = await this.#filesystem.getUri({ path: relativePath, directory: Directory.LibraryNoCloud })
         return {
           capability,
           uri,
@@ -125,30 +130,33 @@ export class AudiobookPlaybackRepository {
         )
       }
     }))
-    const artwork = await resolveArtwork(artworkRows[0])
+    const artwork = await resolveArtwork(artworkRows[0], this.#filesystem)
     return playbackQueueRequestSchema.parse({ manifest, sources, ...(artwork ? { artwork } : {}) })
   }
 }
 
-async function resolveArtwork(row: PlaybackArtworkRow | undefined) {
+async function resolveArtwork(row: PlaybackArtworkRow | undefined, filesystem: PlaybackFilesystem) {
   if (!row) return undefined
   try {
     const parsed = assetSchema.safeParse(JSON.parse(readText(row, 'payload_json')))
     if (!parsed.success || parsed.data.role !== 'cover' || parsed.data.format !== 'image') return undefined
     const { location } = parsed.data
     if (location.kind !== 'managed-file') return undefined
-    const stat = await Filesystem.stat({ path: location.relativePath, directory: Directory.LibraryNoCloud })
+    const mediaType = normalizeImageMediaType(parsed.data.mediaType ?? '')
+    if (!mediaType) return undefined
+    const stat = await filesystem.stat({ path: location.relativePath, directory: Directory.LibraryNoCloud })
     if (stat.size !== location.byteSize) return undefined
-    const { uri } = await Filesystem.getUri({
+    const { uri } = await filesystem.getUri({
       path: location.relativePath,
       directory: Directory.LibraryNoCloud,
     })
-    return {
+    const artwork = playbackArtworkSchema.safeParse({
       uri,
       fingerprint: location.sha256,
       byteSize: location.byteSize,
-      mediaType: parsed.data.mediaType,
-    }
+      mediaType,
+    })
+    return artwork.success ? artwork.data : undefined
   } catch {
     // Cover art is optional and must never make otherwise valid audio unavailable.
     return undefined
