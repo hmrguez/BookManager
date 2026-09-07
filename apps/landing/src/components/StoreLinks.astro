@@ -3,10 +3,12 @@ const { compact = false } = Astro.props;
 const stores = [
   {
     name: 'App Store',
+    logo: '/store-logos/apple.svg',
     url: import.meta.env.PUBLIC_APP_STORE_URL || 'https://apps.apple.com/',
   },
   {
     name: 'Google Play',
+    logo: '/store-logos/google-play.svg',
     url:
       import.meta.env.PUBLIC_GOOGLE_PLAY_URL ||
       'https://play.google.com/store/apps',
@@ -27,13 +29,20 @@ const stores = [
         rel="noopener noreferrer"
         aria-label={`Wovenleaf is coming soon to ${store.name} (opens store in a new tab)`}
       >
+        <img
+          class="store-logo"
+          src={store.logo}
+          width="28"
+          height="28"
+          alt=""
+          aria-hidden="true"
+        />
         <span class="store-link-copy">
           <>
             <small>Coming soon to</small>
             <strong>{store.name}</strong>
           </>
         </span>
-        <span aria-hidden="true">↗</span>
       </a>
     ))
   }

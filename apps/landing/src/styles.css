@@ -583,3 +583,20 @@ img.library-screen {
     flex: 1;
   }
 }
+
+.store-link {
+  justify-content: flex-start;
+  gap: 12px;
+}
+.store-logo {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  filter: brightness(0) invert(1);
+}
+.store-links.compact .store-logo {
+  flex-basis: 22px;
+  width: 22px;
+  height: 22px;
+  filter: brightness(0);
+}
