@@ -4,7 +4,7 @@ import ReadiumShared
 import UIKit
 
 @MainActor
-final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelegate, UIGestureRecognizerDelegate {
+final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelegate {
     private static let readerRightPadding: CGFloat = 8
 
     private let publication: Publication
@@ -50,14 +50,12 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
     private let textureView = PaperTextureView()
     private let chapterRail = ReaderChapterRailView()
     private let feedbackView = ReaderFeedbackView()
-    private let pageEdge = ReaderPageEdgeView()
     private var lastChapterHref: String?
     private var didShowFinishFeedback = false
     private var pageTurnInFlight = false
     private var queuedPageTurns: [ReaderPageTurnDirection] = []
-    private var interactiveTurnDirection: ReaderPageTurnDirection?
-    private var interactiveTurnProgress: CGFloat = 0
-    private let motionProbe = ReaderMotionProbe()
+    private var isAtStart = false
+    private var isAtEnd = false
 
     init(
         publication: Publication,
@@ -151,15 +149,6 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
             chapterRail.bottomAnchor.constraint(equalTo: navigator.view.bottomAnchor),
         ])
 
-        pageEdge.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(pageEdge)
-        NSLayoutConstraint.activate([
-            pageEdge.leadingAnchor.constraint(equalTo: navigator.view.leadingAnchor),
-            pageEdge.trailingAnchor.constraint(equalTo: navigator.view.trailingAnchor),
-            pageEdge.topAnchor.constraint(equalTo: navigator.view.topAnchor),
-            pageEdge.bottomAnchor.constraint(equalTo: navigator.view.bottomAnchor),
-        ])
-
         feedbackView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(feedbackView)
         NSLayoutConstraint.activate([
@@ -181,7 +170,6 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         applyReaderPalette()
         updateBookmarkButton()
         setupReaderInput()
-        setupPageTurnGesture()
         loadChapterRail()
         setupAnnotationInteractions()
         applyAnnotationDecorations()
@@ -312,6 +300,7 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
     func navigator(_ navigator: Navigator, locationDidChange locator: Locator) {
         let previousChapter = lastChapterHref
         lastLocator = locator
+        updateReadingBounds(self.navigator.viewport)
         updateProgress(locator)
         updateBookmarkButton()
         chapterRail.updateActive(locator: locator)
@@ -319,13 +308,6 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         if let previousChapter, previousChapter != locator.href.string {
             chapterRail.revealActiveMomentarily()
             feedbackView.show(locator.title ?? "New chapter", symbol: "text.book.closed")
-        }
-        if (locator.locations.totalProgression ?? 0) >= 0.9995, !didShowFinishFeedback {
-            didShowFinishFeedback = true
-            feedbackView.show("End of book", symbol: "checkmark")
-            UIAccessibility.post(notification: .announcement, argument: "End of book")
-        } else if (locator.locations.totalProgression ?? 0) < 0.995 {
-            didShowFinishFeedback = false
         }
         checkpointTimer?.invalidate()
         checkpointTimer = Timer.scheduledTimer(withTimeInterval: 0.75, repeats: false) { [weak self] _ in
@@ -513,7 +495,6 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
 
     @objc private func closeReader() {
         checkpointTimer?.invalidate()
-        motionProbe.cancel()
         for token in inputObserverTokens {
             navigator.removeObserver(token)
         }
@@ -529,7 +510,8 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
             locator: lastLocator ?? navigator.currentLocation,
             startedAt: ReaderOutbox.timestamp(sessionStartedAt),
             endedAt: ReaderOutbox.timestamp(endedAt),
-            activeDurationMs: max(0, Int((ProcessInfo.processInfo.systemUptime - sessionStartedUptime) * 1_000))
+            activeDurationMs: max(0, Int((ProcessInfo.processInfo.systemUptime - sessionStartedUptime) * 1_000)),
+            extra: ["reachedEnd": isAtEnd]
         )
         navigationController?.dismiss(animated: true)
     }
@@ -538,12 +520,16 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         checkpointTimer?.invalidate()
         checkpointTimer = nil
         guard let locator = lastLocator ?? navigator.currentLocation else { return }
-        ReaderOutbox.enqueue(kind: "location", context: context, sessionId: sessionId, locator: locator)
+        ReaderOutbox.enqueue(
+            kind: "location", context: context, sessionId: sessionId, locator: locator,
+            extra: ["reachedEnd": isAtEnd]
+        )
     }
 
     private func updateProgress(_ locator: Locator) {
-        if let progression = locator.locations.totalProgression {
-            progressControl.setProgress(progression, label: "\(Int((progression * 100).rounded()))%")
+        if let progression = isAtEnd ? 1 : locator.locations.totalProgression {
+            let percent = isAtEnd ? 100 : min(99, Int((progression * 100).rounded()))
+            progressControl.setProgress(progression, label: "\(percent)%")
         } else {
             progressControl.setLabel(locator.title ?? "Reading")
         }
@@ -937,65 +923,11 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         navigator.apply(decorations: decorations, in: "annotations")
     }
 
-    private func setupPageTurnGesture() {
-        let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePagePan(_:)))
-        pan.delegate = self
-        pan.maximumNumberOfTouches = 1
-        pan.cancelsTouchesInView = true
-        navigator.view.addGestureRecognizer(pan)
-    }
-
-    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-        guard
-            effectivePreferences.layout == .paginated,
-            !pageTurnInFlight,
-            navigator.currentSelection == nil,
-            let pan = gestureRecognizer as? UIPanGestureRecognizer
-        else { return false }
-        let velocity = pan.velocity(in: navigator.view)
-        return abs(velocity.x) > max(30, abs(velocity.y) * 1.25)
-    }
-
-    @objc private func handlePagePan(_ gesture: UIPanGestureRecognizer) {
-        let width = max(1, navigator.view.bounds.width)
-        let translation = gesture.translation(in: navigator.view).x
-        switch gesture.state {
-        case .began:
-            guard !pageTurnInFlight else { return }
-            pageTurnInFlight = true
-            interactiveTurnDirection = direction(forTranslation: translation == 0 ? gesture.velocity(in: navigator.view).x : translation)
-            motionProbe.begin(interactive: true)
-        case .changed:
-            guard pageTurnInFlight else { return }
-            let direction = direction(forTranslation: translation)
-            interactiveTurnDirection = direction
-            interactiveTurnProgress = min(1, abs(translation) / (width * 0.28))
-            updateInteractiveTurn(translation: translation, progress: interactiveTurnProgress, direction: direction)
-        case .ended:
-            guard pageTurnInFlight, let direction = interactiveTurnDirection else { return }
-            let velocity = gesture.velocity(in: navigator.view).x
-            let shouldCommit = interactiveTurnProgress >= 0.48 || abs(velocity) >= 560
-            if shouldCommit {
-                commitPageTurn(direction, interactive: true)
-            } else {
-                reverseInteractiveTurn()
-            }
-        case .cancelled, .failed:
-            if pageTurnInFlight { reverseInteractiveTurn() }
-        default:
-            break
-        }
-    }
-
+    // Readium owns the pan gesture and the adjacent live pages. Intercepting it
+    // here would hide the incoming content until the finger is released.
     private func requestPageTurn(_ direction: ReaderPageTurnDirection) {
-        guard effectivePreferences.layout == .paginated else {
-            Task {
-                if direction == .next {
-                    _ = await navigator.goForward(options: .animated)
-                } else {
-                    _ = await navigator.goBackward(options: .animated)
-                }
-            }
+        guard !(direction == .next ? isAtEnd : isAtStart) else {
+            processQueuedPageTurn()
             return
         }
         guard !pageTurnInFlight else {
@@ -1003,138 +935,51 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
             return
         }
         pageTurnInFlight = true
-        motionProbe.begin(interactive: false)
-        commitPageTurn(direction, interactive: false)
-    }
-
-    private func commitPageTurn(_ direction: ReaderPageTurnDirection, interactive: Bool) {
-        let sign = visualSign(for: direction)
-        let finishLift = { [weak self] in
-            guard let self else { return }
-            self.applyPageLift(offset: sign * self.pageTurnTravel, progress: 1)
-        }
-        let completion = { [weak self] in
-            guard let self else { return }
-            Task {
-                let moved = direction == .next
-                    ? await self.navigator.goForward(options: .none)
-                    : await self.navigator.goBackward(options: .none)
-                self.finishPageTurn(moved: moved, direction: direction)
-            }
-        }
-        if UIAccessibility.isReduceMotionEnabled {
-            pageEdge.update(progress: 0.72, direction: sign, palette: readerPalette)
-            UIView.animate(
-                withDuration: 0.1,
-                animations: { self.navigator.view.alpha = 0.78 }
-            ) { _ in completion() }
-        } else {
-            UIView.animate(
-                withDuration: interactive ? 0.12 : 0.22,
-                delay: 0,
-                options: [.curveEaseOut, .beginFromCurrentState, .allowUserInteraction],
-                animations: finishLift
-            ) { _ in completion() }
-        }
-    }
-
-    private func finishPageTurn(moved: Bool, direction: ReaderPageTurnDirection) {
-        UIView.performWithoutAnimation {
-            navigator.view.layer.transform = CATransform3DIdentity
-            navigator.view.layer.shadowOpacity = 0
-            navigator.view.alpha = moved ? 0.76 : 1
-            pageEdge.reset()
-        }
-        let finish = { [weak self] in
-            guard let self else { return }
-            navigator.view.alpha = 1
-            interactiveTurnDirection = nil
-            interactiveTurnProgress = 0
+        Task {
+            let options: NavigatorGoOptions = UIAccessibility.isReduceMotionEnabled ? .none : .animated
+            let moved = direction == .next
+                ? await navigator.goForward(options: options)
+                : await navigator.goBackward(options: options)
             pageTurnInFlight = false
-            motionProbe.finish(committed: moved, reversed: false)
-            if !moved, direction == .next {
-                feedbackView.show("End of book", symbol: "checkmark")
-            }
+            if !moved { queuedPageTurns.removeAll() }
             processQueuedPageTurn()
         }
-        if UIAccessibility.isReduceMotionEnabled {
-            UIView.animate(withDuration: 0.11, animations: { self.navigator.view.alpha = 1 }) { _ in finish() }
-        } else {
-            UIView.animate(
-                withDuration: 0.18,
-                delay: 0,
-                options: [.curveEaseOut, .beginFromCurrentState, .allowUserInteraction],
-                animations: { self.navigator.view.alpha = 1 }
-            ) { _ in finish() }
-        }
-    }
-
-    private func reverseInteractiveTurn() {
-        UIView.animate(
-            withDuration: UIAccessibility.isReduceMotionEnabled ? 0.1 : 0.2,
-            delay: 0,
-            usingSpringWithDamping: 0.92,
-            initialSpringVelocity: 0,
-            options: [.beginFromCurrentState, .allowUserInteraction],
-            animations: {
-                self.navigator.view.layer.transform = CATransform3DIdentity
-                self.navigator.view.layer.shadowOpacity = 0
-                self.navigator.view.alpha = 1
-                self.pageEdge.reset()
-            }
-        ) { _ in
-            self.interactiveTurnDirection = nil
-            self.interactiveTurnProgress = 0
-            self.pageTurnInFlight = false
-            self.motionProbe.finish(committed: false, reversed: true)
-            self.processQueuedPageTurn()
-        }
-    }
-
-    private func updateInteractiveTurn(
-        translation: CGFloat,
-        progress: CGFloat,
-        direction: ReaderPageTurnDirection
-    ) {
-        let clamped = max(-pageTurnTravel, min(pageTurnTravel, translation))
-        if UIAccessibility.isReduceMotionEnabled {
-            pageEdge.update(progress: progress, direction: visualSign(for: direction), palette: readerPalette)
-            navigator.view.alpha = 1 - progress * 0.1
-        } else {
-            applyPageLift(offset: clamped, progress: progress)
-        }
-    }
-
-    private func applyPageLift(offset: CGFloat, progress: CGFloat) {
-        var transform = CATransform3DIdentity
-        transform.m34 = -1 / 900
-        transform = CATransform3DTranslate(transform, offset, 0, min(18, progress * 18))
-        transform = CATransform3DRotate(transform, (offset < 0 ? -1 : 1) * progress * 0.035, 0, 1, 0)
-        navigator.view.layer.transform = transform
-        navigator.view.layer.shadowColor = UIColor.black.cgColor
-        navigator.view.layer.shadowOpacity = Float(progress * 0.16)
-        navigator.view.layer.shadowRadius = 14
-        navigator.view.layer.shadowOffset = CGSize(width: offset < 0 ? 7 : -7, height: 0)
-        pageEdge.update(progress: progress, direction: offset < 0 ? -1 : 1, palette: readerPalette)
-    }
-
-    private var pageTurnTravel: CGFloat {
-        navigator.view.bounds.width * 0.28
-    }
-
-    private func direction(forTranslation translation: CGFloat) -> ReaderPageTurnDirection {
-        let movingTowardEnd = context.compatibility?.isRightToLeft == true ? translation > 0 : translation < 0
-        return movingTowardEnd ? .next : .previous
-    }
-
-    private func visualSign(for direction: ReaderPageTurnDirection) -> CGFloat {
-        let nextSign: CGFloat = context.compatibility?.isRightToLeft == true ? 1 : -1
-        return direction == .next ? nextSign : -nextSign
     }
 
     private func processQueuedPageTurn() {
-        guard !queuedPageTurns.isEmpty else { return }
+        guard !pageTurnInFlight, !queuedPageTurns.isEmpty else { return }
         requestPageTurn(queuedPageTurns.removeFirst())
+    }
+
+    func navigator(_ navigator: any ViewportObservingNavigator, viewportDidChange viewport: NavigatorViewport?) {
+        updateReadingBounds(viewport)
+        // A reflow can expose the end without changing the page's starting locator.
+        if let locator = self.navigator.currentLocation {
+            lastLocator = locator
+            updateProgress(locator)
+            checkpointTimer?.invalidate()
+            checkpointTimer = Timer.scheduledTimer(withTimeInterval: 0.75, repeats: false) { [weak self] _ in
+                Task { @MainActor in self?.flushLocation() }
+            }
+        }
+    }
+
+    private func updateReadingBounds(_ viewport: NavigatorViewport?) {
+        isAtStart = viewport?.resources.first.map {
+            $0.href == publication.readingOrder.first?.url() && $0.progression.lowerBound <= 0
+        } ?? false
+        isAtEnd = viewport?.resources.last.map {
+            $0.href == publication.readingOrder.last?.url() && $0.progression.upperBound >= 1
+        } ?? false
+        previousButton.isEnabled = !isAtStart
+        nextButton.isEnabled = !isAtEnd
+        if isAtEnd, !didShowFinishFeedback {
+            didShowFinishFeedback = true
+            feedbackView.show("End of book", symbol: "checkmark")
+            UIAccessibility.post(notification: .announcement, argument: "End of book")
+        } else if !isAtEnd {
+            didShowFinishFeedback = false
+        }
     }
 
     private func updateBookmarkButton() {
@@ -1354,10 +1199,14 @@ private final class ReaderChromeButton: UIButton {
     override var isHighlighted: Bool {
         didSet {
             UIView.animate(withDuration: 0.1) {
-                self.alpha = self.isHighlighted ? 0.5 : 1
+                self.alpha = self.isEnabled ? (self.isHighlighted ? 0.5 : 1) : 0.3
                 self.transform = self.isHighlighted ? CGAffineTransform(scaleX: 0.96, y: 0.96) : .identity
             }
         }
+    }
+
+    override var isEnabled: Bool {
+        didSet { alpha = isEnabled ? 1 : 0.3 }
     }
 
     func setSymbol(_ name: String) {
@@ -1445,95 +1294,5 @@ private final class ReaderFeedbackView: UIView {
         }
         hideWorkItem = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.7, execute: work)
-    }
-}
-
-@MainActor
-private final class ReaderPageEdgeView: UIView {
-    private var progress: CGFloat = 0
-    private var direction: CGFloat = 1
-    private var color = UIColor.clear
-
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        isUserInteractionEnabled = false
-        backgroundColor = .clear
-        isOpaque = false
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-
-    func update(progress: CGFloat, direction: CGFloat, palette: ReaderPalette) {
-        self.progress = min(1, max(0, progress))
-        self.direction = direction
-        color = palette.ink
-        setNeedsDisplay()
-    }
-
-    func reset() {
-        progress = 0
-        setNeedsDisplay()
-    }
-
-    override func draw(_ rect: CGRect) {
-        guard progress > 0, let context = UIGraphicsGetCurrentContext() else { return }
-        let width = max(2, 14 * progress)
-        let edge = direction < 0 ? bounds.maxX - width : bounds.minX
-        let edgeRect = CGRect(x: edge, y: 0, width: width, height: bounds.height)
-        context.setFillColor(color.withAlphaComponent(0.05 + progress * 0.09).cgColor)
-        context.fill(edgeRect)
-        context.setFillColor(color.withAlphaComponent(0.28 + progress * 0.32).cgColor)
-        context.fill(CGRect(x: direction < 0 ? bounds.maxX - 1 : bounds.minX, y: 0, width: 1, height: bounds.height))
-    }
-}
-
-@MainActor
-private final class ReaderMotionProbe {
-    private var displayLink: CADisplayLink?
-    private var startedAt: CFTimeInterval = 0
-    private var previousFrame: CFTimeInterval = 0
-    private var frames = 0
-    private var lateFrames = 0
-    private var interactive = false
-
-    func begin(interactive: Bool) {
-        cancel()
-        self.interactive = interactive
-        startedAt = CACurrentMediaTime()
-        previousFrame = 0
-        frames = 0
-        lateFrames = 0
-        let link = CADisplayLink(target: self, selector: #selector(frame(_:)))
-        link.add(to: .main, forMode: .common)
-        displayLink = link
-    }
-
-    func finish(committed: Bool, reversed: Bool) {
-        guard displayLink != nil else { return }
-        let duration = (CACurrentMediaTime() - startedAt) * 1_000
-        cancel()
-        #if DEBUG
-        NSLog(
-            "Wovenleaf reader turn: %.1fms, %d frames, %d late, interactive=%@, committed=%@, reversed=%@",
-            duration,
-            frames,
-            lateFrames,
-            interactive.description,
-            committed.description,
-            reversed.description
-        )
-        #endif
-    }
-
-    func cancel() {
-        displayLink?.invalidate()
-        displayLink = nil
-    }
-
-    @objc private func frame(_ link: CADisplayLink) {
-        if previousFrame > 0, link.timestamp - previousFrame > link.duration * 1.55 { lateFrames += 1 }
-        previousFrame = link.timestamp
-        frames += 1
     }
 }

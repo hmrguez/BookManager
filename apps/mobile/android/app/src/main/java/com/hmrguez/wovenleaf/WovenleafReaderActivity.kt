@@ -4,8 +4,6 @@ import android.content.Intent
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.graphics.Color
-import android.graphics.Canvas
-import android.graphics.Paint
 import android.graphics.Typeface
 import android.content.res.Configuration
 import android.os.Build
@@ -21,12 +19,8 @@ import android.view.ActionMode
 import android.view.KeyEvent
 import android.view.Menu
 import android.view.MenuItem
-import android.view.MotionEvent
 import android.view.View
-import android.view.ViewConfiguration
 import android.view.ViewGroup
-import android.view.VelocityTracker
-import android.view.Choreographer
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.widget.FrameLayout
@@ -51,7 +45,9 @@ import org.readium.r2.navigator.Decoration
 import org.readium.r2.navigator.Selection
 import org.readium.r2.navigator.epub.EpubNavigatorFactory
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
+import org.readium.r2.navigator.preferences.ReadingProgression
 import org.readium.r2.shared.ExperimentalReadiumApi
+import org.readium.r2.shared.publication.Layout
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Publication
@@ -87,7 +83,9 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
     private lateinit var loading: ProgressBar
     private lateinit var texture: PaperTextureView
     private lateinit var navigatorHost: FrameLayout
-    private lateinit var pageSurface: ReaderPageSurface
+    private lateinit var pageSurface: FrameLayout
+    private lateinit var previousButton: ReaderChromeButton
+    private lateinit var nextButton: ReaderChromeButton
     private lateinit var chapterRail: ReaderChapterRailView
     private lateinit var feedbackView: ReaderFeedbackView
     private var publication: Publication? = null
@@ -112,7 +110,9 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
     private var didShowFinishFeedback = false
     private var pageTurnInFlight = false
     private val queuedPageTurns = ArrayDeque<ReaderPageTurnDirection>()
-    private val motionProbe = ReaderMotionProbe()
+    private var pageTurnJob: Job? = null
+    private var viewportJob: Job? = null
+    private var pageBounds = ReaderPageBounds()
     private val annotationDecorationListener = object : DecorableNavigator.Listener {
         override fun onDecorationActivated(event: DecorableNavigator.OnActivatedEvent): Boolean {
             val annotation = readerContext.annotationState.annotations.firstOrNull {
@@ -159,7 +159,8 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         checkpointJob?.cancel()
         preferenceJob?.cancel()
         locationJob?.cancel()
-        motionProbe.cancel()
+        pageTurnJob?.cancel()
+        viewportJob?.cancel()
         textToSpeech?.stop()
         textToSpeech?.shutdown()
         if (isFinishing) publication?.close()
@@ -303,28 +304,14 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         )
         locationJob = lifecycleScope.launch {
             fragment.currentLocator.collectLatest { locator ->
-                val previousChapter = lastChapterHref
-                lastLocator = locator
-                updateProgress(locator)
-                updateBookmarkButton()
-                chapterRail.updateActive(locator)
-                lastChapterHref = locator.href.toString()
-                if (previousChapter != null && previousChapter != lastChapterHref) {
-                    chapterRail.revealActiveMomentarily()
-                    feedbackView.show(locator.title ?: "New chapter", "§")
-                }
-                val total = locator.locations.totalProgression ?: 0.0
-                if (total >= 0.9995 && !didShowFinishFeedback) {
-                    didShowFinishFeedback = true
-                    feedbackView.show("End of book", "✓")
-                    content.announceForAccessibility("End of book")
-                } else if (total < 0.995) {
-                    didShowFinishFeedback = false
-                }
-                checkpointJob?.cancel()
-                checkpointJob = launch {
-                    delay(750)
-                    flushLocation()
+                // Reflowable locations arrive with the rendered page bounds in
+                // onPageChanged. Fixed-layout resources have no WebView callback.
+                if (opened.metadata.layout == Layout.FIXED) {
+                    pageBounds = ReaderPageBounds(
+                        atStart = locator.href == opened.readingOrder.firstOrNull()?.url(),
+                        atEnd = locator.href == opened.readingOrder.lastOrNull()?.url(),
+                    )
+                    observeLocation(locator)
                 }
             }
         }
@@ -374,14 +361,9 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
 
         content = FrameLayout(this).apply { id = View.generateViewId() }
         navigatorHost = FrameLayout(this).apply { id = View.generateViewId() }
-        pageSurface = ReaderPageSurface(this).apply {
-            isTurnEnabled = { effectivePreferences().layout == "paginated" && !pageTurnInFlight }
-            isRightToLeft = { readerContext.compatibility?.isRightToLeft == true }
-            reduceMotion = { readerMotionReduced() }
-            onBegin = { beginInteractivePageTurn() }
-            onCommit = { direction -> commitInteractivePageTurn(direction) }
-            onCancel = { cancelInteractivePageTurn() }
-        }
+        // Let Readium's WebView/pager receive the entire drag, including its
+        // adjacent content, selection handling, cancellation, and edge limits.
+        pageSurface = FrameLayout(this)
         pageSurface.addView(
             navigatorHost,
             FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
@@ -454,18 +436,20 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         }
         progressGroup.addView(scrubber, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(31)))
         bottomChrome.addView(progressGroup, LinearLayout.LayoutParams(0, dp(54), 1f))
-        bottomChrome.addView(textButton(if (readerContext.compatibility?.isRightToLeft == true) "›" else "‹") {
+        previousButton = textButton(if (readerContext.compatibility?.isRightToLeft == true) "›" else "‹") {
             requestPageTurn(ReaderPageTurnDirection.PREVIOUS)
         }.apply {
             textSize = 24f
             contentDescription = "Previous page"
-        })
-        bottomChrome.addView(textButton(if (readerContext.compatibility?.isRightToLeft == true) "‹" else "›") {
+        }
+        bottomChrome.addView(previousButton)
+        nextButton = textButton(if (readerContext.compatibility?.isRightToLeft == true) "‹" else "›") {
             requestPageTurn(ReaderPageTurnDirection.NEXT)
         }.apply {
             textSize = 24f
             contentDescription = "Next page"
-        })
+        }
+        bottomChrome.addView(nextButton)
         chrome.addView(bottomChrome, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(62)))
         topChrome.accessibilityTraversalBefore = content.id
         content.accessibilityTraversalAfter = topChrome.id
@@ -555,68 +539,126 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         }
     }
 
-    private fun beginInteractivePageTurn(): Boolean {
-        if (pageTurnInFlight || effectivePreferences().layout != "paginated") return false
-        pageTurnInFlight = true
-        motionProbe.begin(interactive = true)
-        return true
-    }
-
-    private fun commitInteractivePageTurn(direction: ReaderPageTurnDirection) {
-        pageSurface.animateInteractiveCommit {
-            performPageTurn(direction)
+    override fun onPageChanged(pageIndex: Int, totalPages: Int, locator: Locator) {
+        val fragment = navigator ?: return
+        val opened = publication ?: return
+        viewportJob?.cancel()
+        viewportJob = lifecycleScope.launch {
+            val settings = fragment.settings.value
+            val rightToLeft = settings.readingProgression == ReadingProgression.RTL
+            // Readium can round an end locator to index == totalPages. Bring
+            // that overshoot back onto real content before reporting completion.
+            if (!settings.scroll && totalPages > 0 && pageIndex !in 0 until totalPages) {
+                val index = pageIndex.coerceIn(0, totalPages - 1)
+                val logicalIndex = if (rightToLeft) totalPages - 1 - index else index
+                fragment.go(locator.copy(locations = Locator.Locations(
+                    progression = logicalIndex.toDouble() / totalPages,
+                )), animated = false)
+                return@launch
+            }
+            val resourceBounds = if (settings.scroll) {
+                // Scroll locators also describe the top of the viewport. Measure
+                // its trailing edge instead of treating a one-column view as done.
+                val script = if (settings.verticalText) {
+                    """(function() { const e = document.scrollingElement;
+                        return e ? [Math.abs(e.scrollLeft) + e.clientWidth >= e.scrollWidth - 1,
+                            Math.abs(e.scrollLeft) <= 1] : null; })()"""
+                } else {
+                    """(function() { const e = document.scrollingElement;
+                        return e ? [e.scrollTop <= 1,
+                            e.scrollTop + e.clientHeight >= e.scrollHeight - 1] : null; })()"""
+                }
+                val measurement = fragment.evaluateJavascript(script)
+                runCatching {
+                    val edges = org.json.JSONArray(measurement)
+                    ReaderPageBounds(atStart = edges.getBoolean(0), atEnd = edges.getBoolean(1))
+                }.getOrDefault(ReaderPageBounds())
+            } else {
+                ReaderPageBounds.forPage(pageIndex, totalPages, rightToLeft)
+            }
+            // Discard a measurement if a jump or another page update superseded it.
+            if (fragment.currentLocator.value != locator) return@launch
+            pageBounds = ReaderPageBounds(
+                atStart = resourceBounds.atStart && locator.href == opened.readingOrder.firstOrNull()?.url(),
+                atEnd = resourceBounds.atEnd && locator.href == opened.readingOrder.lastOrNull()?.url(),
+            )
+            observeLocation(locator)
         }
     }
 
-    private fun cancelInteractivePageTurn() {
-        pageSurface.animateCancel {
-            pageTurnInFlight = false
-            motionProbe.finish(committed = false, reversed = true)
-            processQueuedPageTurn()
+    private fun observeLocation(locator: Locator) {
+        val previousChapter = lastChapterHref
+        lastLocator = locator
+        updateProgress(locator)
+        updateBookmarkButton()
+        previousButton.isEnabled = !pageBounds.atStart
+        nextButton.isEnabled = !pageBounds.atEnd
+        previousButton.alpha = if (pageBounds.atStart) 0.3f else 1f
+        nextButton.alpha = if (pageBounds.atEnd) 0.3f else 1f
+        chapterRail.updateActive(locator)
+        lastChapterHref = locator.href.toString()
+        if (previousChapter != null && previousChapter != lastChapterHref) {
+            chapterRail.revealActiveMomentarily()
+            feedbackView.show(locator.title ?: "New chapter", "§")
         }
+        if (pageBounds.atEnd && !didShowFinishFeedback) {
+            didShowFinishFeedback = true
+            feedbackView.show("End of book", "✓")
+            content.announceForAccessibility("End of book")
+        } else if (!pageBounds.atEnd) {
+            didShowFinishFeedback = false
+        }
+        checkpointJob?.cancel()
+        checkpointJob = lifecycleScope.launch {
+            delay(750)
+            flushLocation()
+        }
+        finishRequestedPageTurn()
     }
 
     private fun requestPageTurn(direction: ReaderPageTurnDirection) {
-        if (effectivePreferences().layout != "paginated") {
-            if (direction == ReaderPageTurnDirection.NEXT) navigator?.goForward(animated = true)
-            else navigator?.goBackward(animated = true)
+        if (if (direction == ReaderPageTurnDirection.NEXT) pageBounds.atEnd else pageBounds.atStart) {
+            processQueuedPageTurn()
             return
         }
         if (pageTurnInFlight) {
             if (queuedPageTurns.size < 3) queuedPageTurns.addLast(direction)
             return
         }
+        val fragment = navigator ?: return
         pageTurnInFlight = true
-        motionProbe.begin(interactive = false)
-        pageSurface.animateRequested(visualSign(direction)) {
-            performPageTurn(direction)
+        val accepted = if (direction == ReaderPageTurnDirection.NEXT) {
+            fragment.goForward(animated = !readerMotionReduced())
+        } else {
+            fragment.goBackward(animated = !readerMotionReduced())
+        }
+        if (!accepted) {
+            queuedPageTurns.clear()
+            finishRequestedPageTurn()
+            return
+        }
+        // Acceptance is not proof of movement. Completion normally comes from
+        // pagination; release the gate on a no-op or resource error as well.
+        pageTurnJob = lifecycleScope.launch {
+            delay(1_000)
+            queuedPageTurns.clear()
+            pageTurnInFlight = false
         }
     }
 
-    private fun performPageTurn(direction: ReaderPageTurnDirection) {
-        val moved = if (direction == ReaderPageTurnDirection.NEXT) {
-            navigator?.goForward(animated = false) == true
-        } else {
-            navigator?.goBackward(animated = false) == true
-        }
-        pageSurface.resetAfterNavigation(moved) {
-            pageTurnInFlight = false
-            motionProbe.finish(committed = moved, reversed = false)
-            if (!moved && direction == ReaderPageTurnDirection.NEXT) {
-                feedbackView.show("End of book", "✓")
-            }
-            processQueuedPageTurn()
-        }
+    private fun finishRequestedPageTurn() {
+        if (!pageTurnInFlight) return
+        pageTurnJob?.cancel()
+        pageTurnJob = null
+        pageTurnInFlight = false
+        processQueuedPageTurn()
     }
 
     private fun processQueuedPageTurn() {
+        if (pageTurnInFlight) return
         val direction = queuedPageTurns.removeFirstOrNull() ?: return
-        requestPageTurn(direction)
-    }
-
-    private fun visualSign(direction: ReaderPageTurnDirection): Float {
-        val nextSign = if (readerContext.compatibility?.isRightToLeft == true) 1f else -1f
-        return if (direction == ReaderPageTurnDirection.NEXT) nextSign else -nextSign
+        // Defer until Readium has finished dispatching this pagination callback.
+        content.post { requestPageTurn(direction) }
     }
 
     private fun readerMotionReduced(): Boolean = runCatching {
@@ -1036,8 +1078,8 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
     }
 
     private fun updateProgress(locator: Locator) {
-        val progression = locator.locations.totalProgression
-        progress.text = progression?.let { "${(it * 100).toInt()}%" }
+        val progression = if (pageBounds.atEnd) 1.0 else locator.locations.totalProgression
+        progress.text = progression?.let { "${if (pageBounds.atEnd) 100 else (it * 100).toInt().coerceAtMost(99)}%" }
             ?: locator.title
             ?: "Reading"
         if (!scrubbing && progression != null) scrubber.progress = (progression * 1000).toInt()
@@ -1175,7 +1217,10 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         checkpointJob?.cancel()
         checkpointJob = null
         val locator = lastLocator ?: navigator?.currentLocator?.value ?: return
-        ReaderOutbox.enqueue(this, "location", readerContext, sessionId, locator.toJSON())
+        ReaderOutbox.enqueue(
+            this, "location", readerContext, sessionId, locator.toJSON(),
+            extra = JSONObject().put("reachedEnd", pageBounds.atEnd),
+        )
     }
 
     private fun closeReader() {
@@ -1192,6 +1237,7 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
                 startedAt = sessionStartedAt,
                 endedAt = ReaderOutbox.timestamp(),
                 activeDurationMs = (SystemClock.elapsedRealtime() - sessionStartedUptime).coerceAtLeast(0L),
+                extra = JSONObject().put("reachedEnd", pageBounds.atEnd),
             )
         }
         finish()
@@ -1297,7 +1343,6 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         scrubber.progressBackgroundTintList = android.content.res.ColorStateList.valueOf(palette.rule)
         chapterRail.applyPalette(palette)
         feedbackView.applyPalette(palette)
-        pageSurface.applyPalette(palette)
         texture.theme = preferences.theme
         texture.highContrast = isHighContrast(this)
         applyAnnotationDecorations()
@@ -1442,224 +1487,6 @@ private class ReaderFeedbackView(context: android.content.Context) : androidx.ap
     private fun motionReduced(): Boolean = runCatching {
         Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
     }.getOrDefault(false)
-}
-
-private class ReaderPageSurface(context: android.content.Context) : FrameLayout(context) {
-    var isTurnEnabled: () -> Boolean = { false }
-    var isRightToLeft: () -> Boolean = { false }
-    var reduceMotion: () -> Boolean = { false }
-    var onBegin: () -> Boolean = { false }
-    var onCommit: (ReaderPageTurnDirection) -> Unit = {}
-    var onCancel: () -> Unit = {}
-
-    private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop * 1.35f
-    private val edgePaint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private var palette = ReaderPalette("paper")
-    private var downX = 0f
-    private var downY = 0f
-    private var tracking = false
-    private var eligible = false
-    private var edgeProgress = 0f
-    private var edgeDirection = 1f
-    private var velocityTracker: VelocityTracker? = null
-
-    init {
-        cameraDistance = resources.displayMetrics.density * 1_600
-        setWillNotDraw(false)
-    }
-
-    fun applyPalette(value: ReaderPalette) {
-        palette = value
-        invalidate()
-    }
-
-    override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
-        when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                downX = event.x
-                downY = event.y
-                tracking = false
-                eligible = isTurnEnabled()
-                velocityTracker?.recycle()
-                velocityTracker = VelocityTracker.obtain().also { it.addMovement(event) }
-            }
-            MotionEvent.ACTION_MOVE -> {
-                velocityTracker?.addMovement(event)
-                val dx = event.x - downX
-                val dy = event.y - downY
-                if (eligible && !tracking && kotlin.math.abs(dx) > touchSlop && kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.3f) {
-                    tracking = onBegin()
-                    if (tracking) {
-                        parent.requestDisallowInterceptTouchEvent(true)
-                        renderDrag(dx)
-                        return true
-                    }
-                }
-            }
-            MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_UP -> releaseTracker()
-        }
-        return tracking || super.onInterceptTouchEvent(event)
-    }
-
-    override fun onTouchEvent(event: MotionEvent): Boolean {
-        if (!tracking) return super.onTouchEvent(event)
-        velocityTracker?.addMovement(event)
-        when (event.actionMasked) {
-            MotionEvent.ACTION_MOVE -> renderDrag(event.x - downX)
-            MotionEvent.ACTION_UP -> {
-                val dx = event.x - downX
-                velocityTracker?.computeCurrentVelocity(1_000)
-                val velocity = velocityTracker?.xVelocity ?: 0f
-                val commit = kotlin.math.abs(dx) >= width * 0.17f || kotlin.math.abs(velocity) >= 560f
-                if (commit) onCommit(direction(dx)) else onCancel()
-                releaseTracker()
-            }
-            MotionEvent.ACTION_CANCEL -> {
-                onCancel()
-                releaseTracker()
-            }
-        }
-        return true
-    }
-
-    fun animateRequested(sign: Float, finished: () -> Unit) {
-        edgeDirection = sign
-        edgeProgress = 1f
-        invalidate()
-        animateCommit(sign, interactive = false, finished = finished)
-    }
-
-    fun animateInteractiveCommit(finished: () -> Unit) {
-        val sign = if (translationX < 0 || (translationX == 0f && edgeDirection < 0)) -1f else 1f
-        animateCommit(sign, interactive = true, finished = finished)
-    }
-
-    private fun animateCommit(sign: Float, interactive: Boolean, finished: () -> Unit) {
-        animate().cancel()
-        if (reduceMotion()) {
-            animate().alpha(0.78f).setDuration(100).withEndAction(finished).start()
-        } else {
-            animate()
-                .translationX(sign * width * 0.28f)
-                .rotationY(sign * 2.1f)
-                .setDuration(if (interactive) 120 else 220)
-                .withEndAction(finished)
-                .start()
-        }
-    }
-
-    fun animateCancel(finished: () -> Unit) {
-        animate().cancel()
-        edgeProgress = 0f
-        invalidate()
-        animate()
-            .translationX(0f)
-            .rotationY(0f)
-            .alpha(1f)
-            .setDuration(if (reduceMotion()) 90 else 180)
-            .withEndAction {
-                elevation = 0f
-                finished()
-            }
-            .start()
-    }
-
-    fun resetAfterNavigation(moved: Boolean, finished: () -> Unit) {
-        animate().cancel()
-        translationX = 0f
-        rotationY = 0f
-        elevation = 0f
-        edgeProgress = 0f
-        alpha = if (moved) 0.76f else 1f
-        invalidate()
-        animate().alpha(1f).setDuration(if (reduceMotion()) 100 else 180).withEndAction(finished).start()
-    }
-
-    override fun dispatchDraw(canvas: Canvas) {
-        super.dispatchDraw(canvas)
-        if (edgeProgress <= 0f) return
-        val edgeWidth = maxOf(readerDp(context, 2).toFloat(), readerDp(context, 14) * edgeProgress)
-        edgePaint.color = Color.argb((18 + 34 * edgeProgress).toInt(), Color.red(palette.ink), Color.green(palette.ink), Color.blue(palette.ink))
-        val left = if (edgeDirection < 0) width - edgeWidth else 0f
-        canvas.drawRect(left, 0f, left + edgeWidth, height.toFloat(), edgePaint)
-        edgePaint.color = Color.argb((90 + 70 * edgeProgress).toInt(), Color.red(palette.ink), Color.green(palette.ink), Color.blue(palette.ink))
-        val ruleX = if (edgeDirection < 0) width - 1f else 0f
-        canvas.drawRect(ruleX, 0f, ruleX + 1f, height.toFloat(), edgePaint)
-    }
-
-    private fun renderDrag(dx: Float) {
-        val limit = width * 0.28f
-        val clamped = dx.coerceIn(-limit, limit)
-        val progress = (kotlin.math.abs(clamped) / maxOf(1f, limit)).coerceIn(0f, 1f)
-        edgeDirection = if (clamped < 0) -1f else 1f
-        edgeProgress = progress
-        if (reduceMotion()) {
-            alpha = 1f - progress * 0.1f
-        } else {
-            translationX = clamped
-            rotationY = edgeDirection * progress * 2.1f
-            elevation = readerDp(context, 10) * progress
-        }
-        invalidate()
-    }
-
-    private fun direction(dx: Float): ReaderPageTurnDirection {
-        val movingTowardEnd = if (isRightToLeft()) dx > 0 else dx < 0
-        return if (movingTowardEnd) ReaderPageTurnDirection.NEXT else ReaderPageTurnDirection.PREVIOUS
-    }
-
-    private fun releaseTracker() {
-        velocityTracker?.recycle()
-        velocityTracker = null
-        tracking = false
-        eligible = false
-        parent.requestDisallowInterceptTouchEvent(false)
-    }
-}
-
-private class ReaderMotionProbe : Choreographer.FrameCallback {
-    private var active = false
-    private var startedAt = 0L
-    private var previousFrame = 0L
-    private var frames = 0
-    private var lateFrames = 0
-    private var interactive = false
-
-    fun begin(interactive: Boolean) {
-        cancel()
-        this.interactive = interactive
-        active = true
-        startedAt = System.nanoTime()
-        previousFrame = 0
-        frames = 0
-        lateFrames = 0
-        Choreographer.getInstance().postFrameCallback(this)
-    }
-
-    override fun doFrame(frameTimeNanos: Long) {
-        if (!active) return
-        if (previousFrame > 0 && frameTimeNanos - previousFrame > 25_000_000L) lateFrames += 1
-        previousFrame = frameTimeNanos
-        frames += 1
-        Choreographer.getInstance().postFrameCallback(this)
-    }
-
-    fun finish(committed: Boolean, reversed: Boolean) {
-        if (!active) return
-        val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000.0
-        cancel()
-        if (android.util.Log.isLoggable("WovenleafReaderMotion", android.util.Log.DEBUG)) {
-            android.util.Log.d(
-                "WovenleafReaderMotion",
-                "turn=${"%.1f".format(elapsedMs)}ms frames=$frames late=$lateFrames interactive=$interactive committed=$committed reversed=$reversed",
-            )
-        }
-    }
-
-    fun cancel() {
-        active = false
-        Choreographer.getInstance().removeFrameCallback(this)
-    }
 }
 
 private fun readerDp(context: android.content.Context, value: Int): Int =

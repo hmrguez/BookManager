@@ -480,7 +480,9 @@ export class EpubReaderRepository {
     const isReadingEvent =
       event.kind === 'start' || event.kind === 'location' || event.kind === 'session'
     const locator = isReadingEvent ? event.locator : undefined
-    const progression = locator?.locations.totalProgression
+    const progression = isReadingEvent && event.reachedEnd && locator
+      ? 1
+      : locator?.locations.totalProgression
     await this.#database.run(
       `INSERT INTO epub_reader_checkpoints(
          asset_id, book_id, edition_id, asset_fingerprint, last_sequence,
@@ -512,7 +514,9 @@ export class EpubReaderRepository {
       if (book) {
         const progress = normalizedProgress === undefined
           ? book.progress
-          : Math.max(0, Math.min(99, Math.round(normalizedProgress * 100)))
+          : event.reachedEnd
+            ? 100
+            : Math.max(0, Math.min(99, Math.round(normalizedProgress * 100)))
         await writeLibraryBook(this.#database, {
           ...book,
           shelf: book.shelf === 'finished' ? 'finished' : 'reading',
@@ -592,7 +596,9 @@ function toReadingEvent(
 
 function toReadingPosition(event: ReadingNativeReaderEvent): ReadingPosition {
   const locator = readiumLocatorSchema.parse(event.locator)
-  const progression = locator.locations.totalProgression
+  // Completion describes the visible page; the canonical resume locator still
+  // describes its beginning and must be stored without changing its anchor.
+  const progression = event.reachedEnd ? 1 : locator.locations.totalProgression
   const candidate = {
     locator: {
       kind: 'epub',

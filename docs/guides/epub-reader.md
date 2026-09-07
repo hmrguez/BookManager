@@ -117,18 +117,23 @@ feedback reveal the neighboring chapter names in a paper card, with the focused 
 darker. Tapping or releasing on a mark navigates directly. The full navigation surface remains
 available for search, bookmarks, notes, and publications without a usable TOC.
 
-Paginated books accept horizontal swipe turns in both reading directions. The paper edge follows the
-finger, reverses below threshold, and commits through one non-animated Readium navigation call after
-the app-owned lift completes. Buttons, keys, and gestures share a single in-flight gate and a bounded
-three-turn queue, so fast input cannot double-advance or retain an unbounded history. The animation
-uses only transforms, opacity, and a drawn edge—never page bitmaps or publication snapshots. Scrolling
-mode keeps Readium's native movement.
+Paginated books use Readium's native paging in both reading directions. The outgoing and incoming
+content move with the finger, and releasing or reversing the drag settles the live pages. The reader
+shell does not intercept horizontal gestures or transform the whole navigator. Buttons and keys use
+animated Readium navigation with a bounded queue; reduced motion disables programmatic animation.
+Scrolling mode keeps Readium's native movement.
 
-Reduced motion replaces the 3D edge lift with a directional ink edge and short crossfade. Chapter,
-bookmark, highlight, and finish feedback use the same restrained paper card and remain announced to
-assistive technology. A display-link/Choreographer probe runs only during a turn and records duration,
-frame count, late frames, reversal, and commit state in debug builds; it is detached immediately after
-the interaction to avoid long-session battery or memory cost.
+Completion comes from the trailing edge of the visible page in the final reading-order resource,
+using iOS viewport ranges and Android's rendered pagination (with reversed physical indices for RTL).
+The final page displays 100% immediately and disables the next-page control. Going backward clears
+the boundary. Android end-locator rounding is clamped back onto the last rendered page before
+recording completion. Chapter endings and rounded near-100% locators do not finish the book.
+
+Location and session events carry a separate `reachedEnd` flag. Library progress and checkpoint
+progress can therefore reach 100% while the canonical Readium locator retains the exact beginning
+of the last page for resume. Completion does not automatically move the book to the Finished shelf.
+Chapter, bookmark, highlight, and finish feedback retain the restrained paper card and accessibility
+announcements.
 
 ## Accessibility and international content
 

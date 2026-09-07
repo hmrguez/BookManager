@@ -115,6 +115,7 @@ export const nativeReaderEventSchema = z.discriminatedUnion('kind', [
   nativeReaderEventBaseSchema.extend({
     kind: z.enum(['start', 'location']),
     locator: readiumLocatorSchema.optional(),
+    reachedEnd: z.boolean().optional(),
   }),
   nativeReaderEventBaseSchema.extend({
     kind: z.literal('session'),
@@ -122,6 +123,7 @@ export const nativeReaderEventSchema = z.discriminatedUnion('kind', [
     endedAt: z.string().datetime({ offset: true }).optional(),
     activeDurationMs: z.number().int().nonnegative().optional(),
     locator: readiumLocatorSchema.optional(),
+    reachedEnd: z.boolean().optional(),
   }),
   nativeReaderEventBaseSchema.extend({
     kind: z.literal('preference'),

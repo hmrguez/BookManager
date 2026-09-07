@@ -145,6 +145,51 @@ describe('native EPUB resume checkpoints', () => {
     await database.close()
   })
 
+  test('persists 100% from the final viewport while retaining the exact 98% resume locator', async () => {
+    const database = new BunSqliteDatabase()
+    await migrateStorage(database)
+    await new CatalogRepository(database).replace(representativeCatalog)
+    const library = new LibraryRepository(database)
+    await library.save(libraryBookSchema.parse({
+      id: 'book:left-hand-reader', title: 'The Left Hand of Darkness',
+      authors: ['Ursula K. Le Guin'], pageCount: 304, shelf: 'reading',
+      progress: 98, currentPage: 298, rating: 0, notes: '',
+      addedAt: '2026-08-20T10:00:00.000Z', lastUpdatedAt: '2026-08-20T10:00:00.000Z',
+    }))
+    const repository = new EpubReaderRepository(database)
+    const lastPage = readiumLocatorSchema.parse({
+      ...semanticLocator,
+      locations: { ...semanticLocator.locations, progression: 0.9, totalProgression: 0.98 },
+    })
+    for (const [sequence, kind] of [[1, 'location'], [2, 'session']] as const) {
+      await repository.ingest(nativeReaderEventSchema.parse({
+        ...readerEvent({ sequence, progression: 0.98, locator: lastPage }),
+        kind, reachedEnd: true,
+      }))
+      expect((await library.list())[0]?.progress).toBe(100)
+      expect((await repository.checkpointForBook('book:left-hand-reader'))?.locator).toEqual(lastPage)
+      expect(await database.query('SELECT total_progression FROM epub_reader_checkpoints'))
+        .toEqual([{ total_progression: 1 }])
+    }
+    const catalog = await new CatalogRepository(database).read()
+    expect(catalog.readingEvents.find(({ id }) => id === 'reading-event:reader:test-1'))
+      .toMatchObject({ position: { normalizedProgress: 1 } })
+
+    // An older callback cannot undo completion, but actually turning back can.
+    expect(await repository.ingest(readerEvent({ sequence: 1, progression: 0.96 }))).toBe('stale')
+    expect((await library.list())[0]?.progress).toBe(100)
+    await repository.ingest(nativeReaderEventSchema.parse({
+      ...readerEvent({ sequence: 3, progression: 0.96 }), reachedEnd: false,
+    }))
+    expect((await library.list())[0]?.progress).toBe(96)
+    expect(await database.query('SELECT total_progression FROM epub_reader_checkpoints'))
+      .toEqual([{ total_progression: 0.96 }])
+    // Rounding a near-end locator alone must not signal completion.
+    await repository.ingest(readerEvent({ sequence: 4, progression: 0.999 }))
+    expect((await library.list())[0]?.progress).toBe(99)
+    await database.close()
+  })
+
   test('resumes the exact locator until replacement, then falls back to its semantic passage', async () => {
     const database = new BunSqliteDatabase()
     await migrateStorage(database)
@@ -483,7 +528,7 @@ describe('paper page turns and reader chrome', () => {
     expect(android).toContain('it.assetFingerprint == readerContext.assetFingerprint')
   })
 
-  test('serializes swipe and button turns without snapshots or duplicate navigation', async () => {
+  test('leaves live page dragging to Readium and guards programmatic turns at the edges', async () => {
     const [ios, android] = await Promise.all([
       Bun.file(new URL('../ios/App/App/WovenleafReaderViewController.swift', import.meta.url)).text(),
       Bun.file(new URL('../android/app/src/main/java/com/hmrguez/wovenleaf/WovenleafReaderActivity.kt', import.meta.url)).text(),
@@ -492,16 +537,14 @@ describe('paper page turns and reader chrome', () => {
     for (const source of [ios, android]) {
       expect(source).toContain('pageTurnInFlight')
       expect(source).toContain('queuedPageTurns')
-      expect(source).toContain('motionProbe')
       expect(source).not.toContain('snapshotView')
+      expect(source).not.toContain('applyPageLift')
+      expect(source).not.toContain('animateCommit')
     }
-    expect(ios).toContain('UIPanGestureRecognizer')
-    expect(ios).toContain('goForward(options: .none)')
-    expect(ios).toContain('private var pageTurnTravel: CGFloat')
-    expect(ios).toContain('commitPageTurn(direction, interactive: false)')
-    expect(android).toContain('onInterceptTouchEvent')
-    expect(android).toContain('goForward(animated = false)')
-    expect(android).toContain('private fun animateCommit(sign: Float, interactive: Boolean')
+    expect(ios).not.toContain('UIPanGestureRecognizer')
+    expect(ios).toContain('direction == .next ? isAtEnd : isAtStart')
+    expect(android).not.toContain('onInterceptTouchEvent')
+    expect(android).toContain('ReaderPageTurnDirection.NEXT) pageBounds.atEnd else pageBounds.atStart')
   })
 
   test('uses a persistent chapter rail and bespoke typeface choices on both platforms', async () => {
