@@ -28,6 +28,27 @@ to the store home pages. Set `PUBLIC_APP_STORE_URL` and `PUBLIC_GOOGLE_PLAY_URL`
 at build time to the published listings, then update the coming-soon labels when
 the app launches. No invented app listing IDs are used.
 
+## Deploy to Vercel
+
+Production: [wovenleaf-landing.vercel.app](https://wovenleaf-landing.vercel.app).
+The `wovenleaf-landing` project belongs to the `hmrguezs-projects` team.
+
+Run these commands from `apps/landing`:
+
+```sh
+bunx vercel link --yes --scope hmrguezs-projects --project wovenleaf-landing
+bunx vercel deploy --prod --yes --scope hmrguezs-projects
+```
+
+`vercel.json` configures the Astro build with Bun and serves `dist`.
+The app builds independently of the rest of the repository. `.vercelignore`
+allows only the source, public assets, and required build configuration files.
+Local Vercel settings and environment files are ignored by Git.
+
+Deployments currently run through the CLI; automatic Git deployments are not
+configured. For a future Git import, set the project's Root Directory to
+`apps/landing`.
+
 ## Campaign
 
 [Canva: Track, read, listen](https://www.canva.com/design/DAHUU_EqUyQ/vsVhApN-YGWeehPXHvpRvQ/edit)
