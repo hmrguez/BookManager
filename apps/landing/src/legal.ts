@@ -1,8 +1,8 @@
-// Confirm these public operator details before publishing the legal pages.
+// Public details for Wovenleaf's operator and privacy contact.
 export const operator = {
-  name: 'OPERATOR_NAME_PENDING',
-  country: 'OPERATOR_COUNTRY_PENDING',
-  email: 'OPERATOR_EMAIL_PENDING',
+  name: 'Hector Miguel Rodriguez Sosa',
+  country: 'Spain',
+  email: 'support@wovenleaf.app',
 };
 
 if (

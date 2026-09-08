@@ -36,7 +36,8 @@ the app launches. No invented app listing IDs are used.
 
 ## Deploy to Vercel
 
-Production: [wovenleaf-landing.vercel.app](https://wovenleaf-landing.vercel.app).
+Production: [wovenleaf.app](https://wovenleaf.app).
+The default [wovenleaf-landing.vercel.app](https://wovenleaf-landing.vercel.app) alias is also available.
 The `wovenleaf-landing` project belongs to the `hmrguezs-projects` team.
 
 Run these commands from `apps/landing`:
