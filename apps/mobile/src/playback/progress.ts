@@ -268,6 +268,11 @@ export class AudiobookProgressRepository {
     const binding = await bindingForQueue(this.#database, snapshot.queueId)
     if (!binding) return 'ignored'
 
+    // The terminal state is authoritative even if the decoder stops short of the manifest duration.
+    if (snapshot.state === 'ended') {
+      snapshot = { ...snapshot, absolutePositionMs: binding.manifest.segments.at(-1)?.absoluteEndMs ?? 0 }
+    }
+
     return this.#database.transaction(async (database) => {
       const existing = await checkpointForSession(database, snapshot.playbackSessionId!)
       if (
@@ -284,13 +289,14 @@ export class AudiobookProgressRepository {
         : Number.POSITIVE_INFINITY
       if (
         !force &&
+        !(snapshot.state === 'ended' && existing?.transportState !== 'ended') &&
         elapsed < PLAYBACK_CHECKPOINT_WALL_THROTTLE_MS &&
         mediaDelta < PLAYBACK_RECOVERY_POSITION_BOUND_MS
       ) return 'throttled'
 
       const recordedAt = this.#now().toISOString()
       const checkpoint = existing ?? checkpointFromSnapshot(snapshot, binding, recordedAt)
-      const hasListening = snapshot.state === 'playing'
+      const hasListening = snapshot.state === 'playing' || snapshot.state === 'ended'
         || checkpoint.intervalStartedAt !== null
         || snapshot.activeDurationMs > 0
       const startedAt = checkpoint.intervalStartedAt ?? snapshot.observedAt
@@ -932,7 +938,7 @@ async function updateLibraryProgress(
   await writeLibraryBook(database, {
     ...book,
     shelf: 'reading',
-    progress: Math.max(0, Math.min(99, Math.round(fraction * 100))),
+    progress: fraction >= 1 ? 100 : Math.max(0, Math.min(99, Math.round(fraction * 100))),
     startedAt: book.startedAt ?? startedAt,
     lastUpdatedAt: observedAt,
   })

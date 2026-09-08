@@ -93,6 +93,129 @@ describe('audiobook progress and listening sessions', () => {
     await database.close()
   })
 
+  test('reaching the end saves 100% and replaying the journal does not duplicate listening time', async () => {
+    const database = await progressDatabase()
+    const repository = new AudiobookProgressRepository(database)
+    const startedAt = '2026-08-29T12:00:00.000Z'
+    const endedAt = '2026-08-29T12:00:10.000Z'
+    const events = [
+      playbackEvent('play', 1, startedAt, durationMs - 10_000, 0, 1),
+      playbackEvent('end', 2, endedAt, durationMs, 10_000, 1),
+    ]
+    await repository.ingestJournal(events)
+    const library = new LibraryRepository(database)
+    expect((await library.list())[0]).toMatchObject({ shelf: 'reading', progress: 100, startedAt })
+    expect((await library.list())[0]?.finishedAt).toBeUndefined()
+    expect(await repository.checkpointForBook(bookId)).toMatchObject({
+      absolutePositionMs: durationMs, transportState: 'ended',
+    })
+
+    await repository.ingestJournal(events)
+    const ledger = await new ReadingLedgerRepository(database).read()
+    const sessions = ledger.events.filter(({ kind, id }) => kind === 'session' && id.includes('audio:'))
+    expect(sessions).toHaveLength(1)
+    expect(sessions[0]).toMatchObject({ activeDurationMs: 10_000 })
+
+    // A final decoder position can be shorter than the imported manifest duration.
+    await repository.checkpointSnapshot(playbackSnapshot({
+      playbackSessionId: 'session:listening', revision: 3,
+      state: 'ended', playIntent: false, absolutePositionMs: durationMs - 500,
+      activeDurationMs: 10_000, observedAt: '2026-08-29T12:00:10.001Z',
+    }), true)
+    expect((await library.list())[0]?.progress).toBe(100)
+    expect(await repository.checkpointForBook(bookId)).toMatchObject({ absolutePositionMs: durationMs })
+    const catalog = await new CatalogRepository(database).read()
+    expect(catalog.progressSnapshots.find(({ id }) => id === `progress:audio:${fixtureIds.assets.leftHandM4b}`))
+      .toMatchObject({ normalizedProgress: 1, position: { locator: { positionMs: durationMs } } })
+
+    // A recovered paused player at the final position also retains completion.
+    await new AudiobookProgressRepository(database).checkpointSnapshot(playbackSnapshot({
+      playbackSessionId: 'session:listening', engineEpoch: 'android-engine:restored', revision: 4,
+      state: 'paused', playIntent: false, absolutePositionMs: durationMs,
+      suppressionReason: 'process-recreated', activeDurationMs: 10_000,
+      observedAt: '2026-08-29T12:01:00.000Z',
+    }), true)
+    expect((await library.list())[0]?.progress).toBe(100)
+
+    await repository.ingestJournal([
+      playbackEvent('seek', 3, '2026-08-29T12:01:01.000Z', durationMs / 2, 10_000, 1, durationMs),
+    ])
+    expect((await library.list())[0]?.progress).toBe(50)
+    await database.close()
+  })
+
+  test('an ended snapshot persists immediately even without a journal, but near-end playback stays below 100%', async () => {
+    const database = await progressDatabase()
+    const repository = new AudiobookProgressRepository(database)
+    const nearEnd = playbackSnapshot({ absolutePositionMs: durationMs - 1_000, activeDurationMs: 10_000 })
+    await repository.checkpointSnapshot(nearEnd, true)
+    expect((await new LibraryRepository(database).list())[0]?.progress).toBe(99)
+
+    const ended = playbackSnapshot({
+      ...nearEnd, revision: 2, state: 'ended', playIntent: false,
+      absolutePositionMs: durationMs - 500, activeDurationMs: 10_500,
+      observedAt: '2026-08-29T12:00:00.500Z',
+    })
+    expect(await repository.checkpointSnapshot(ended)).toBe('saved')
+    expect((await new LibraryRepository(database).list())[0]?.progress).toBe(100)
+    expect(await repository.checkpointForBook(bookId)).toMatchObject({ absolutePositionMs: durationMs })
+    expect(await repository.resolvePositionForBook(bookId)).toMatchObject({ positionMs: durationMs })
+    expect(await repository.checkpointSnapshot({ ...ended, revision: 3 })).toBe('throttled')
+    expect(await repository.checkpointSnapshot(nearEnd, true)).toBe('ignored')
+    expect((await new LibraryRepository(database).list())[0]?.progress).toBe(100)
+    await database.close()
+  })
+
+  test('seeking back after browser playback ends clears completion', async () => {
+    const database = await progressDatabase()
+    const repository = new AudiobookProgressRepository(database)
+    const originalAudio = Object.getOwnPropertyDescriptor(globalThis, 'Audio')
+    const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document')
+    class AudioStub extends EventTarget {
+      currentTime = 0
+      buffered = { length: 0 }
+      async play() {}
+      pause() {}
+    }
+    const audio = new AudioStub()
+    Object.defineProperty(globalThis, 'Audio', { configurable: true, value: function () { return audio } })
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: new EventTarget() })
+    try {
+      const { WovenleafPlaybackWeb } = await import('../src/playback/web')
+      const plugin = new WovenleafPlaybackWeb()
+      const [row] = await database.query('SELECT manifest_json FROM audiobook_imports')
+      const loaded = await plugin.loadQueue({
+        manifest: JSON.parse(String(row!.manifest_json)),
+        sources: [{
+          capability: 'source:test', uri: 'blob:test', fingerprint: 'a'.repeat(64),
+          byteSize: 1_024, mediaType: 'audio/mp4',
+        }],
+        commandId: 'command:load', expectedRevision: 0,
+      })
+      await plugin.play({ commandId: 'command:play', expectedRevision: loaded.revision })
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      audio.currentTime = (durationMs - 500) / 1_000
+      audio.dispatchEvent(new Event('ended'))
+      const ended = await plugin.getSnapshot()
+      expect(ended.state).toBe('ended')
+      await repository.checkpointSnapshot(ended, true)
+      expect((await new LibraryRepository(database).list())[0]?.progress).toBe(100)
+
+      const rewound = await plugin.seekToAbsolute({
+        positionMs: durationMs / 2, commandId: 'command:rewind', expectedRevision: ended.revision,
+      })
+      expect(rewound).toMatchObject({ state: 'paused', absolutePositionMs: durationMs / 2 })
+      await repository.checkpointSnapshot(rewound, true)
+      expect((await new LibraryRepository(database).list())[0]?.progress).toBe(50)
+    } finally {
+      if (originalAudio) Object.defineProperty(globalThis, 'Audio', originalAudio)
+      else Reflect.deleteProperty(globalThis, 'Audio')
+      if (originalDocument) Object.defineProperty(globalThis, 'document', originalDocument)
+      else Reflect.deleteProperty(globalThis, 'document')
+      await database.close()
+    }
+  })
+
   test('uses active wall time for sessions while seeks and speed affect only media progress', async () => {
     const database = await progressDatabase()
     const repository = new AudiobookProgressRepository(database, {

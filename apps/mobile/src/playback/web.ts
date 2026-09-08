@@ -312,6 +312,7 @@ export class WovenleafPlaybackWeb extends WebPlugin implements WovenleafPlayback
     if (!this.#manifest) return
     const before = this.#absolutePosition()
     const target = Math.max(0, Math.min(Math.trunc(requestedPositionMs), Math.max(0, this.#duration() - 1)))
+    if (this.#state === 'ended') this.#state = 'paused'
     const segmentIndex = this.#segmentForAbsolute(target)
     if (segmentIndex === this.#segmentIndex && this.#audio) {
       this.#audio.currentTime = (target - (this.#manifest.segments[segmentIndex]?.absoluteStartMs ?? 0)) / 1_000

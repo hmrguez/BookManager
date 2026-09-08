@@ -22,6 +22,11 @@ progress snapshot. Closing the player saves the latest position without stopping
 app state changes reconcile progress from background listening. Explicitly finished books stay
 finished, matching the EPUB reader's completion behavior.
 
+Reaching the end of the audiobook records **100%** progress. An ended snapshot commits immediately
+and uses the full manifest duration, even if the decoder's final position is slightly shorter.
+Near-end positions stay at or below 99% until the end is reached; seeking back updates progress
+normally. Completion does not automatically move the book to Finished.
+
 ## Durability and lifecycle
 
 The native player checkpoints its absolute position, chapter, segment, rate, and monotonic active

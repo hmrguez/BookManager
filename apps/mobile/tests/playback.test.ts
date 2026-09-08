@@ -210,6 +210,36 @@ function fakePlugin(initial = snapshot()): {
 }
 
 describe('native audiobook playback contract', () => {
+  test('publishes and saves the full duration immediately when playback ends', async () => {
+    const database = new BunSqliteDatabase()
+    await migrateStorage(database)
+    const fake = fakePlugin(snapshot({ state: 'playing', absolutePositionMs: 59_000, segmentPositionMs: 29_000 }))
+    const saved: PlaybackSnapshot[] = []
+    class ProgressRepository extends AudiobookProgressRepository {
+      override async checkpointSnapshot(candidate: PlaybackSnapshot) {
+        saved.push(candidate)
+        return 'saved' as const
+      }
+    }
+    const service = new AudiobookPlaybackService(database, {
+      plugin: fake.plugin, progressRepository: new ProgressRepository(database),
+    })
+    await service.connect()
+    fake.emitSnapshot(snapshot({
+      state: 'ended', revision: 2, absolutePositionMs: 59_500, segmentPositionMs: 29_500,
+      observedAt: '2026-08-28T08:00:00.500Z',
+    }))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(saved).toHaveLength(2)
+    expect(saved[1]).toMatchObject({ absolutePositionMs: 60_000, segmentPositionMs: 30_000 })
+    expect(service.snapshot).toMatchObject({ absolutePositionMs: 60_000, segmentPositionMs: 30_000 })
+    fake.emitSnapshot(snapshot({ ...fake.snapshot, revision: 3 }))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(saved).toHaveLength(2)
+    await service.disconnect()
+    await database.close()
+  })
+
   test('notifies library consumers after durable checkpoints, skipping throttled and failed saves', async () => {
     const database = new BunSqliteDatabase()
     await migrateStorage(database)

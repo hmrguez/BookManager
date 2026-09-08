@@ -59,7 +59,7 @@ export class AudiobookPlaybackService {
   #journalConsumer?: PlaybackJournalConsumer
   #draining?: Promise<void>
   #progressQueue: Promise<void> = Promise.resolve()
-  #queuedCheckpoints = new Map<string, Pick<PlaybackSnapshot, 'absolutePositionMs' | 'observedAt'>>()
+  #queuedCheckpoints = new Map<string, Pick<PlaybackSnapshot, 'absolutePositionMs' | 'observedAt' | 'state'>>()
 
   constructor(
     database: SqlDatabase,
@@ -443,7 +443,14 @@ export class AudiobookPlaybackService {
   }
 
   #accept(candidate: PlaybackSnapshot, force = false): PlaybackSnapshot {
-    const snapshot = playbackSnapshotSchema.parse(candidate)
+    const parsed = playbackSnapshotSchema.parse(candidate)
+    const snapshot = parsed.state === 'ended'
+      ? {
+          ...parsed,
+          absolutePositionMs: parsed.durationMs,
+          segmentPositionMs: Math.max(0, parsed.segmentPositionMs + parsed.durationMs - parsed.absolutePositionMs),
+        }
+      : parsed
     if (force || isNewerPlaybackSnapshot(this.#snapshot, snapshot)) {
       const previousSessionId = this.#snapshot?.playbackSessionId
       this.#snapshot = snapshot
@@ -491,6 +498,7 @@ export class AudiobookPlaybackService {
     const previous = this.#queuedCheckpoints.get(snapshot.playbackSessionId)
     if (
       !force &&
+      !(snapshot.state === 'ended' && previous?.state !== 'ended') &&
       previous &&
       Date.parse(snapshot.observedAt) - Date.parse(previous.observedAt) < PLAYBACK_CHECKPOINT_WALL_THROTTLE_MS &&
       Math.abs(snapshot.absolutePositionMs - previous.absolutePositionMs) < PLAYBACK_RECOVERY_POSITION_BOUND_MS
@@ -498,6 +506,7 @@ export class AudiobookPlaybackService {
     this.#queuedCheckpoints.set(snapshot.playbackSessionId, {
       absolutePositionMs: snapshot.absolutePositionMs,
       observedAt: snapshot.observedAt,
+      state: snapshot.state,
     })
     return this.#runProgress(async () => {
       const result = await this.#progress.checkpointSnapshot(snapshot, force)
