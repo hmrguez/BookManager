@@ -1,0 +1,198 @@
+---
+import LegalLayout from '../layouts/LegalLayout.astro';
+import { operator } from '../legal';
+
+const sections = [
+  { id: 'about', title: 'About these terms' },
+  { id: 'using-wovenleaf', title: 'Using Wovenleaf' },
+  { id: 'your-files', title: 'Your files and copyright' },
+  { id: 'goodreads', title: 'Goodreads imports' },
+  { id: 'third-parties', title: 'Third-party services' },
+  { id: 'backups', title: 'Your device and backups' },
+  { id: 'availability', title: 'Availability and liability' },
+  { id: 'changes', title: 'Changes and stopping use' },
+  { id: 'rights', title: 'Your legal rights' },
+  { id: 'contact', title: 'Contact' },
+];
+---
+
+<LegalLayout
+  title="Terms of service"
+  description="The terms for using Wovenleaf, including local imports, copyright responsibilities, backups, and third-party services."
+  summary="A personal space for your reading. You choose the books and files you bring; you are responsible for having the right to use them."
+  sections={sections}
+>
+  <section id="about">
+    <h2>1. About these terms</h2>
+    <p>
+      These terms cover the Wovenleaf mobile app and this website. Wovenleaf is
+      provided by {operator.name}, based in {operator.country} ("we", "us", or "our").
+      "You" means the person using the app or website.
+    </p>
+    <p>
+      Please read these terms before using Wovenleaf. By using the app, you
+      agree to them to the extent permitted by applicable law. If you do not
+      agree, please stop using it. The <a href="/privacy/">privacy policy</a> explains
+      how information is handled; accepting these terms is not consent to unrelated
+      data processing.
+    </p>
+  </section>
+
+  <section id="using-wovenleaf">
+    <h2>2. Using Wovenleaf</h2>
+    <p>
+      Wovenleaf is a personal book tracker, EPUB reader, and audiobook player.
+      It stores your library on your device and does not require a Wovenleaf
+      account or provide a Wovenleaf cloud library. We grant you a personal,
+      non-exclusive right to use the app in accordance with these terms and the
+      rules of the app store through which you obtain it.
+    </p>
+    <p>
+      You must be legally able to agree to these terms, or use Wovenleaf with
+      the involvement of a parent or guardian where required. Use the app
+      lawfully. Do not use it to infringe others’ rights, distribute unlawful
+      content, or interfere with third-party services. Licenses for open-source
+      components continue to govern those components.
+    </p>
+  </section>
+
+  <section id="your-files">
+    <h2>3. Your files and copyright</h2>
+    <p>
+      You choose the EPUBs, audiobooks, cover images, text, and other material
+      you import. <strong
+        >You are responsible for ensuring you have the legal right to import,
+        copy, read, listen to, export, or share that material.</strong
+      >
+      That right may come from ownership of the relevant rights, a license, permission,
+      the public domain, or an exception under applicable law. Having a copy of a
+      file does not by itself give you every right to use it.
+    </p>
+    <p>
+      Wovenleaf does not ask for proof of purchase or verify the ownership or
+      licensing history of locally imported files. Technical acceptance of a
+      file is not confirmation that its source or use is lawful. Responsibility
+      for your sources and uses remains yours, including any infringement
+      resulting from your actions.
+    </p>
+    <p>
+      Wovenleaf does not provide a service for uploading, hosting, or
+      distributing your imported book files. Importing a file does not transfer
+      its ownership to us or give us a license to publish it. Wovenleaf does not
+      grant rights in third-party books, remove digital rights management (DRM),
+      or authorize bypassing access controls. Protected or incompatible files
+      may not work.
+    </p>
+  </section>
+
+  <section id="goodreads">
+    <h2>4. Goodreads imports</h2>
+    <p>
+      Wovenleaf reads Goodreads CSV exports you select or share with the app,
+      prepares a local preview, and imports the changes you confirm. Goodreads
+      sign-in and export creation take place on Goodreads’ own website;
+      Wovenleaf does not need your Goodreads password or synchronize changes
+      back to it.
+    </p>
+    <p>
+      Import only exports you are entitled to use. Review the preview and keep
+      your original export: changes to the CSV format, incomplete records, or
+      matching errors can affect the result. Missing covers may be looked up
+      automatically through Open Library, as described in the privacy policy.
+      Wovenleaf is independent of, and is not endorsed by, Goodreads.
+    </p>
+  </section>
+
+  <section id="third-parties">
+    <h2>5. Third-party services</h2>
+    <p>
+      Online book searches, ISBN lookups, and cover retrieval use Open Library,
+      an Internet Archive project. Book information and images may be
+      incomplete, incorrect, or unavailable. Their availability and any rights
+      in their content are governed by the relevant providers and rights
+      holders.
+    </p>
+    <p>
+      App stores, websites you open, file providers you choose, and other
+      third-party services have their own terms and privacy practices. Wovenleaf
+      is not affiliated with those providers merely because it supports their
+      exports, links to them, or uses their technology. Internet access and any
+      charges from your network provider remain your responsibility.
+    </p>
+  </section>
+
+  <section id="backups">
+    <h2>6. Your device and backups</h2>
+    <p>
+      Keep your device secure and maintain copies of important files. Deleting
+      app data, uninstalling the app, losing a device, or a storage failure can
+      permanently remove your library and imported files. We do not hold a
+      server copy from which we can restore them.
+    </p>
+    <p>
+      Local recovery points are on the same device and are not a substitute for
+      a separate backup. Review each export’s contents: some formats are not
+      restorable, and book files or voice recordings may be excluded. Exports
+      are not encrypted by Wovenleaf. You are responsible for where you save
+      them and for having permission to share any included content.
+    </p>
+  </section>
+
+  <section id="availability">
+    <h2>7. Availability and liability</h2>
+    <p>
+      We aim to make Wovenleaf reliable, but cannot promise that every book or
+      file will work, that third-party services will remain available, or that
+      the app will always be free of errors. To the extent permitted by law, the
+      app and website are provided "as is" and "as available", without
+      additional warranties beyond those required by law.
+    </p>
+    <p>
+      To the extent permitted by law, we are not responsible for losses caused
+      by your unlawful use of imported content, failures of services outside our
+      control, or indirect or unforeseeable losses. These terms do not exclude
+      responsibility for our fraud, intentional misconduct, gross negligence,
+      death or personal injury caused by negligence, or any other liability that
+      cannot legally be limited. Your mandatory consumer rights, including
+      applicable rights to remedies for defective digital content, remain
+      intact.
+    </p>
+  </section>
+
+  <section id="changes">
+    <h2>8. Changes and stopping use</h2>
+    <p>
+      You can stop using Wovenleaf at any time. Export what you need before
+      removing the app or its data. We may release updates or change features
+      for compatibility, security, or other reasonable product needs, subject to
+      any obligations we have under applicable law.
+    </p>
+    <p>
+      If these terms change, we will publish the revised version here with a new
+      effective date. For material changes, we will give any advance notice and
+      obtain any agreement required by law. Changes do not remove rights or
+      claims you already have.
+    </p>
+  </section>
+
+  <section id="rights">
+    <h2>9. Your legal rights</h2>
+    <p>
+      These terms do not deprive you of mandatory protections under the law
+      where you live or prevent you from bringing a claim in any court available
+      to you under applicable law. If a provision cannot be enforced, the
+      remaining provisions continue to apply to the extent legally possible.
+    </p>
+  </section>
+
+  <section id="contact">
+    <h2>10. Contact</h2>
+    <p>
+      For questions about these terms or concerns about Wovenleaf itself,
+      contact {operator.name} at <a href={`mailto:${operator.email}`}
+        >{operator.email}</a
+      >. We cannot inspect, retrieve, or remotely remove files stored only on
+      someone else’s device.
+    </p>
+  </section>
+</LegalLayout>

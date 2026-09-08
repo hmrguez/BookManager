@@ -15,6 +15,12 @@ bun run dev
 
 The landing page runs at `http://127.0.0.1:4321`. Wovenleaf is a mobile app; the landing page does not link to a web app.
 
+The footer links to `/privacy/` and `/terms/`. Both are static, directly accessible
+legal pages with a shared layout and section navigation. Public operator details
+and the effective date live in `src/legal.ts`. See
+`../../docs/guides/privacy-review.md` for the source review behind the disclosures.
+Production builds reject missing operator details so draft placeholders cannot be published.
+
 ## Check and build
 
 ```sh

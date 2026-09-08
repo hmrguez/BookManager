@@ -323,6 +323,16 @@ em {
   content: '✓';
   margin-right: 9px;
 }
+.privacy > .privacy-detail {
+  margin: 28px 0 0;
+  font-size: 13px;
+}
+.privacy-detail a {
+  display: inline-block;
+  padding-block: 10px;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
 .closing {
   text-align: center;
   padding-block: 35px 110px;

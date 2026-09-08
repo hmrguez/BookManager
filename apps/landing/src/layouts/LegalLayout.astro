@@ -1,0 +1,244 @@
+---
+import '@fontsource-variable/literata';
+import '@fontsource-variable/ibm-plex-sans';
+import '../styles.css';
+import SiteFooter from '../components/SiteFooter.astro';
+import { legalUpdated } from '../legal';
+
+interface Props {
+  title: string;
+  description: string;
+  summary: string;
+  sections: { id: string; title: string }[];
+}
+
+const { title, description, summary, sections } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title} — Wovenleaf</title>
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#f6f3eb" />
+    <link rel="icon" type="image/svg+xml" href="/mark.svg" />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="legal-header wrap">
+      <a class="brand" href="/" aria-label="Wovenleaf home">
+        <img src="/mark.svg" width="32" height="32" alt="" />Wovenleaf
+      </a>
+      <a class="home-link" href="/">← Back to Wovenleaf</a>
+    </header>
+    <main id="main" class="legal-main wrap">
+      <div class="legal-intro">
+        <p class="eyebrow">THE SMALL PRINT, SIMPLY PUT</p>
+        <h1>{title}</h1>
+        <p class="legal-summary">{summary}</p>
+        <p class="legal-date">
+          Effective and last updated <time datetime={legalUpdated.iso}
+            >{legalUpdated.label}</time
+          >
+        </p>
+      </div>
+      <div class="legal-grid">
+        <nav class="legal-contents" aria-label="On this page">
+          <p class="eyebrow">ON THIS PAGE</p>
+          <ol>
+            {
+              sections.map((section) => (
+                <li>
+                  <a href={`#${section.id}`}>{section.title}</a>
+                </li>
+              ))
+            }
+          </ol>
+        </nav>
+        <article class="legal-copy" aria-label={title}>
+          <slot />
+        </article>
+      </div>
+    </main>
+    <SiteFooter />
+  </body>
+</html>
+
+<style>
+  .legal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding-block: 28px;
+    border-bottom: 1px solid var(--line);
+  }
+  .home-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .home-link:hover {
+    color: var(--ink);
+  }
+  .legal-main {
+    padding-block: 72px 96px;
+  }
+  .legal-intro {
+    max-width: 760px;
+    margin-bottom: 56px;
+  }
+  h1 {
+    font-size: clamp(42px, 6vw, 68px);
+    letter-spacing: -2px;
+    margin-block: 24px;
+  }
+  .legal-summary {
+    max-width: 640px;
+    font-family: 'Literata Variable', serif;
+    font-size: clamp(18px, 2vw, 21px);
+    line-height: 1.7;
+    color: var(--green);
+  }
+  .legal-date {
+    margin-top: 24px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--muted);
+  }
+  .legal-grid {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 680px);
+    gap: 64px;
+    align-items: start;
+    border-top: 1px solid var(--line);
+    padding-top: 40px;
+  }
+  .legal-contents {
+    position: sticky;
+    top: 32px;
+  }
+  .legal-contents .eyebrow {
+    margin: 0 0 18px;
+  }
+  .legal-contents ol {
+    margin: 0;
+    padding-left: 22px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .legal-contents li {
+    padding-left: 4px;
+  }
+  .legal-contents a {
+    display: block;
+    padding-block: 10px;
+    line-height: 1.5;
+  }
+  .legal-contents a:hover {
+    color: var(--ink);
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+  .legal-copy {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .legal-copy :global(section + section) {
+    border-top: 1px solid var(--line);
+    margin-top: 32px;
+    padding-top: 32px;
+  }
+  .legal-copy :global(h2) {
+    font-size: 26px;
+    line-height: 1.4;
+    letter-spacing: -0.7px;
+    margin: 0 0 18px;
+  }
+  .legal-copy :global(h3) {
+    font-size: 16px;
+    line-height: 1.5;
+    font-weight: 550;
+    margin: 24px 0 10px;
+  }
+  .legal-copy :global(p),
+  .legal-copy :global(li) {
+    font-size: 15px;
+    line-height: 1.85;
+    color: #535e4e;
+  }
+  .legal-copy :global(p) {
+    margin: 0 0 16px;
+  }
+  .legal-copy :global(ul) {
+    padding-left: 22px;
+  }
+  .legal-copy :global(li) {
+    padding-left: 4px;
+    margin-bottom: 10px;
+  }
+  .legal-copy :global(strong) {
+    color: var(--ink);
+    font-weight: 550;
+  }
+  .legal-copy :global(a) {
+    color: var(--green);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .legal-copy :global(a:hover) {
+    color: var(--ink);
+  }
+  @media (max-width: 900px) {
+    .legal-grid {
+      grid-template-columns: 190px minmax(0, 1fr);
+      gap: 32px;
+    }
+  }
+  @media (max-width: 600px) {
+    .legal-header .brand {
+      font-size: 21px;
+    }
+    .home-link {
+      font-size: 12px;
+    }
+    .legal-main {
+      padding-block: 44px 64px;
+    }
+    .legal-intro {
+      margin-bottom: 32px;
+    }
+    .legal-grid {
+      grid-template-columns: 1fr;
+      gap: 36px;
+      padding-top: 28px;
+    }
+    .legal-contents {
+      position: static;
+    }
+    .legal-contents a {
+      min-height: 44px;
+    }
+  }
+  @media print {
+    .legal-header,
+    .legal-contents,
+    .skip {
+      display: none;
+    }
+    .legal-main {
+      padding: 0;
+    }
+    .legal-grid {
+      display: block;
+    }
+    .legal-copy :global(h2) {
+      break-after: avoid;
+    }
+  }
+</style>

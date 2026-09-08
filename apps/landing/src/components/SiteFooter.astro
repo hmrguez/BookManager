@@ -1,0 +1,79 @@
+---
+const currentPath = Astro.url.pathname.replace(/\/$/, '');
+---
+
+<footer class="site-footer wrap">
+  <div class="footer-top">
+    <a class="brand" href="/" aria-label="Wovenleaf home">
+      <img src="/mark.svg" width="28" height="28" alt="" />Wovenleaf
+    </a>
+    <p>All your reading. One quiet place.</p>
+    <a class="back-link" href="#main">Back to the beginning ↑</a>
+  </div>
+  <nav class="footer-legal" aria-label="Legal">
+    <a
+      href="/privacy/"
+      aria-current={currentPath === '/privacy' ? 'page' : undefined}
+    >
+      Privacy policy
+    </a>
+    <a
+      href="/terms/"
+      aria-current={currentPath === '/terms' ? 'page' : undefined}
+    >
+      Terms of service
+    </a>
+  </nav>
+</footer>
+
+<style>
+  .site-footer {
+    display: block;
+  }
+  .footer-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+  }
+  .back-link,
+  .footer-legal {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .footer-legal {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 28px;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+  }
+  .footer-legal a,
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  .footer-legal a:hover,
+  .footer-legal a[aria-current='page'],
+  .back-link:hover {
+    color: var(--ink);
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+  @media (max-width: 600px) {
+    .footer-top {
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .back-link {
+      font-size: 11px;
+    }
+  }
+  @media print {
+    .site-footer {
+      display: none;
+    }
+  }
+</style>

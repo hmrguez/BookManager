@@ -3,6 +3,7 @@ import '@fontsource-variable/literata';
 import '@fontsource-variable/ibm-plex-sans';
 import '../styles.css';
 import StoreLinks from '../components/StoreLinks.astro';
+import SiteFooter from '../components/SiteFooter.astro';
 const stories = [
   {
     id: 'track',
@@ -176,8 +177,12 @@ const stories = [
           account to create. No feed to keep up with.
         </p><div class="privacy-notes">
           <span>Stored on your device</span><span>Portable library backups</span
-          ><span>No analytics layer</span>
+          ><span>No account required</span>
         </div>
+        <p class="privacy-detail">
+          Online search and cover lookups use Open Library.<br />
+          <a href="/privacy/">Read the privacy policy →</a>
+        </p>
       </section>
       <section class="closing wrap">
         <p class="eyebrow">THE NEXT CHAPTER IS YOURS</p><h2>
@@ -187,12 +192,6 @@ const stories = [
         </h2><StoreLinks />
       </section>
     </main>
-    <footer class="wrap">
-      <a class="brand" href="#"
-        ><img src="/mark.svg" width="28" height="28" alt="" />Wovenleaf</a
-      ><p>All your reading. One quiet place.</p><a href="#main"
-        >Back to the beginning ↑</a
-      >
-    </footer>
+    <SiteFooter />
   </body>
 </html>
