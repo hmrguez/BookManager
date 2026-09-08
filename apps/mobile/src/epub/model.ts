@@ -94,6 +94,7 @@ export function throwIfEpubImportCanceled(signal?: AbortSignal): void {
 }
 
 export function epubImportErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.name === 'LibraryUpgradeRequired') return error.message
   if (error instanceof EpubImportError) return error.message
   return 'This EPUB could not be imported. The library and managed files were left unchanged.'
 }

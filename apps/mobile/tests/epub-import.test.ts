@@ -1,3 +1,5 @@
+import { seedFreeLibrary } from './fixtures/purchases'
+import { LibraryUpgradeRequired } from '../src/purchases/model'
 import { describe, expect, test } from 'bun:test'
 import JSZip from 'jszip'
 import {
@@ -354,3 +356,20 @@ function sequentialIds(): (prefix: string) => string {
   let next = 0
   return (prefix) => `${prefix}:test:${++next}`
 }
+
+test('free limit rolls back EPUB bytes and catalog, while attachments remain free', async () => {
+  const database = new BunSqliteDatabase()
+  await migrateStorage(database)
+  const { library } = await seedFreeLibrary(database)
+  const managedStore = new MemoryManagedAssetStore()
+  const service = new EpubImportService(database, { managedStore })
+  const source = { name: 'capacity.epub', bytes: await createEpub({ title: 'New EPUB', cover: true }) }
+  await expect(service.import(source)).rejects.toBeInstanceOf(LibraryUpgradeRequired)
+  expect(await library.list()).toHaveLength(20)
+  expect(managedStore.files.size).toBe(0)
+  expect((await new CatalogRepository(database).read()).works).toHaveLength(0)
+  await service.import(source, { targetBookId: 'capacity-1' })
+  expect(await library.list()).toHaveLength(20)
+  expect(managedStore.files.size).toBeGreaterThan(0)
+  await database.close()
+})

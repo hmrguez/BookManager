@@ -1,0 +1,32 @@
+{
+  "identifier": "71A2440B-0E88-416B-8680-1CDCD7141345",
+  "nonRenewingSubscriptions": [],
+  "products": [
+    {
+      "displayPrice": "10.00",
+      "familyShareable": false,
+      "internalID": "104501",
+      "localizations": [
+        {
+          "description": "One purchase. Unlimited books in Wovenleaf.",
+          "displayName": "Wovenleaf Unlimited",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "com.hmrguez.wovenleaf.unlimited",
+      "referenceName": "Wovenleaf Unlimited",
+      "type": "NonConsumable"
+    }
+  ],
+  "settings": {
+    "_failTransactionsEnabled": false,
+    "_locale": "en_US",
+    "_storefront": "USA",
+    "_storeKitErrors": []
+  },
+  "subscriptionGroups": [],
+  "version": {
+    "major": 3,
+    "minor": 0
+  }
+}

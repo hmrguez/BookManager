@@ -50,6 +50,7 @@ import type {
 import type { RecoveryBackupPreview } from '../storage'
 import { EpubStorageCard, type EpubStorageViewState } from './EpubStorageCard'
 import { FEATURES } from '../app/feature-flags'
+import type { PurchaseView } from '../purchases/service'
 
 export type EpubImportViewState = {
   readonly progress?: EpubImportProgress
@@ -72,6 +73,8 @@ export type RecoveryViewState = {
 }
 
 export function SettingsPage({
+  purchaseView,
+  onUpgrade,
   books,
   appearance,
   searchPreferences,
@@ -114,6 +117,8 @@ export function SettingsPage({
   onRestoreBackup,
   onClearBooks,
 }: {
+  purchaseView?: PurchaseView
+  onUpgrade?: () => void
   books: LibraryBook[]
   appearance: AppearancePreferences
   searchPreferences: SearchPreferences
@@ -203,6 +208,18 @@ export function SettingsPage({
       </header>
 
       <div className={tw('settings-ledger')}>
+        {purchaseView && onUpgrade && <section className={tw('settings-card')}>
+          <div className={tw('settings-card__icon')}><BookOpen aria-hidden="true" /></div>
+          <div className={tw('settings-card__heading')}>
+            <h2>Wovenleaf Unlimited</h2>
+            <p>{purchaseView.owned ? 'Unlimited books · purchased' : `${books.length} of 20 free books · upgrade once for unlimited books`}</p>
+          </div>
+          <button className={tw('settings-action')} type="button" onClick={onUpgrade}>
+            <BookOpen aria-hidden="true" />
+            <span><strong>{purchaseView.owned ? 'View purchase' : 'Upgrade or restore purchase'}</strong></span>
+            <ChevronRight aria-hidden="true" />
+          </button>
+        </section>}
         {FEATURES.advancedFileManagement && (
           <>
         <section

@@ -3,6 +3,7 @@ import { upNextStateSchema } from '../up-next-model'
 import type { SqlDatabase } from './database'
 import { readText } from './database'
 import { writeUpNextState } from './up-next-repository'
+import { checkLibraryCapacity } from '../purchases/capacity'
 
 export class LibraryRepository {
   readonly #database: SqlDatabase
@@ -40,8 +41,7 @@ export class LibraryRepository {
   }
 
   async save(book: LibraryBook): Promise<void> {
-    await writeLibraryBook(this.#database, libraryBookSchema.parse(book))
-    await this.#database.persist()
+    await this.#database.transaction((database) => writeLibraryBook(database, libraryBookSchema.parse(book)))
   }
 
   async remove(id: string): Promise<void> {
@@ -84,8 +84,9 @@ export async function readLibraryBooks(database: SqlDatabase): Promise<LibraryBo
   return rows.map((row) => libraryBookSchema.parse(JSON.parse(readText(row, 'payload_json'))))
 }
 
-export async function writeLibraryBook(database: SqlDatabase, book: LibraryBook): Promise<void> {
+export async function writeLibraryBook(database: SqlDatabase, book: LibraryBook, capacityChecked = false): Promise<void> {
   const validated = libraryBookSchema.parse(book)
+  if (!capacityChecked) await checkLibraryCapacity(database, [validated.id])
   await database.run(
     `INSERT INTO library_books(
        id, position, shelf, title_sort, added_at, updated_at, payload_json
@@ -112,8 +113,10 @@ export async function writeLibraryBook(database: SqlDatabase, book: LibraryBook)
 export async function replaceLibraryBooks(
   database: SqlDatabase,
   books: readonly LibraryBook[],
+  trustedRecoveryRollback = false,
 ): Promise<void> {
   const validated = books.map((book) => libraryBookSchema.parse(book))
+  if (!trustedRecoveryRollback) await checkLibraryCapacity(database, validated.map(({ id }) => id), true)
   await database.run('DELETE FROM library_books')
-  for (const book of validated) await writeLibraryBook(database, book)
+  for (const book of validated) await writeLibraryBook(database, book, true)
 }

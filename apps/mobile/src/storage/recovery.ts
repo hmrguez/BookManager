@@ -272,7 +272,7 @@ export class RecoveryService {
     } catch (error) {
       if (pending) {
         try {
-          await this.#portableArchives.restore(rollbackArtifact.archive)
+          await this.#portableArchives.restore(rollbackArtifact.archive, { trustedRecoveryRollback: true })
           await verifyRestoredDatabase(this.#database, rollbackInspection)
           await this.#store.writePendingRestore(undefined)
         } catch (rollbackError) {
@@ -324,7 +324,7 @@ export class RecoveryService {
       )
     }
     const inspection = await this.#portableArchives.inspect(rollback.archive)
-    await this.#portableArchives.restore(rollback.archive)
+    await this.#portableArchives.restore(rollback.archive, { trustedRecoveryRollback: true })
     await verifyRestoredDatabase(this.#database, inspection)
     await this.#store.writePendingRestore(undefined)
     await this.#store.remove(pending.stagingArtifactId)

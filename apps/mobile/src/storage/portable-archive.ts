@@ -228,7 +228,10 @@ export class PortableArchiveService {
     return inspectPortableArchive(serializedArchive)
   }
 
-  async restore(serializedArchive: string): Promise<PortableArchiveInspection> {
+  async restore(
+    serializedArchive: string,
+    options: { readonly trustedRecoveryRollback?: boolean } = {},
+  ): Promise<PortableArchiveInspection> {
     const inspected = await this.inspect(serializedArchive)
     const restored = await restoreIncludedEpubAssets(inspected, this.#epubAssetStore)
     try {
@@ -236,7 +239,9 @@ export class PortableArchiveService {
         await replaceReaderNavigationStates(database, [])
         await replaceReaderAnnotationStates(database, [])
         await deleteCatalogRecords(database)
-        await replaceLibraryBooks(database, restored.inspection.books)
+        // Only RecoveryService's own rollback artifact may bypass purchase checks.
+        // Restoring someone's uploaded archive always uses the default checked path.
+        await replaceLibraryBooks(database, restored.inspection.books, options.trustedRecoveryRollback)
         await insertCatalogRecords(database, restored.inspection.catalog)
         await insertPortableEpubImports(database, restored.inspection.epubImports)
         await replaceOrganization(database, restored.inspection.organization)

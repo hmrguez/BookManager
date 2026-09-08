@@ -8,6 +8,7 @@ import UIKit
 final class WovenleafBridgeViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(WovenleafFeedbackPlugin())
+        bridge?.registerPluginInstance(WovenleafPurchasesPlugin())
         bridge?.registerPluginInstance(WovenleafReaderPlugin())
         bridge?.registerPluginInstance(WovenleafPlaybackPlugin())
     }

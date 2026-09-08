@@ -1,4 +1,5 @@
 import type { SqlDatabase } from '../storage/database'
+import { LibraryUpgradeRequired } from '../purchases/model'
 import { applyEmbeddedCover } from '../covers/embedded-cover'
 import type { EpubImportSource } from './incoming'
 import {
@@ -94,7 +95,7 @@ export class EpubImportService {
       await Promise.all(writes.filter(({ created }) => created).map(({ relativePath }) =>
         this.#managedStore.remove(relativePath),
       ))
-      if (error instanceof EpubImportError) throw error
+      if (error instanceof EpubImportError || error instanceof LibraryUpgradeRequired) throw error
       throw new EpubImportError(
         'storage-failed',
         'The EPUB could not be committed. Its catalog records and newly managed files were rolled back.',

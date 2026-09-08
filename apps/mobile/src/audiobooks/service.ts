@@ -1,4 +1,5 @@
 import type { SqlDatabase } from '../storage/database'
+import { LibraryUpgradeRequired } from '../purchases/model'
 import { applyEmbeddedCover } from '../covers/embedded-cover'
 import { extension } from './binary'
 import { inspectAudiobook, normalizeAudiobookReview } from './inspect'
@@ -141,7 +142,7 @@ export class AudiobookImportService {
       await Promise.all(
         distinctCreatedWrites(writes).map(({ relativePath }) => this.#managedStore.remove(relativePath)),
       )
-      if (error instanceof AudiobookImportError) throw error
+      if (error instanceof AudiobookImportError || error instanceof LibraryUpgradeRequired) throw error
       throw new AudiobookImportError(
         'storage-failed',
         'The audiobook could not be committed. Its catalog records and newly managed files were rolled back.',

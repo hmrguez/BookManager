@@ -107,38 +107,43 @@ export function useLibrary() {
 
   const addBook = useCallback(
     (result: BookSearchResult, shelf: ShelfId) => {
-      const current = booksRef.current
-      const existing = findLibraryBookForSearchResult(current, result)
-      if (existing) {
-        saveChangedBook(existing.id, (book) => ({
-          ...book,
-          shelf,
-          startedAt: shelf === 'reading' ? book.startedAt ?? new Date().toISOString() : book.startedAt,
-          lastUpdatedAt: new Date().toISOString(),
-        }))
-        return { bookId: existing.id, existed: true }
-      }
+      const operation = persistenceTailRef.current.then(async () => {
+        const current = booksRef.current
+        const existing = findLibraryBookForSearchResult(current, result)
+        if (existing) {
+          saveChangedBook(existing.id, (book) => ({
+            ...book,
+            shelf,
+            startedAt: shelf === 'reading' ? book.startedAt ?? new Date().toISOString() : book.startedAt,
+            lastUpdatedAt: new Date().toISOString(),
+          }))
+          return { bookId: existing.id, existed: true }
+        }
 
-      const timestamp = new Date().toISOString()
-      const added: LibraryBook = {
-        ...result,
-        id: result.metadataSelection ? createLibraryBookId() : result.id,
-        shelf,
-        progress: shelf === 'finished' ? 100 : 0,
-        currentPage: shelf === 'finished' ? result.pageCount : 0,
-        rating: 0,
-        notes: '',
-        addedAt: timestamp,
-        startedAt: shelf === 'reading' ? timestamp : undefined,
-        finishedAt: shelf === 'finished' ? timestamp : undefined,
-        lastUpdatedAt: timestamp,
-      }
-      hasMutatedRef.current = true
-      showBooks([...current, added])
-      enqueuePersistence((repository) => repository.save(added))
-      return { bookId: added.id, existed: false }
+        const timestamp = new Date().toISOString()
+        const added: LibraryBook = {
+          ...result,
+          id: result.metadataSelection ? createLibraryBookId() : result.id,
+          shelf,
+          progress: shelf === 'finished' ? 100 : 0,
+          currentPage: shelf === 'finished' ? result.pageCount : 0,
+          rating: 0,
+          notes: '',
+          addedAt: timestamp,
+          startedAt: shelf === 'reading' ? timestamp : undefined,
+          finishedAt: shelf === 'finished' ? timestamp : undefined,
+          lastUpdatedAt: timestamp,
+        }
+        // Persist first: a denied purchase gate must never leave a phantom book in the UI.
+        await (await getStorageRuntime()).library.save(added)
+        hasMutatedRef.current = true
+        showBooks([...booksRef.current, added])
+        return { bookId: added.id, existed: false }
+      })
+      persistenceTailRef.current = operation.then(() => {}, () => {})
+      return operation
     },
-    [enqueuePersistence, saveChangedBook, showBooks],
+    [saveChangedBook, showBooks],
   )
 
   const moveBook = useCallback(

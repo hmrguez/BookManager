@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Paste the PUBLIC licensing key from Play Console > Monetize > Monetization setup.
+         This is not a secret. Purchases are disabled until it is configured. -->
+    <string name="google_play_billing_public_key" translatable="false"></string>
+</resources>

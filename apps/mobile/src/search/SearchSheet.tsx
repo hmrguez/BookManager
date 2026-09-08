@@ -64,13 +64,15 @@ export function SearchSheet({
 }: {
   shelf: ShelfId
   books: LibraryBook[]
-  onAdd: (book: BookSearchResult, shelf: ShelfId) => void
+  onAdd: (book: BookSearchResult, shelf: ShelfId) => void | Promise<boolean>
   onOpenBook: (bookId: string) => void
   onClose: () => void
   initialManual?: boolean
   initialCapture?: InitialCapture
 }) {
   const [query, setQuery] = useState('')
+  const [adding, setAdding] = useState(false)
+  const addingRef = useRef(false)
   const [results, setResults] = useState<readonly BookSearchResult[]>([])
   const [providerStates, setProviderStates] = useState<readonly ProviderSearchState[]>([])
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
@@ -185,9 +187,21 @@ export function SearchSheet({
     void acceptCapturedIsbn(initialCapture.isbn, initialCapture.method)
   }, [acceptCapturedIsbn, initialCapture])
 
+  const submitAddition = async (candidate: BookSearchResult, closeAfter = false) => {
+    if (addingRef.current) return
+    addingRef.current = true
+    setAdding(true)
+    try {
+      if (await onAdd(candidate, shelf) !== false && closeAfter) onClose()
+    } finally {
+      addingRef.current = false
+      setAdding(false)
+    }
+  }
+
   const addFirstResult = (event: FormEvent) => {
     event.preventDefault()
-    if (results[0]) onAdd(results[0], shelf)
+    if (results[0]) void submitAddition(results[0])
   }
 
   const updateQuery = (value: string) => {
@@ -212,7 +226,7 @@ export function SearchSheet({
     setManualMode(true)
   }
 
-  const addManualBook = (event: FormEvent) => {
+  const addManualBook = async (event: FormEvent) => {
     event.preventDefault()
     const cleanTitle = manualTitle.trim()
     if (!cleanTitle) return
@@ -238,8 +252,7 @@ export function SearchSheet({
       return
     }
 
-    onAdd(candidate, shelf)
-    onClose()
+    await submitAddition(candidate, true)
   }
 
   const submitIsbn = (event: FormEvent) => {
@@ -294,10 +307,7 @@ export function SearchSheet({
         <CaptureDuplicateReview
           review={captureReview}
           shelf={shelf}
-          onAdd={() => {
-            onAdd(captureReview.candidate, shelf)
-            onClose()
-          }}
+          onAdd={() => { void submitAddition(captureReview.candidate, true) }}
           onOpen={() => onOpenBook(captureReview.proposal.book.id)}
           onCancel={() => setCaptureReview(undefined)}
         />
@@ -375,7 +385,7 @@ export function SearchSheet({
                 Back to search
               </ActionButton>
             )}
-            <ActionButton type="submit" disabled={!manualTitle.trim()}>
+            <ActionButton type="submit" disabled={!manualTitle.trim()} aria-disabled={adding} aria-busy={adding}>
               <BookPlus aria-hidden="true" /> Add to {shelfCopy[shelf].label}
             </ActionButton>
           </div>
@@ -527,8 +537,10 @@ export function SearchSheet({
                   <button
                     className={tw(`result-add${alreadyHere ? ' is-added' : ''}`)}
                     type="button"
-                    onClick={() => onAdd(result, shelf)}
+                    onClick={() => { void submitAddition(result) }}
                     disabled={alreadyHere}
+                    aria-disabled={adding || alreadyHere}
+                    aria-busy={adding}
                     aria-label={alreadyHere ? `${result.title} already added` : `Add ${result.title}`}
                   >
                     {alreadyHere ? <Check aria-hidden="true" /> : <Plus aria-hidden="true" />}

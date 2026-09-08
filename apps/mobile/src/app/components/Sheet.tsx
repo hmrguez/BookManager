@@ -25,7 +25,7 @@ export function Sheet({
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onCloseRef.current()
+      if (event.key === 'Escape' && !document.querySelector('dialog[open]')) onCloseRef.current()
     }
     window.addEventListener('keydown', closeOnEscape)
     return () => {

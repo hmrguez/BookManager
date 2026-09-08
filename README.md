@@ -91,6 +91,13 @@ baselines and the approval checklist are documented in `apps/mobile/src/design-s
 
 ## App identity and release setup
 
+Wovenleaf is free for 20 library entries. **Wovenleaf Unlimited** is a permanent native
+in-app purchase for unlimited books, restorable within the same store account. See the
+[purchase setup and testing guide](docs/guides/in-app-purchases.md) for creating the
+products, configuring Android's public verification key, testing without real money,
+and gifting upgrades with store-issued codes. Store configuration and sandbox tests
+must be completed before releasing the paid upgrade.
+
 Wovenleaf uses the same production identifier on iOS and Android:
 `com.hmrguez.wovenleaf`. Its custom deep-link scheme is `wovenleaf://`. Keep these identifiers
 stable after a store release: changing either native application ID makes the operating system

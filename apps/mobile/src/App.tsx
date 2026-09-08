@@ -1,4 +1,7 @@
-import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react'
+import { purchases, startPurchases } from './purchases/runtime'
+import { LibraryUpgradeRequired } from './purchases/model'
+import { UpgradeDialog } from './purchases/UpgradeDialog'
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { AlertTriangle, Check, Download } from 'lucide-react'
 import { App as CapacitorApp } from '@capacitor/app'
 import type { SharedFile } from '@capgo/capacitor-share-target'
@@ -145,6 +148,13 @@ function App() {
     reloadUpNext,
   } = useUpNext()
 
+  const purchaseView = useSyncExternalStore(purchases.subscribe, purchases.getSnapshot)
+  const [upgradeOpen, setUpgradeOpen] = useState(false)
+  useEffect(() => {
+    const unsubscribe = purchases.onUpgradeRequired(() => setUpgradeOpen(true))
+    startPurchases()
+    return unsubscribe
+  }, [])
   const [sheet, setSheet] = useState<SheetState>(null)
   const [view, setView] = useState<AppView>('library')
   const [librarySearchOpen, setLibrarySearchOpen] = useState(false)
@@ -420,6 +430,10 @@ function App() {
       setSmartListCatalog(await (await getStorageRuntime()).catalog.read())
       setToast({ message: audiobookResultToastMessage(result) })
     } catch (error) {
+      if (error instanceof LibraryUpgradeRequired) {
+        setAudiobookImport((current) => ({ ...current, progress: undefined, error: error.message }))
+        return
+      }
       audiobookSourcesRef.current = []
       const message = audiobookImportErrorMessage(error)
       setAudiobookImport({ error: message })
@@ -1100,11 +1114,11 @@ function App() {
     })
   }
 
-  const handleAdd = (result: BookSearchResult, shelf: ShelfId) => {
+  const performAdd = async (result: BookSearchResult, shelf: ShelfId) => {
     const previous = findLibraryBookForSearchResult(books, result)
     if (previous && previous.shelf !== shelf) {
       const motion = beginShelfMotion(previous.id, previous.shelf, shelf)
-      const { bookId } = addBook(result, shelf)
+      const { bookId } = await addBook(result, shelf)
       if (shelf === 'next') addQueueBook(bookId)
       else removeQueueBook(bookId)
       void feedback.emit('successful-move', {
@@ -1115,7 +1129,7 @@ function App() {
       return
     }
 
-    const { bookId } = addBook(result, shelf)
+    const { bookId } = await addBook(result, shelf)
     if (shelf === 'next') addQueueBook(bookId)
     else removeQueueBook(bookId)
     if (!previous) {
@@ -1125,6 +1139,18 @@ function App() {
       })
     }
     setToast({ message: previous ? `Already in ${shelfCopy[shelf].label}` : `Added to ${shelfCopy[shelf].label}` })
+  }
+
+  const handleAdd = async (result: BookSearchResult, shelf: ShelfId): Promise<boolean> => {
+    try {
+      await performAdd(result, shelf)
+      return true
+    } catch (error) {
+      if (!(error instanceof LibraryUpgradeRequired)) {
+        setToast({ message: error instanceof Error ? error.message : 'The book could not be saved.' })
+      }
+      return false
+    }
   }
 
   const enrichBook = async (book: typeof books[number]): Promise<boolean> => {
@@ -1267,6 +1293,7 @@ function App() {
 
   return (
     <div className={tw('library-app')}>
+      <UpgradeDialog open={upgradeOpen} onClose={() => setUpgradeOpen(false)} view={purchaseView} bookCount={books.length} />
       <div
         className={tw('app-content')}
         inert={sheet || commandMenuOpen ? true : undefined}
@@ -1328,6 +1355,8 @@ function App() {
           />
         ) : (
           <SettingsPage
+            purchaseView={purchaseView}
+            onUpgrade={() => { setUpgradeOpen(true); void purchases.refresh() }}
             books={books}
             appearance={appearance}
             searchPreferences={searchPreferences}
