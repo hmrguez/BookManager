@@ -34,11 +34,11 @@
 .upgrade-later { display: block; margin: 4px auto 0; text-decoration: none; }
 .upgrade-dialog button:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 3px; }
 
-.review-access { grid-column: 2; min-width: 0; }
+.review-access { grid-column: 1 / -1; min-width: 0; padding: 0 4px; }
 .review-access summary { cursor: pointer; list-style: none; }
 .review-access summary::-webkit-details-marker { display: none; }
 .review-access[open] summary > svg:last-child { transform: rotate(180deg); }
-.review-access-content { padding: 0 0 12px 27px; }
+.review-access-content { max-width: 480px; padding: 0 0 12px 27px; }
 .review-access-content p { margin: 0 0 12px; color: var(--text-secondary); font: 450 13px/1.65 var(--font-interface); }
 .review-access-content form { display: grid; gap: 10px; }
 .review-access-content label { color: var(--text-secondary); font: 550 12px/1.4 var(--font-interface); }
@@ -48,6 +48,5 @@
 .review-access-content [role="alert"] { margin-top: 12px; color: var(--text-destructive); }
 .review-access :is(summary, textarea, button):focus-visible { outline: 2px solid var(--text-primary); outline-offset: 3px; }
 @media (max-width: 560px) {
-  .review-access { grid-column: 1 / -1; }
   .review-access-content { padding-left: 0; }
 }

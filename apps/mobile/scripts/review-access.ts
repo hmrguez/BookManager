@@ -82,7 +82,7 @@ export async function issueReviewAccess(path: string, publicPath = bundledPublic
     }
   }
   await writeFile(tokenPath, `${token}\n`, { mode: 0o600 })
-  await writeFile(instructionsPath, `Wovenleaf needs no login. Free: 20 books. Unlimited is a one-time Google Play purchase.\n\nFor free access, open Settings > Wovenleaf Unlimited > Review access. Paste this token and tap Activate review access:\n\n${token}\n\nReusable, no expiry; works offline and after restart. To test normal limits or checkout, tap End review access, then Upgrade or restore purchase. Review access remains in release builds.\n`, { mode: 0o600 })
+  await writeFile(instructionsPath, `No login. Free: 20 books. Unlimited is a one-time Google Play purchase.\n\nFor free access, open Settings > Advanced > Review access at the bottom. Paste this token and tap Activate review access:\n\n${token}\n\nReusable, no expiry; works offline and after restart. To test normal limits or checkout, tap End review access, then Settings > Upgrade or restore purchase. Review access remains in release builds.\n`, { mode: 0o600 })
   return { directory, tokenPath, instructionsPath, publicPath }
 }
 

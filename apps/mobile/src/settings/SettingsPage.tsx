@@ -223,7 +223,6 @@ export function SettingsPage({
             <span><strong>{purchaseView.owned ? 'View purchase' : 'Upgrade or restore purchase'}</strong></span>
             <ChevronRight aria-hidden="true" />
           </button>
-          <ReviewAccessSettings view={reviewView} />
         </section>}
         {FEATURES.advancedFileManagement && (
           <>
@@ -860,6 +859,7 @@ export function SettingsPage({
                 </button>
               </section>
             )}
+            {purchaseView && onUpgrade && <ReviewAccessSettings view={reviewView} />}
           </div>
         </details>
       </div>

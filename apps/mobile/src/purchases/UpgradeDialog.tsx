@@ -75,7 +75,7 @@ export function UpgradeDialog({ open, onClose, view, bookCount }: {
           <span><Check aria-hidden="true" /> Restore on devices using the same store account</span>
         </div>
         {!hasAccess && <p className="upgrade-count">{bookCount} of {FREE_BOOK_LIMIT} free books in your library</p>}
-        {reviewView.active && !view.owned && <p className="upgrade-note">To test checkout, end review access in Settings.</p>}
+        {reviewView.active && !view.owned && <p className="upgrade-note">To test checkout, end review access in Settings → Advanced.</p>}
         {(view.message || view.pending) && <p className="upgrade-message" role="status">{view.message || 'Your purchase is awaiting approval. We’ll unlock your library when it completes.'}</p>}
         {view.error && <p className="upgrade-message" role="alert">{view.error}</p>}
         {unavailable && <p className="upgrade-note">{view.platform === 'web'

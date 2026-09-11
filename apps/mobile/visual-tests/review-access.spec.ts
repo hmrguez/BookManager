@@ -30,6 +30,8 @@ async function reviewAdapter(page: Page) {
 
 async function openReviewAccess(page: Page) {
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await expect(page.locator('summary').filter({ hasText: 'Review access' })).toBeHidden()
+  await page.locator('summary').filter({ hasText: 'Advanced' }).click()
   await page.locator('summary').filter({ hasText: 'Review access' }).click()
 }
 
@@ -94,6 +96,7 @@ test('review form supports small screens, keyboard navigation, and changed store
   await page.evaluate(() => localStorage.setItem('test.review-token', 'active=true'))
   await page.reload()
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await page.locator('summary').filter({ hasText: 'Advanced' }).click()
   const summary = page.locator('summary').filter({ hasText: 'Review access' })
   await summary.focus()
   await page.keyboard.press('Enter')
