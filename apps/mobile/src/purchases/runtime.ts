@@ -1,13 +1,9 @@
-import { Capacitor, registerPlugin, type PluginListenerHandle } from '@capacitor/core'
+import { Capacitor } from '@capacitor/core'
 import { App } from '@capacitor/app'
 import type { PurchaseStore } from './model'
 import { PurchaseService } from './service'
-
-interface NativePurchaseStore extends PurchaseStore {
-  addListener(event: 'purchaseChanged', listener: () => void): Promise<PluginListenerHandle>
-}
-
-const nativeStore = registerPlugin<NativePurchaseStore>('WovenleafPurchases')
+import { reviewAccess } from './review-runtime'
+import { nativePurchases } from './native'
 const platform = Capacitor.getPlatform()
 const webStore: PurchaseStore = {
   getStatus: async () => ({ platform: 'web', owned: false, pending: false, available: false }),
@@ -17,8 +13,9 @@ const webStore: PurchaseStore = {
 }
 
 export const purchases = new PurchaseService(
-  Capacitor.isNativePlatform() ? nativeStore : webStore,
+  Capacitor.isNativePlatform() ? nativePurchases : webStore,
   platform === 'ios' || platform === 'android' ? platform : 'web',
+  reviewAccess,
 )
 
 let started = false
@@ -26,10 +23,14 @@ export function startPurchases() {
   if (started) return
   started = true
   if (Capacitor.isNativePlatform()) {
-    void nativeStore.addListener('purchaseChanged', () => { void purchases.refreshAfterChange() }).catch(() => {})
+    void nativePurchases.addListener('purchaseChanged', () => { void purchases.refreshAfterChange() }).catch(() => {})
     void App.addListener('appStateChange', ({ isActive }) => {
-      if (isActive) void purchases.refreshAfterChange()
+      if (isActive) {
+        void reviewAccess.refresh()
+        void purchases.refreshAfterChange()
+      }
     }).catch(() => {})
   }
+  void reviewAccess.refresh()
   void purchases.refresh()
 }

@@ -1,4 +1,5 @@
 import { LibraryUpgradeRequired, requiresUpgrade, type PurchaseStatus, type PurchaseStore } from './model'
+import type { ReviewAccessService } from './review-access'
 
 export type PurchaseView = PurchaseStatus & {
   readonly loading: boolean
@@ -10,13 +11,15 @@ export type PurchaseView = PurchaseStatus & {
 /** Store receipts stay native. A library export never grants a purchase. */
 export class PurchaseService {
   readonly #store: PurchaseStore
+  readonly #reviewAccess?: Pick<ReviewAccessService, 'hasAccess'>
   readonly #listeners = new Set<() => void>()
   readonly #upgradeListeners = new Set<() => void>()
   #refreshing?: Promise<void>
   #view: PurchaseView
 
-  constructor(store: PurchaseStore, platform: PurchaseStatus['platform']) {
+  constructor(store: PurchaseStore, platform: PurchaseStatus['platform'], reviewAccess?: Pick<ReviewAccessService, 'hasAccess'>) {
     this.#store = store
+    this.#reviewAccess = reviewAccess
     this.#view = { platform, owned: false, pending: false, available: false, loading: true, busy: false }
   }
 
@@ -55,6 +58,8 @@ export class PurchaseService {
 
   assertCapacity = async (currentCount: number, resultingCount: number, newBookCount: number): Promise<void> => {
     if (!requiresUpgrade(currentCount, resultingCount, newBookCount)) return
+    // A verified review grant works even when the store is offline or unavailable.
+    if (await this.#reviewAccess?.hasAccess()) return
     if (this.#view.loading) await this.refresh()
     if (this.#view.owned) return
     this.#upgradeListeners.forEach((listener) => listener())

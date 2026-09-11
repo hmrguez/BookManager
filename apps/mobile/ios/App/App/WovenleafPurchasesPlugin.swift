@@ -11,11 +11,40 @@ final class WovenleafPurchasesPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "purchase", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "restore", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "redeem", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getReviewAccess", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "activateReviewAccess", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "endReviewAccess", returnType: CAPPluginReturnPromise),
     ]
     private let productID = "com.hmrguez.wovenleaf.unlimited"
     private var updates: Task<Void, Never>?
     private var purchasing = false
     private var pending = false
+    private let reviewTokenKey = "wovenleaf.review-access.token"
+    private lazy var reviewPublicKey: String = {
+        guard let url = Bundle.main.url(forResource: "review-access-public-key", withExtension: "txt", subdirectory: "public")
+        else { return "" }
+        return (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+    }()
+
+    @objc func getReviewAccess(_ call: CAPPluginCall) {
+        let token = UserDefaults.standard.string(forKey: reviewTokenKey) ?? ""
+        call.resolve(["active": ReviewAccessVerifier.verify(token, publicKeyDER: reviewPublicKey)])
+    }
+
+    @objc func activateReviewAccess(_ call: CAPPluginCall) {
+        let token = (call.getString("token") ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard ReviewAccessVerifier.verify(token, publicKeyDER: reviewPublicKey) else {
+            call.reject("The review token is invalid for this app.", "INVALID_REVIEW_TOKEN")
+            return
+        }
+        UserDefaults.standard.set(token, forKey: reviewTokenKey)
+        call.resolve(["active": true])
+    }
+
+    @objc func endReviewAccess(_ call: CAPPluginCall) {
+        UserDefaults.standard.removeObject(forKey: reviewTokenKey)
+        call.resolve(["active": false])
+    }
 
     override func load() {
         // Start before requesting products so Ask to Buy and external redemptions are delivered.

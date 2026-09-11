@@ -24,6 +24,7 @@
 		A13700012FF0000000000001 /* WovenleafPlaybackPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13700022FF0000000000002 /* WovenleafPlaybackPlugin.swift */; };
 		A14000012FF3000000000001 /* WovenleafFeedbackPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A14000022FF3000000000002 /* WovenleafFeedbackPlugin.swift */; };
 		A14100012FF3000000000001 /* WovenleafPurchasesPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A14100022FF3000000000002 /* WovenleafPurchasesPlugin.swift */; };
+		A14200012FF3000000000001 /* ReviewAccessVerifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = A14200022FF3000000000002 /* ReviewAccessVerifier.swift */; };
 		A12600012FEC000000000001 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12600022FEC000000000002 /* ShareViewController.swift */; };
 		A12600062FEC000000000006 /* ShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A12600052FEC000000000005 /* ShareExtension.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
@@ -71,6 +72,7 @@
 		A13700022FF0000000000002 /* WovenleafPlaybackPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WovenleafPlaybackPlugin.swift; sourceTree = "<group>"; };
 		A14000022FF3000000000002 /* WovenleafFeedbackPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WovenleafFeedbackPlugin.swift; sourceTree = "<group>"; };
 		A14100022FF3000000000002 /* WovenleafPurchasesPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WovenleafPurchasesPlugin.swift; sourceTree = "<group>"; };
+		A14200022FF3000000000002 /* ReviewAccessVerifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewAccessVerifier.swift; sourceTree = "<group>"; };
 		A12600022FEC000000000002 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		A12600032FEC000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A12600042FEC000000000004 /* ShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShareExtension.entitlements; sourceTree = "<group>"; };
@@ -121,6 +123,7 @@
 			children = (
 				A14000022FF3000000000002 /* WovenleafFeedbackPlugin.swift */,
 				A14100022FF3000000000002 /* WovenleafPurchasesPlugin.swift */,
+				A14200022FF3000000000002 /* ReviewAccessVerifier.swift */,
 				A13700022FF0000000000002 /* WovenleafPlaybackPlugin.swift */,
 				A13500022FEA000000000002 /* WovenleafReaderPlugin.swift */,
 				A13500042FEA000000000004 /* WovenleafReaderViewController.swift */,
@@ -269,6 +272,7 @@
 			files = (
 				A14000012FF3000000000001 /* WovenleafFeedbackPlugin.swift in Sources */,
 				A14100012FF3000000000001 /* WovenleafPurchasesPlugin.swift in Sources */,
+				A14200012FF3000000000001 /* ReviewAccessVerifier.swift in Sources */,
 				A13700012FF0000000000001 /* WovenleafPlaybackPlugin.swift in Sources */,
 				A13500012FEA000000000001 /* WovenleafReaderPlugin.swift in Sources */,
 				A13500032FEA000000000003 /* WovenleafReaderViewController.swift in Sources */,

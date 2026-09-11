@@ -1,8 +1,9 @@
-import { useLayoutEffect, useRef, type KeyboardEvent } from 'react'
+import { useLayoutEffect, useRef, useSyncExternalStore, type KeyboardEvent } from 'react'
 import { BookOpen, Check, X } from 'lucide-react'
 import type { PurchaseView } from './service'
 import { purchases } from './runtime'
 import { FREE_BOOK_LIMIT } from './model'
+import { reviewAccess } from './review-runtime'
 import './purchases.css'
 
 export function UpgradeDialog({ open, onClose, view, bookCount }: {
@@ -12,6 +13,8 @@ export function UpgradeDialog({ open, onClose, view, bookCount }: {
   bookCount: number
 }) {
   const dialog = useRef<HTMLDialogElement>(null)
+  const reviewView = useSyncExternalStore(reviewAccess.subscribe, reviewAccess.getSnapshot)
+  const hasAccess = view.owned || reviewView.active
   useLayoutEffect(() => {
     const element = dialog.current
     if (!open || !element) return
@@ -51,7 +54,7 @@ export function UpgradeDialog({ open, onClose, view, bookCount }: {
     else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
   }
   const store = view.platform === 'ios' ? 'Apple Account' : 'Google account'
-  const unavailable = !view.loading && !view.available && !view.owned
+  const unavailable = !view.loading && !view.available && !hasAccess
 
   return (
     <dialog ref={dialog} className="upgrade-dialog" aria-modal="true" aria-labelledby="upgrade-title"
@@ -61,22 +64,24 @@ export function UpgradeDialog({ open, onClose, view, bookCount }: {
         <button type="button" className="upgrade-close" aria-label="Close upgrade" onClick={onClose}><X aria-hidden="true" /></button>
         <BookOpen className="upgrade-mark" aria-hidden="true" />
         <p className="upgrade-eyebrow">Wovenleaf · Unlimited</p>
-        <h2 id="upgrade-title">{view.owned ? 'Room for every book.' : 'Let your library grow.'}</h2>
+        <h2 id="upgrade-title">{hasAccess ? 'Room for every book.' : 'Let your library grow.'}</h2>
         <p className="upgrade-intro">{view.owned
           ? 'Your library is unlimited. Keep collecting the books that matter to you.'
+          : reviewView.active ? 'Review access is active on this device. You can add unlimited books.'
           : `Your first ${FREE_BOOK_LIMIT} books are free. Make room for every book after that with one simple purchase.`}</p>
         <div className="upgrade-terms">
           <span><Check aria-hidden="true" /> Unlimited books, on every shelf</span>
           <span><Check aria-hidden="true" /> Pay once. No subscription.</span>
           <span><Check aria-hidden="true" /> Restore on devices using the same store account</span>
         </div>
-        {!view.owned && <p className="upgrade-count">{bookCount} of {FREE_BOOK_LIMIT} free books in your library</p>}
+        {!hasAccess && <p className="upgrade-count">{bookCount} of {FREE_BOOK_LIMIT} free books in your library</p>}
+        {reviewView.active && !view.owned && <p className="upgrade-note">To test checkout, end review access in Settings.</p>}
         {(view.message || view.pending) && <p className="upgrade-message" role="status">{view.message || 'Your purchase is awaiting approval. We’ll unlock your library when it completes.'}</p>}
         {view.error && <p className="upgrade-message" role="alert">{view.error}</p>}
         {unavailable && <p className="upgrade-note">{view.platform === 'web'
           ? 'Purchase and restore are available in the iPhone and Android apps.'
           : 'The upgrade is currently unavailable from the store. Please try again shortly.'}</p>}
-        {view.owned ? (
+        {hasAccess ? (
           <button type="button" className="upgrade-primary" onClick={onClose}>Continue to my library</button>
         ) : (
           <button type="button" className="upgrade-primary" disabled={view.busy || view.loading || !view.available || view.pending}
@@ -93,7 +98,7 @@ export function UpgradeDialog({ open, onClose, view, bookCount }: {
           </div>
           <p className="upgrade-note">Linked to your {store}. Purchases stay within {view.platform === 'ios' ? 'the App Store' : 'Google Play'}.</p>
         </>}
-        {!view.owned && <button type="button" className="upgrade-later" onClick={onClose}>Keep my free library</button>}
+        {!hasAccess && <button type="button" className="upgrade-later" onClick={onClose}>Keep my free library</button>}
       </div>
     </dialog>
   )

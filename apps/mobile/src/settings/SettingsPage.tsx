@@ -1,4 +1,4 @@
-import { useState, type DragEvent } from 'react'
+import { useState, useSyncExternalStore, type DragEvent } from 'react'
 import {
   Archive,
   AudioLines,
@@ -51,6 +51,8 @@ import type { RecoveryBackupPreview } from '../storage'
 import { EpubStorageCard, type EpubStorageViewState } from './EpubStorageCard'
 import { FEATURES } from '../app/feature-flags'
 import type { PurchaseView } from '../purchases/service'
+import { reviewAccess } from '../purchases/review-runtime'
+import { ReviewAccessSettings } from '../purchases/ReviewAccessSettings'
 
 export type EpubImportViewState = {
   readonly progress?: EpubImportProgress
@@ -166,6 +168,7 @@ export function SettingsPage({
   const [epubDropActive, setEpubDropActive] = useState(false)
   const [audiobookDropActive, setAudiobookDropActive] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
+  const reviewView = useSyncExternalStore(reviewAccess.subscribe, reviewAccess.getSnapshot)
   const ratedBooks = books.filter((book) => book.rating > 0).length
   const notedBooks = books.filter((book) => book.notes.trim()).length
 
@@ -212,13 +215,15 @@ export function SettingsPage({
           <div className={tw('settings-card__icon')}><BookOpen aria-hidden="true" /></div>
           <div className={tw('settings-card__heading')}>
             <h2>Wovenleaf Unlimited</h2>
-            <p>{purchaseView.owned ? 'Unlimited books · purchased' : `${books.length} of 20 free books · upgrade once for unlimited books`}</p>
+            <p>{purchaseView.owned ? 'Unlimited books · purchased' : reviewView.active
+              ? 'Unlimited books · review access' : `${books.length} of 20 free books · upgrade once for unlimited books`}</p>
           </div>
           <button className={tw('settings-action')} type="button" onClick={onUpgrade}>
             <BookOpen aria-hidden="true" />
             <span><strong>{purchaseView.owned ? 'View purchase' : 'Upgrade or restore purchase'}</strong></span>
             <ChevronRight aria-hidden="true" />
           </button>
+          <ReviewAccessSettings view={reviewView} />
         </section>}
         {FEATURES.advancedFileManagement && (
           <>

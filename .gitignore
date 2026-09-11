@@ -27,6 +27,11 @@ test-results/
 __pycache__/
 *.py[cod]
 
+# Review signing material belongs outside the repository. Only the public key ships.
+review-private-key.pem
+review-token.txt
+play-console-instructions.txt
+
 # Local branding exports, review packages, and design intermediates
 /branding/.work/
 /branding/final/

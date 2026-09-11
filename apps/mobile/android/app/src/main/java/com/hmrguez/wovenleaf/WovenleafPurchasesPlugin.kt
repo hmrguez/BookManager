@@ -25,6 +25,37 @@ class WovenleafPurchasesPlugin : Plugin(), PurchasesUpdatedListener {
     private val connectionWaiters = mutableListOf<(Boolean) -> Unit>()
     private val preferences by lazy { context.getSharedPreferences("wovenleaf-purchases", 0) }
     private val publicKey by lazy { context.getString(R.string.google_play_billing_public_key).trim() }
+    private val reviewPreferences by lazy { context.getSharedPreferences("wovenleaf-review-access", 0) }
+    private val reviewPublicKey by lazy {
+        try { context.assets.open("public/review-access-public-key.txt").bufferedReader().use { it.readText() } }
+        catch (_: Exception) { "" }
+    }
+
+    @PluginMethod fun getReviewAccess(call: PluginCall) {
+        val token = reviewPreferences.getString("token", null)
+        call.resolve(JSObject().put("active", ReviewAccessVerifier.verify(token, reviewPublicKey)))
+    }
+
+    @PluginMethod fun activateReviewAccess(call: PluginCall) {
+        val token = call.getString("token")?.trim()
+        if (!ReviewAccessVerifier.verify(token, reviewPublicKey)) {
+            call.reject("The review token is invalid for this app.", "INVALID_REVIEW_TOKEN")
+            return
+        }
+        if (!reviewPreferences.edit().putString("token", token).commit()) {
+            call.reject("Review access could not be saved.", "STORAGE_ERROR")
+            return
+        }
+        call.resolve(JSObject().put("active", true))
+    }
+
+    @PluginMethod fun endReviewAccess(call: PluginCall) {
+        if (!reviewPreferences.edit().remove("token").commit()) {
+            call.reject("Review access could not be removed.", "STORAGE_ERROR")
+            return
+        }
+        call.resolve(JSObject().put("active", false))
+    }
 
     override fun load() {
         billing = BillingClient.newBuilder(context)
