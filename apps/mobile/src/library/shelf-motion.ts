@@ -78,6 +78,7 @@ export function useAnimatedShelfBooks({
       const previous = previousPositions.get(bookId)
       if (!previous) continue
       const current = element.getBoundingClientRect()
+      if (current.bottom < 0 || current.top > window.innerHeight) continue
       const deltaX = previous.left - current.left
       const deltaY = previous.top - current.top
       if (Math.abs(deltaX) < 0.5 && Math.abs(deltaY) < 0.5) continue
@@ -127,6 +128,13 @@ export function useAnimatedShelfBooks({
     const generation = ++generationRef.current
     let cancelled = false
     const timers = new Map<ReturnType<typeof setTimeout>, (active: boolean) => void>()
+    // Other shelves often receive a new array after one book changes. Do not schedule
+    // another React commit when their actual books and ordering are unchanged.
+    if (displayedBooksRef.current.length === books.length
+      && displayedBooksRef.current.every((entry, index) => entry.book === books[index] && entry.motion === 'idle')) {
+      setAnimating(false)
+      return
+    }
     const targetBooks = [...books]
     const targetById = new Map(targetBooks.map((book) => [book.id, book]))
     const current = displayedBooksRef.current
@@ -139,7 +147,10 @@ export function useAnimatedShelfBooks({
     const addedIds = new Set(targetBooks.filter((book) => !currentIds.has(book.id)).map(({ id }) => id))
 
     const snapshotPositions = () => new Map(
-      [...rowElementsRef.current].map(([bookId, element]) => [bookId, element.getBoundingClientRect()]),
+      [...rowElementsRef.current].flatMap(([bookId, element]) => {
+        const rect = element.getBoundingClientRect()
+        return rect.bottom >= 0 && rect.top <= window.innerHeight ? [[bookId, rect] as const] : []
+      }),
     )
     const replaceDisplayed = (next: AnimatedShelfBook[], animateLayout = false) => {
       if (animateLayout && timing.settleMs > 0) previousPositionsRef.current = snapshotPositions()

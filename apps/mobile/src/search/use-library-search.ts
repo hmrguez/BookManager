@@ -10,36 +10,43 @@ export type LibrarySearchIndexState = {
 }
 
 export function useLibrarySearchIndex(books: readonly LibraryBook[]): LibrarySearchIndexState {
-  const generation = useRef(0)
-  const [state, setState] = useState<{
-    readonly index: LocalSearchIndex
-    readonly checkpoint?: SearchIndexCheckpoint
-  }>(() => ({ index: new LocalSearchIndex() }))
+  const [state, setState] = useState<LibrarySearchIndexState>(() => ({ index: new LocalSearchIndex(), indexing: false }))
+  const published = useRef({ index: state.index, signatures: new Map<string, string>() })
 
   useEffect(() => {
-    const currentGeneration = generation.current + 1
-    generation.current = currentGeneration
-    const nextIndex = new LocalSearchIndex()
+    const previous = published.current
+    const signatures = new Map<string, string>()
     const documents = books.map(libraryBookSearchDocument)
-    let active = true
-
-    void nextIndex.rebuild(documents, {
-      chunkSize: 50,
-      shouldContinue: () => active && generation.current === currentGeneration,
-      onCheckpoint: (nextCheckpoint) => {
-        if (!active || generation.current !== currentGeneration) return
-        setState({ index: nextIndex, checkpoint: nextCheckpoint })
-      },
+    const changed = documents.filter((document) => {
+      const signature = JSON.stringify(document)
+      signatures.set(document.id, signature)
+      return previous.signatures.get(document.id) !== signature
     })
-
-    return () => {
-      active = false
+    const removed = [...previous.signatures.keys()].filter((id) => !signatures.has(id))
+    if (!changed.length && !removed.length) {
+      setState((current) => current.indexing ? { ...current, indexing: false } : current)
+      return
     }
+
+    let active = true
+    const publish = (index: LocalSearchIndex) => {
+      if (!active) return
+      published.current = { index, signatures }
+      setState({ index, checkpoint: index.checkpoint, indexing: false })
+    }
+    if (changed.length + removed.length <= 100) {
+      publish(previous.index.withChanges(changed, removed))
+    } else {
+      const nextIndex = new LocalSearchIndex()
+      setState((current) => ({ ...current, indexing: true }))
+      // Bulk imports yield to input, but publish once rather than re-rendering every 50 books.
+      void nextIndex.rebuild(documents, {
+        chunkSize: 50,
+        shouldContinue: () => active,
+      }).then(() => publish(nextIndex))
+    }
+    return () => { active = false }
   }, [books])
 
-  return {
-    index: state.index,
-    checkpoint: state.checkpoint,
-    indexing: state.index.size !== books.length || Boolean(state.checkpoint && !state.checkpoint.complete),
-  }
+  return state
 }

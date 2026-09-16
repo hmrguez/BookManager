@@ -1,3 +1,4 @@
+import { VirtualBookList } from '../library/VirtualBookList'
 import { BookTile } from '../library/LibraryPresentation'
 import { useLibraryView } from '../library/use-library-view'
 import {
@@ -64,7 +65,7 @@ export function SmartListSection({
       </header>
 
       <div className={tw("smart-list__body")} id={`smart-list-books-${list.id}`} {...cascadeProps}>
-        {query.ok ? (
+        {!cascadeProps.hidden && (query.ok ? (
           <>
             <div className={tw("smart-list__explanation")} {...shelfCascadeItem(0, cascadeItemCount)}>
               <span>Live rule</span>
@@ -77,47 +78,48 @@ export function SmartListSection({
                 <span><strong>No books match right now</strong><small>The saved rules will keep watching this library</small></span>
               </div>
             ) : (
-              query.groups.map((group) => {
-                const groupStart = groupStarts.get(group.key) ?? 1
-                const rowStart = groupStart + (query.definition.groupBy === 'none' ? 0 : 1)
-                return (
-                  <section className={tw("smart-list-group")} key={group.key}>
-                    {query.definition.groupBy !== 'none' && (
-                      <header {...shelfCascadeItem(groupStart, cascadeItemCount)}>
+              <VirtualBookList
+                grid={grid}
+                groups={query.groups.map((group) => ({
+                  key: group.key,
+                  items: group.items,
+                  header: query.definition.groupBy === 'none' ? undefined : (
+                    <div className={tw('smart-list-group')} style={{ width: '100%' }}>
+                      <header {...shelfCascadeItem(groupStarts.get(group.key) ?? 1, cascadeItemCount)}>
                         <span>{group.label}</span><strong>{group.items.length}</strong>
                       </header>
-                    )}
-                    <div className={grid ? tw('book-grid') : undefined}>
-                      {group.items.map((item, index) => {
-                        const book = booksById.get(item.document.id)
-                        if (!book) return null
-                        return (
-                          <article
-                            className={tw(grid ? 'book-tile' : 'book-row smart-book-row')}
-                            key={`${group.key}:${book.id}`}
-                            {...shelfCascadeItem(rowStart + index, cascadeItemCount)}
-                          >
-                            {grid ? <BookTile book={book} onDetails={onDetails} /> : <button className={tw("book-identity")} type="button" draggable data-library-book={book.id} onClick={() => onDetails(book.id)}>
-                              <BookCover book={book} />
-                              <span className={tw("book-copy")}>
-                                <strong>{book.title}</strong>
-                                <small>{book.authors.join(', ')}</small>
-                              </span>
-                            </button>}
-                            <details className={tw("smart-book-reasons")}>
-                              <summary><Info aria-hidden="true" /><span>Why</span></summary>
-                              <div>
-                                <strong>Why this book is here</strong>
-                                <ul>{item.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
-                              </div>
-                            </details>
-                          </article>
-                        )
-                      })}
                     </div>
-                  </section>
-                )
-              })
+                  ),
+                }))}
+                getKey={smartItemKey}
+              >
+                {(item, index) => {
+                  const book = booksById.get(item.document.id)
+                  if (!book) return null
+                  return (
+                    <article
+                      className={tw(grid ? 'book-tile' : 'book-row smart-book-row')}
+                      key={book.id}
+                      {...shelfCascadeItem(index + 1, cascadeItemCount)}
+                    >
+                      {grid ? <BookTile book={book} onDetails={onDetails} /> : <button className={tw("book-identity")} type="button" draggable data-library-book={book.id} onClick={() => onDetails(book.id)}>
+                        <BookCover book={book} />
+                        <span className={tw("book-copy")}>
+                          <strong>{book.title}</strong>
+                          <small>{book.authors.join(', ')}</small>
+                        </span>
+                      </button>}
+                      <details className={tw("smart-book-reasons")}>
+                        <summary><Info aria-hidden="true" /><span>Why</span></summary>
+                        <div>
+                          <strong>Why this book is here</strong>
+                          <ul>{item.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
+                        </div>
+                      </details>
+                    </article>
+                  )
+                }}
+              </VirtualBookList>
             )}
           </>
         ) : (
@@ -129,8 +131,10 @@ export function SmartListSection({
               <ul>{query.issues.slice(0, 3).map((issue) => <li key={`${issue.path}:${issue.message}`}><b>{issue.path}</b> {issue.message}</li>)}</ul>
             </div>
           </div>
-        )}
+        ))}
       </div>
     </section>
   )
 }
+
+function smartItemKey(item: { document: { id: string } }) { return item.document.id }

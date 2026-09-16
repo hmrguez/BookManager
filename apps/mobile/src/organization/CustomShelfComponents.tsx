@@ -1,3 +1,4 @@
+import { VirtualBookList } from '../library/VirtualBookList'
 import { BookTile } from '../library/LibraryPresentation'
 import { useLibraryView } from '../library/use-library-view'
 import { libraryDropTarget } from '../library/library-drag'
@@ -73,11 +74,11 @@ export function CustomShelfSection({
         </button>
       </header>
 
-      <div className={tw(`shelf-books${grid ? ' book-grid' : ''}`)} id={`custom-shelf-books-${shelf.id}`} {...cascadeProps}>
+      <div className={tw('shelf-books')} id={`custom-shelf-books-${shelf.id}`} {...cascadeProps}>
         {shelf.notes && (
           <p className={tw('custom-shelf__note')} {...shelfCascadeItem(0, cascadeItemCount)}>{shelf.notes}</p>
         )}
-        {books.length === 0 ? (
+        {!cascadeProps.hidden && (books.length === 0 ? (
           isFiltering ? (
             <div className={tw('empty-shelf empty-shelf--filter')} {...shelfCascadeItem(noteCount, cascadeItemCount)}>
               <Search aria-hidden="true" />
@@ -90,28 +91,30 @@ export function CustomShelfSection({
             </button>
           )
         ) : (
-          books.map((book, index) => {
-            const tags = tagsForBook(organization, book.id)
-            return (
-              <article
-                className={tw(grid ? 'book-tile' : 'book-row custom-book-row')}
-                key={book.id}
-                {...shelfCascadeItem(noteCount + index, cascadeItemCount)}
-              >
-                {grid ? <BookTile book={book} onDetails={onDetails} /> : <button className={tw('book-identity')} type="button" draggable data-library-book={book.id} onClick={() => onDetails(book.id)}>
-                  <BookCover book={book} />
-                  <SearchBookCopy book={book} result={searchResults.get(book.id)}>
-                    <span className={tw('custom-book-row__meta')}>
-                      <i>{shelfCopy[book.shelf].label}</i>
-                      {tags.slice(0, 2).map((tag) => <em key={tag.id}>#{tag.name}</em>)}
-                      {tags.length > 2 && <em>+{tags.length - 2}</em>}
-                    </span>
-                  </SearchBookCopy>
-                </button>}
-              </article>
-            )
-          })
-        )}
+          <VirtualBookList items={books} grid={grid} getKey={bookKey}>
+            {(book, index) => {
+              const tags = tagsForBook(organization, book.id)
+              return (
+                <article
+                  className={tw(grid ? 'book-tile' : 'book-row custom-book-row')}
+                  key={book.id}
+                  {...shelfCascadeItem(noteCount + index, cascadeItemCount)}
+                >
+                  {grid ? <BookTile book={book} onDetails={onDetails} /> : <button className={tw('book-identity')} type="button" draggable data-library-book={book.id} onClick={() => onDetails(book.id)}>
+                    <BookCover book={book} />
+                    <SearchBookCopy book={book} result={searchResults.get(book.id)}>
+                      <span className={tw('custom-book-row__meta')}>
+                        <i>{shelfCopy[book.shelf].label}</i>
+                        {tags.slice(0, 2).map((tag) => <em key={tag.id}>#{tag.name}</em>)}
+                        {tags.length > 2 && <em>+{tags.length - 2}</em>}
+                      </span>
+                    </SearchBookCopy>
+                  </button>}
+                </article>
+              )
+            }}
+          </VirtualBookList>
+        ))}
       </div>
     </section>
   )
@@ -302,3 +305,5 @@ export function CustomShelfEditorSheet({
     </Sheet>
   )
 }
+
+function bookKey(book: LibraryBook) { return book.id }

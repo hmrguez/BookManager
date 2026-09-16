@@ -1,3 +1,4 @@
+import { VirtualBookList } from './library/VirtualBookList'
 import { BookTile } from './library/LibraryPresentation'
 import { useLibraryView } from './library/use-library-view'
 import { libraryDropTarget } from './library/library-drag'
@@ -140,7 +141,7 @@ export function UpNextSection({
           </div>
         )}
 
-        {displayedBooks.length === 0 ? (
+        {!cascadeProps.hidden && (displayedBooks.length === 0 ? (
           <button
             className={tw("empty-shelf")}
             type="button"
@@ -154,8 +155,8 @@ export function UpNextSection({
             </span>
           </button>
         ) : (
-          <div className={tw(`up-next__queue${grid ? ' book-grid' : ''}`)}>
-            {displayedBooks.map(({ book, motion }, index) => {
+          <VirtualBookList className="up-next__queue" items={displayedBooks} grid={grid} estimateSize={69} getKey={animatedBookKey}>
+            {({ book, motion }, index) => {
               return (
                 <article
                   className={tw(grid ? 'book-tile' : 'up-next-book')}
@@ -209,9 +210,9 @@ export function UpNextSection({
                   </>}
                 </article>
               )
-            })}
-          </div>
-        )}
+            }}
+          </VirtualBookList>
+        ))}
 
         {showChoiceNotes && (
           <aside
@@ -544,3 +545,5 @@ function SignalEditor({
 function commaList(value: string): string[] {
   return [...new Set(value.split(',').map((item) => item.trim()).filter(Boolean))]
 }
+
+function animatedBookKey({ book }: { book: LibraryBook }) { return book.id }

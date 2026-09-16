@@ -1,3 +1,4 @@
+import { revealShelfBook } from './reveal-book'
 import { useEffect } from 'react'
 import {
   Archive,
@@ -120,11 +121,7 @@ export function LibraryPage({
     if (!shelfMotion) return
     const timing = shelfMotionTiming(appearance.motion)
     const scrollToMotionShelf = (shelf: ShelfId) => {
-      document.getElementById(`shelf-${shelf}`)?.scrollIntoView({
-        behavior: motionScrollBehavior(appearance.motion),
-        block: 'center',
-        inline: 'nearest',
-      })
+      revealShelfBook(shelf, shelfMotion.bookId)
     }
 
     if (shelfMotion.from) scrollToMotionShelf(shelfMotion.from)

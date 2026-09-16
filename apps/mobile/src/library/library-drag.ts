@@ -58,6 +58,7 @@ export function useLibraryDrag(
       container.removeAttribute('data-library-dragging')
       if (active) suppressClickUntil = Date.now() + 450
       active = false
+      window.dispatchEvent(new CustomEvent('library-drag-change', { detail: undefined }))
       bookId = undefined
       source = target = preview = undefined
     }
@@ -78,6 +79,7 @@ export function useLibraryDrag(
       source = element
       bookId = book.id
       active = true
+      window.dispatchEvent(new CustomEvent('library-drag-change', { detail: book.id }))
       source.setAttribute('data-book-dragging', '')
       container.setAttribute('data-library-dragging', '')
       setAnnouncement(`${book.title} picked up. Drop on a shelf. Press Escape to cancel.`)

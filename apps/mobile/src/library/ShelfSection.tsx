@@ -1,3 +1,4 @@
+import { VirtualBookList } from './VirtualBookList'
 import { BookTile } from './LibraryPresentation'
 import { useLibraryView } from './use-library-view'
 import { libraryDropTarget } from './library-drag'
@@ -156,12 +157,12 @@ export function ShelfSection({
       </header>
 
       <div
-        className={tw(`shelf-books${grid ? ' book-grid' : ''}`)}
+        className={tw('shelf-books')}
         id={`shelf-books-${shelf}`}
         {...cascadeProps}
         aria-busy={animating || undefined}
       >
-        {displayedBooks.length === 0 ? (
+        {!cascadeProps.hidden && (displayedBooks.length === 0 ? (
           isFiltering ? (
             <div className={tw('empty-shelf empty-shelf--filter')} {...shelfCascadeItem(0, cascadeItemCount)}>
               <Search aria-hidden="true" />
@@ -174,49 +175,53 @@ export function ShelfSection({
             </button>
           )
         ) : (
-          displayedBooks.map(({ book, motion }, index) => (
-            <article
-              className={tw(grid ? 'book-tile' : 'book-row')}
-              key={book.id}
-              ref={(element) => { setRowElement(book.id, element) }}
-              data-shelf-motion={motion === 'idle' ? undefined : motion}
-              {...shelfCascadeItem(index, cascadeItemCount)}
-            >
-              {grid ? <BookTile book={book} onDetails={onDetails} /> : <>
-                <button className={tw('book-identity')} type="button" draggable data-library-book={book.id} onClick={() => onDetails(book.id)}>
-                  <BookCover book={book} />
-                  <SearchBookCopy book={book} result={searchResults.get(book.id)} />
-                </button>
+          <VirtualBookList items={displayedBooks} grid={grid} getKey={animatedBookKey}>
+            {({ book, motion }, index) => (
+              <article
+                className={tw(grid ? 'book-tile' : 'book-row')}
+                key={book.id}
+                ref={(element) => { setRowElement(book.id, element) }}
+                data-shelf-motion={motion === 'idle' ? undefined : motion}
+                {...shelfCascadeItem(index, cascadeItemCount)}
+              >
+                {grid ? <BookTile book={book} onDetails={onDetails} /> : <>
+                  <button className={tw('book-identity')} type="button" draggable data-library-book={book.id} onClick={() => onDetails(book.id)}>
+                    <BookCover book={book} />
+                    <SearchBookCopy book={book} result={searchResults.get(book.id)} />
+                  </button>
 
-                {shelf === 'tbr' && (
-                  <button className={tw('row-action row-action--next')} type="button" onClick={() => onNext(book.id)}>
-                    Next <ArrowRight aria-hidden="true" />
-                  </button>
-                )}
-                {shelf === 'next' && (
-                  <button className={tw('row-action row-action--start')} type="button" onClick={() => onStart(book.id)}>
-                    Start <ArrowRight aria-hidden="true" />
-                  </button>
-                )}
-                {shelf === 'reading' && (
-                  <div className={tw('reading-actions')}>
-                    <button className={tw('progress-button')} type="button" onClick={() => onProgress(book.id)}>
-                      <span>{book.progress}%</span>
-                      <ProgressMeter value={book.progress} label={`${book.title} reading progress`} />
+                  {shelf === 'tbr' && (
+                    <button className={tw('row-action row-action--next')} type="button" onClick={() => onNext(book.id)}>
+                      Next <ArrowRight aria-hidden="true" />
                     </button>
-                    <button className={tw('row-action row-action--finish')} type="button" onClick={() => onFinish(book.id)}>
-                      Finish <Check aria-hidden="true" />
+                  )}
+                  {shelf === 'next' && (
+                    <button className={tw('row-action row-action--start')} type="button" onClick={() => onStart(book.id)}>
+                      Start <ArrowRight aria-hidden="true" />
                     </button>
-                  </div>
-                )}
-                {shelf === 'finished' && (
-                  <RatingStars compact value={book.rating} onChange={(rating) => onRate(book.id, rating)} />
-                )}
-              </>}
-            </article>
-          ))
-        )}
+                  )}
+                  {shelf === 'reading' && (
+                    <div className={tw('reading-actions')}>
+                      <button className={tw('progress-button')} type="button" onClick={() => onProgress(book.id)}>
+                        <span>{book.progress}%</span>
+                        <ProgressMeter value={book.progress} label={`${book.title} reading progress`} />
+                      </button>
+                      <button className={tw('row-action row-action--finish')} type="button" onClick={() => onFinish(book.id)}>
+                        Finish <Check aria-hidden="true" />
+                      </button>
+                    </div>
+                  )}
+                  {shelf === 'finished' && (
+                    <RatingStars compact value={book.rating} onChange={(rating) => onRate(book.id, rating)} />
+                  )}
+                </>}
+              </article>
+            )}
+          </VirtualBookList>
+        ))}
       </div>
     </section>
   )
 }
+
+function animatedBookKey({ book }: { book: LibraryBook }) { return book.id }

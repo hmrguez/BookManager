@@ -204,3 +204,34 @@ describe('local fuzzy library search', () => {
     expect(p95).toBeLessThan(150)
   })
 })
+
+describe('incremental library indexing', () => {
+  test('updates postings, filters, and deletions without changing an earlier snapshot', () => {
+    const original = new LocalSearchIndex()
+    original.replace([
+      { id: 'changed', title: 'Old constellation', shelf: 'tbr', notes: ['Private original'] },
+      { id: 'kept', title: 'Shared constellation', shelf: 'tbr' },
+      { id: 'removed', title: 'Deleted atlas' },
+    ])
+    const next = original.withChanges([
+      { id: 'changed', title: 'New star chart', shelf: 'next', tags: ['Astronomy'], rating: 5 },
+      { id: 'added', title: 'Fresh atlas', shelf: 'reading' },
+    ], ['removed'])
+    expect(next.size).toBe(3)
+    expect(next.search('constellation').map(({ document }) => document.id)).toEqual(['kept'])
+    expect(next.search('astronomy', { shelves: ['next'], minimumRating: 5 }).map(({ document }) => document.id)).toEqual(['changed'])
+    expect(next.search('private', { includeNotes: true })).toEqual([])
+    expect(next.search('deleted')).toEqual([])
+    expect(next.search('fresh')[0].document.id).toBe('added')
+    expect(original.search('old')[0].document.id).toBe('changed')
+    expect(original.search('deleted')[0].document.id).toBe('removed')
+    expect(original.search('fresh')).toEqual([])
+    expect(next.search('shared')[0].document).toBe(original.search('shared')[0].document)
+    expect(next.checkpoint).toBeUndefined()
+
+    const last = next.withChanges([], ['changed', 'added'])
+    expect(last.size).toBe(1)
+    expect(last.search('star')).toEqual([])
+    expect(next.search('star')[0].document.id).toBe('changed')
+  })
+})

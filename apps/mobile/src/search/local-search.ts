@@ -132,12 +132,12 @@ const titleCollator = new Intl.Collator(undefined, {
 })
 
 export class LocalSearchIndex {
-  #entries: IndexedDocument[] = []
-  #postings = new Map<string, number[]>()
+  #entries = new Map<string, IndexedDocument>()
+  #postings = new Map<string, Set<string>>()
   #checkpoint?: SearchIndexCheckpoint
 
   get size(): number {
-    return this.#entries.length
+    return this.#entries.size
   }
 
   get checkpoint(): SearchIndexCheckpoint | undefined {
@@ -145,7 +145,7 @@ export class LocalSearchIndex {
   }
 
   replace(documents: readonly LocalSearchDocument[]): void {
-    this.#entries = []
+    this.#entries.clear()
     this.#postings.clear()
     for (const document of documents) this.#add(document)
     this.#checkpoint = {
@@ -171,11 +171,11 @@ export class LocalSearchIndex {
       && requestedCheckpoint.version === LOCAL_SEARCH_INDEX_VERSION
       && requestedCheckpoint.sourceKey === sourceKey
       && requestedCheckpoint.totalDocuments === documents.length
-      && requestedCheckpoint.nextDocument === this.#entries.length,
+      && requestedCheckpoint.nextDocument === this.#entries.size,
     )
 
     if (!canResume) {
-      this.#entries = []
+      this.#entries.clear()
       this.#postings.clear()
     }
 
@@ -208,7 +208,7 @@ export class LocalSearchIndex {
       ? this.#candidateIndexes(queryTokens)
       : this.#entries.keys()
     for (const entryIndex of candidateIndexes) {
-      const entry = this.#entries[entryIndex]
+      const entry = this.#entries.get(entryIndex)!
       if (!passesFilters(entry.document, options)) continue
 
       if (queryTokens.length === 0) {
@@ -250,22 +250,54 @@ export class LocalSearchIndex {
     return results.slice(0, boundedLimit(options.limit ?? results.length))
   }
 
+  /** Copy only changed posting sets; existing snapshots remain safe for React readers. */
+  withChanges(documents: readonly LocalSearchDocument[], removedIds: readonly string[] = []): LocalSearchIndex {
+    const next = new LocalSearchIndex()
+    next.#entries = new Map(this.#entries)
+    next.#postings = new Map(this.#postings)
+    const replacements = documents.map(indexDocument)
+    const ids = new Set([...removedIds, ...documents.map(({ id }) => id)])
+    const touchedKeys = new Set<string>()
+    for (const id of ids) {
+      const previous = this.#entries.get(id)
+      if (previous) for (const key of previous.values.flatMap(postingKeysFor)) touchedKeys.add(key)
+    }
+    for (const entry of replacements) {
+      for (const key of entry.values.flatMap(postingKeysFor)) touchedKeys.add(key)
+    }
+    for (const key of touchedKeys) next.#postings.set(key, new Set(this.#postings.get(key)))
+    for (const id of ids) {
+      const previous = next.#entries.get(id)
+      if (!previous) continue
+      for (const key of previous.values.flatMap(postingKeysFor)) next.#postings.get(key)?.delete(id)
+      next.#entries.delete(id)
+    }
+    for (const entry of replacements) next.#addEntry(entry)
+    for (const key of touchedKeys) {
+      if (!next.#postings.get(key)?.size) next.#postings.delete(key)
+    }
+    // Rebuild checkpoints describe a specific source and cannot be reused after an edit.
+    return next
+  }
+
   #add(document: LocalSearchDocument): void {
-    const entry = indexDocument(document)
-    const entryIndex = this.#entries.length
-    this.#entries.push(entry)
-    const keys = new Set(entry.values.flatMap(postingKeysFor))
-    for (const key of keys) {
-      const indexes = this.#postings.get(key) ?? []
-      indexes.push(entryIndex)
+    this.#addEntry(indexDocument(document))
+  }
+
+  #addEntry(entry: IndexedDocument): void {
+    const id = entry.document.id
+    this.#entries.set(id, entry)
+    for (const key of new Set(entry.values.flatMap(postingKeysFor))) {
+      const indexes = this.#postings.get(key) ?? new Set<string>()
+      indexes.add(id)
       this.#postings.set(key, indexes)
     }
   }
 
-  #candidateIndexes(queryTokens: readonly string[]): Iterable<number> {
-    let candidates: Set<number> | undefined
+  #candidateIndexes(queryTokens: readonly string[]): Iterable<string> {
+    let candidates: Set<string> | undefined
     for (const token of queryTokens) {
-      const tokenCandidates = new Set<number>()
+      const tokenCandidates = new Set<string>()
       const prefixMatches = this.#postings.get(`p:${token}`) ?? []
       for (const index of prefixMatches) tokenCandidates.add(index)
       for (const gram of gramsFor(token)) {
