@@ -20,8 +20,9 @@ export class UpNextRepository {
   }
 
   async save(state: UpNextState): Promise<void> {
-    await writeUpNextState(this.#database, state)
-    await this.#database.persist()
+    // Shelf moves update the library and queue together. Serialize both writes before
+    // exporting web storage so a queue save cannot interrupt the book transaction.
+    await this.#database.transaction((database) => writeUpNextState(database, state))
   }
 
   async replace(state: UpNextState): Promise<void> {

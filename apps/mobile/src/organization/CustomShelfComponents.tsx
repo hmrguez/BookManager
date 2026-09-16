@@ -1,3 +1,6 @@
+import { BookTile } from '../library/LibraryPresentation'
+import { useLibraryView } from '../library/use-library-view'
+import { libraryDropTarget } from '../library/library-drag'
 import { useState, type FormEvent } from 'react'
 import { Archive, ArchiveRestore, Check, ChevronDown, FolderCog, FolderPlus, Pin, Search, Trash2, X } from 'lucide-react'
 import { ActionButton, BookCover, type MotionMode } from '../design-system'
@@ -34,16 +37,18 @@ export function CustomShelfSection({
   onDetails: (id: string) => void
   onManage: () => void
 }) {
+  const grid = useLibraryView() === 'grid'
   const noteCount = shelf.notes ? 1 : 0
   const cascadeItemCount = noteCount + Math.max(books.length, 1)
   const { isCollapsed, toggle, cascadeProps } = useShelfCascade({
     itemCount: cascadeItemCount,
     motionMode,
     forceOpen: isFiltering,
+    expansionKey: books.length,
   })
 
   return (
-    <section className={tw('shelf custom-shelf')} id={`custom-shelf-${shelf.id}`}>
+    <section className={tw('shelf custom-shelf')} id={`custom-shelf-${shelf.id}`} {...libraryDropTarget('custom', shelf.id, shelf.name)}>
       <header className={tw('shelf-header custom-shelf__header')}>
         <button
           type="button"
@@ -68,7 +73,7 @@ export function CustomShelfSection({
         </button>
       </header>
 
-      <div className={tw('shelf-books')} id={`custom-shelf-books-${shelf.id}`} {...cascadeProps}>
+      <div className={tw(`shelf-books${grid ? ' book-grid' : ''}`)} id={`custom-shelf-books-${shelf.id}`} {...cascadeProps}>
         {shelf.notes && (
           <p className={tw('custom-shelf__note')} {...shelfCascadeItem(0, cascadeItemCount)}>{shelf.notes}</p>
         )}
@@ -89,11 +94,11 @@ export function CustomShelfSection({
             const tags = tagsForBook(organization, book.id)
             return (
               <article
-                className={tw('book-row custom-book-row')}
+                className={tw(grid ? 'book-tile' : 'book-row custom-book-row')}
                 key={book.id}
                 {...shelfCascadeItem(noteCount + index, cascadeItemCount)}
               >
-                <button className={tw('book-identity')} type="button" onClick={() => onDetails(book.id)}>
+                {grid ? <BookTile book={book} onDetails={onDetails} /> : <button className={tw('book-identity')} type="button" draggable data-library-book={book.id} onClick={() => onDetails(book.id)}>
                   <BookCover book={book} />
                   <SearchBookCopy book={book} result={searchResults.get(book.id)}>
                     <span className={tw('custom-book-row__meta')}>
@@ -102,7 +107,7 @@ export function CustomShelfSection({
                       {tags.length > 2 && <em>+{tags.length - 2}</em>}
                     </span>
                   </SearchBookCopy>
-                </button>
+                </button>}
               </article>
             )
           })

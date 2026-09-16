@@ -1,3 +1,5 @@
+import { BookTile } from '../library/LibraryPresentation'
+import { useLibraryView } from '../library/use-library-view'
 import {
   AlertTriangle,
   ChevronDown,
@@ -27,6 +29,7 @@ export function SmartListSection({
   onDetails: (bookId: string) => void
   onManage: () => void
 }) {
+  const grid = useLibraryView() === 'grid'
   const groupStarts = new Map<string, number>()
   let nextCascadeIndex = 1
   if (query.ok && query.items.length) {
@@ -84,23 +87,23 @@ export function SmartListSection({
                         <span>{group.label}</span><strong>{group.items.length}</strong>
                       </header>
                     )}
-                    <div>
+                    <div className={grid ? tw('book-grid') : undefined}>
                       {group.items.map((item, index) => {
                         const book = booksById.get(item.document.id)
                         if (!book) return null
                         return (
                           <article
-                            className={tw("book-row smart-book-row")}
+                            className={tw(grid ? 'book-tile' : 'book-row smart-book-row')}
                             key={`${group.key}:${book.id}`}
                             {...shelfCascadeItem(rowStart + index, cascadeItemCount)}
                           >
-                            <button className={tw("book-identity")} type="button" onClick={() => onDetails(book.id)}>
+                            {grid ? <BookTile book={book} onDetails={onDetails} /> : <button className={tw("book-identity")} type="button" draggable data-library-book={book.id} onClick={() => onDetails(book.id)}>
                               <BookCover book={book} />
                               <span className={tw("book-copy")}>
                                 <strong>{book.title}</strong>
                                 <small>{book.authors.join(', ')}</small>
                               </span>
-                            </button>
+                            </button>}
                             <details className={tw("smart-book-reasons")}>
                               <summary><Info aria-hidden="true" /><span>Why</span></summary>
                               <div>

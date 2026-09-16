@@ -1,3 +1,6 @@
+import { BookTile } from './library/LibraryPresentation'
+import { useLibraryView } from './library/use-library-view'
+import { libraryDropTarget } from './library/library-drag'
 import { useMemo, useState } from 'react'
 import {
   ArrowDown,
@@ -61,6 +64,7 @@ export function UpNextSection({
   motionMode: MotionMode
   libraryHydrated: boolean
 }) {
+  const grid = useLibraryView() === 'grid'
   const relevantMotionSequence = shelfMotion?.from === 'next' || shelfMotion?.to === 'next'
     ? shelfMotion.sequence
     : undefined
@@ -82,7 +86,7 @@ export function UpNextSection({
     expansionKey: relevantMotionSequence,
   })
   return (
-    <section className={tw("shelf shelf--next up-next")} id="shelf-next" data-shelf="next">
+    <section className={tw("shelf shelf--next up-next")} id="shelf-next" data-shelf="next" {...libraryDropTarget('status', 'next', 'Up Next')}>
       <header className={tw("shelf-header up-next__header")}>
         <button
           type="button"
@@ -150,57 +154,59 @@ export function UpNextSection({
             </span>
           </button>
         ) : (
-          <div className={tw("up-next__queue")}>
+          <div className={tw(`up-next__queue${grid ? ' book-grid' : ''}`)}>
             {displayedBooks.map(({ book, motion }, index) => {
               return (
                 <article
-                  className={tw('up-next-book')}
+                  className={tw(grid ? 'book-tile' : 'up-next-book')}
                   key={book.id}
                   ref={(element) => { setRowElement(book.id, element) }}
                   data-shelf-motion={motion === 'idle' ? undefined : motion}
                   {...shelfCascadeItem(principleCount + index, cascadeItemCount)}
                 >
-                  <span className={tw("up-next-book__number")} aria-label={`Position ${index + 1}`}>
-                    {String(index + 1).padStart(2, '0')}
-                  </span>
-                  <button className={tw("book-identity")} type="button" onClick={() => onDetails(book.id)}>
-                    <BookCover book={book} />
-                    <span className={tw("book-copy")}>
-                      <strong>{book.title}</strong>
-                      <small>{book.authors.join(', ')}</small>
-                      {book.format && (
-                        <em className={tw("up-next-book__note")}>{book.format}</em>
-                      )}
+                  {grid ? <BookTile book={book} onDetails={onDetails} position={index + 1} onReorder={(offset) => onMove(book.id, index + offset)} /> : <>
+                    <span className={tw("up-next-book__number")} aria-label={`Position ${index + 1}`}>
+                      {String(index + 1).padStart(2, '0')}
                     </span>
-                  </button>
-                  <div className={tw("up-next-book__actions")}>
-                    <button
-                      type="button"
-                      className={tw("up-next-book__move")}
-                      onClick={() => onMove(book.id, index - 1)}
-                      disabled={index === 0}
-                      aria-label={`Move ${book.title} earlier`}
-                    >
-                      <ArrowUp aria-hidden="true" />
+                    <button className={tw("book-identity")} type="button" draggable data-library-book={book.id} onClick={() => onDetails(book.id)}>
+                      <BookCover book={book} />
+                      <span className={tw("book-copy")}>
+                        <strong>{book.title}</strong>
+                        <small>{book.authors.join(', ')}</small>
+                        {book.format && (
+                          <em className={tw("up-next-book__note")}>{book.format}</em>
+                        )}
+                      </span>
                     </button>
-                    <button
-                      type="button"
-                      className={tw("up-next-book__move")}
-                      onClick={() => onMove(book.id, index + 1)}
-                      disabled={index === displayedBooks.length - 1}
-                      aria-label={`Move ${book.title} later`}
-                    >
-                      <ArrowDown aria-hidden="true" />
-                    </button>
-                    <button
-                      type="button"
-                      className={tw("row-action up-next-book__start")}
-                      onClick={() => onStart(book.id)}
-                      aria-label={`Start reading ${book.title}`}
-                    >
-                      Start <ArrowRight aria-hidden="true" />
-                    </button>
-                  </div>
+                    <div className={tw("up-next-book__actions")}>
+                      <button
+                        type="button"
+                        className={tw("up-next-book__move")}
+                        onClick={() => onMove(book.id, index - 1)}
+                        disabled={index === 0}
+                        aria-label={`Move ${book.title} earlier`}
+                      >
+                        <ArrowUp aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        className={tw("up-next-book__move")}
+                        onClick={() => onMove(book.id, index + 1)}
+                        disabled={index === displayedBooks.length - 1}
+                        aria-label={`Move ${book.title} later`}
+                      >
+                        <ArrowDown aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        className={tw("row-action up-next-book__start")}
+                        onClick={() => onStart(book.id)}
+                        aria-label={`Start reading ${book.title}`}
+                      >
+                        Start <ArrowRight aria-hidden="true" />
+                      </button>
+                    </div>
+                  </>}
                 </article>
               )
             })}

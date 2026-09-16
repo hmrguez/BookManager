@@ -29,6 +29,8 @@ import { FEATURES } from '../app/feature-flags'
 import { ShelfSection } from './ShelfSection'
 import type { ShelfMotionEvent } from './shelf-motion'
 import type { LibraryViewModel } from './useLibraryViewModel'
+import { LibraryPresentation, LibraryViewControl, LibraryViewHint } from './LibraryPresentation'
+import { libraryDropTarget, type LibraryDropTarget } from './library-drag'
 
 type OpenSheet = (sheet: Exclude<SheetState, null>) => void
 
@@ -58,6 +60,7 @@ export function LibraryPage({
   onOpenCommandMenu,
   onScrollToShelf,
   onOpenSheet,
+  onDropBook,
   onNext,
   onStart,
   onFinish,
@@ -86,6 +89,7 @@ export function LibraryPage({
   onOpenCommandMenu: () => void
   onScrollToShelf: (shelf: ShelfId) => void
   onOpenSheet: OpenSheet
+  onDropBook: (bookId: string, target: LibraryDropTarget) => void
   onNext: (bookId: string) => void
   onStart: (bookId: string) => void
   onFinish: (bookId: string) => void
@@ -135,11 +139,12 @@ export function LibraryPage({
   }, [appearance.motion, shelfMotion])
 
   return (
-    <div className={tw('library-page', motionStyles.navigate)} data-motion-event="navigate">
+    <LibraryPresentation books={books} onDropBook={onDropBook}>
       <header className={tw('app-header')} id="top">
         <div className={tw('title-row')}>
           <h1 tabIndex={-1}>My Books</h1>
-          <div className={tw('header-actions')}>
+          <div className={tw('header-actions library-header-actions')}>
+            <LibraryViewControl />
             <button
               className={tw('header-search command-trigger')}
               type="button"
@@ -221,7 +226,7 @@ export function LibraryPage({
 
         <nav className={tw('shelf-tabs')} aria-label="Jump to a shelf">
           {SHELVES.map((shelf) => (
-            <button type="button" key={shelf.id} onClick={() => onScrollToShelf(shelf.id)}>
+            <button type="button" key={shelf.id} onClick={() => onScrollToShelf(shelf.id)} {...libraryDropTarget('status', shelf.id, shelf.label)}>
               <span>{shelf.shortLabel}</span><strong>{booksByShelf[shelf.id].length}</strong>
             </button>
           ))}
@@ -256,6 +261,7 @@ export function LibraryPage({
                 <button
                   type="button"
                   key={shelf.id}
+                  {...libraryDropTarget('custom', shelf.id, shelf.name)}
                   onClick={() => document.getElementById(`custom-shelf-${shelf.id}`)?.scrollIntoView({
                     behavior: motionScrollBehavior(appearance.motion),
                     block: 'start',
@@ -267,6 +273,7 @@ export function LibraryPage({
             </div>
           </nav>
         )}
+        {books.length > 0 && <LibraryViewHint />}
       </header>
 
       <main className={tw('shelf-stack')}>
@@ -426,7 +433,7 @@ export function LibraryPage({
           </>
         )}
       </main>
-    </div>
+    </LibraryPresentation>
   )
 }
 

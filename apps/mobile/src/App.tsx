@@ -17,7 +17,8 @@ import { ImportReviewPage } from './imports/ImportReviewPage'
 import type { ImportBatchSummary, ImportPreview, ImportReviewDecision } from './imports'
 import { useLibrary, type BookSearchResult, type LibraryBook, type ShelfId } from './library'
 import { useOrganization, type ShelfDraft } from './organization'
-import { tagsForBook, type CustomShelf } from './organization-model'
+import { orderedShelfEntries, tagsForBook, type CustomShelf } from './organization-model'
+import type { LibraryDropTarget } from './library/library-drag'
 import {
   CommandPalette,
   getSearchPreferencesStorage,
@@ -1104,7 +1105,16 @@ function App() {
     setToast({
       message,
       undo: () => {
-        moveToShelf(id, previousShelf)
+        beginShelfMotion(id, shelf, previousShelf)
+        updateBook(id, {
+          shelf: previousShelf,
+          progress: book.progress,
+          currentPage: book.currentPage,
+          startedAt: book.startedAt,
+          finishedAt: book.finishedAt,
+        })
+        if (previousShelf === 'next') addQueueBook(id)
+        else removeQueueBook(id)
         if (shelf === 'finished') closeSheet()
         setToast({
           message: `${book.title} returned to ${shelfCopy[previousShelf].label}`,
@@ -1243,6 +1253,38 @@ function App() {
     setToast({ message: draft.id ? 'Custom shelf saved; reading statuses unchanged' : 'Custom shelf created' })
   }
 
+  const dropLibraryBook = (bookId: string, target: LibraryDropTarget) => {
+    const book = books.find(({ id }) => id === bookId)
+    if (!book || target.beforeBookId === bookId) return
+    if (target.kind === 'status') {
+      if (target.id === 'next' && book.shelf === 'next') {
+        const ids = libraryViewModel.orderedNextBooks.map(({ id }) => id)
+        const beforeIndex = ids.indexOf(target.beforeBookId ?? '')
+        const sourceIndex = ids.indexOf(bookId)
+        const targetIndex = beforeIndex < 0 ? ids.length - 1 : beforeIndex - Number(sourceIndex < beforeIndex)
+        moveQueueBook(bookId, targetIndex, ids)
+        return
+      }
+      moveWithUndo(bookId, target.id, `${book.title} moved to ${shelfCopy[target.id].label}`)
+      return
+    }
+    const shelf = organization.shelves.find(({ id, archived }) => id === target.id && !archived)
+    if (!shelf) return
+    const previous = orderedShelfEntries(organization, shelf.id).map(({ bookId: id }) => id)
+    const next = previous.filter((id) => id !== bookId)
+    const beforeIndex = next.indexOf(target.beforeBookId ?? '')
+    next.splice(beforeIndex < 0 ? next.length : beforeIndex, 0, bookId)
+    if (next.every((id, index) => id === previous[index]) && next.length === previous.length) return
+    setShelfMembersInOrder(shelf.id, next)
+    setToast({
+      message: previous.includes(bookId) ? `${book.title} reordered in ${shelf.name}` : `${book.title} added to ${shelf.name}`,
+      undo: () => {
+        setShelfMembersInOrder(shelf.id, previous)
+        setToast({ message: 'Shelf change undone', family: 'undo' })
+      },
+    })
+  }
+
   const archiveCustomShelf = (customShelf: CustomShelf) => {
     saveShelf({
       id: customShelf.id,
@@ -1336,6 +1378,7 @@ function App() {
             onOpenCommandMenu={() => setCommandMenuOpen(true)}
             onScrollToShelf={scrollToShelf}
             onOpenSheet={openSheet}
+            onDropBook={dropLibraryBook}
             onNext={handleNext}
             onStart={handleStart}
             onFinish={handleFinish}

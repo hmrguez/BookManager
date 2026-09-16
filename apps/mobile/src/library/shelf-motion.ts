@@ -78,12 +78,13 @@ export function useAnimatedShelfBooks({
       const previous = previousPositions.get(bookId)
       if (!previous) continue
       const current = element.getBoundingClientRect()
+      const deltaX = previous.left - current.left
       const deltaY = previous.top - current.top
-      if (Math.abs(deltaY) < 0.5) continue
+      if (Math.abs(deltaX) < 0.5 && Math.abs(deltaY) < 0.5) continue
 
       layoutAnimationCleanupsRef.current.get(bookId)?.()
       element.style.transition = 'none'
-      element.style.transform = `translate3d(0, ${deltaY}px, 0)`
+      element.style.transform = `translate3d(${deltaX}px, ${deltaY}px, 0)`
       element.style.willChange = 'transform'
       movingRows.push({ bookId, element })
     }
