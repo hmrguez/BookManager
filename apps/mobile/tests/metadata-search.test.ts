@@ -139,6 +139,20 @@ describe('book metadata provider layer', () => {
     ])
   })
 
+  test('ignores blank optional edition fields instead of rejecting a valid cover batch', async () => {
+    const provider = new OpenLibraryProvider({ transport: new ProviderTransport({ fetch: mockFetch(() => ({ docs: [{
+      key: '/works/OL1W', title: 'A valid book', author_name: [''], isbn: ['9780061054884'], cover_i: 101,
+      editions: { docs: [{ key: '/books/OL1M', title: 'A valid book', publisher: [''], language: [''], publish_date: [''], number_of_pages: 0, cover_i: -1 }] },
+    }] })) }) })
+    const [variant] = await provider.searchIsbns(['9780061054884'], 'en')
+    expect(variant?.thumbnail).toContain('/101-M.jpg')
+    expect(variant?.publisher).toBeUndefined()
+    expect(variant?.language).toBeUndefined()
+    expect(variant?.publicationDate).toBeUndefined()
+    expect(variant?.pageCount).toBeUndefined()
+    expect(variant?.authors).toEqual(['Unknown author'])
+  })
+
   test('deep-checks unresolved ISBNs and accepts exact-record or similar-edition covers', async () => {
     const requestedUrls: URL[] = []
     const provider = new OpenLibraryProvider({
@@ -231,6 +245,77 @@ describe('book metadata provider layer', () => {
     const selectedGoogle = selectMetadataVariant(result!, 'google-books')
     expect(selectedGoogle.title).toBe('The Dispossessed: A Novel')
     expect(selectedGoogle.pageCount).toBe(387)
+  })
+
+  test('keeps primary cover matches when the legacy endpoint is missing and skips it on later batches', async () => {
+    const paths: string[] = []
+    const provider = new OpenLibraryProvider({ transport: new ProviderTransport({
+      now: () => 0, sleep: async () => {}, maxRetries: 0,
+      fetch: (async (input) => {
+        const url = new URL(String(input)); paths.push(url.pathname)
+        return url.pathname === '/search.json'
+          ? Response.json({ docs: [{ key: '/works/OL1W', title: 'A book', isbn: ['9780061054884'], cover_i: 101 }] })
+          : new Response('', { status: 404 })
+      }) as typeof fetch,
+    }) })
+    for (let run = 0; run < 2; run++) {
+      const variants = await provider.searchIsbns(['9780061054884', '9780156453806'], 'en')
+      expect(variants[0]?.thumbnail).toContain('/101-M.jpg')
+    }
+    expect(paths.filter((path) => path.startsWith('/api/volumes'))).toHaveLength(1)
+    expect(paths.filter((path) => path === '/search.json')).toHaveLength(2)
+  })
+
+  test('retains covers on a temporary fallback failure without negatively caching unverified ISBNs', async () => {
+    const cache = new MemoryMetadataCache()
+    const provider = new OpenLibraryProvider({ transport: new ProviderTransport({
+      now: () => 0, sleep: async () => {}, maxRetries: 0,
+      fetch: (async (input) => new URL(String(input)).pathname === '/search.json'
+        ? Response.json({ docs: [{ key: '/works/OL1W', title: 'A book', isbn: ['9780061054884'], cover_i: 101 }] })
+        : new Response('', { status: 503 })) as typeof fetch,
+    }) })
+    const service = new MetadataSearchService({ provider, cache })
+    const response = await service.searchIsbns(['9780061054884', '9780156453806'], 'en')
+    expect(response.complete).toBe(false)
+    expect(response.results.get('9780061054884')?.[0]?.thumbnail).toContain('/101-M.jpg')
+    expect(response.results.has('9780156453806')).toBe(false)
+    expect(cache.entries.size).toBe(1)
+  })
+
+  test('batches title-author cover searches and caches the batch response', async () => {
+    const requests: URL[] = []
+    const provider = new OpenLibraryProvider({ transport: new ProviderTransport({
+      fetch: mockFetch((url) => { requests.push(url); return { docs: [{ key: '/works/OL1W', title: 'First Book', author_name: ['An Author'], cover_i: 101 }] } }),
+    }) })
+    const service = new MetadataSearchService({ provider, cache: new MemoryMetadataCache() })
+    const books = [{ title: 'First Book (A Series, #1)', authors: ['An Author'] }, { title: 'Second "Book"', authors: ['Another Author'] }]
+    const response = await service.searchTitles(books, 'en')
+    await service.searchTitles(books, 'en')
+    expect(requests).toHaveLength(2)
+    expect(requests[0]?.searchParams.get('q')).toBe('(title:"First Book" AND author:"An Author") OR (title:"Second \\"Book\\"" AND author:"Another Author")')
+    expect(response.results[0]?.thumbnail).toContain('/101-M.jpg')
+  })
+
+  test('reads subsequent title-match pages instead of silently dropping covers after the first page', async () => {
+    const offsets: string[] = []
+    const provider = new OpenLibraryProvider({ transport: new ProviderTransport({ now: () => 0, sleep: async () => {},
+      fetch: mockFetch((url) => {
+        const offset = url.searchParams.get('offset') ?? '0'; offsets.push(offset)
+        return { numFound: 2, docs: [{ key: `/works/OL${offset}W`, title: 'Book', author_name: ['Author'], cover_i: Number(offset) + 101 }] }
+      }),
+    }) })
+    const variants = await provider.searchTitles([{ title: 'Book', authors: ['Author'] }], 'en')
+    expect(offsets).toEqual(['0', '1'])
+    expect(variants).toHaveLength(2)
+    expect(variants[1]?.thumbnail).toContain('/102-M.jpg')
+  })
+
+  test('preserves work covers when edition-field search would hide the work', async () => {
+    const provider = new OpenLibraryProvider({ transport: new ProviderTransport({ fetch: mockFetch((url) => ({ docs: url.searchParams.get('fields')?.includes('editions') ? [] : [
+      { key: '/works/OL1W', title: 'A work', author_name: ['An Author'], cover_i: 101 },
+    ] })) }) })
+    const variants = await provider.searchTitles([{ title: 'A work', authors: ['An Author'] }], 'en')
+    expect(variants[0]?.thumbnail).toContain('/101-M.jpg')
   })
 
   test('does not collapse provider records into one Edition without a shared ISBN', () => {

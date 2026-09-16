@@ -5,13 +5,14 @@ import {
   metadataProviderNames,
   metadataSearchQuerySchema,
   normalizeIsbn,
+  normalizeSearchText,
   providerBookVariantSchema,
   providerVariantKey,
   type MetadataSearchQuery,
   type ProviderBookVariant,
 } from './model'
-import type { MetadataProvider } from './provider'
-import { MetadataProviderError } from './provider'
+import type { MetadataBookIdentity, MetadataProvider } from './provider'
+import { isAbortError, MetadataPartialBatchError, MetadataProviderError } from './provider'
 import { ProviderTransport } from './transport'
 
 const openLibraryEditionSchema = z.object({
@@ -21,24 +22,26 @@ const openLibraryEditionSchema = z.object({
   language: z.array(z.string()).optional(),
   publisher: z.array(z.string()).optional(),
   publish_date: z.array(z.string()).optional(),
-  number_of_pages: z.number().int().positive().optional(),
-  cover_i: z.number().int().positive().optional(),
+  number_of_pages: z.number().int().positive().optional().catch(undefined),
+  cover_i: z.number().int().positive().optional().catch(undefined),
 })
 
 const openLibraryDocumentSchema = z.object({
   key: z.string().min(1),
   title: z.string().min(1),
-  author_name: z.array(z.string().min(1)).optional(),
-  cover_i: z.number().int().positive().optional(),
+  author_name: z.array(z.string()).optional(),
+  cover_i: z.number().int().positive().optional().catch(undefined),
   first_publish_year: z.number().int().optional(),
   isbn: z.array(z.string()).optional(),
-  number_of_pages_median: z.number().int().positive().optional(),
+  number_of_pages_median: z.number().int().positive().optional().catch(undefined),
   language: z.array(z.string()).optional(),
   editions: z.object({ docs: z.array(openLibraryEditionSchema) }).optional(),
 })
 
 const openLibraryResponseSchema = z.object({
   docs: z.array(openLibraryDocumentSchema).default([]),
+  numFound: z.number().optional(),
+  num_found: z.number().optional(),
 })
 
 const openLibraryReadCoverSchema = z.object({
@@ -88,6 +91,11 @@ const OPEN_LIBRARY_FIELDS = [
 ].join(',')
 
 export const OPEN_LIBRARY_ISBN_BATCH_SIZE = 40
+export const OPEN_LIBRARY_TITLE_BATCH_SIZE = 10
+
+export function coverSearchTitle(title: string): string {
+  return title.replace(/\s*\([^)]*\)\s*$/, '').trim()
+}
 
 export class OpenLibraryProvider implements MetadataProvider {
   readonly id = 'open-library' as const
@@ -95,6 +103,7 @@ export class OpenLibraryProvider implements MetadataProvider {
   readonly configured = true
   readonly #transport: ProviderTransport
   readonly #now: () => Date
+  #readCoversUnavailable = false
 
   constructor(options: { readonly transport?: ProviderTransport; readonly now?: () => Date } = {}) {
     this.#transport = options.transport ?? new ProviderTransport()
@@ -137,10 +146,48 @@ export class OpenLibraryProvider implements MetadataProvider {
       const canonical = canonicalEditionIsbn(isbn)
       return canonical ? !coveredIsbns.has(canonical) : false
     })
-    if (!unresolvedIsbns.length) return variants
+    if (!unresolvedIsbns.length || this.#readCoversUnavailable) return variants
 
-    const deepCoverVariants = await this.#readCovers(unresolvedIsbns, signal, variants.length)
-    return [...variants, ...deepCoverVariants]
+    try {
+      const deepCoverVariants = await this.#readCovers(unresolvedIsbns, signal, variants.length)
+      return [...variants, ...deepCoverVariants]
+    } catch (error) {
+      if (isAbortError(error)) throw error
+      // The legacy Read API can be absent even while search.json works. Do not
+      // discard primary matches or call that unavailable endpoint for every batch.
+      if (error instanceof MetadataProviderError && error.httpStatus === 404) {
+        this.#readCoversUnavailable = true
+        return variants
+      }
+      if (error instanceof MetadataProviderError) throw new MetadataPartialBatchError(error, variants)
+      throw error
+    }
+  }
+
+  async searchTitles(books: readonly MetadataBookIdentity[], locale: string, signal?: AbortSignal): Promise<ProviderBookVariant[]> {
+    if (!books.length) return []
+    if (books.length > OPEN_LIBRARY_TITLE_BATCH_SIZE) throw new Error('Open Library title batches are limited to 10 books')
+    const quote = (value: string) => `"${value.replace(/[\\"]/g, '\\$&')}"`
+    const search = (targets: readonly MetadataBookIdentity[], fields: string) => {
+      const query = targets.map((book) => `(title:${quote(coverSearchTitle(book.title))} AND author:${quote(book.authors[0] ?? '')})`).join(' OR ')
+      const url = new URL('https://openlibrary.org/search.json')
+      url.search = new URLSearchParams({ q: query, lang: primaryLanguage(locale), limit: '100', fields }).toString()
+      return this.#search(url, query, signal, undefined, true)
+    }
+    // Requesting editions changes Open Library's matching behavior and can hide
+    // a work that has a cover. Preserve work matches before asking for editions.
+    const works = await search(books, 'key,title,author_name,isbn,cover_i')
+    const remaining = books.filter((book) => !works.some((variant) => variant.thumbnail
+      && normalizeSearchText(coverSearchTitle(variant.title)) === normalizeSearchText(coverSearchTitle(book.title))
+      && variant.authors.some((author) => book.authors.some((expected) => normalizeSearchText(author) === normalizeSearchText(expected)))))
+    if (!remaining.length) return works
+    try {
+      return [...works, ...await search(remaining, OPEN_LIBRARY_FIELDS)]
+    } catch (error) {
+      if (isAbortError(error)) throw error
+      if (error instanceof MetadataProviderError) throw new MetadataPartialBatchError(error, works)
+      throw error
+    }
   }
 
   async #readCovers(
@@ -200,6 +247,7 @@ export class OpenLibraryProvider implements MetadataProvider {
     query: string,
     signal?: AbortSignal,
     exactIsbns?: ReadonlySet<string>,
+    paginate = false,
   ): Promise<ProviderBookVariant[]> {
     const payload = await this.#transport.json(this.id, url, { signal, minimumIntervalMs: 1_000 })
     const parsed = openLibraryResponseSchema.safeParse(payload)
@@ -208,11 +256,13 @@ export class OpenLibraryProvider implements MetadataProvider {
     }
 
     const observedAt = this.#now().toISOString()
-    return parsed.data.docs.map((document, providerRank) => {
+    const offset = Number(url.searchParams.get('offset') ?? 0)
+    const variants = parsed.data.docs.map((document, providerRank) => {
       const edition = document.editions?.docs[0]
       const identifiers = editionIdentifiers([...(edition?.isbn ?? []), ...(document.isbn ?? [])])
       const coverId = edition?.cover_i ?? document.cover_i
-      const authors = document.author_name?.length ? document.author_name : ['Unknown author']
+      const observedAuthors = document.author_name?.map((name) => name.trim()).filter(Boolean)
+      const authors = observedAuthors?.length ? observedAuthors : ['Unknown author']
       const externalKey = trimOpenLibraryKey(edition?.key ?? document.key)
       const confidence = confidenceFor(document, edition, identifiers, query, exactIsbns)
 
@@ -227,20 +277,30 @@ export class OpenLibraryProvider implements MetadataProvider {
         workTitle: document.title,
         authors,
         identifiers,
-        language: edition?.language?.[0] ?? document.language?.[0],
-        publisher: edition?.publisher?.[0],
-        publicationDate: edition?.publish_date?.[0] ??
+        language: firstText(edition?.language) ?? firstText(document.language),
+        publisher: firstText(edition?.publisher),
+        publicationDate: firstText(edition?.publish_date) ??
           (document.first_publish_year ? String(document.first_publish_year) : undefined),
         pageCount: edition?.number_of_pages ?? document.number_of_pages_median,
         thumbnail: coverId
           ? `https://covers.openlibrary.org/b/id/${coverId}-M.jpg?default=false`
           : undefined,
         confidence,
-        providerRank,
+        providerRank: offset + providerRank,
         observedAt,
       })
     })
+    if (paginate && parsed.data.docs.length && offset + parsed.data.docs.length < (parsed.data.numFound ?? parsed.data.num_found ?? 0)) {
+      const next = new URL(url)
+      next.searchParams.set('offset', String(offset + parsed.data.docs.length))
+      return [...variants, ...await this.#search(next, query, signal, exactIsbns, true)]
+    }
+    return variants
   }
+}
+
+function firstText(values: readonly string[] | undefined): string | undefined {
+  return values?.map((value) => value.trim()).find(Boolean)
 }
 
 function trimOpenLibraryKey(value: string): string {

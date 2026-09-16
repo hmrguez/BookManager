@@ -4,6 +4,8 @@ import type {
   ProviderBookVariant,
 } from './model'
 
+export type MetadataBookIdentity = { readonly title: string; readonly authors: readonly string[] }
+
 export type MetadataProvider = {
   readonly id: MetadataProviderId
   readonly name: string
@@ -14,6 +16,7 @@ export type MetadataProvider = {
     locale: string,
     signal?: AbortSignal,
   ): Promise<ProviderBookVariant[]>
+  searchTitles?(books: readonly MetadataBookIdentity[], locale: string, signal?: AbortSignal): Promise<ProviderBookVariant[]>
 }
 
 export type MetadataProviderErrorCode =
@@ -27,18 +30,31 @@ export class MetadataProviderError extends Error {
   readonly provider: MetadataProviderId
   readonly code: MetadataProviderErrorCode
   readonly retryAfterMs?: number
+  readonly httpStatus?: number
 
   constructor(
     provider: MetadataProviderId,
     code: MetadataProviderErrorCode,
     message: string,
     retryAfterMs?: number,
+    httpStatus?: number,
   ) {
     super(message)
     this.name = 'MetadataProviderError'
     this.provider = provider
     this.code = code
     this.retryAfterMs = retryAfterMs
+    this.httpStatus = httpStatus
+  }
+}
+
+/** Keep successful search matches when an optional, secondary lookup fails. */
+export class MetadataPartialBatchError extends MetadataProviderError {
+  readonly variants: readonly ProviderBookVariant[]
+
+  constructor(error: MetadataProviderError, variants: readonly ProviderBookVariant[]) {
+    super(error.provider, error.code, error.message, error.retryAfterMs, error.httpStatus)
+    this.variants = variants
   }
 }
 

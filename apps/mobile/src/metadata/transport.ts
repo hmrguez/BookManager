@@ -59,6 +59,7 @@ export class ProviderTransport {
           response.status === 429 ? 'rate-limit' : 'unavailable',
           `${provider} returned HTTP ${response.status}`,
           response.status === 429 ? retryAfterMs : undefined,
+          response.status,
         )
       } catch (error) {
         if (isAbortError(error)) throw error

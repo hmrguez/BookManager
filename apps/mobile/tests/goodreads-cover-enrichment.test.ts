@@ -78,6 +78,47 @@ describe('Goodreads cover enrichment', () => {
     ])).toBe(1)
   })
 
+  test('publishes the first ISBN batch before requesting the next one', async () => {
+    const books = Array.from({ length: 41 }, (_, index) => {
+      const body = `978${String(index).padStart(9, '0')}`
+      const sum = [...body].reduce((total, digit, i) => total + Number(digit) * (i % 2 ? 3 : 1), 0)
+      return book({ id: `book-${index}`, identifiers: [`${body}${(10 - sum % 10) % 10}`] })
+    })
+    const covers: string[] = []
+    const sizes: number[] = []
+    const metadata = {
+      async searchIsbns(isbns: readonly string[]) {
+        if (sizes.length) expect(covers).toHaveLength(40)
+        sizes.push(isbns.length)
+        return { results: new Map(isbns.map((isbn) => [isbn, [result({ identifiers: [isbn], thumbnail: ISBN_COVER })]])), complete: true,
+          provider: { provider: 'open-library' as const, state: 'live' as const } }
+      },
+      async search() { throw new Error('No fallback expected') },
+    }
+    const enriched = await new GoodreadsCoverEnrichmentService(metadata).enrich(books, { locale: 'en', onCover: (id) => { covers.push(id) } })
+    expect(sizes).toEqual([40, 1])
+    expect(enriched).toMatchObject({ matchedByIsbn: 41, complete: true })
+  })
+
+  test('checks every unresolved title in batches while requiring the correct author', async () => {
+    const books = Array.from({ length: 25 }, (_, index) => book({ id: `title-${index}`, title: `Title ${index} (Series, #1)`, authors: ['An Author'] }))
+    const sizes: number[] = []
+    const covers: string[] = []
+    const metadata = {
+      async searchIsbns() { throw new Error('No ISBNs') },
+      async search() { throw new Error('Individual fallback must not be used') },
+      async searchTitles(batch: readonly LibraryBook[]) {
+        sizes.push(batch.length)
+        return { results: batch.map((entry) => result({ title: entry.title.replace(/ \(.+$/, ''), authors: [entry.id === 'title-24' ? 'Wrong Author' : 'An Author'], thumbnail: SEARCH_COVER })),
+          providers: [{ provider: 'open-library' as const, state: 'live' as const }] }
+      },
+    }
+    const enriched = await new GoodreadsCoverEnrichmentService(metadata).enrich(books, { locale: 'en', onCover: (id) => { covers.push(id) } })
+    expect(sizes).toEqual([10, 10, 5])
+    expect(covers).toHaveLength(24)
+    expect(enriched).toMatchObject({ matchedBySearch: 24, unresolvedBooks: 1, complete: true })
+  })
+
   test('does not attach a plausible cover when fallback identity evidence disagrees', async () => {
     let fallbackCalls = 0
     const metadata = {

@@ -11,8 +11,8 @@ import {
   type ProviderBookVariant,
   type ProviderSearchState,
 } from './model'
-import type { MetadataProvider } from './provider'
-import { isAbortError, MetadataProviderError } from './provider'
+import type { MetadataBookIdentity, MetadataProvider } from './provider'
+import { isAbortError, MetadataPartialBatchError, MetadataProviderError } from './provider'
 import { combineProviderResults } from './results'
 
 export type MetadataSearchCache = {
@@ -116,13 +116,19 @@ export class MetadataSearchService {
     for (let offset = 0; offset < uncached.length; offset += ISBN_BATCH_SIZE) {
       const batch = uncached.slice(offset, offset + ISBN_BATCH_SIZE)
       try {
-        const variants = this.#provider.searchIsbns
-          ? await this.#provider.searchIsbns(batch, locale, options.signal)
-          : (await Promise.all(batch.map((isbn) => this.#provider.search({
+        let partialFailure: MetadataPartialBatchError | undefined
+        const variants = await (this.#provider.searchIsbns
+          ? this.#provider.searchIsbns(batch, locale, options.signal)
+          : Promise.all(batch.map((isbn) => this.#provider.search({
               query: isbn,
               locale,
               limit: ISBN_CACHE_LIMIT,
-            }, options.signal)))).flat()
+            }, options.signal))).then((groups) => groups.flat()))
+          .catch((error: unknown) => {
+            if (!(error instanceof MetadataPartialBatchError)) throw error
+            partialFailure = error
+            return error.variants
+          })
         const observedAt = this.#now()
         for (const isbn of batch) {
           const matching = variants.flatMap((variant) => {
@@ -131,6 +137,9 @@ export class MetadataSearchService {
             )
             return identifiers.length ? [{ ...variant, identifiers }] : []
           })
+          // An interrupted fallback is not evidence that the remaining ISBNs
+          // have no cover. Keep them uncached so a later run can retry.
+          if (partialFailure && !matching.some((variant) => variant.thumbnail)) continue
           await this.#cache.put(metadataSearchCacheEntrySchema.parse({
             provider: this.#provider.id,
             queryKey: isbnCacheKey(isbn, locale),
@@ -142,12 +151,13 @@ export class MetadataSearchService {
           results.set(isbn, combineProviderResults(matching, isbn, 'live'))
         }
         liveBatches += 1
+        if (partialFailure) throw partialFailure
       } catch (error) {
         if (isAbortError(error)) throw error
         failure = error
         for (const isbn of uncached.slice(offset)) {
           const cached = stale.get(isbn)
-          if (cached) {
+          if (cached && !results.has(isbn)) {
             results.set(isbn, combineProviderResults(cached.variants, isbn, 'saved'))
             usedSaved = true
           }
@@ -174,11 +184,21 @@ export class MetadataSearchService {
     }
   }
 
+  async searchTitles(books: readonly MetadataBookIdentity[], locale: string, options: MetadataSearchOptions = {}): Promise<MetadataSearchResponse<BookSearchResult>> {
+    if (!this.#provider.searchTitles) return { results: [], providers: [{ provider: this.#provider.id, state: 'not-configured' }] }
+    const query = { query: JSON.stringify(books.map(({ title, authors }) => [title, authors])), locale, limit: 40 }
+    const queryKey = metadataQueryKey(`cover-titles-v2 ${query.query}`, locale, query.limit)
+    const outcome = await this.#searchProvider(this.#provider, query, queryKey, options,
+      () => this.#provider.searchTitles!(books, locale, options.signal))
+    return { results: combineProviderResults(outcome.variants, '', outcome.freshness ?? 'live'), providers: [outcome.status] }
+  }
+
   async #searchProvider(
     provider: MetadataProvider,
     query: MetadataSearchQuery,
     queryKey: string,
     options: MetadataSearchOptions,
+    load?: () => Promise<readonly ProviderBookVariant[]>,
   ): Promise<ProviderOutcome> {
     if (!provider.configured) return notSearchedState(provider)
 
@@ -192,7 +212,7 @@ export class MetadataSearchService {
     }
 
     try {
-      const variants = await provider.search(query, options.signal)
+      const variants = await (load ? load() : provider.search(query, options.signal))
       const observedAt = this.#now()
       await this.#cache.put(metadataSearchCacheEntrySchema.parse({
         provider: provider.id,
@@ -209,6 +229,9 @@ export class MetadataSearchService {
       }
     } catch (error) {
       if (isAbortError(error)) throw error
+      if (error instanceof MetadataPartialBatchError) {
+        return { variants: error.variants, status: providerErrorState(provider.id, error), freshness: 'live' }
+      }
       if (cached) {
         return {
           variants: cached.variants,

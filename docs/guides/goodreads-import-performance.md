@@ -74,3 +74,43 @@ It exits unsuccessfully for incomplete imports, totals of 10 seconds or more, an
 bridge batches, streamed previews, concurrent staged imports, and rollback after a chunk failure.
 `visual-tests/import-review.spec.ts` covers compact review, expansion, paging, offline commit,
 reload, and undo through the app UI.
+
+## Cover lookup verification
+
+Cover lookup starts automatically after the imported library is loaded. It never blocks the
+local import transaction. Cover URLs are saved on the library records; images load when displayed,
+so this does not promise an offline download of every cover image.
+
+Live verification found that Open Library's legacy Read API returned HTTP 404. Previously,
+that optional failure discarded successful primary search matches and stopped the first ISBN
+batch. A later batch also failed on an empty publisher string. The provider now skips an absent
+legacy endpoint, preserves primary matches on temporary fallback failures without caching
+unverified misses, and tolerates blank optional edition fields.
+
+Covers are published after each 40-ISBN batch. Remaining titles are checked in batches of ten,
+with title/author identity verification and paginated results. This replaces the previous limit
+of twenty individual title searches per run. Cached responses and the existing request spacing
+remain in use. User-supplied or existing covers are not overwritten.
+Work-level searches run before edition-enriched searches because the latter can hide a known
+work cover when Open Library cannot find a matching edition.
+
+A live audit of the same 1,820-row export on 2026-09-17 found **1,233 cover matches (67.7%)**:
+970 through ISBN-linked works, 251 through title/author work matches, and 12 additional matches
+verified against edition-level API responses saved by the simulator. The other 587 rows had no
+confident match in the available search metadata. This is not proof that no cover exists, and
+a work-level match may depict another edition. The optional legacy Read API was unavailable.
+The private, per-book report is deliberately not a repository fixture.
+
+To run a read-only, resumable audit that generates a searchable HTML report and JSON evidence:
+
+```sh
+bun scripts/audit-goodreads-covers.ts /path/to/goodreads.csv /private/output/directory [saved-metadata-evidence.json]
+```
+
+The audit caches successful API responses, spaces live requests, and bounds each network request
+to twenty seconds. It queries metadata in batches instead of downloading the image collection.
+The optional third argument accepts saved metadata-cache entries and independently checks each
+edition variant's title and author before including its cover.
+Tests cover missing and temporarily unavailable fallback endpoints, blank metadata, paginated
+title matches, progressive ISBN results, identity mismatches, and cover display/persistence after
+import and reload. Real covers were also observed and persisted in the isolated iOS simulator.

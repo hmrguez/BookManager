@@ -1,9 +1,11 @@
 import type { BookSearchResult, LibraryBook } from '../library-model'
 import { canonicalEditionIsbn, normalizeSearchText } from '../metadata/model'
 import type { MetadataSearchService } from '../metadata/service'
+import { coverSearchTitle, OPEN_LIBRARY_TITLE_BATCH_SIZE } from '../metadata/open-library'
 
 const GOODREADS_SOURCE = 'Goodreads'
 const FALLBACK_LIVE_SEARCH_LIMIT = 20
+const ISBN_BATCH_SIZE = 40
 
 export type GoodreadsCoverEnrichmentResult = {
   readonly candidateBooks: number
@@ -19,9 +21,9 @@ export type GoodreadsCoverEnrichmentProgress = {
 }
 
 export class GoodreadsCoverEnrichmentService {
-  readonly #metadata: Pick<MetadataSearchService, 'search' | 'searchIsbns'>
+  readonly #metadata: Pick<MetadataSearchService, 'search' | 'searchIsbns'> & Partial<Pick<MetadataSearchService, 'searchTitles'>>
 
-  constructor(metadata: Pick<MetadataSearchService, 'search' | 'searchIsbns'>) {
+  constructor(metadata: Pick<MetadataSearchService, 'search' | 'searchIsbns'> & Partial<Pick<MetadataSearchService, 'searchTitles'>>) {
     this.#metadata = metadata
   }
 
@@ -36,27 +38,46 @@ export class GoodreadsCoverEnrichmentService {
   ): Promise<GoodreadsCoverEnrichmentResult> {
     const candidates = goodreadsBooksMissingCovers(books)
     options.onProgress?.({ candidateBooks: candidates.length, resolvedBooks: 0 })
-    const isbnBatch = await this.#metadata.searchIsbns(
-      unique(candidates.flatMap(({ identifiers }) => identifiers ?? [])),
-      options.locale,
-      { signal: options.signal },
-    )
     const resolved = new Set<string>()
     let matchedByIsbn = 0
     let matchedBySearch = 0
+    let complete = true
+    const isbns = unique(candidates.flatMap(({ identifiers }) =>
+      (identifiers ?? []).flatMap((identifier) => canonicalEditionIsbn(identifier) ?? []),
+    ))
 
-    for (const book of candidates) {
-      const thumbnail = isbnThumbnail(book, isbnBatch.results)
-      if (!thumbnail) continue
-      await options.onCover(book.id, thumbnail)
-      resolved.add(book.id)
-      matchedByIsbn += 1
-      options.onProgress?.({ candidateBooks: candidates.length, resolvedBooks: resolved.size })
+    for (let offset = 0; offset < isbns.length; offset += ISBN_BATCH_SIZE) {
+      const isbnBatch = await this.#metadata.searchIsbns(isbns.slice(offset, offset + ISBN_BATCH_SIZE), options.locale, { signal: options.signal })
+      for (const book of candidates) {
+        if (resolved.has(book.id)) continue
+        const thumbnail = isbnThumbnail(book, isbnBatch.results)
+        if (!thumbnail) continue
+        await options.onCover(book.id, thumbnail)
+        resolved.add(book.id)
+        matchedByIsbn += 1
+        options.onProgress?.({ candidateBooks: candidates.length, resolvedBooks: resolved.size })
+      }
+      if (!isbnBatch.complete) { complete = false; break }
     }
 
-    let complete = isbnBatch.complete
     let liveFallbackSearches = 0
-    if (isbnBatch.complete) {
+    if (complete && this.#metadata.searchTitles) {
+      const remaining = candidates.filter((book) => !resolved.has(book.id))
+      for (let offset = 0; offset < remaining.length; offset += OPEN_LIBRARY_TITLE_BATCH_SIZE) {
+        const batch = remaining.slice(offset, offset + OPEN_LIBRARY_TITLE_BATCH_SIZE)
+        const response = await this.#metadata.searchTitles(batch, options.locale, { signal: options.signal })
+        const state = response.providers[0]?.state
+        for (const book of batch) {
+          const thumbnail = response.results.find((result) => result.thumbnail && isExactTitleAndAuthor(result, book))?.thumbnail
+          if (!thumbnail) continue
+          await options.onCover(book.id, thumbnail)
+          resolved.add(book.id)
+          matchedBySearch += 1
+          options.onProgress?.({ candidateBooks: candidates.length, resolvedBooks: resolved.size })
+        }
+        if (state === 'unavailable' || state === 'not-configured') { complete = false; break }
+      }
+    } else if (complete) {
       for (const book of candidates) {
         if (resolved.has(book.id)) continue
         if (liveFallbackSearches >= FALLBACK_LIVE_SEARCH_LIMIT) {
@@ -119,12 +140,12 @@ function isbnThumbnail(
 }
 
 function isExactTitleAndAuthor(result: BookSearchResult, book: LibraryBook): boolean {
-  const expectedTitle = normalizeSearchText(book.title)
+  const expectedTitle = normalizeSearchText(coverSearchTitle(book.title))
   const expectedAuthors = new Set(book.authors.map(normalizeSearchText))
   const variants = result.metadataSelection?.variants ?? []
   const titles = [result.title, ...variants.flatMap(({ title, workTitle }) => [title, workTitle])]
   const authors = [result.authors, ...variants.map(({ authors: variantAuthors }) => variantAuthors)].flat()
-  return titles.some((title) => normalizeSearchText(title) === expectedTitle)
+  return titles.some((title) => normalizeSearchText(coverSearchTitle(title)) === expectedTitle)
     && authors.some((author) => expectedAuthors.has(normalizeSearchText(author)))
 }
 

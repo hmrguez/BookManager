@@ -98,3 +98,28 @@ test('imported editions open with their own metadata, shelf, rating, and notes a
   }
   expect(errors).toEqual([])
 })
+
+test('background covers appear after import, survive reload, and tolerate an unavailable fallback', async ({ page }) => {
+  await page.route('https://openlibrary.org/**', (route) => {
+    const url = new URL(route.request().url())
+    if (url.pathname.startsWith('/api/volumes/')) return route.fulfill({ status: 404, body: '' })
+    return route.fulfill({ json: { docs: url.searchParams.get('q')?.startsWith('isbn:') ? [
+      { key: '/works/OL1W', title: 'Covered import', author_name: ['An Author'], isbn: ['9780140328721'], cover_i: 101,
+        editions: { docs: [{ key: '/books/OL1M', title: 'Covered import', publisher: [''] }] } },
+    ] : [] } })
+  })
+  await page.route('https://covers.openlibrary.org/**', (route) => route.fulfill({ path: '../../branding/marketing/covers/book-1.jpg', contentType: 'image/jpeg' }))
+  const buffer = Buffer.from('Book Id,Title,Author,ISBN13,Exclusive Shelf\n201,Covered import,An Author,9780140328721,to-read\n202,Uncovered import,Other Author,9780439554930,to-read')
+  await page.locator('.goodreads-migration__picker input').setInputFiles({ name: 'covers.csv', mimeType: 'text/csv', buffer })
+  await page.getByRole('button', { name: 'Import 2 books', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Your library is here.' })).toBeVisible({ timeout: 10_000 })
+  await page.locator('.import-action-bar').getByRole('button', { name: 'View library', exact: true }).click()
+  const book = page.locator('.book-identity').filter({ has: page.getByText('Covered import', { exact: true }) })
+  await expect(book.locator('img')).toHaveAttribute('src', 'https://covers.openlibrary.org/b/id/101-M.jpg?default=false')
+  await expect.poll(() => book.locator('img').evaluate((image) => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(1)
+  await page.reload()
+  await expect(book.locator('img')).toHaveAttribute('src', 'https://covers.openlibrary.org/b/id/101-M.jpg?default=false')
+  await book.click()
+  const details = page.getByRole('dialog', { name: 'Book details', exact: true })
+  await expect(details.locator('.book-cover img')).toHaveAttribute('src', 'https://covers.openlibrary.org/b/id/101-M.jpg?default=false')
+})
