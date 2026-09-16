@@ -7,6 +7,11 @@ export type SqlRunResult = {
   readonly lastInsertId?: number
 }
 
+export type SqlStatement = {
+  readonly statement: string
+  readonly values: readonly SqlValue[]
+}
+
 /**
  * Smallest database contract used by Wovenleaf. Capacitor, Bun tests, and future
  * tooling adapt to this boundary; domain repositories do not depend on a SQLite plugin.
@@ -14,6 +19,8 @@ export type SqlRunResult = {
 export interface SqlDatabase {
   execute(statements: string): Promise<void>
   run(statement: string, values?: readonly SqlValue[]): Promise<SqlRunResult>
+  /** Execute ordered writes with one native bridge call, inside the caller's transaction. */
+  runBatch?(statements: readonly SqlStatement[]): Promise<void>
   query<Row extends SqlRow = SqlRow>(
     statement: string,
     values?: readonly SqlValue[],

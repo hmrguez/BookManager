@@ -183,6 +183,7 @@ export async function upsertImportableCatalogEntity(
   database: SqlDatabase,
   type: ImportableCatalogEntityType,
   value: unknown,
+  options: { readonly creating?: boolean } = {},
 ): Promise<void> {
   if (type === 'work') {
     const item = workSchema.parse(value)
@@ -240,7 +241,7 @@ export async function upsertImportableCatalogEntity(
          created_at=excluded.created_at, payload_json=excluded.payload_json`,
       [item.id, item.owner.type, item.owner.id, item.scheme, item.normalizedValue, item.createdAt, json(item)],
     )
-    await database.run('DELETE FROM identifier_source_records WHERE identifier_id = ?', [item.id])
+    if (!options.creating) await database.run('DELETE FROM identifier_source_records WHERE identifier_id = ?', [item.id])
     for (const [position, sourceRecordId] of item.sourceRecordIds.entries()) {
       await database.run(
         'INSERT INTO identifier_source_records(identifier_id, source_record_id, position) VALUES (?, ?, ?)',
@@ -327,7 +328,7 @@ export async function upsertImportableCatalogEntity(
         json(item),
       ],
     )
-    await database.run('DELETE FROM reading_event_references WHERE event_id = ?', [item.id])
+    if (!options.creating) await database.run('DELETE FROM reading_event_references WHERE event_id = ?', [item.id])
     await insertReadingEventReferences(database, item)
     return
   }

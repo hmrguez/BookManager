@@ -1,6 +1,8 @@
 import { libraryBookSchema, type LibraryBook } from '../library-model'
 import { planLibraryBookCommit } from '../imports/commit-rules'
-import { canonicalImportAdapterFor } from '../imports/canonical-adapters'
+import { CanonicalImportSession, canonicalImportAdapterFor } from '../imports/canonical-adapters'
+import { checkLibraryCapacity } from '../purchases/capacity'
+import { SqlWriteBuffer } from './write-buffer'
 import { selectCsvParser } from '../imports/csv-parser'
 import {
   IMPORT_STAGES,
@@ -34,6 +36,20 @@ export type ImportRepositoryOptions = {
   readonly createId?: (kind: 'batch' | 'change' | 'checkpoint' | 'receipt') => string
 }
 
+export type ImportProgress = {
+  readonly stage: 'preparing' | 'committing' | 'complete'
+  readonly completed: number
+  readonly total: number
+}
+
+export type ImportProgressOptions = {
+  readonly onProgress?: (progress: ImportProgress) => void
+  readonly onPreview?: (preview: ImportPreview) => void
+}
+
+const yieldToUI = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
+const CHANGE_COLUMNS = ['id', 'batch_id', 'row_id', 'sequence', 'entity_type', 'entity_id', 'field', 'before_json', 'after_json', 'reason', 'applied_at'] as const
+
 type BatchRow = SqlRow & {
   readonly id: string
   readonly file_name: string
@@ -65,7 +81,7 @@ export class ImportRepository {
     this.#createId = options.createId ?? ((kind) => `import-${kind}:${crypto.randomUUID()}`)
   }
 
-  async previewCsv(fileName: string, content: string): Promise<ImportPreview> {
+  async previewCsv(fileName: string, content: string, options: ImportProgressOptions = {}): Promise<ImportPreview> {
     const parser = selectCsvParser(fileName, content)
     const source = parser.id === 'goodreads-library-export' ? GOODREADS_CSV_SOURCE : WOVENLEAF_CSV_SOURCE
     let preview = await createImportPreview({
@@ -77,34 +93,42 @@ export class ImportRepository {
       source,
       existingBooks: await readLibraryBooks(this.#database),
       receipts: await this.#listReceipts(),
+      onProgress: async (partial, total) => {
+        options.onProgress?.({ stage: 'preparing', completed: partial.proposals.length, total })
+        options.onPreview?.(partial)
+        await yieldToUI()
+      },
     })
     const canonicalAdapter = canonicalImportAdapterFor(source.key)
     if (canonicalAdapter) {
       const catalog = await new CatalogRepository(this.#database).read()
-      const proposals = await Promise.all(preview.proposals.map(async (proposal) => {
+      const session = new CanonicalImportSession(canonicalAdapter, catalog)
+      const proposals: ImportProposal[] = []
+      for (const proposal of preview.proposals) {
         if (
           !proposal.record
           || !proposal.targetId
           || proposal.kind === 'error'
           || proposal.duplicateOfBatchId
-        ) return proposal
-        const plan = await canonicalAdapter.plan({
+        ) { proposals.push(proposal); continue }
+        const plan = await session.plan({
           proposal,
           targetBookId: proposal.targetId,
           batchId: preview.id,
           timestamp: preview.createdAt,
-          catalog,
         })
         const hasCanonicalChanges = plan.entities.some(({ action }) => action !== 'unchanged')
-        return {
+        proposals.push({
           ...proposal,
           kind: proposal.kind === 'skip' && hasCanonicalChanges ? 'update' as const : proposal.kind,
           reason: proposal.kind === 'skip' && hasCanonicalChanges
             ? 'The book is current; new Goodreads source or reading-history evidence will be added.'
             : proposal.reason,
-          entities: plan.entities,
-        }
-      }))
+          entities: [...plan.entities],
+        })
+        if (proposals.length % 100 === 0) await yieldToUI()
+      }
+      session.validate()
       preview = importPreviewSchema.parse({ ...preview, proposals })
     }
     await this.#stage(preview)
@@ -118,6 +142,7 @@ export class ImportRepository {
   async commit(
     batchId: string,
     inputDecisions: readonly ImportReviewDecision[] = [],
+    options: ImportProgressOptions = {},
   ): Promise<ImportCommitResult> {
     const decisions = inputDecisions.map((decision) => importReviewDecisionSchema.parse(decision))
     if (new Set(decisions.map(({ rowId }) => rowId)).size !== decisions.length) {
@@ -126,7 +151,7 @@ export class ImportRepository {
     const decisionByRow = new Map(decisions.map((decision) => [decision.rowId, decision]))
     const committedAt = this.#now().toISOString()
 
-    return this.#database.transaction(async (database) => {
+    const result = await this.#database.transaction(async (database) => {
       const preview = await readPreview(database, batchId)
       const status = await readBatchStatus(database, batchId)
       if (status !== 'review') throw new Error(`Import batch ${batchId} is already ${status}`)
@@ -136,6 +161,24 @@ export class ImportRepository {
       })
 
       const books = await readLibraryBooks(database)
+      const booksById = new Map(books.map((book) => [book.id, book]))
+      const receiptKeys = new Set((await this.#listReceipts()).map((receipt) =>
+        JSON.stringify([receipt.sourceKey, receipt.externalKey, receipt.rowHash]),
+      ))
+      const canonicalAdapter = canonicalImportAdapterFor(preview.source.key)
+      const canonicalSession = canonicalAdapter
+        ? new CanonicalImportSession(canonicalAdapter, await new CatalogRepository(database).read())
+        : undefined
+      await checkLibraryCapacity(database, preview.proposals.flatMap((proposal) => {
+        const decision = decisionByRow.get(proposal.id)
+        const targetId = decision?.targetId ?? proposal.targetId
+        const alreadyImported = proposal.record && receiptKeys.has(JSON.stringify([
+          preview.source.key, proposal.record.externalKey, proposal.rowHash,
+        ]))
+        return !proposal.duplicateOfBatchId && !alreadyImported && (decision?.included ?? proposal.defaultIncluded) && targetId
+          ? [targetId] : []
+      }))
+      const writes = new SqlWriteBuffer(database)
       let appliedRows = 0
       let appliedChanges = 0
       let excludedRows = 0
@@ -143,17 +186,22 @@ export class ImportRepository {
       let duplicateRows = 0
       let sequence = 0
 
-      for (const proposal of preview.proposals) {
+      for (const [index, proposal] of preview.proposals.entries()) {
+        if (index % 100 === 0) {
+          await writes.flush()
+          options.onProgress?.({ stage: 'committing', completed: index, total: preview.proposals.length })
+          await yieldToUI()
+        }
         const decision = decisionByRow.get(proposal.id)
         const included = decision?.included ?? proposal.defaultIncluded
         if (proposal.duplicateOfBatchId) {
           duplicateRows += 1
-          await setRowDecision(database, proposal.id, 'duplicate', proposal.targetId)
+          await setRowDecision(writes, proposal.id, 'duplicate', proposal.targetId)
           continue
         }
         if (!included) {
           excludedRows += 1
-          await setRowDecision(database, proposal.id, 'excluded', decision?.targetId ?? proposal.targetId)
+          await setRowDecision(writes, proposal.id, 'excluded', decision?.targetId ?? proposal.targetId)
           continue
         }
         if (!proposal.record || proposal.kind === 'error') {
@@ -165,7 +213,13 @@ export class ImportRepository {
         if (!targetId) {
           throw new Error(`Row ${proposal.rowNumber} needs an explicit match or exclusion`)
         }
-        const existing = books.find((book) => book.id === targetId)
+        const receiptKey = JSON.stringify([preview.source.key, proposal.record.externalKey, proposal.rowHash])
+        if (receiptKeys.has(receiptKey)) {
+          duplicateRows += 1
+          await setRowDecision(writes, proposal.id, 'duplicate', targetId)
+          continue
+        }
+        const existing = booksById.get(targetId)
         assertPreviewIsCurrent(proposal, decision, existing)
         const plan = planLibraryBookCommit(
           proposal.record,
@@ -178,11 +232,11 @@ export class ImportRepository {
         }
 
         const receiptId = this.#createId('receipt')
-        const receipt = await database.run(
-          `INSERT INTO import_row_receipts(
-             id, source_key, external_key, row_hash, batch_id, row_id, target_id, created_at
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-           ON CONFLICT(source_key, external_key, row_hash) DO NOTHING`,
+        receiptKeys.add(receiptKey)
+        // The snapshot is read inside the serialized transaction; the unique constraint remains
+        // the final guard. An unexpected external writer rolls back the batch rather than losing data.
+        writes.insert('import_row_receipts',
+          ['id', 'source_key', 'external_key', 'row_hash', 'batch_id', 'row_id', 'target_id', 'created_at'],
           [
             receiptId,
             preview.source.key,
@@ -194,30 +248,19 @@ export class ImportRepository {
             committedAt,
           ],
         )
-        if (receipt.changes === 0) {
-          duplicateRows += 1
-          await setRowDecision(database, proposal.id, 'duplicate', plan.targetId)
-          continue
-        }
-
         if (plan.changes.length) {
-          await writeLibraryBook(database, plan.after)
-          const bookIndex = books.findIndex(({ id }) => id === plan.targetId)
-          if (bookIndex === -1) books.push(plan.after)
-          else books[bookIndex] = plan.after
+          await writeLibraryBook(writes, plan.after, true)
+          booksById.set(plan.targetId, plan.after)
 
           for (const change of plan.changes) {
             sequence += 1
-            await database.run(
-              `INSERT INTO import_changes(
-                 id, batch_id, row_id, sequence, entity_type, entity_id, field,
-                 before_json, after_json, reason, applied_at
-               ) VALUES (?, ?, ?, ?, 'library-book', ?, ?, ?, ?, ?, ?)`,
+            writes.insert('import_changes', CHANGE_COLUMNS,
               [
                 this.#createId('change'),
                 batchId,
                 proposal.id,
                 sequence,
+                'library-book',
                 plan.targetId,
                 change.field,
                 JSON.stringify(change.before),
@@ -229,24 +272,17 @@ export class ImportRepository {
           }
         }
         let canonicalChangeCount = 0
-        const canonicalAdapter = canonicalImportAdapterFor(preview.source.key)
-        if (canonicalAdapter) {
-          const catalog = await new CatalogRepository(database).read()
-          const canonicalPlan = await canonicalAdapter.plan({
+        if (canonicalSession) {
+          const canonicalPlan = await canonicalSession.plan({
             proposal,
             targetBookId: plan.targetId,
             batchId,
             timestamp: preview.createdAt,
-            catalog,
           })
           for (const change of canonicalPlan.changes) {
-            await upsertImportableCatalogEntity(database, change.entityType, change.after)
+            await upsertImportableCatalogEntity(writes, change.entityType, change.after, { creating: change.before === undefined })
             sequence += 1
-            await database.run(
-              `INSERT INTO import_changes(
-                 id, batch_id, row_id, sequence, entity_type, entity_id, field,
-                 before_json, after_json, reason, applied_at
-               ) VALUES (?, ?, ?, ?, ?, ?, '$record', ?, ?, ?, ?)`,
+            writes.insert('import_changes', CHANGE_COLUMNS,
               [
                 this.#createId('change'),
                 batchId,
@@ -254,6 +290,7 @@ export class ImportRepository {
                 sequence,
                 change.entityType,
                 change.entityId,
+                '$record',
                 JSON.stringify(stored(change.before)),
                 JSON.stringify(stored(change.after)),
                 change.reason,
@@ -267,8 +304,11 @@ export class ImportRepository {
         appliedChanges += rowChangeCount
         if (!rowChangeCount) skippedRows += 1
         appliedRows += 1
-        await setRowDecision(database, proposal.id, rowChangeCount ? 'included' : 'skipped', plan.targetId)
+        await setRowDecision(writes, proposal.id, rowChangeCount ? 'included' : 'skipped', plan.targetId)
       }
+
+      canonicalSession?.validate()
+      await writes.flush()
 
       const previousRows = await database.query(
         `SELECT id FROM import_checkpoints
@@ -309,6 +349,8 @@ export class ImportRepository {
 
       return { checkpointId, ...checkpointPayload }
     })
+    options.onProgress?.({ stage: 'complete', completed: result.appliedRows + result.excludedRows + result.duplicateRows, total: result.appliedRows + result.excludedRows + result.duplicateRows })
+    return result
   }
 
   async undo(batchId: string): Promise<ImportUndoResult> {
@@ -424,13 +466,10 @@ export class ImportRepository {
          batch.committed_at,
          batch.undone_at,
          batch.payload_json,
-         COUNT(DISTINCT row.id) AS total_rows,
-         COUNT(DISTINCT CASE WHEN row.decision IN ('included', 'skipped') THEN row.id END) AS applied_rows,
-         COUNT(DISTINCT change.id) AS change_count
+         (SELECT COUNT(*) FROM import_rows WHERE batch_id = batch.id) AS total_rows,
+         (SELECT COUNT(*) FROM import_rows WHERE batch_id = batch.id AND decision IN ('included', 'skipped')) AS applied_rows,
+         (SELECT COUNT(*) FROM import_changes WHERE batch_id = batch.id) AS change_count
        FROM import_batches batch
-       LEFT JOIN import_rows row ON row.batch_id = batch.id
-       LEFT JOIN import_changes change ON change.batch_id = batch.id
-       GROUP BY batch.id
        ORDER BY batch.created_at DESC, batch.id DESC
        LIMIT ?`,
       [limit],
@@ -455,7 +494,8 @@ export class ImportRepository {
   async #stage(preview: ImportPreview): Promise<void> {
     const { proposals: _proposals, ...batchPayload } = importPreviewSchema.parse(preview)
     await this.#database.transaction(async (database) => {
-      await database.run(
+      const writes = new SqlWriteBuffer(database)
+      await writes.run(
         `INSERT INTO import_batches(
            id, source_key, parser_id, parser_version, file_name, content_hash,
            status, created_at, payload_json
@@ -472,11 +512,8 @@ export class ImportRepository {
         ],
       )
       for (const proposal of preview.proposals) {
-        await database.run(
-          `INSERT INTO import_rows(
-             id, batch_id, row_number, external_key, row_hash, proposal_kind,
-             decision, target_id, payload_json
-           ) VALUES (?, ?, ?, ?, ?, ?, 'proposed', ?, ?)`,
+        writes.insert('import_rows',
+          ['id', 'batch_id', 'row_number', 'external_key', 'row_hash', 'proposal_kind', 'decision', 'target_id', 'payload_json'],
           [
             proposal.id,
             preview.id,
@@ -484,11 +521,13 @@ export class ImportRepository {
             proposal.externalKey ?? null,
             proposal.rowHash,
             proposal.kind,
+            'proposed',
             proposal.targetId ?? null,
             JSON.stringify(proposal),
           ],
         )
       }
+      await writes.flush()
     })
   }
 

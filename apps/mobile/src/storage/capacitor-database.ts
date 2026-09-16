@@ -5,7 +5,7 @@ import {
 } from '@capacitor-community/sqlite'
 import { Capacitor } from '@capacitor/core'
 import { defineCustomElements } from 'jeep-sqlite/loader'
-import type { SqlDatabase, SqlRow, SqlRunResult, SqlValue } from './database'
+import type { SqlDatabase, SqlRow, SqlRunResult, SqlStatement, SqlValue } from './database'
 
 const DATABASE_NAME = 'wovenleaf'
 
@@ -72,6 +72,14 @@ class CapacitorSqlDatabase implements SqlDatabase {
   ): Promise<Row[]> {
     const result = await this.#connection.query(statement, [...values])
     return (result.values ?? []).map((row) => normalizeRow(row) as Row)
+  }
+
+  async runBatch(statements: readonly SqlStatement[]): Promise<void> {
+    if (!statements.length) return
+    await this.#connection.executeSet(
+      statements.map(({ statement, values }) => ({ statement, values: [...values] })),
+      false,
+    )
   }
 
   async transaction<Result>(work: (database: SqlDatabase) => Promise<Result>): Promise<Result> {

@@ -1,187 +1,145 @@
 import { useMemo, useState } from 'react'
-import {
-  AlertTriangle,
-  ArrowLeft,
-  Check,
-  ChevronDown,
-  FileCheck2,
-  FilePlus2,
-  GitCompareArrows,
-  LockKeyhole,
-  RotateCcw,
-  ShieldCheck,
-  SkipForward,
-  TriangleAlert,
-} from 'lucide-react'
+import { ArrowLeft, Check, ChevronDown, ChevronLeft, ChevronRight, LoaderCircle, TriangleAlert } from 'lucide-react'
 import type { LibraryBook } from '../library-model'
+import type { ImportProgress } from '../storage/import-repository'
 import { importedLibraryBookId, planLibraryBookCommit } from './commit-rules'
-import {
-  IMPORT_STAGES,
-  type ImportPreview,
-  type ImportProposal,
-  type ImportReviewDecision,
-} from './model'
+import type { ImportPreview, ImportProposal, ImportReviewDecision } from './model'
 import { tw } from '../tailwind/styles'
-import { motionStyles } from '../tailwind/motion'
+import './import-review.css'
 
+const PAGE_SIZE = 100
 const proposalCopy = {
-  add: { label: 'Add', icon: FilePlus2 },
-  update: { label: 'Update', icon: GitCompareArrows },
-  conflict: { label: 'Conflict', icon: AlertTriangle },
-  skip: { label: 'Skip', icon: SkipForward },
-  error: { label: 'Error', icon: TriangleAlert },
+  add: 'New', update: 'Update', conflict: 'Review', skip: 'Unchanged', error: 'Needs attention',
 } as const
 
-export function ImportReviewPage({
-  preview,
-  books,
-  busy,
-  error,
-  onBack,
-  onCommit,
-}: {
+type Filter = 'all' | 'attention' | 'add' | 'update' | 'skip'
+
+export function ImportReviewPage({ preview, books, busy, progress, error, onBack, onCommit }: {
   preview: ImportPreview
   books: readonly LibraryBook[]
   busy: boolean
+  progress?: ImportProgress
   error?: string
   onBack: () => void
   onCommit: (decisions: readonly ImportReviewDecision[]) => Promise<void>
 }) {
-  const isGoodreads = preview.source.key === 'goodreads-csv'
-  const [decisions, setDecisions] = useState<Record<string, ImportReviewDecision>>(() =>
-    Object.fromEntries(preview.proposals.map((proposal) => [
-      proposal.id,
-      {
-        rowId: proposal.id,
-        included: proposal.defaultIncluded,
-        targetId: proposal.targetId,
-        targetUpdatedAt: books.find(({ id }) => id === proposal.targetId)?.lastUpdatedAt,
-      },
-    ])),
+  const [overrides, setOverrides] = useState<Record<string, ImportReviewDecision>>({})
+  const [filter, setFilter] = useState<Filter>('all')
+  const [page, setPage] = useState(0)
+  const [expandedId, setExpandedId] = useState<string>()
+  const booksById = useMemo(() => new Map(books.map((book) => [book.id, book])), [books])
+  const preparing = progress?.stage === 'preparing'
+  const committing = progress?.stage === 'committing' && busy
+  const complete = progress?.stage === 'complete'
+  const decisionFor = (proposal: ImportProposal): ImportReviewDecision => overrides[proposal.id] ?? {
+    rowId: proposal.id,
+    included: proposal.defaultIncluded,
+    targetId: proposal.targetId,
+    targetUpdatedAt: proposal.targetId ? booksById.get(proposal.targetId)?.lastUpdatedAt : undefined,
+  }
+  const needsAttention = (proposal: ImportProposal) =>
+    proposal.kind === 'error' || proposal.kind === 'conflict' || proposal.match.confidence === 'low'
+  const visible = preview.proposals.filter((proposal) =>
+    filter === 'all' || (filter === 'attention' ? needsAttention(proposal) : proposal.kind === filter),
   )
-  const [filter, setFilter] = useState<'all' | keyof typeof proposalCopy | 'low'>('all')
-  const summary = useMemo(() => ({
+  const included = preview.proposals.filter((proposal) => decisionFor(proposal).included)
+  const unresolved = included.filter((proposal) => proposal.kind === 'error' || !decisionFor(proposal).targetId)
+  const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE))
+  const currentPage = Math.min(page, pageCount - 1)
+  const rows = visible.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE)
+  const progressPercent = progress?.total ? Math.min(100, progress.completed / progress.total * 100) : 0
+  const counts: Record<Filter, number> = {
+    all: preview.proposals.length,
+    attention: preview.proposals.filter(needsAttention).length,
     add: preview.proposals.filter(({ kind }) => kind === 'add').length,
     update: preview.proposals.filter(({ kind }) => kind === 'update').length,
-    conflict: preview.proposals.filter(({ kind }) => kind === 'conflict').length,
     skip: preview.proposals.filter(({ kind }) => kind === 'skip').length,
-    error: preview.proposals.filter(({ kind }) => kind === 'error').length,
-    low: preview.proposals.filter(({ match }) => match.confidence === 'low').length,
-  }), [preview.proposals])
-  const visible = preview.proposals.filter((proposal) =>
-    filter === 'all' || (filter === 'low' ? proposal.match.confidence === 'low' : proposal.kind === filter),
-  )
-  const included = preview.proposals.filter((proposal) => decisions[proposal.id]?.included)
-  const unresolved = included.filter((proposal) =>
-    proposal.kind === 'error' || (!decisions[proposal.id]?.targetId && proposal.kind !== 'skip'),
-  )
-
-  const changeDecision = (rowId: string, patch: Partial<ImportReviewDecision>) => {
-    setDecisions((current) => ({
-      ...current,
-      [rowId]: { ...current[rowId]!, ...patch },
-    }))
+  }
+  const labels: Record<Filter, string> = { all: 'All books', attention: 'Needs review', add: 'New', update: 'Updates', skip: 'Unchanged' }
+  const changeDecision = (proposal: ImportProposal, patch: Partial<ImportReviewDecision>) => {
+    setOverrides((current) => ({ ...current, [proposal.id]: { ...decisionFor(proposal), ...patch } }))
   }
 
   return (
-    <main className={tw("import-review", motionStyles.navigate)} data-motion-event="navigate">
-      <header className={tw("import-review__masthead")}>
-        <button type="button" onClick={onBack} aria-label="Back to import settings">
-          <ArrowLeft aria-hidden="true" />
-        </button>
+    <main className="import-review import-compact" aria-busy={busy}>
+      <header className="import-heading">
+        <button type="button" className="import-back" onClick={onBack} disabled={busy} aria-label={complete ? 'View library' : 'Back to settings'}><ArrowLeft /></button>
         <div>
-          <span>{isGoodreads ? 'Goodreads · private migration' : 'Wovenleaf · import desk'}</span>
-          <h1>{isGoodreads ? 'Your library is ready' : 'Review before it lands'}</h1>
-          <p>{isGoodreads
-            ? `${preview.proposals.length} books found · check the exceptions, then bring them home`
-            : `${preview.fileName} · ${preview.proposals.length} parsed rows · local only`}</p>
-        </div>
-        <div className={tw("import-review__seal")}>
-          <ShieldCheck aria-hidden="true" />
-          <span><strong>Nothing writes yet</strong><small>{isGoodreads ? 'Goodreads never connects to Wovenleaf.' : 'Every mutation is listed below.'}</small></span>
+          <span className="import-eyebrow">{preview.source.key === 'goodreads-csv' ? 'From Goodreads' : 'Library import'}</span>
+          <h1>{complete ? 'Your library is here.' : preparing ? 'Reading your library…' : committing ? 'Bringing your books home…' : 'Make yourself at home.'}</h1>
+          <p>{complete ? `${included.length.toLocaleString()} books imported` : preparing ? `${preview.proposals.length.toLocaleString()} of ${progress.total.toLocaleString()} books found` : `${preview.proposals.length.toLocaleString()} books · review the exceptions, then import`}</p>
         </div>
       </header>
 
-      <details className={tw("import-technical")} open={!isGoodreads}>
-        <summary>{isGoodreads ? 'Privacy & migration details' : 'Import pipeline & permissions'}</summary>
-      <ol className={tw("import-stage-rail")} aria-label="Import pipeline stages">
-        {IMPORT_STAGES.map((stage, index) => {
-          const completed = preview.completedStages.includes(stage)
+      {(busy || complete) && (
+        <div className="import-live" role="status" aria-live="polite">
+          <div><span>{complete ? <Check /> : <LoaderCircle className="import-spin" />}{complete ? 'Saved on this device' : preparing ? 'Preparing your books' : 'Saving your library'}</span><strong>{complete ? 'Done' : `${progress?.completed.toLocaleString() ?? 0} / ${progress?.total.toLocaleString() ?? preview.proposals.length}`}</strong></div>
+          <progress aria-label={preparing ? 'Preparation progress' : 'Import progress'} max={100} value={complete ? 100 : progressPercent} />
+          {complete && <small>Books are ready. Missing covers can fill in afterward.</small>}
+        </div>
+      )}
+
+      <nav className="import-filters" aria-label="Filter import books">
+        {(Object.keys(labels) as Filter[]).map((key) => (
+          <button key={key} type="button" aria-pressed={filter === key} onClick={() => { setFilter(key); setPage(0); setExpandedId(undefined) }}>
+            {labels[key]} <span>{counts[key].toLocaleString()}</span>
+          </button>
+        ))}
+      </nav>
+
+      <div className="import-book-list" aria-label="Import rows">
+        {rows.map((proposal) => {
+          const decision = decisionFor(proposal)
+          const expanded = expandedId === proposal.id
+          const imported = complete && decision.included && !proposal.duplicateOfBatchId
+          const active = committing && decision.included
+          const immutable = busy || complete || proposal.kind === 'error' || Boolean(proposal.duplicateOfBatchId)
           return (
-            <li key={stage} className={tw(completed ? 'is-complete' : stage === 'commit' ? 'is-next' : '')}>
-              <span>{completed ? <Check aria-hidden="true" /> : String(index + 1)}</span>
-              <strong>{stage}</strong>
-            </li>
+            <article className={`import-book-row${expanded ? ' is-expanded' : ''}${imported ? ' is-imported' : ''}`} key={proposal.id}>
+              <div className="import-book-line">
+                <label className="import-select">
+                  <input type="checkbox" checked={decision.included} disabled={immutable} onChange={(event) => changeDecision(proposal, { included: event.target.checked })} aria-label={`Include ${proposal.record?.title ?? `row ${proposal.rowNumber}`}`} />
+                  <span aria-hidden="true">{imported ? <Check className="import-arrived" /> : active ? <LoaderCircle className="import-spin" /> : proposal.kind === 'error' ? <TriangleAlert /> : decision.included ? <Check /> : null}</span>
+                </label>
+                <button className="import-book-expand" type="button" aria-expanded={expanded} aria-controls={`details-${proposal.id}`} onClick={() => setExpandedId(expanded ? undefined : proposal.id)}>
+                  <span className="import-book-identity"><strong>{proposal.record?.title ?? `Row ${proposal.rowNumber}`}</strong><small>{proposal.record?.authors.join(', ') ?? proposal.validationErrors.join(' · ')}</small></span>
+                  <span className={`import-book-status${needsAttention(proposal) ? ' needs-attention' : ''}`}>{imported ? 'Imported' : active ? 'Saving' : proposalCopy[proposal.kind]}</span>
+                  <ChevronRight className="import-chevron" />
+                </button>
+              </div>
+              {expanded && <div id={`details-${proposal.id}`} className="import-book-details">
+                <fieldset disabled={busy || complete}>
+                  <ProposalDetails proposal={proposal} books={books} sourceKey={preview.source.key} timestamp={preview.createdAt} decision={decision} onChange={(patch) => changeDecision(proposal, patch)} />
+                </fieldset>
+              </div>}
+            </article>
           )
         })}
-      </ol>
+        {!rows.length && <p className="import-empty">{preparing ? 'Reading the first books…' : 'No books in this category.'}</p>}
+      </div>
 
-      <section className={tw("import-permission-ledger")} aria-labelledby="import-permissions-title">
-        <header>
-          <LockKeyhole aria-hidden="true" />
-          <div><span>Source permissions</span><h2 id="import-permissions-title">A deliberately small footprint</h2></div>
-        </header>
-        <ul>
-          {preview.source.permissions.map((permission) => (
-            <li key={permission.scope}>
-              <span className={tw(`import-permission__access is-${permission.access}`)}>{permission.access}</span>
-              <span><strong>{permission.label}</strong><small>{permission.explanation}</small></span>
-            </li>
-          ))}
-        </ul>
-      </section>
+      {pageCount > 1 && <nav className="import-pagination" aria-label="Import pages">
+        <button type="button" disabled={currentPage === 0} onClick={() => { setPage(currentPage - 1); setExpandedId(undefined) }} aria-label="Previous books"><ChevronLeft /></button>
+        <span>{(currentPage * PAGE_SIZE + 1).toLocaleString()}–{Math.min((currentPage + 1) * PAGE_SIZE, visible.length).toLocaleString()} of {visible.length.toLocaleString()}</span>
+        <button type="button" disabled={currentPage + 1 >= pageCount} onClick={() => { setPage(currentPage + 1); setExpandedId(undefined) }} aria-label="Next books"><ChevronRight /></button>
+      </nav>}
+
+      <details className="import-privacy"><summary>What stays private <ChevronDown /></summary>
+        <p>The file is processed on this device. Books, shelves, notes, and reading history are saved together. You can undo this import in Settings. Cover lookup happens separately.</p>
       </details>
 
-      <section className={tw("import-workbench")}>
-        <aside className={tw("import-summary")} aria-label="Import proposal summary">
-          <header><span>{isGoodreads ? 'Migration' : 'Change set'}</span><h2>{isGoodreads ? 'What comes with you' : 'What this file proposes'}</h2></header>
-          <div className={tw("import-summary__count")}><strong>{included.length}</strong><span>{isGoodreads ? 'books ready to import' : 'rows selected to commit'}</span></div>
-          <div className={tw("import-filter-list")}>
-            <FilterButton label="All rows" count={preview.proposals.length} active={filter === 'all'} onClick={() => setFilter('all')} />
-            {(Object.keys(proposalCopy) as Array<keyof typeof proposalCopy>).map((kind) => (
-              <FilterButton key={kind} label={`${proposalCopy[kind].label}s`} count={summary[kind]} active={filter === kind} onClick={() => setFilter(kind)} />
-            ))}
-            <FilterButton label="Low confidence" count={summary.low} active={filter === 'low'} onClick={() => setFilter('low')} />
-          </div>
-          <p><RotateCcw aria-hidden="true" /> {isGoodreads ? 'One tap in Settings can undo this migration.' : 'Commit creates a checkpoint and field-level undo record.'}</p>
-        </aside>
-
-        <div className={tw("import-proposals")} aria-label="Import rows">
-          {visible.map((proposal) => (
-            <ProposalCard
-              key={proposal.id}
-              proposal={proposal}
-              books={books}
-              sourceKey={preview.source.key}
-              timestamp={preview.createdAt}
-              decision={decisions[proposal.id]!}
-              onChange={(patch) => changeDecision(proposal.id, patch)}
-            />
-          ))}
-          {!visible.length && <p className={tw("import-proposals__empty")}>No rows in this category.</p>}
-        </div>
-      </section>
-
-      <footer className={tw("import-commit-bar")}>
-        <div>
-          <strong>{unresolved.length ? `${unresolved.length} selected rows need attention` : isGoodreads ? 'Ready to bring your library home' : 'Ready for a transactional commit'}</strong>
-          <span>{included.length} included · {preview.proposals.length - included.length} excluded · undo remains available in Settings</span>
-          {error && <small role="alert">{error}</small>}
-        </div>
-        <button
-          type="button"
-          disabled={busy || included.length === 0 || unresolved.length > 0}
-          onClick={() => void onCommit(Object.values(decisions))}
-        >
-          <FileCheck2 aria-hidden="true" />
-          {busy ? (isGoodreads ? 'Importing…' : 'Committing…') : isGoodreads ? `Import ${included.length} books` : `Commit ${included.length} rows`}
+      <footer className="import-action-bar">
+        <div><strong>{complete ? 'All set.' : unresolved.length ? `${unresolved.length} selected books need review` : `${included.length.toLocaleString()} books selected`}</strong><span>{complete ? 'Your reading life, in one place.' : 'Saved locally · undo available'}</span></div>
+        <button type="button" disabled={!complete && (busy || included.length === 0 || unresolved.length > 0)} onClick={() => complete ? onBack() : void onCommit(preview.proposals.map(decisionFor))}>
+          {busy ? <LoaderCircle className="import-spin" /> : <Check />}{complete ? 'View library' : preparing ? 'Preparing…' : committing ? 'Importing…' : `Import ${included.length.toLocaleString()} books`}
         </button>
+        {error && <p role="alert">{error}</p>}
       </footer>
     </main>
   )
 }
 
-function ProposalCard({
+function ProposalDetails({
   proposal,
   books,
   sourceKey,
@@ -196,9 +154,6 @@ function ProposalCard({
   decision: ImportReviewDecision
   onChange: (patch: Partial<ImportReviewDecision>) => void
 }) {
-  const copy = proposalCopy[proposal.kind]
-  const Icon = copy.icon
-  const immutable = proposal.kind === 'error' || Boolean(proposal.duplicateOfBatchId)
   const createId = proposal.record
     ? importedLibraryBookId(sourceKey, proposal.record.externalKey)
     : undefined
@@ -214,23 +169,6 @@ function ProposalCard({
       : proposal.reason
 
   return (
-    <article className={tw(`import-proposal import-proposal--${proposal.kind}${decision.included ? ' is-included' : ''}`)}>
-      <header>
-        <label className={tw("import-row-toggle")}>
-          <input
-            type="checkbox"
-            checked={decision.included}
-            disabled={immutable}
-            onChange={(event) => onChange({ included: event.target.checked })}
-          />
-          <span aria-hidden="true"><Check /></span>
-          <span className={tw("sr-only")}>Include row {proposal.rowNumber}</span>
-        </label>
-        <span className={tw("import-proposal__kind")}><Icon aria-hidden="true" />{copy.label}</span>
-        {proposal.match.confidence === 'low' && <span className={tw("import-proposal__confidence")}>Low confidence</span>}
-        <span className={tw("import-proposal__row")}>row {proposal.rowNumber}</span>
-      </header>
-
       <div className={tw("import-proposal__body")}>
         <div className={tw("import-proposal__identity")}>
           <span>{proposal.externalKey ?? 'Invalid row'}</span>
@@ -326,20 +264,6 @@ function ProposalCard({
           </div>
         </details>
       </div>
-    </article>
-  )
-}
-
-function FilterButton({ label, count, active, onClick }: {
-  label: string
-  count: number
-  active: boolean
-  onClick: () => void
-}) {
-  return (
-    <button type="button" aria-pressed={active} onClick={onClick}>
-      <span>{label}</span><strong>{count}</strong>
-    </button>
   )
 }
 

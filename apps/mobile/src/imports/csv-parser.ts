@@ -1,5 +1,5 @@
 import { normalizedLibraryBookSchema, type NormalizedLibraryBook } from './model'
-import { normalizeIsbn } from '../metadata/model'
+import { canonicalEditionIsbn, normalizeIsbn } from '../metadata/model'
 
 export type ParsedImportRow = {
   readonly rowNumber: number
@@ -305,6 +305,9 @@ function parseGoodreadsIsbn(
   const unwrapped = value.replace(/^=\s*"(.*)"$/, '$1')
   if (!unwrapped) return undefined
   const normalized = normalizeIsbn(unwrapped)
+  // Some official exports repeat a valid ISBN-10 in the ISBN13 column. Convert the
+  // checksum-validated identifier; preserve the original cell in the source revision.
+  if (normalized?.length === 10 && length === 13) return canonicalEditionIsbn(normalized)
   if (!normalized || normalized.length !== length) {
     errors.push(`ISBN${length} is not a valid ISBN-${length}`)
     return undefined

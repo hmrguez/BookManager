@@ -15,6 +15,7 @@ import {
 } from './design-system'
 import { ImportReviewPage } from './imports/ImportReviewPage'
 import type { ImportBatchSummary, ImportPreview, ImportReviewDecision } from './imports'
+import type { ImportProgress } from './storage/import-repository'
 import { useLibrary, type BookSearchResult, type LibraryBook, type ShelfId } from './library'
 import { useOrganization, type ShelfDraft } from './organization'
 import { orderedShelfEntries, tagsForBook, type CustomShelf } from './organization-model'
@@ -178,6 +179,7 @@ function App() {
   const [importPreview, setImportPreview] = useState<ImportPreview>()
   const [importHistory, setImportHistory] = useState<ImportBatchSummary[]>([])
   const [importBusy, setImportBusy] = useState(false)
+  const [importProgress, setImportProgress] = useState<ImportProgress>()
   const [importError, setImportError] = useState<string>()
   const [epubImport, setEpubImport] = useState<EpubImportViewState>({})
   const [epubBusy, setEpubBusy] = useState(false)
@@ -670,14 +672,22 @@ function App() {
   const prepareImportPreview = async (fileName: string, content: string) => {
     setImportBusy(true)
     setImportError(undefined)
+    setImportProgress({ stage: 'preparing', completed: 0, total: 0 })
     try {
       await reload()
-      const preview = await (await getStorageRuntime()).imports.previewCsv(fileName, content)
+      const preview = await (await getStorageRuntime()).imports.previewCsv(fileName, content, {
+        onProgress: setImportProgress,
+        onPreview: (partial) => { setImportPreview(partial); setView('import') },
+      })
       setImportPreview(preview)
+      setImportProgress(undefined)
       setView('import')
       window.scrollTo({ top: 0, behavior: motionScrollBehavior(appearance.motion) })
     } catch (error) {
       setImportError(error instanceof Error ? error.message : String(error))
+      setImportPreview(undefined)
+      setImportProgress(undefined)
+      setView('settings')
     } finally {
       setImportBusy(false)
     }
@@ -1024,11 +1034,12 @@ function App() {
     setImportBusy(true)
     setImportError(undefined)
     try {
-      const result = await (await getStorageRuntime()).imports.commit(importPreview.id, decisions)
+      const result = await (await getStorageRuntime()).imports.commit(importPreview.id, decisions, {
+        onProgress: setImportProgress,
+      })
       await reload()
       setSmartListCatalog(await (await getStorageRuntime()).catalog.read())
       await refreshImportHistory()
-      setView('library')
       const migratedLabel = importPreview.source.key === 'goodreads-csv' ? 'books' : 'rows'
       const changedRows = result.appliedRows - result.skippedRows
       const untouched = result.skippedRows + result.duplicateRows
@@ -1044,6 +1055,7 @@ function App() {
       })
     } catch (error) {
       setImportError(error instanceof Error ? error.message : String(error))
+      setImportProgress(undefined)
       void feedback.emit('error')
     } finally {
       setImportBusy(false)
@@ -1389,11 +1401,13 @@ function App() {
           />
         ) : view === 'import' && importPreview ? (
           <ImportReviewPage
+            key={importPreview.id}
             preview={importPreview}
             books={books}
             busy={importBusy}
+            progress={importProgress}
             error={importError}
-            onBack={showSettings}
+            onBack={importProgress?.stage === 'complete' ? () => setView('library') : showSettings}
             onCommit={commitImport}
           />
         ) : (

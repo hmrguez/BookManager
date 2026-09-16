@@ -42,6 +42,7 @@ import {
 import { canonicalEditionIsbn, normalizeIsbn } from '../metadata/model'
 import type { ImportEntityProposal, NormalizedLibraryBook } from './model'
 import type { ImportMatchConfidence } from './model'
+import { ImportCatalogIndex, catalogNameKey as normalizeText } from './catalog-index'
 
 export type GoodreadsCatalogEntityType = ImportEntityProposal['entityType']
 
@@ -71,16 +72,20 @@ export async function planGoodreadsCatalog(input: {
   readonly timestamp: string
   readonly catalog: Catalog
   readonly matchConfidence: ImportMatchConfidence
+  /** A batch session validates the complete graph once before writing it. */
+  readonly deferValidation?: boolean
+  readonly index?: ImportCatalogIndex
 }): Promise<GoodreadsCatalogPlan> {
   if (!input.record.goodreads) return { changes: [], entities: [] }
   const timestamp = input.timestamp as IsoDateTime
+  const index = input.index ?? new ImportCatalogIndex(input.catalog)
   const token = encodeToken(input.record.externalKey)
   const sourceRecordId = sourceRecordIdSchema.parse(`source-record:goodreads:${token}`)
-  const existingSourceRecord = input.catalog.sourceRecords.find(({ id }) => id === sourceRecordId)
-  const matchedEdition = await findCanonicalEdition(input.record, input.targetBookId, input.catalog)
+  const existingSourceRecord = index.get('source-record', sourceRecordId) as SourceRecord | undefined
+  const matchedEdition = await findCanonicalEdition(input.record, input.targetBookId, index)
   const editionId = matchedEdition?.id ?? editionIdSchema.parse(`edition:goodreads:${token}`)
   const matchedWork = matchedEdition
-    ? input.catalog.works.find(({ id }) => id === matchedEdition.workId)
+    ? index.get('work', matchedEdition.workId) as Work | undefined
     : undefined
   const workId = matchedWork?.id ?? workIdSchema.parse(`work:goodreads:${token}`)
   const observedAt = timestamp
@@ -151,9 +156,7 @@ export async function planGoodreadsCatalog(input: {
   const contributors: Contributor[] = []
   for (const [position, author] of input.record.authors.entries()) {
     const role = position === 0 ? 'author' as const : 'other' as const
-    const existingPerson = input.catalog.people.find(
-      ({ displayName }) => normalizeText(displayName.value) === normalizeText(author),
-    )
+    const existingPerson = index.peopleByName.get(normalizeText(author))
     const personToken = encodeToken(normalizeText(author))
     const personId = existingPerson?.id ?? personIdSchema.parse(`person:goodreads:${personToken}`)
     const target = { type: 'person', id: personId } as const
@@ -252,7 +255,7 @@ export async function planGoodreadsCatalog(input: {
     ? createSnapshot(
         snapshotId,
         editionId,
-        [...input.catalog.readingEvents, ...events],
+        [...input.catalog.readingEvents.filter((event) => event.editionId === editionId), ...events],
         timestamp,
       )
     : undefined
@@ -277,7 +280,7 @@ export async function planGoodreadsCatalog(input: {
     readingEvents: events,
     progressSnapshots: snapshot ? [snapshot] : [],
   }
-  catalogSchema.parse(mergeCatalog(input.catalog, additions))
+  if (!input.deferValidation) catalogSchema.parse(mergeCatalog(input.catalog, additions))
 
   const ordered: Array<readonly [GoodreadsCatalogEntityType, unknown, string, string]> = [
     ...(newWork ? [['work', newWork, 'Create the canonical work.', newWork.title.value] as const] : []),
@@ -294,7 +297,7 @@ export async function planGoodreadsCatalog(input: {
   ]
 
   const changes = ordered.flatMap(([entityType, after, reason, label]) => {
-    const before = findEntity(input.catalog, entityType, (after as { id: string }).id)
+    const before = index.get(entityType, (after as { id: string }).id)
     if (before && sameJson(before, after)) return []
     return [{
       entityType,
@@ -308,7 +311,7 @@ export async function planGoodreadsCatalog(input: {
   const changedKeys = new Set(changes.map(({ entityType, entityId }) => `${entityType}:${entityId}`))
   const entities = ordered.map(([entityType, entity, rationale, label]) => {
     const entityId = (entity as { id: string }).id
-    const before = findEntity(input.catalog, entityType, entityId)
+    const before = index.get(entityType, entityId)
     return {
       entityType,
       entityId,
@@ -540,19 +543,17 @@ function isGoodreadsRawPayload(value: JsonValue | undefined): value is {
 async function findCanonicalEdition(
   record: NormalizedLibraryBook,
   targetBookId: string,
-  catalog: Catalog,
+  index: ImportCatalogIndex,
 ): Promise<Edition | undefined> {
-  const canonicalIsbns = new Set((record.identifiers ?? []).flatMap((value) => canonicalEditionIsbn(value) ?? []))
-  const identifier = catalog.identifiers.find((candidate) => {
-    const canonical = canonicalEditionIsbn(candidate.normalizedValue)
-    return candidate.owner.type === 'edition' && canonical ? canonicalIsbns.has(canonical) : false
-  })
+  const identifier = (record.identifiers ?? [])
+    .flatMap((value) => canonicalEditionIsbn(value) ?? [])
+    .map((isbn) => index.identifiersByIsbn.get(isbn)).find(Boolean)
   if (identifier?.owner.type === 'edition') {
-    return catalog.editions.find(({ id }) => id === identifier.owner.id)
+    return index.get('edition', identifier.owner.id) as Edition | undefined
   }
   const legacyToken = (await sha256(targetBookId)).slice(0, 32)
-  return catalog.editions.find(({ id }) => id === `edition:legacy:${legacyToken}`)
-    ?? catalog.editions.find(({ id }) => id === `edition:goodreads:${encodeToken(record.externalKey)}`)
+  return (index.get('edition', `edition:legacy:${legacyToken}`)
+    ?? index.get('edition', `edition:goodreads:${encodeToken(record.externalKey)}`)) as Edition | undefined
 }
 
 function mergeCatalog(catalog: Catalog, additions: Omit<Catalog, never>): Catalog {
@@ -582,23 +583,6 @@ function mergeCatalog(catalog: Catalog, additions: Omit<Catalog, never>): Catalo
   }
 }
 
-function findEntity(catalog: Catalog, type: GoodreadsCatalogEntityType, id: string): unknown {
-  const collections: Record<GoodreadsCatalogEntityType, readonly { readonly id: string }[]> = {
-    work: catalog.works,
-    edition: catalog.editions,
-    'source-record': catalog.sourceRecords,
-    identifier: catalog.identifiers,
-    person: catalog.people,
-    contributor: catalog.contributors,
-    list: catalog.lists,
-    'list-entry': catalog.listEntries,
-    'integration-checkpoint': catalog.integrationCheckpoints,
-    'reading-event': catalog.readingEvents,
-    'progress-snapshot': catalog.progressSnapshots,
-  }
-  return collections[type].find((entity) => entity.id === id)
-}
-
 function readingEventLabel(event: ReadingEvent): string {
   if (event.kind === 'import') return 'Reading history import marker'
   return event.kind.replace(/(^|-)(\w)/g, (_match, _dash, character: string) => ` ${character.toUpperCase()}`).trim()
@@ -610,10 +594,6 @@ function humanShelfName(value: string): string {
 
 function slugify(value: string): string {
   return normalizeText(value).replace(/\s+/g, '-') || 'shelf'
-}
-
-function normalizeText(value: string): string {
-  return value.normalize('NFKD').replace(/\p{Diacritic}/gu, '').toLocaleLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
 }
 
 function encodeToken(value: string): string {

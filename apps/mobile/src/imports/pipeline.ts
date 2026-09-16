@@ -80,6 +80,7 @@ export type CreateImportPreviewInput = {
   readonly source?: ImportSource
   readonly existingBooks: readonly LibraryBook[]
   readonly receipts?: readonly ImportReceipt[]
+  readonly onProgress?: (preview: ImportPreview, total: number) => void | Promise<void>
 }
 
 export async function createImportPreview(input: CreateImportPreviewInput): Promise<ImportPreview> {
@@ -102,10 +103,24 @@ export async function createImportPreview(input: CreateImportPreviewInput): Prom
   )
   const proposals: ImportProposal[] = []
   const firstRowByExternalKey = new Map<string, number>()
-
-  for (const row of rows) {
+  const contentHash = await sha256(input.content)
+  const partialPreview = (): ImportPreview => ({
+    id: input.id, source, parser: { id: input.parser.id, version: input.parser.version },
+    fileName: input.fileName, contentHash, createdAt: input.createdAt, status: 'review',
+    completedStages: ['parse', 'normalize', 'match', 'propose', 'review'], proposals: [...proposals],
+  })
+  const prepareRow = async (row: (typeof rows)[number]) => {
     const normalized = input.parser.normalize(row)
-    const rowHash = await sha256(stableJson(normalized.ok ? normalized.record : row.raw))
+    return { normalized, rowHash: await sha256(stableJson(normalized.ok ? normalized.record : row.raw)) }
+  }
+  let chunk: Awaited<ReturnType<typeof prepareRow>>[] = []
+
+  for (const [index, row] of rows.entries()) {
+    if (index % 100 === 0) {
+      await input.onProgress?.(partialPreview(), rows.length)
+      chunk = await Promise.all(rows.slice(index, index + 100).map(prepareRow))
+    }
+    const { normalized, rowHash } = chunk[index % 100]!
     const id = `${input.id}:row:${row.rowNumber}`
     if (!normalized.ok) {
       proposals.push({
@@ -192,17 +207,8 @@ export async function createImportPreview(input: CreateImportPreviewInput): Prom
     }))
   }
 
-  return importPreviewSchema.parse({
-    id: input.id,
-    source,
-    parser: { id: input.parser.id, version: input.parser.version },
-    fileName: input.fileName,
-    contentHash: await sha256(input.content),
-    createdAt: input.createdAt,
-    status: 'review',
-    completedStages: ['parse', 'normalize', 'match', 'propose', 'review'],
-    proposals,
-  })
+  await input.onProgress?.(partialPreview(), rows.length)
+  return importPreviewSchema.parse(partialPreview())
 }
 
 function proposeRow(input: {
