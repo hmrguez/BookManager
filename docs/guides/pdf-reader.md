@@ -9,10 +9,14 @@ Identical bytes are deduplicated. Documents with identical metadata are kept sep
 the user explicitly attaches a replacement to an existing book. Re-importing identical bytes
 restores a missing or damaged managed copy without resetting its reading history.
 
-The iOS reader uses PDFKit with vertical scrolling, pinch zoom, previous/next controls,
+The iOS reader uses PDFKit with horizontal paging, pinch zoom, previous/next controls,
 fit-to-page, and a page-number picker. Android uses PdfRenderer with bounded bitmap allocation
 on a serial worker, pinch/double-tap zoom, panning, swipe/button page turns, fit-to-page, and a
 page-number picker. Both offer keyboard page navigation and return to the library.
+Neighboring pages follow the swipe before release. Android keeps two bounded previews,
+snaps short or cancelled drags back, and records progress only after completing the turn.
+Fit appears only when the page is zoomed away from its fitted size; its empty toolbar space
+remains reserved so the title does not shift while zooming.
 
 Each displayed page is written to the existing durable native outbox. The full checkpoint
 retains a one-based physical page number, page count, and asset fingerprint. Page events update
@@ -47,11 +51,16 @@ migration of an existing EPUB, backup/restore, cleanup/relinking, re-import reco
 stale events, and page progress.
 
 On the connected Pixel 9, `PDFReaderTest.importFromPickerReadAndResumeOnDevice` exercises the
-actual WebView file input, native first-page rendering, reader open, double-tap zoom, fit,
-page changes, persisted SQLite checkpoint, reopen at page 3, and final-page boundaries.
+actual WebView file input, native first-page rendering, reader open, double-tap zoom,
+conditional Fit visibility, next-page content during a live drag, cancelled/short drags,
+completed swipes, persisted SQLite checkpoint, reopen at page 3, and final-page boundaries.
 It leaves a single reusable **PDF reader verification** book in the library.
 
 On the iOS 26.5 simulator, a generated four-page PDF was shared through the iOS extension,
 opened in the native reader, advanced to page 3, and reopened at page 3 after terminating and
 relaunching the app. The library reported 75%; next-page was disabled on page 4 and re-enabled
 after returning to page 3. Both native Debug builds pass.
+
+The paging refinement was also checked on the iOS simulator: double-tap zoom reveals Fit;
+Fit restores the original framing and disappears from both the toolbar and accessibility
+tree. Previous/next controls still update the page count and final-page boundary correctly.

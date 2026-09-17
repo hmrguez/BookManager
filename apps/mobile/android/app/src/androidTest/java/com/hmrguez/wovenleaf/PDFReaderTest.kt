@@ -66,6 +66,7 @@ class PDFReaderTest {
                 await { onMain { labels(reader).contains("Page 1 of 4") } }
                 onMain {
                     val page = views(reader.window.decorView).first { it.contentDescription?.startsWith("PDF page") == true }
+                    assertEquals("Fit stays hidden while the page fits", View.INVISIBLE, control(reader, "Fit page").visibility)
                     val before = snapshot(page)
                     val time = SystemClock.uptimeMillis()
                     for (offset in listOf(0L, 80L)) {
@@ -76,16 +77,59 @@ class PDFReaderTest {
                     }
                     val zoomed = snapshot(page)
                     assertFalse("Double tap must zoom the rendered PDF", before.sameAs(zoomed))
+                    assertEquals("Zoom reveals Fit", View.VISIBLE, control(reader, "Fit page").visibility)
                     control(reader, "Fit page").performClick()
+                    assertEquals("Fitting hides Fit again", View.INVISIBLE, control(reader, "Fit page").visibility)
                     val fitted = snapshot(page)
                     assertTrue("Fit must restore the original page framing", before.sameAs(fitted))
                     before.recycle(); zoomed.recycle(); fitted.recycle()
-                    control(reader, "Next page").performClick()
                 }
+                val page = onMain { views(reader.window.decorView).first { it.contentDescription?.startsWith("PDF page") == true } }
+                val original = onMain { snapshot(page) }
+                // Inspect the rendered view before finger-up: the next page must
+                // already be visible, while the committed page remains unchanged.
+                var down = SystemClock.uptimeMillis()
+                pointer(page, down, MotionEvent.ACTION_DOWN, 0.8f)
+                for (step in 1..12) {
+                    SystemClock.sleep(20)
+                    pointer(page, down, MotionEvent.ACTION_MOVE, 0.8f - 0.42f * step / 12)
+                }
+                await {
+                    pointer(page, down, MotionEvent.ACTION_MOVE, 0.38f)
+                    onMain { snapshot(page).let { image ->
+                        val hasPreview = inkPixels(image, 0.62f) > 100
+                        image.recycle(); hasPreview
+                    } }
+                }
+                onMain {
+                    assertTrue(labels(reader).contains("Page 1 of 4"))
+                    val preview = snapshot(reader.window.decorView)
+                    File(context.cacheDir, "pdf-swipe-verification.png").outputStream().use { preview.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                    preview.recycle()
+                }
+                pointer(page, down, MotionEvent.ACTION_CANCEL, 0.38f)
+                await { onMain { snapshot(page).let { image -> val restored = original.sameAs(image); image.recycle(); restored } } }
+                assertTrue(onMain { labels(reader).contains("Page 1 of 4") })
+                // A short, slow release snaps back too, without a location change.
+                down = SystemClock.uptimeMillis()
+                pointer(page, down, MotionEvent.ACTION_DOWN, 0.8f)
+                pointer(page, down, MotionEvent.ACTION_MOVE, 0.68f)
+                SystemClock.sleep(250)
+                pointer(page, down, MotionEvent.ACTION_UP, 0.68f)
+                await { onMain { snapshot(page).let { image -> val restored = original.sameAs(image); image.recycle(); restored } } }
+                original.recycle()
+                down = SystemClock.uptimeMillis()
+                pointer(page, down, MotionEvent.ACTION_DOWN, 0.8f)
+                for (step in 1..12) {
+                    SystemClock.sleep(20)
+                    pointer(page, down, MotionEvent.ACTION_MOVE, 0.8f - 0.42f * step / 12)
+                }
+                pointer(page, down, MotionEvent.ACTION_UP, 0.38f)
                 await { onMain { labels(reader).contains("Page 2 of 4") } }
+                assertEquals(View.INVISIBLE, onMain { control(reader, "Fit page").visibility })
                 onMain { control(reader, "Next page").performClick() }
                 await { onMain { labels(reader).contains("Page 3 of 4") } }
-                onMain { control(reader, "Fit page").performClick(); control(reader, "Library").performClick() }
+                onMain { control(reader, "Library").performClick() }
                 await { reader.isDestroyed }
                 // Waiting on the persisted checkpoint verifies native -> durable outbox -> JS -> SQLite.
                 await {
@@ -111,6 +155,19 @@ class PDFReaderTest {
         } finally {
             file.delete()
         }
+    }
+
+    private fun pointer(view: View, down: Long, action: Int, x: Float) = onMain {
+        val event = MotionEvent.obtain(down, SystemClock.uptimeMillis(), action, view.width * x, view.height * 0.5f, 0)
+        view.dispatchTouchEvent(event); event.recycle()
+    }
+
+    private fun inkPixels(image: Bitmap, fromX: Float): Int {
+        var count = 0
+        for (y in 0 until image.height step 3) for (x in (image.width * fromX).toInt() until image.width step 3) {
+            if (android.graphics.Color.red(image.getPixel(x, y)) < 100) count++
+        }
+        return count
     }
 
     private fun writePdf(file: File) {

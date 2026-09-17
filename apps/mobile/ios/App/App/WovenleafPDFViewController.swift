@@ -10,9 +10,11 @@ final class WovenleafPDFViewController: UIViewController {
     private let pageButton = UIButton(type: .system)
     private let previousButton = UIButton(type: .system)
     private let nextButton = UIButton(type: .system)
+    private let fitButton = UIButton(type: .system)
     private let paper = UIColor(red: 238/255, green: 237/255, blue: 231/255, alpha: 1)
     private let ink = UIColor(red: 37/255, green: 38/255, blue: 34/255, alpha: 1)
     private var observers: [NSObjectProtocol] = []
+    private let observedZoomGestures = NSHashTable<UIGestureRecognizer>.weakObjects()
     private var sessionId = ""
     private var sessionStartedAt = ""
     private var sessionStarted: TimeInterval?
@@ -44,8 +46,12 @@ final class WovenleafPDFViewController: UIViewController {
         title.lineBreakMode = .byTruncatingTail
         title.textAlignment = .center
         title.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        let fit = button("Fit page", symbol: "arrow.up.left.and.arrow.down.right", action: #selector(fitPage))
-        let top = UIStackView(arrangedSubviews: [library, title, fit])
+        configure(fitButton, title: "Fit page", symbol: "arrow.up.left.and.arrow.down.right", action: #selector(fitPage))
+        // Keep a stable toolbar width while removing the unnecessary action.
+        fitButton.alpha = 0
+        fitButton.isUserInteractionEnabled = false
+        fitButton.accessibilityElementsHidden = true
+        let top = UIStackView(arrangedSubviews: [library, title, fitButton])
         top.alignment = .center
         top.spacing = 12
         configure(previousButton, title: "Previous page", symbol: "chevron.left", action: #selector(previousPage))
@@ -58,8 +64,9 @@ final class WovenleafPDFViewController: UIViewController {
         bottom.alignment = .center
         bottom.distribution = .equalSpacing
         pdfView.backgroundColor = paper
-        pdfView.displayMode = .singlePageContinuous
-        pdfView.displayDirection = .vertical
+        pdfView.displayMode = .singlePage
+        pdfView.displayDirection = .horizontal
+        pdfView.usePageViewController(true, withViewOptions: [UIPageViewController.OptionsKey.interPageSpacing: 12])
         pdfView.displaysPageBreaks = true
         pdfView.document = document
         pdfView.autoScales = true
@@ -84,6 +91,11 @@ final class WovenleafPDFViewController: UIViewController {
             pageButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
         ])
         observe(.PDFViewPageChanged) { [weak self] in self?.pageChanged() }
+        observe(.PDFViewScaleChanged) { [weak self] in
+            // PDFKit's page controller may emit this from its per-page PDFView
+            // before the outer view has updated its current scale.
+            DispatchQueue.main.async { self?.updateFitButton() }
+        }
         observe(UIApplication.willResignActiveNotification) { [weak self] in self?.endSession() }
         observe(UIApplication.didBecomeActiveNotification) { [weak self] in self?.beginSession() }
     }
@@ -97,6 +109,7 @@ final class WovenleafPDFViewController: UIViewController {
         let index = max(0, min(document.pageCount - 1, position.map { $0 - 1 } ?? Int(ceil(progression * Double(document.pageCount))) - 1))
         if let page = document.page(at: index) { pdfView.go(to: page) }
         ready = true
+        observePageZoom(in: pdfView)
         beginSession()
         pageChanged()
     }
@@ -104,6 +117,12 @@ final class WovenleafPDFViewController: UIViewController {
     override func viewWillDisappear(_ animated: Bool) {
         endSession()
         super.viewWillDisappear(animated)
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        observePageZoom(in: pdfView)
+        updateFitButton()
     }
 
     override var keyCommands: [UIKeyCommand]? {
@@ -123,6 +142,8 @@ final class WovenleafPDFViewController: UIViewController {
         pageButton.setTitle("Page \(pageIndex + 1) of \(document.pageCount)", for: .normal)
         previousButton.isEnabled = pageIndex > 0
         nextButton.isEnabled = pageIndex < document.pageCount - 1
+        observePageZoom(in: pdfView)
+        updateFitButton()
         emit("location")
     }
 
@@ -186,7 +207,40 @@ final class WovenleafPDFViewController: UIViewController {
     }
 
     @objc private func closeReader() { endSession(); dismiss(animated: true) }
-    @objc private func fitPage() { pdfView.autoScales = true }
+    private func observePageZoom(in view: UIView) {
+        // Paged PDFKit omits scale notifications for double-tap zoom. Add an
+        // observer target to its gestures, preserving their delegates/behavior.
+        for gesture in view.gestureRecognizers ?? [] {
+            if (gesture is UIPinchGestureRecognizer || gesture is UITapGestureRecognizer),
+               !observedZoomGestures.contains(gesture) {
+                observedZoomGestures.add(gesture)
+                gesture.addTarget(self, action: #selector(zoomGestureChanged(_:)))
+            }
+        }
+        view.subviews.forEach { observePageZoom(in: $0) }
+    }
+
+    @objc private func zoomGestureChanged(_ gesture: UIGestureRecognizer) {
+        updateFitButton()
+        if gesture.state == .ended || gesture.state == .cancelled {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in self?.updateFitButton() }
+        }
+    }
+
+    private func updateFitButton() {
+        let fittedScale = pdfView.scaleFactorForSizeToFit
+        let needsFit = ready && fittedScale > 0 && pdfView.scaleFactor > 0
+            && abs(pdfView.scaleFactor / fittedScale - 1) > 0.01
+        fitButton.alpha = needsFit ? 1 : 0
+        fitButton.isUserInteractionEnabled = needsFit
+        fitButton.accessibilityElementsHidden = !needsFit
+    }
+
+    @objc private func fitPage() {
+        pdfView.autoScales = true
+        pdfView.scaleFactor = pdfView.scaleFactorForSizeToFit
+        updateFitButton()
+    }
     @objc private func previousPage() { if let page = document.page(at: pageIndex - 1) { pdfView.go(to: page) } }
     @objc private func nextPage() { if let page = document.page(at: pageIndex + 1) { pdfView.go(to: page) } }
 

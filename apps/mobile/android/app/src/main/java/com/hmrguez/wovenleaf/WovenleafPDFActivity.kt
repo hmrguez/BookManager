@@ -1,5 +1,8 @@
 package com.hmrguez.wovenleaf
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -16,6 +19,8 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
+import android.view.ViewConfiguration
+import android.view.animation.DecelerateInterpolator
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -29,6 +34,7 @@ import org.json.JSONObject
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.Executors
+import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -42,6 +48,7 @@ class WovenleafPDFActivity : AppCompatActivity() {
     private lateinit var pageLabel: TextView
     private lateinit var previous: TextView
     private lateinit var next: TextView
+    private lateinit var fitButton: TextView
     private var pageIndex = 0
     private var pageCount = 0
     private var requestedPage = 0
@@ -72,9 +79,13 @@ class WovenleafPDFActivity : AppCompatActivity() {
             text = readerContext.title; setTextColor(ink); textSize = 14f
             maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; gravity = Gravity.CENTER
         }, LinearLayout.LayoutParams(0, dp(56), 1f))
-        top.addView(control("Fit", "Fit page") { pageView.resetZoom() })
+        fitButton = control("Fit", "Fit page") { pageView.resetZoom() }.apply { visibility = View.INVISIBLE }
+        top.addView(fitButton)
         root.addView(top)
-        pageView = PDFPageView(this) { direction -> showPage(requestedPage + direction) }
+        pageView = PDFPageView(this,
+            turn = { direction -> showPage(pageIndex + direction) },
+            fitChanged = { fitted -> fitButton.visibility = if (fitted) View.INVISIBLE else View.VISIBLE },
+        )
         root.addView(pageView, LinearLayout.LayoutParams(-1, 0, 1f))
         val bottom = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(12), 0, dp(12), 0) }
         previous = control("‹", "Previous page") { showPage(requestedPage - 1) }
@@ -129,6 +140,19 @@ class WovenleafPDFActivity : AppCompatActivity() {
                     ready = true
                     beginSession()
                     emit("location")
+                }
+                // Only two bounded previews are retained. They are ready before a
+                // drag, while the full-resolution current page remains zoomable.
+                for (direction in listOf(-1, 1)) {
+                    val neighbor = index + direction
+                    if (neighbor !in 0 until pageCount || request != generation) continue
+                    val preview = runCatching {
+                        requireNotNull(renderer).openPage(neighbor).use { renderPDFPage(it, 1200, 2_000_000) }
+                    }.getOrNull() ?: continue
+                    runOnUiThread {
+                        if (request != generation || isDestroyed || isFinishing) preview.recycle()
+                        else pageView.preview(direction, preview)
+                    }
                 }
             } catch (_: Exception) { runOnUiThread { if (request == generation) showError() } }
         }
@@ -224,10 +248,10 @@ class WovenleafPDFActivity : AppCompatActivity() {
     }.getOrNull()
 }
 
-internal fun renderPDFPage(page: PdfRenderer.Page, requestedWidth: Int): Bitmap {
+internal fun renderPDFPage(page: PdfRenderer.Page, requestedWidth: Int, maxPixels: Int = 8_000_000): Bitmap {
     require(page.width > 0 && page.height > 0)
     // Bound allocation even for unusual page aspect ratios and large scans.
-    val scale = min(requestedWidth.toDouble() / page.width, sqrt(8_000_000.0 / (page.width.toDouble() * page.height)))
+    val scale = min(requestedWidth.toDouble() / page.width, sqrt(maxPixels.toDouble() / (page.width.toDouble() * page.height)))
     val bitmap = Bitmap.createBitmap((page.width * scale).roundToInt().coerceAtLeast(1), (page.height * scale).roundToInt().coerceAtLeast(1), Bitmap.Config.ARGB_8888)
     bitmap.eraseColor(Color.WHITE)
     try { page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY) }
@@ -235,46 +259,101 @@ internal fun renderPDFPage(page: PdfRenderer.Page, requestedWidth: Int): Bitmap 
     return bitmap
 }
 
-private class PDFPageView(context: Context, private val turn: (Int) -> Unit) : View(context) {
+private class PDFPageView(
+    context: Context,
+    private val turn: (Int) -> Unit,
+    private val fitChanged: (Boolean) -> Unit,
+) : View(context) {
     private var bitmap: Bitmap? = null
+    private val neighbors = mutableMapOf<Int, Bitmap>()
     private val paint = Paint(Paint.FILTER_BITMAP_FLAG)
     private var zoom = 1f
     private var panX = 0f
     private var panY = 0f
+    private var swipeX = 0f
+    private var releaseVelocity = 0f
+    private var horizontalDrag = false
     private var hadMultiplePointers = false
+    private var awaitingPage = false
+    private var settle: ValueAnimator? = null
+    private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+    private val flingThreshold = 800 * resources.displayMetrics.density
     private val scale = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
         override fun onScale(detector: ScaleGestureDetector): Boolean {
             val old = zoom
             zoom = (zoom * detector.scaleFactor).coerceIn(1f, 5f)
             panX = (panX - (detector.focusX - width / 2f)) * (zoom / old) + detector.focusX - width / 2f
             panY = (panY - (detector.focusY - height / 2f)) * (zoom / old) + detector.focusY - height / 2f
-            clampPan(); invalidate(); return true
+            clampPan(); fitChanged(zoom <= 1.01f); invalidate(); return true
         }
     })
     private val gestures = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
         override fun onDown(e: MotionEvent) = true
         override fun onSingleTapUp(e: MotionEvent): Boolean { performClick(); return true }
         override fun onDoubleTap(e: MotionEvent): Boolean {
+            cancelSwipe()
             zoom = if (zoom > 1f) 1f else 2.5f
             panX = (width / 2f - e.x) * (zoom - 1f); panY = (height / 2f - e.y) * (zoom - 1f)
-            clampPan(); invalidate(); return true
+            clampPan(); fitChanged(zoom <= 1.01f); invalidate(); return true
         }
         override fun onScroll(e1: MotionEvent?, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
-            if (zoom > 1f && !scale.isInProgress) { panX -= distanceX; panY -= distanceY; clampPan(); invalidate() }
+            if (scale.isInProgress) return true
+            if (zoom > 1.01f) {
+                panX -= distanceX; panY -= distanceY; clampPan(); invalidate()
+            } else if (!hadMultiplePointers && e1 != null) {
+                val dx = e2.x - e1.x
+                val dy = e2.y - e1.y
+                if (!horizontalDrag && abs(dx) > touchSlop && abs(dx) > abs(dy) * 1.2f) horizontalDrag = true
+                if (horizontalDrag) {
+                    val direction = if (dx < 0) 1 else -1
+                    // Resist a drag beyond the document boundary (or until a
+                    // preview is ready), instead of exposing a blank next page.
+                    swipeX = if (neighbors.containsKey(direction)) dx.coerceIn(-width.toFloat(), width.toFloat()) else dx * 0.12f
+                    invalidate()
+                }
+            }
             return true
         }
         override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
-            if (zoom == 1f && !hadMultiplePointers && e1 != null && kotlin.math.abs(e2.x - e1.x) > width * 0.15f && kotlin.math.abs(velocityX) > kotlin.math.abs(velocityY)) {
-                turn(if (velocityX < 0) 1 else -1)
-            }
+            if (abs(velocityX) > abs(velocityY)) releaseVelocity = velocityX
             return true
         }
     })
 
     init { isFocusable = true; isClickable = true; setBackgroundColor(Color.rgb(238, 237, 231)) }
-    fun show(value: Bitmap) { bitmap?.recycle(); bitmap = value; resetZoom() }
-    fun release() { bitmap?.recycle(); bitmap = null }
-    fun resetZoom() { zoom = 1f; panX = 0f; panY = 0f; invalidate() }
+    fun show(value: Bitmap) {
+        release(); bitmap = value; resetZoom()
+    }
+    fun preview(direction: Int, value: Bitmap) { neighbors.put(direction, value)?.recycle(); invalidate() }
+    fun release() { cancelSwipe(); bitmap?.recycle(); bitmap = null; neighbors.values.forEach { it.recycle() }; neighbors.clear() }
+    fun resetZoom() { cancelSwipe(); zoom = 1f; panX = 0f; panY = 0f; fitChanged(true); invalidate() }
+    private fun cancelSwipe() {
+        val animation = settle; settle = null; animation?.cancel()
+        swipeX = 0f; awaitingPage = false; horizontalDrag = false
+    }
+    private fun finishSwipe(canceled: Boolean) {
+        if (swipeX == 0f) return
+        val direction = if (swipeX < 0) 1 else -1
+        val forwardFling = abs(releaseVelocity) > flingThreshold && releaseVelocity * swipeX > 0
+        val reverseFling = abs(releaseVelocity) > flingThreshold && releaseVelocity * swipeX < 0
+        val commit = !canceled && !hadMultiplePointers && neighbors.containsKey(direction)
+            && !reverseFling && (abs(swipeX) > width * 0.25f || forwardFling)
+        awaitingPage = commit
+        val target = if (commit) -direction * width.toFloat() else 0f
+        val animation = ValueAnimator.ofFloat(swipeX, target)
+        settle = animation
+        animation.duration = 180
+        animation.interpolator = DecelerateInterpolator()
+        animation.addUpdateListener { swipeX = it.animatedValue as Float; invalidate() }
+        animation.addListener(object : AnimatorListenerAdapter() {
+            override fun onAnimationEnd(animator: Animator) {
+                if (settle !== animator) return
+                settle = null
+                if (commit) turn(direction)
+            }
+        })
+        animation.start()
+    }
     private fun fit(value: Bitmap) = min(width.toFloat() / value.width, height.toFloat() / value.height)
     private fun clampPan() {
         val image = bitmap ?: return
@@ -282,19 +361,33 @@ private class PDFPageView(context: Context, private val turn: (Int) -> Unit) : V
         val y = ((image.height * fit(image) * zoom - height) / 2).coerceAtLeast(0f)
         panX = panX.coerceIn(-x, x); panY = panY.coerceIn(-y, y)
     }
-    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) { clampPan() }
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) { cancelSwipe(); clampPan() }
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val image = bitmap ?: return
-        val factor = fit(image) * zoom
+        drawPage(canvas, image, swipeX, zoom, panX, panY)
+        if (swipeX != 0f) {
+            val direction = if (swipeX < 0) 1 else -1
+            neighbors[direction]?.let { drawPage(canvas, it, swipeX + direction * width) }
+        }
+    }
+    private fun drawPage(canvas: Canvas, image: Bitmap, offset: Float, scale: Float = 1f, x: Float = 0f, y: Float = 0f) {
+        val factor = fit(image) * scale
         canvas.save()
-        canvas.translate((width - image.width * factor) / 2 + panX, (height - image.height * factor) / 2 + panY)
+        canvas.clipRect(offset, 0f, offset + width, height.toFloat())
+        canvas.translate(offset + (width - image.width * factor) / 2 + x, (height - image.height * factor) / 2 + y)
         canvas.scale(factor, factor); canvas.drawBitmap(image, 0f, 0f, paint); canvas.restore()
     }
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        if (event.actionMasked == MotionEvent.ACTION_DOWN) hadMultiplePointers = false
-        if (event.pointerCount > 1) hadMultiplePointers = true
+        if (awaitingPage) return true
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            cancelSwipe(); hadMultiplePointers = false; releaseVelocity = 0f
+        }
+        if (event.pointerCount > 1) { hadMultiplePointers = true; cancelSwipe() }
         scale.onTouchEvent(event); gestures.onTouchEvent(event)
+        if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+            finishSwipe(event.actionMasked == MotionEvent.ACTION_CANCEL)
+        }
         return true
     }
     override fun performClick(): Boolean { super.performClick(); return true }
