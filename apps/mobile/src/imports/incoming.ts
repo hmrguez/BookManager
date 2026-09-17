@@ -118,6 +118,16 @@ async function readIncomingBytes(url: string): Promise<Uint8Array> {
   }
 }
 
+/** Content providers often use an opaque ID in place of a filename. */
+export function incomingFileDisplayName(url: string): string | undefined {
+  try {
+    const name = decodeURIComponent(url.split(/[?#]/, 1)[0]!.split('/').at(-1) ?? '').split('/').at(-1)
+    return name && /\.(?:epub|pdf|m4b|m4a|mp4|mp3)$/i.test(name) ? name : undefined
+  } catch {
+    return undefined
+  }
+}
+
 function incomingName(url: string): string {
   const rawName = url.split(/[\\/]/).at(-1)?.split(/[?#]/, 1)[0] ?? 'goodreads-library.csv'
   try {

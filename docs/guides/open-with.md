@@ -5,6 +5,13 @@ import opens its native reader. An already managed file opens the existing book
 without adding another library entry. Failed imports stay in the import flow.
 Batch ebook imports retain their summary instead of choosing a reader arbitrarily.
 
+Book and audio handoffs immediately show a full-screen opening state, before the
+native file read or format detection starts. It displays the supplied filename
+when available, a subtle activity indicator, and reading/preparing/opening status.
+It uses the current paper theme and respects reduced motion. The screen remains
+until the reader/player handoff or import review is ready, and clears on errors.
+New audio scrolls to its review section after preparation.
+
 An already imported audiobook opens its player directly. Recognition uses the
 audio content, so a renamed file or previously reviewed title does not require
 another import. New audio keeps the metadata/order review; confirming the import
@@ -35,9 +42,14 @@ instead of remaining behind the previous reader.
   SQLite contained two ebook imports, one audio import, and two reader checkpoints.
   The simulator's share extension did not foreground the host automatically, so
   Wovenleaf was resumed after sharing; the navigation checks cover that resumption.
-- Lint and typecheck passed. The 86 targeted import/reader regression tests passed.
-  iOS simulator and Android debug builds succeeded. Lint reports four existing
-  escape warnings in `src/tailwind/styles.ts`.
+- **Opening feedback follow-up, September 18:** a 10.8 MB image-heavy PDF shared
+  from Files showed the opening screen on the iOS simulator and then opened in
+  the PDF reader. The Android instrumentation flow checks a PDF over 10 MB via
+  both Open With and sharing, records all three opening phases, and verifies
+  dismissal after the reader handoff and invalid-file errors. It also holds the
+  first provider read to verify feedback before any file bytes arrive.
+- Lint and typecheck passed without warnings. The 86 targeted import/reader
+  regression tests passed. iOS simulator and Android debug builds succeeded.
 
 From `apps/mobile`, run the regression checks with:
 
