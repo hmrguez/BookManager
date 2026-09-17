@@ -15,6 +15,7 @@ export type SheetState =
   | { kind: 'custom-shelf'; shelfId?: string }
   | { kind: 'smart-list'; smartListId?: string }
   | { kind: 'up-next' }
+  | { kind: 'recommendation'; bookId: string }
   | null
 
 export type AppView = 'library' | 'settings' | 'import'

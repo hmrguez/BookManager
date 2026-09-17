@@ -8,9 +8,11 @@ import {
 } from './up-next-model'
 import type { UpNextRepository } from './storage/up-next-repository'
 import { getStorageRuntime } from './storage/runtime'
+import type { LibraryBook } from './library-model'
 
-export function useUpNext() {
+export function useUpNext(books: readonly LibraryBook[]) {
   const [upNext, setUpNext] = useState<UpNextState>(createDefaultUpNextState)
+  const [hydrated, setHydrated] = useState(false)
   const [upNextError, setUpNextError] = useState<string>()
   const stateRef = useRef(upNext)
   const hasMutatedRef = useRef(false)
@@ -24,11 +26,13 @@ export function useUpNext() {
 
   const enqueuePersistence = useCallback(
     (operation: (repository: UpNextRepository) => Promise<void>) => {
-      persistenceTailRef.current = persistenceTailRef.current
+      const write = persistenceTailRef.current
         .then(async () => operation((await getStorageRuntime()).upNext))
+      persistenceTailRef.current = write
         .catch((error: unknown) => {
           setUpNextError(error instanceof Error ? error.message : String(error))
         })
+      return write
     },
     [],
   )
@@ -43,6 +47,7 @@ export function useUpNext() {
       .catch((error: unknown) => {
         if (active) setUpNextError(error instanceof Error ? error.message : String(error))
       })
+      .finally(() => { if (active) setHydrated(true) })
     return () => {
       active = false
     }
@@ -55,21 +60,29 @@ export function useUpNext() {
     })
     hasMutatedRef.current = true
     showState(changed)
-    enqueuePersistence((repository) => repository.save(changed))
+    return enqueuePersistence((repository) => repository.save(changed))
   }, [enqueuePersistence, showState])
 
   const savePreferences = useCallback((
     mode: UpNextState['mode'],
     preferences: UpNextPreferences,
   ) => {
-    changeState((current) => ({ ...current, mode, preferences }))
+    return changeState((current) => ({ ...current, mode, preferences,
+      ...(preferences.preset !== 'custom' ? { pinnedCriteria: [], dismissedCriteria: [] } : {}),
+    }))
   }, [changeState])
 
   const addQueueBook = useCallback((bookId: string) => {
     changeState((current) => current.queueBookIds.includes(bookId)
       ? current
-      : { ...current, queueBookIds: [...current.queueBookIds, bookId] })
-  }, [changeState])
+      : { ...current, queueBookIds: [
+        ...new Set([
+          ...current.queueBookIds,
+          ...books.filter(({ id, shelf }) => shelf === 'next' && id !== bookId).map(({ id }) => id),
+        ]),
+        bookId,
+      ] })
+  }, [books, changeState])
 
   const removeQueueBook = useCallback((bookId: string) => {
     changeState((current) => ({
@@ -110,6 +123,7 @@ export function useUpNext() {
   ) => {
     changeState((current) => ({
       ...current,
+      preferences: { ...current.preferences, preset: 'custom' },
       pinnedCriteria: state === 'pinned'
         ? [...current.pinnedCriteria.filter((item) => item !== criterion), criterion]
         : current.pinnedCriteria.filter((item) => item !== criterion),
@@ -149,6 +163,7 @@ export function useUpNext() {
 
   return {
     upNext,
+    hydrated,
     upNextError,
     savePreferences,
     addQueueBook,

@@ -21,7 +21,6 @@ import type { LibraryOrganization } from '../organization-model'
 import type { LocalSearchSort } from '../search'
 import { SmartListSection } from '../smart-lists'
 import { UpNextSection } from '../UpNext'
-import type { UpNextCriterion, UpNextState } from '../up-next-model'
 import type { SheetState } from '../app/model'
 import { CustomShelfSection } from '../organization/CustomShelfComponents'
 import { tw } from '../tailwind/styles'
@@ -45,7 +44,6 @@ export function LibraryPage({
   libraryHydrated,
   organization,
   appearance,
-  upNext,
   viewModel,
   shelfMotion,
   coverEnrichmentStatus,
@@ -68,14 +66,11 @@ export function LibraryPage({
   onDnf,
   onRate,
   onMoveQueueBook,
-  onDismissSuggestion,
-  onReasonState,
 }: {
   books: LibraryBook[]
   libraryHydrated: boolean
   organization: LibraryOrganization
   appearance: AppearancePreferences
-  upNext: UpNextState
   viewModel: LibraryViewModel
   shelfMotion?: ShelfMotionEvent
   coverEnrichmentStatus?: CoverEnrichmentStatus
@@ -98,8 +93,6 @@ export function LibraryPage({
   onDnf: (bookId: string) => void
   onRate: (bookId: string, rating: number) => void
   onMoveQueueBook: (bookId: string, targetIndex: number, visibleIds: readonly string[]) => void
-  onDismissSuggestion: (bookId: string) => void
-  onReasonState: (criterion: UpNextCriterion, state: 'neutral' | 'pinned' | 'dismissed') => void
 }) {
   const {
     activeCustomShelves,
@@ -301,8 +294,6 @@ export function LibraryPage({
               <UpNextSection
                 key={shelf.id}
                 books={orderedNextBooks}
-                state={upNext}
-                suggestions={upNextSuggestions}
                 isFiltering={librarySearchActive}
                 onAdd={() => onOpenSheet({ kind: 'search', shelf: 'next' })}
                 onDetails={(bookId) => onOpenSheet({ kind: 'detail', bookId })}
@@ -312,10 +303,6 @@ export function LibraryPage({
                   targetIndex,
                   orderedNextBooks.map(({ id }) => id),
                 )}
-                onManage={() => onOpenSheet({ kind: 'up-next' })}
-                onAddSuggestion={onNext}
-                onDismissSuggestion={onDismissSuggestion}
-                onReasonState={onReasonState}
                 shelfMotion={shelfMotion}
                 motionMode={appearance.motion}
                 libraryHydrated={libraryHydrated}
@@ -325,6 +312,10 @@ export function LibraryPage({
                 key={shelf.id}
                 shelf={shelf.id}
                 books={booksByShelf[shelf.id]}
+                recommendations={shelf.id === 'tbr' && !librarySearchActive ? upNextSuggestions : undefined}
+                onRecommendation={(bookId) => onOpenSheet({ kind: 'recommendation', bookId })}
+                onRecommendationSettings={() => onOpenSheet({ kind: 'up-next' })}
+                recommendationsLoading={!viewModel.recommendationsReady}
                 isFiltering={librarySearchActive}
                 searchResults={librarySearchResultById}
                 shelfMotion={shelfMotion}

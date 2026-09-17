@@ -21,6 +21,8 @@ export const libraryBookSchema = z.object({
   authors: z.array(z.string().min(1)),
   alternateTitles: z.array(z.string().min(1)).optional(),
   series: z.array(z.string().min(1)).optional(),
+  /** Position in the primary series; explicit metadata takes precedence over title hints. */
+  seriesPosition: z.number().positive().max(1000).optional(),
   identifiers: z.array(z.string().min(1)).optional(),
   tags: z.array(z.string().min(1)).optional(),
   listNames: z.array(z.string().min(1)).optional(),

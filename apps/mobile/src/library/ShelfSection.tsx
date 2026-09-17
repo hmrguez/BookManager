@@ -3,7 +3,7 @@ import { BookTile } from './LibraryPresentation'
 import { useLibraryView } from './use-library-view'
 import { libraryDropTarget } from './library-drag'
 import type { ReactNode } from 'react'
-import { ArrowRight, ChevronDown, CirclePlus, Plus, Search } from 'lucide-react'
+import { ArrowRight, ChevronDown, CirclePlus, Plus, Search, SlidersHorizontal, Star } from 'lucide-react'
 import { BookCover, ProgressMeter, RatingStars, type MotionMode } from '../design-system'
 import type { LibraryBook, ShelfId } from '../library'
 import type { LocalSearchResult, SearchHighlight } from '../search'
@@ -12,6 +12,7 @@ import { tw } from '../tailwind/styles'
 import { shelfCascadeItem, useShelfCascade } from './shelf-cascade'
 import { useAnimatedShelfBooks, type ShelfMotionEvent } from './shelf-motion'
 import { FinishBookAction } from './FinishBookAction'
+import type { UpNextSuggestionSet } from '../up-next-model'
 
 function SearchHighlightedText({ value, highlight }: { value: string; highlight?: SearchHighlight }) {
   if (!highlight?.ranges.length) return value
@@ -100,6 +101,10 @@ export function ShelfSection({
   shelfMotion,
   motionMode,
   libraryHydrated,
+  recommendations,
+  onRecommendation,
+  onRecommendationSettings,
+  recommendationsLoading,
 }: {
   shelf: ShelfId
   books: LibraryBook[]
@@ -116,8 +121,13 @@ export function ShelfSection({
   shelfMotion?: ShelfMotionEvent
   motionMode: MotionMode
   libraryHydrated: boolean
+  recommendations?: UpNextSuggestionSet
+  onRecommendation?: (id: string) => void
+  onRecommendationSettings?: () => void
+  recommendationsLoading?: boolean
 }) {
   const grid = useLibraryView() === 'grid'
+  const recommendedIds = new Set(recommendations?.suggestions.map(({ book }) => book.id))
   const meta = shelfCopy[shelf]
   const relevantMotionSequence = shelfMotion?.from === shelf || shelfMotion?.to === shelf
     ? shelfMotion.sequence
@@ -149,6 +159,7 @@ export function ShelfSection({
           <h2>{meta.label} <i>·</i> {books.length}</h2>
           <ChevronDown className={tw(isCollapsed ? 'is-collapsed' : '')} aria-hidden="true" />
         </button>
+        {shelf === 'tbr' && onRecommendationSettings && <button className={tw('shelf-add')} type="button" disabled={recommendationsLoading} onClick={onRecommendationSettings} aria-label="Recommendation preferences"><SlidersHorizontal aria-hidden="true" /></button>}
         <button
           type="button"
           className={tw('shelf-add')}
@@ -178,13 +189,14 @@ export function ShelfSection({
             </button>
           )
         ) : (
-          <VirtualBookList items={displayedBooks} grid={grid} getKey={animatedBookKey}>
+          <VirtualBookList key={grid ? 'grid' : 'list'} items={displayedBooks} grid={grid} getKey={animatedBookKey}>
             {({ book, motion }, index) => (
               <article
-                className={tw(grid ? 'book-tile' : 'book-row')}
+                className={tw(grid ? 'book-tile' : 'book-row', recommendedIds.has(book.id) && (grid ? 'book-tile--recommended' : 'book-row--recommended'))}
                 key={book.id}
                 ref={(element) => { setRowElement(book.id, element) }}
                 data-shelf-motion={motion === 'idle' ? undefined : motion}
+                data-recommended={recommendedIds.has(book.id) || undefined}
                 {...shelfCascadeItem(index, cascadeItemCount)}
               >
                 {grid ? <BookTile book={book} onDetails={onDetails} /> : <>
@@ -216,6 +228,7 @@ export function ShelfSection({
                     <RatingStars compact value={book.rating} onChange={(rating) => onRate(book.id, rating)} />
                   )}
                 </>}
+                {recommendedIds.has(book.id) && <button type="button" className={tw('recommendation-star')} aria-label={`Why ${book.title} is recommended`} onClick={() => onRecommendation?.(book.id)}><Star aria-hidden="true" /></button>}
                 {shelf === 'dnf' && (
                   <button className={tw('row-action')} type="button" onClick={() => onStart(book.id)} aria-label={`Return ${book.title} to Reading`}>
                     Resume <ArrowRight aria-hidden="true" />

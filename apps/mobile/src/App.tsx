@@ -36,7 +36,8 @@ import {
 import { getStorageRuntime } from './storage/runtime'
 import type { Catalog } from './domain/catalog'
 import { findLibraryBookForSearchResult } from './library-model'
-import { UpNextSettings } from './UpNext'
+import { RecommendationSettings } from './recommendations/RecommendationSettings'
+import { RecommendationDetails } from './recommendations/RecommendationDetails'
 import { useUpNext } from './up-next'
 import { shelfCopy } from './app/config'
 import { downloadTextFile } from './app/download'
@@ -121,6 +122,7 @@ function App() {
   } = useLibrary()
   const {
     organization,
+    hydrated: organizationHydrated,
     organizationError,
     saveShelf,
     setShelfMembersInOrder,
@@ -139,6 +141,7 @@ function App() {
   } = useSmartLists()
   const {
     upNext,
+    hydrated: upNextHydrated,
     upNextError,
     savePreferences: saveUpNextPreferences,
     addQueueBook,
@@ -148,7 +151,7 @@ function App() {
     dismissSuggestion,
     restoreSuggestion,
     reloadUpNext,
-  } = useUpNext()
+  } = useUpNext(books)
 
   const purchaseView = useSyncExternalStore(purchases.subscribe, purchases.getSnapshot)
   const [upgradeOpen, setUpgradeOpen] = useState(false)
@@ -206,6 +209,7 @@ function App() {
   const booksSnapshotRef = useRef(books)
 
   const libraryViewModel = useLibraryViewModel({
+    recommendationsReady: libraryHydrated && organizationHydrated && upNextHydrated,
     books,
     organization,
     smartLists,
@@ -1250,16 +1254,21 @@ function App() {
     moveWithUndo(id, 'dnf', `${book?.title ?? 'Book'} moved to DNF`)
   }
 
-  const saveUpNextSettings = (
+  const saveUpNextSettings = async (
     mode: typeof upNext.mode,
     preferences: typeof upNext.preferences,
   ) => {
-    saveUpNextPreferences(mode, preferences)
+    try {
+      await saveUpNextPreferences(mode, preferences)
+    } catch {
+      setToast({ message: 'Could not save reading preferences. Please try again.' })
+      return
+    }
     closeSheet()
     setToast({
       message: mode === 'manual'
-        ? 'Up Next is fully manual'
-        : 'Choice signals saved on this device',
+        ? 'TBR recommendations turned off'
+        : 'Reading preferences saved on this device',
     })
   }
 
@@ -1379,7 +1388,6 @@ function App() {
             libraryHydrated={libraryHydrated}
             organization={organization}
             appearance={appearance}
-            upNext={upNext}
             viewModel={libraryViewModel}
             shelfMotion={shelfMotion}
             coverEnrichmentStatus={coverEnrichmentStatus}
@@ -1402,8 +1410,6 @@ function App() {
             onDnf={handleDnf}
             onRate={rateBook}
             onMoveQueueBook={moveQueueBook}
-            onDismissSuggestion={dismissSuggestion}
-            onReasonState={setReasonState}
           />
         ) : view === 'import' && importPreview ? (
           <ImportReviewPage
@@ -1620,17 +1626,29 @@ function App() {
           </datalist>
         </Sheet>
       )}
-      {FEATURES.assistedUpNext && sheet?.kind === 'up-next' && (
-        <Sheet title="How should Up Next help?" onClose={closeSheet} tall>
-          <UpNextSettings
+      {sheet?.kind === 'up-next' && (
+        <Sheet title="Reading suggestions" onClose={closeSheet} tall>
+          <RecommendationSettings
             state={upNext}
             books={books}
+            tags={organization.tags.map(({ name }) => name)}
             onSave={saveUpNextSettings}
             onRestoreSuggestion={restoreSuggestion}
             onRestoreReason={(criterion) => setReasonState(criterion, 'neutral')}
           />
         </Sheet>
       )}
+      {sheet?.kind === 'recommendation' && (() => {
+        const suggestion = libraryViewModel.upNextSuggestions.suggestions.find(({ book }) => book.id === sheet.bookId)
+        return <Sheet title="Why this book?" onClose={closeSheet}>
+          {suggestion ? <RecommendationDetails suggestion={suggestion}
+            onQueue={() => { handleNext(suggestion.book.id); closeSheet() }}
+            onDismiss={() => { dismissSuggestion(suggestion.book.id); closeSheet() }}
+            onManage={() => setSheet({ kind: 'up-next' })}
+            onReasonState={setReasonState}
+          /> : <p>This suggestion has changed. Check your TBR for the latest picks.</p>}
+        </Sheet>
+      })()}
       {readerRecovery && (
         <ReaderRecoverySheet
           recovery={readerRecovery}

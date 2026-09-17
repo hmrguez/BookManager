@@ -27,12 +27,30 @@ managed storage. Audiobooks accept one M4B file or an ordered set of MP3 files.
 Advanced surfaces remain available for development without complicating the default experience.
 Set any of these Vite environment variables to `true` in `apps/mobile/.env.local` to enable them:
 
-- `VITE_FEATURE_ASSISTED_UP_NEXT` — guided Up Next suggestions and their settings.
 - `VITE_FEATURE_SMART_LISTS` — saved rule-based lists.
 - `VITE_FEATURE_ADVANCED_BOOK_DETAILS` — edition, provenance, merge, and split tools.
 - `VITE_FEATURE_ADVANCED_FILE_MANAGEMENT` — global file intake and EPUB storage tools in Settings.
 
-All four flags default to `false`.
+All three flags default to `false`.
+
+## TBR recommendations
+
+Recommendations are available by default, with a Balanced preset. Up to three matching books
+appear first in the TBR with a darker border and a star. Tap the star for the score and reasons;
+the TBR preferences button offers presets, an off switch, and optional advanced weights.
+Untouched legacy defaults upgrade automatically; customized legacy settings and new off choices
+are preserved.
+
+The comparison runs locally and uses recorded metadata, tags from finished books rated 4–5 stars,
+page count, live loan deadlines, and time waiting. Series order uses the primary series' optional
+`seriesPosition` or explicit labels such as `Earthsea #2` and `Title (Earthsea, #2)`. Known sequels
+wait until every earlier numbered installment is recorded as finished. Missing order stays
+unknown; no API lookup or title-number guess is made. Series names are scoped by author.
+
+The local cache stores IDs, scores, and explanations. Relevant library/tag/rating/metadata changes,
+imports, shelf moves, preference changes, and dismissals invalidate it. It also expires at the
+next UTC day or loan-day boundary and refreshes on resume. Cover, note, progress, and queue-order
+edits don't invalidate the comparison. Cache failure safely falls back to local recomputation.
 
 ## Book metadata providers
 

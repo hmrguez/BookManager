@@ -23,6 +23,7 @@ export type ShelfDraft = {
 
 export function useOrganization() {
   const [organization, setOrganization] = useState<LibraryOrganization>(EMPTY_LIBRARY_ORGANIZATION)
+  const [hydrated, setHydrated] = useState(false)
   const [organizationError, setOrganizationError] = useState<string>()
   const organizationRef = useRef(organization)
   const hasMutatedRef = useRef(false)
@@ -55,6 +56,7 @@ export function useOrganization() {
       .catch((error: unknown) => {
         if (active) setOrganizationError(error instanceof Error ? error.message : String(error))
       })
+      .finally(() => { if (active) setHydrated(true) })
     return () => {
       active = false
     }
@@ -254,6 +256,7 @@ export function useOrganization() {
 
   return {
     organization,
+    hydrated,
     organizationError,
     saveShelf,
     setShelfMembers,

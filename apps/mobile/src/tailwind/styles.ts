@@ -5,7 +5,10 @@
  * every visual declaration is emitted by Tailwind from the static recipes below.
  */
 
+import { recommendationStyles } from '../recommendations/styles'
+
 const utilityRecipes: Record<string, string> = {
+  ...recommendationStyles,
   "library-header-actions": "[&.library-header-actions]:[gap:6px] [&_.command-trigger]:[display:none] [&_.header-search]:[width:44px] [&_.header-search]:[height:44px] min-[560px]:[&_.command-trigger]:[display:grid]",
   "library-view-control": "[display:flex] [padding:2px] [border:1px_solid_var(--border-subtle)] [border-radius:var(--radius-pill)] [background:var(--surface-sunken)] [&>button]:[display:grid] [&>button]:[width:40px] [&>button]:[height:38px] [&>button]:[padding:0] [&>button]:[border-radius:var(--radius-pill)] [&>button]:[place-items:center] [&>button]:[background:transparent] [&>button]:[color:var(--text-secondary)] [&>button[aria-pressed=true]]:[background:var(--surface-raised)] [&>button[aria-pressed=true]]:[color:var(--text-primary)] [&>button[aria-pressed=true]]:[box-shadow:inset_0_0_0_1px_var(--border-strong)] [&_svg]:[width:17px] [&_svg]:[height:17px] [&_svg]:[stroke-width:1.5]",
   "library-view-hint": "[margin:12px_0_0] [color:var(--text-tertiary)] [font:450_0.65rem/1.4_var(--font-interface)]",

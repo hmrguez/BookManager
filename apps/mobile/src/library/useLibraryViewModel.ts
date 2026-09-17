@@ -9,16 +9,17 @@ import {
   type SavedSmartList,
 } from '../smart-lists'
 import {
-  buildUpNextSuggestions,
   orderedUpNextBooks,
   type UpNextState,
 } from '../up-next-model'
+import { useRecommendations } from '../recommendations/use-recommendations'
 
 type LibraryViewModelOptions = {
   books: LibraryBook[]
   organization: LibraryOrganization
   smartLists: SavedSmartList[]
   upNext: UpNextState
+  recommendationsReady: boolean
   smartListCatalog?: Catalog
   librarySearchOpen: boolean
   libraryQuery: string
@@ -32,6 +33,7 @@ export function useLibraryViewModel({
   organization,
   smartLists,
   upNext,
+  recommendationsReady,
   smartListCatalog,
   librarySearchOpen,
   libraryQuery,
@@ -99,20 +101,24 @@ export function useLibraryViewModel({
       .map(({ document }) => bookById.get(document.id))
       .filter((book): book is LibraryBook => Boolean(book))
   }, [bookById, books, librarySearchActive, librarySearchResults])
+  const upNextSuggestions = useRecommendations(searchableBooks, upNext, recommendationsReady)
   const booksByShelf = useMemo(
-    () => Object.fromEntries(SHELVES.map(({ id }) => [
+    () => {
+      const shelves = Object.fromEntries(SHELVES.map(({ id }) => [
       id,
       visibleBooks.filter((book) => book.shelf === id),
-    ])) as Record<ShelfId, LibraryBook[]>,
-    [visibleBooks],
+      ])) as Record<ShelfId, LibraryBook[]>
+      if (!librarySearchActive && upNextSuggestions.suggestions.length) {
+        const ranks = new Map(upNextSuggestions.suggestions.map(({ book }, index) => [book.id, index]))
+        shelves.tbr.sort((a, b) => (ranks.get(a.id) ?? Infinity) - (ranks.get(b.id) ?? Infinity))
+      }
+      return shelves
+    },
+    [visibleBooks, librarySearchActive, upNextSuggestions],
   )
   const orderedNextBooks = useMemo(
     () => orderedUpNextBooks(booksByShelf.next, upNext),
     [booksByShelf.next, upNext],
-  )
-  const upNextSuggestions = useMemo(
-    () => buildUpNextSuggestions(searchableBooks, upNext),
-    [searchableBooks, upNext],
   )
   const activeCustomShelves = useMemo(
     () => organization.shelves
@@ -165,6 +171,7 @@ export function useLibraryViewModel({
   )
 
   return {
+    recommendationsReady,
     activeCustomShelves,
     activeSmartLists,
     archivedCustomShelves,

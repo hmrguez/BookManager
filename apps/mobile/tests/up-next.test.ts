@@ -36,6 +36,7 @@ function book(
 describe('explainable Up Next', () => {
   test('keeps manual mode entirely free of ranking', () => {
     const state = createDefaultUpNextState(now.toISOString())
+    state.mode = 'manual'
     const result = buildUpNextSuggestions([book('candidate', 'tbr')], state, now)
 
     expect(result).toMatchObject({
@@ -92,6 +93,7 @@ describe('explainable Up Next', () => {
         weights: {
           ...createDefaultUpNextState(now.toISOString()).preferences.weights,
           format: 3,
+          length: 0,
           mood: 1,
           recency: 3,
         },
@@ -104,7 +106,7 @@ describe('explainable Up Next', () => {
     expect(suggestion.score).toBe(40)
   })
 
-  test('limits ranking inputs to the same three reasons shown to the reader', () => {
+  test('scores all matching signals and explains every contribution', () => {
     const candidate = book('many-matches', 'tbr', {
       format: 'eBook',
       pageCount: 280,
@@ -128,7 +130,7 @@ describe('explainable Up Next', () => {
 
     const [suggestion] = buildUpNextSuggestions([candidate], state, now).suggestions
 
-    expect(suggestion.reasons).toHaveLength(3)
+    expect(suggestion.reasons).toHaveLength(6)
     expect(suggestion.score).toBe(
       suggestion.reasons.reduce((total, reason) => total + reason.contribution, 0),
     )
@@ -148,7 +150,11 @@ describe('explainable Up Next', () => {
 
   test('persists queue order, weights, pins, and dismissals offline', async () => {
     const database = new BunSqliteDatabase()
-    await migrateStorage(database)
+    const backups = new Map<string, string>()
+    await migrateStorage(database, { backupStore: { save: async (key, snapshot) => {
+      backups.set(key, snapshot)
+      return key
+    } } })
     const repository = new UpNextRepository(database)
     const state = upNextStateSchema.parse({
       ...createDefaultUpNextState(now.toISOString()),
