@@ -211,198 +211,18 @@ export function SettingsPage({
       </header>
 
       <div className={tw('settings-ledger')}>
-        {purchaseView && onUpgrade && <section className={tw('settings-card')}>
+        {purchaseView && !purchaseView.owned && !reviewView.active && onUpgrade && <section className={tw('settings-card')}>
           <div className={tw('settings-card__icon')}><BookOpen aria-hidden="true" /></div>
           <div className={tw('settings-card__heading')}>
             <h2>Wovenleaf Unlimited</h2>
-            <p>{purchaseView.owned ? 'Unlimited books · purchased' : reviewView.active
-              ? 'Unlimited books · review access' : `${books.length} of 20 free books · upgrade once for unlimited books`}</p>
+            <p>{books.length} of 20 free books · upgrade once for unlimited books</p>
           </div>
           <button className={tw('settings-action')} type="button" onClick={onUpgrade}>
             <BookOpen aria-hidden="true" />
-            <span><strong>{purchaseView.owned ? 'View purchase' : 'Upgrade or restore purchase'}</strong></span>
+            <span><strong>Upgrade or restore purchase</strong></span>
             <ChevronRight aria-hidden="true" />
           </button>
         </section>}
-        <section
-          className={tw(`settings-card epub-intake${epubDropActive ? ' is-dragging' : ''}`)}
-          onDragEnter={(event) => {
-            event.preventDefault()
-            if (!epubBusy) setEpubDropActive(true)
-          }}
-          onDragOver={(event) => event.preventDefault()}
-          onDragLeave={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setEpubDropActive(false)
-          }}
-          onDrop={handleEpubDrop}
-        >
-          <div className={tw('settings-card__icon')}><BookOpen aria-hidden="true" /></div>
-          <div className={tw('settings-card__heading')}>
-            <span>Books on this device</span><h2>Bring in an EPUB or PDF.</h2>
-            <p>Add an unprotected book from your device. A private copy keeps it available offline.</p>
-          </div>
-          <label className={tw(`settings-action import-file-picker epub-picker${epubBusy ? ' is-busy' : ''}`)}>
-            <FileUp aria-hidden="true" />
-            <span>
-              <strong>{epubBusy ? 'Checking the book…' : 'Choose book files'}</strong>
-              <small>EPUB and PDF · up to 256 MB each</small>
-            </span>
-            <ChevronRight aria-hidden="true" />
-            <input
-              type="file"
-              accept=".epub,.pdf,application/epub+zip,application/pdf"
-              multiple
-              disabled={epubBusy}
-              onChange={(event) => {
-                if (event.currentTarget.files) offerEpubFiles(event.currentTarget.files)
-                event.currentTarget.value = ''
-              }}
-            />
-          </label>
-          <label className={tw(`settings-action import-file-picker epub-folder-picker${epubBusy ? ' is-busy' : ''}`)}>
-            <FolderOpen aria-hidden="true" />
-            <span><strong>Choose a folder</strong><small>Imports EPUB and PDF files inside · where supported</small></span>
-            <ChevronRight aria-hidden="true" />
-            <input
-              ref={(node) => node?.setAttribute('webkitdirectory', '')}
-              type="file"
-              accept=".epub,.pdf,application/epub+zip,application/pdf"
-              multiple
-              disabled={epubBusy}
-              onChange={(event) => {
-                if (event.currentTarget.files) offerEpubFiles(event.currentTarget.files)
-                event.currentTarget.value = ''
-              }}
-            />
-          </label>
-          <div className={tw('epub-drop-note')} aria-hidden="true">
-            <span>On the web, you can also drop EPUB and PDF files here.</span>
-          </div>
-          {(epubImport.progress || epubImport.result || epubImport.error) && (
-            <div
-              className={tw(`epub-import-state${epubImport.error ? ' is-error' : epubImport.result ? ' is-complete' : ''}`)}
-              role={epubImport.error ? 'alert' : 'status'}
-              aria-live="polite"
-            >
-              {epubImport.error ? <X aria-hidden="true" /> : epubImport.result ? <CheckCircle2 aria-hidden="true" /> : <BookOpen aria-hidden="true" />}
-              <span>
-                <strong>{epubImport.result?.title ?? epubImport.progress?.fileName ?? 'EPUB import'}</strong>
-                <small>
-                  {epubImport.error
-                    ?? (epubImport.result?.outcome === 'duplicate'
-                      ? 'Already in managed storage · no duplicate asset created'
-                      : epubImport.result?.outcome === 'revision'
-                        ? 'Revised package linked to the existing edition'
-                        : epubImport.result
-                          ? 'Validated, fingerprinted, and stored with provenance'
-                          : epubImport.progress?.detail)}
-                </small>
-              </span>
-              {epubBusy && <button type="button" onClick={onCancelEpubImport}>Cancel</button>}
-            </div>
-          )}
-        </section>
-
-        <EpubStorageCard
-          state={epubStorage}
-          onRefresh={onRefreshEpubStorage}
-          onPreviewCleanup={onPreviewEpubCleanup}
-          onConfirmCleanup={onConfirmEpubCleanup}
-          onCancelReview={onCancelEpubReview}
-          onPreviewRelink={onPreviewEpubRelink}
-          onConfirmRelink={onConfirmEpubRelink}
-        />
-
-        {(FEATURES.advancedFileManagement || audiobookImport.draft || audiobookImport.progress || audiobookImport.result || audiobookImport.error) && (
-          <>
-        <section
-          className={tw(`settings-card audiobook-intake${audiobookDropActive ? ' is-dragging' : ''}`)}
-          onDragEnter={(event) => {
-            event.preventDefault()
-            if (!audiobookBusy) setAudiobookDropActive(true)
-          }}
-          onDragOver={(event) => event.preventDefault()}
-          onDragLeave={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setAudiobookDropActive(false)
-          }}
-          onDrop={handleAudiobookDrop}
-        >
-          <div className={tw('settings-card__icon')}><Headphones aria-hidden="true" /></div>
-          <div className={tw('settings-card__heading')}>
-            <span>Listening library</span><h2>Make one audiobook from its files.</h2>
-            <p>M4B chapters or ordered MP3s become one private timeline. Covers, CUE sheets, tags, and revisions stay attached to the same edition.</p>
-          </div>
-          <label className={tw(`settings-action import-file-picker audiobook-picker${audiobookBusy ? ' is-busy' : ''}`)}>
-            <AudioLines aria-hidden="true" />
-            <span>
-              <strong>{audiobookBusy ? 'Reading audio evidence…' : 'Choose audiobook files'}</strong>
-              <small>M4B, MP3, CUE, JSON, and cover art</small>
-            </span>
-            <ChevronRight aria-hidden="true" />
-            <input
-              type="file"
-              accept=".m4b,.m4a,.mp4,.mp3,.cue,.json,.jpg,.jpeg,.png,.gif,.webp,.avif,audio/mpeg,audio/mp4,image/jpeg,image/png,image/gif,image/webp,image/avif"
-              multiple
-              disabled={audiobookBusy}
-              onChange={(event) => {
-                if (event.currentTarget.files) offerAudiobookFiles(event.currentTarget.files)
-                event.currentTarget.value = ''
-              }}
-            />
-          </label>
-          <label className={tw(`settings-action import-file-picker audiobook-folder-picker${audiobookBusy ? ' is-busy' : ''}`)}>
-            <FolderOpen aria-hidden="true" />
-            <span><strong>Choose an MP3 folder</strong><small>Keeps only supported audio and sidecar evidence</small></span>
-            <ChevronRight aria-hidden="true" />
-            <input
-              ref={(node) => node?.setAttribute('webkitdirectory', '')}
-              type="file"
-              multiple
-              disabled={audiobookBusy}
-              onChange={(event) => {
-                if (event.currentTarget.files) offerAudiobookFiles(event.currentTarget.files)
-                event.currentTarget.value = ''
-              }}
-            />
-          </label>
-          <div className={tw('audiobook-drop-note')} aria-hidden="true">
-            <span>Drop one M4B or one book folder here on the web.</span>
-          </div>
-          {(audiobookImport.progress || audiobookImport.result || audiobookImport.error) && !audiobookImport.draft && (
-            <div
-              className={tw(`audiobook-import-state${audiobookImport.error ? ' is-error' : audiobookImport.result ? ' is-complete' : ''}`)}
-              role={audiobookImport.error ? 'alert' : 'status'}
-              aria-live="polite"
-            >
-              {audiobookImport.error ? <X aria-hidden="true" /> : audiobookImport.result ? <CheckCircle2 aria-hidden="true" /> : <Headphones aria-hidden="true" />}
-              <span>
-                <strong>{audiobookImport.result?.title ?? audiobookImport.progress?.fileName ?? 'Audiobook import'}</strong>
-                <small>
-                  {audiobookImport.error
-                    ?? (audiobookImport.result?.outcome === 'duplicate'
-                      ? 'Already managed · no duplicate asset created'
-                      : audiobookImport.result?.outcome === 'revision'
-                        ? 'Revision linked · existing progress retained'
-                        : audiobookImport.result
-                          ? `${audiobookImport.result.manifest.segments.length} file timeline ready for playback`
-                          : audiobookImport.progress?.detail)}
-                </small>
-              </span>
-              {audiobookBusy && <button type="button" onClick={onCancelAudiobookImport}>Cancel</button>}
-            </div>
-          )}
-          {audiobookImport.draft && (
-            <AudiobookImportReviewPanel
-              key={audiobookImport.draft.inspectionId}
-              draft={audiobookImport.draft}
-              busy={audiobookBusy}
-              onImport={onCommitAudiobook}
-              onDismiss={onDismissAudiobookImport}
-            />
-          )}
-        </section>
-          </>
-        )}
 
         <section className={tw('settings-card settings-card--appearance')}>
           <div className={tw('settings-card__icon')}><Palette aria-hidden="true" /></div>
@@ -585,6 +405,186 @@ export function SettingsPage({
             </div>
           )}
         </section>
+
+        <section
+          className={tw(`settings-card epub-intake${epubDropActive ? ' is-dragging' : ''}`)}
+          onDragEnter={(event) => {
+            event.preventDefault()
+            if (!epubBusy) setEpubDropActive(true)
+          }}
+          onDragOver={(event) => event.preventDefault()}
+          onDragLeave={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setEpubDropActive(false)
+          }}
+          onDrop={handleEpubDrop}
+        >
+          <div className={tw('settings-card__icon')}><BookOpen aria-hidden="true" /></div>
+          <div className={tw('settings-card__heading')}>
+            <span>Books on this device</span><h2>Bring in an EPUB or PDF.</h2>
+            <p>Add an unprotected book from your device. A private copy keeps it available offline.</p>
+          </div>
+          <label className={tw(`settings-action import-file-picker epub-picker${epubBusy ? ' is-busy' : ''}`)}>
+            <FileUp aria-hidden="true" />
+            <span>
+              <strong>{epubBusy ? 'Checking the book…' : 'Choose book files'}</strong>
+              <small>EPUB and PDF · up to 256 MB each</small>
+            </span>
+            <ChevronRight aria-hidden="true" />
+            <input
+              type="file"
+              accept=".epub,.pdf,application/epub+zip,application/pdf"
+              multiple
+              disabled={epubBusy}
+              onChange={(event) => {
+                if (event.currentTarget.files) offerEpubFiles(event.currentTarget.files)
+                event.currentTarget.value = ''
+              }}
+            />
+          </label>
+          <label className={tw(`settings-action import-file-picker epub-folder-picker${epubBusy ? ' is-busy' : ''}`)}>
+            <FolderOpen aria-hidden="true" />
+            <span><strong>Choose a folder</strong><small>Imports EPUB and PDF files inside · where supported</small></span>
+            <ChevronRight aria-hidden="true" />
+            <input
+              ref={(node) => node?.setAttribute('webkitdirectory', '')}
+              type="file"
+              accept=".epub,.pdf,application/epub+zip,application/pdf"
+              multiple
+              disabled={epubBusy}
+              onChange={(event) => {
+                if (event.currentTarget.files) offerEpubFiles(event.currentTarget.files)
+                event.currentTarget.value = ''
+              }}
+            />
+          </label>
+          <div className={tw('epub-drop-note')} aria-hidden="true">
+            <span>On the web, you can also drop EPUB and PDF files here.</span>
+          </div>
+          {(epubImport.progress || epubImport.result || epubImport.error) && (
+            <div
+              className={tw(`epub-import-state${epubImport.error ? ' is-error' : epubImport.result ? ' is-complete' : ''}`)}
+              role={epubImport.error ? 'alert' : 'status'}
+              aria-live="polite"
+            >
+              {epubImport.error ? <X aria-hidden="true" /> : epubImport.result ? <CheckCircle2 aria-hidden="true" /> : <BookOpen aria-hidden="true" />}
+              <span>
+                <strong>{epubImport.result?.title ?? epubImport.progress?.fileName ?? 'EPUB import'}</strong>
+                <small>
+                  {epubImport.error
+                    ?? (epubImport.result?.outcome === 'duplicate'
+                      ? 'Already in managed storage · no duplicate asset created'
+                      : epubImport.result?.outcome === 'revision'
+                        ? 'Revised package linked to the existing edition'
+                        : epubImport.result
+                          ? 'Validated, fingerprinted, and stored with provenance'
+                          : epubImport.progress?.detail)}
+                </small>
+              </span>
+              {epubBusy && <button type="button" onClick={onCancelEpubImport}>Cancel</button>}
+            </div>
+          )}
+        </section>
+
+        <EpubStorageCard
+          state={epubStorage}
+          onRefresh={onRefreshEpubStorage}
+          onPreviewCleanup={onPreviewEpubCleanup}
+          onConfirmCleanup={onConfirmEpubCleanup}
+          onCancelReview={onCancelEpubReview}
+          onPreviewRelink={onPreviewEpubRelink}
+          onConfirmRelink={onConfirmEpubRelink}
+        />
+
+        {(FEATURES.advancedFileManagement || audiobookImport.draft || audiobookImport.progress || audiobookImport.result || audiobookImport.error) && (
+          <>
+        <section
+          className={tw(`settings-card audiobook-intake${audiobookDropActive ? ' is-dragging' : ''}`)}
+          onDragEnter={(event) => {
+            event.preventDefault()
+            if (!audiobookBusy) setAudiobookDropActive(true)
+          }}
+          onDragOver={(event) => event.preventDefault()}
+          onDragLeave={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setAudiobookDropActive(false)
+          }}
+          onDrop={handleAudiobookDrop}
+        >
+          <div className={tw('settings-card__icon')}><Headphones aria-hidden="true" /></div>
+          <div className={tw('settings-card__heading')}>
+            <span>Listening library</span><h2>Make one audiobook from its files.</h2>
+            <p>M4B chapters or ordered MP3s become one private timeline. Covers, CUE sheets, tags, and revisions stay attached to the same edition.</p>
+          </div>
+          <label className={tw(`settings-action import-file-picker audiobook-picker${audiobookBusy ? ' is-busy' : ''}`)}>
+            <AudioLines aria-hidden="true" />
+            <span>
+              <strong>{audiobookBusy ? 'Reading audio evidence…' : 'Choose audiobook files'}</strong>
+              <small>M4B, MP3, CUE, JSON, and cover art</small>
+            </span>
+            <ChevronRight aria-hidden="true" />
+            <input
+              type="file"
+              accept=".m4b,.m4a,.mp4,.mp3,.cue,.json,.jpg,.jpeg,.png,.gif,.webp,.avif,audio/mpeg,audio/mp4,image/jpeg,image/png,image/gif,image/webp,image/avif"
+              multiple
+              disabled={audiobookBusy}
+              onChange={(event) => {
+                if (event.currentTarget.files) offerAudiobookFiles(event.currentTarget.files)
+                event.currentTarget.value = ''
+              }}
+            />
+          </label>
+          <label className={tw(`settings-action import-file-picker audiobook-folder-picker${audiobookBusy ? ' is-busy' : ''}`)}>
+            <FolderOpen aria-hidden="true" />
+            <span><strong>Choose an MP3 folder</strong><small>Keeps only supported audio and sidecar evidence</small></span>
+            <ChevronRight aria-hidden="true" />
+            <input
+              ref={(node) => node?.setAttribute('webkitdirectory', '')}
+              type="file"
+              multiple
+              disabled={audiobookBusy}
+              onChange={(event) => {
+                if (event.currentTarget.files) offerAudiobookFiles(event.currentTarget.files)
+                event.currentTarget.value = ''
+              }}
+            />
+          </label>
+          <div className={tw('audiobook-drop-note')} aria-hidden="true">
+            <span>Drop one M4B or one book folder here on the web.</span>
+          </div>
+          {(audiobookImport.progress || audiobookImport.result || audiobookImport.error) && !audiobookImport.draft && (
+            <div
+              className={tw(`audiobook-import-state${audiobookImport.error ? ' is-error' : audiobookImport.result ? ' is-complete' : ''}`)}
+              role={audiobookImport.error ? 'alert' : 'status'}
+              aria-live="polite"
+            >
+              {audiobookImport.error ? <X aria-hidden="true" /> : audiobookImport.result ? <CheckCircle2 aria-hidden="true" /> : <Headphones aria-hidden="true" />}
+              <span>
+                <strong>{audiobookImport.result?.title ?? audiobookImport.progress?.fileName ?? 'Audiobook import'}</strong>
+                <small>
+                  {audiobookImport.error
+                    ?? (audiobookImport.result?.outcome === 'duplicate'
+                      ? 'Already managed · no duplicate asset created'
+                      : audiobookImport.result?.outcome === 'revision'
+                        ? 'Revision linked · existing progress retained'
+                        : audiobookImport.result
+                          ? `${audiobookImport.result.manifest.segments.length} file timeline ready for playback`
+                          : audiobookImport.progress?.detail)}
+                </small>
+              </span>
+              {audiobookBusy && <button type="button" onClick={onCancelAudiobookImport}>Cancel</button>}
+            </div>
+          )}
+          {audiobookImport.draft && (
+            <AudiobookImportReviewPanel
+              key={audiobookImport.draft.inspectionId}
+              draft={audiobookImport.draft}
+              busy={audiobookBusy}
+              onImport={onCommitAudiobook}
+              onDismiss={onDismissAudiobookImport}
+            />
+          )}
+        </section>
+          </>
+        )}
 
         <section className={tw('settings-card')}>
           <div className={tw('settings-card__icon')}><ShieldCheck aria-hidden="true" /></div>

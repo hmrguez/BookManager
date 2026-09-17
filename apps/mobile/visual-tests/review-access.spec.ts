@@ -62,7 +62,7 @@ test('signed access activates, survives restart, enables book 21, and ends witho
   await activate.click()
   await expect(page.locator('.review-access').getByRole('status')).toContainText('Review access is active')
   await expect(page.locator('summary').filter({ hasText: 'Review access' })).toBeFocused()
-  await expect(page.getByText('Unlimited books · review access', { exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Wovenleaf Unlimited', exact: true })).toBeHidden()
   await page.screenshot({ path: info.outputPath('review-access-active.png') })
   await page.reload()
   await openReviewAccess(page)
