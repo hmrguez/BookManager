@@ -40,6 +40,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="application/epub+zip" />
+                <data android:mimeType="application/pdf" />
                 <data android:mimeType="audio/mpeg" />
                 <data android:mimeType="audio/mp4" />
             </intent-filter>
@@ -57,6 +58,7 @@
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="application/epub+zip" />
+                <data android:mimeType="application/pdf" />
                 <data android:mimeType="audio/mpeg" />
                 <data android:mimeType="audio/mp4" />
             </intent-filter>
@@ -72,6 +74,12 @@
         <activity
             android:name=".WovenleafReaderActivity"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|uiMode|density"
+            android:exported="false"
+            android:screenOrientation="unspecified"
+            android:theme="@style/AppTheme.NoActionBar" />
+
+        <activity
+            android:name=".WovenleafPDFActivity"
             android:exported="false"
             android:screenOrientation="unspecified"
             android:theme="@style/AppTheme.NoActionBar" />

@@ -15,6 +15,7 @@ type ReaderOpenOptions = {
   readonly assetFingerprint: string
   readonly fileUri: string
   readonly title: string
+  readonly format?: 'epub' | 'pdf'
   readonly globalPreferences: ReaderPreferences
   readonly bookPreferences?: ReaderPreferences
   readonly navigationState: ReaderNavigationState
@@ -24,6 +25,7 @@ type ReaderOpenOptions = {
 }
 
 interface WovenleafReaderPlugin {
+  pdfCover(options: { fileUri: string }): Promise<{ jpeg: string }>
   open(options: ReaderOpenOptions): Promise<void>
   drainOutbox(): Promise<{ events: readonly NativeReaderEvent[] }>
   acknowledge(options: { ids: readonly string[] }): Promise<void>

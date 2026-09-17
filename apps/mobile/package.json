@@ -50,6 +50,7 @@
     "jeep-sqlite": "2.8.0",
     "jszip": "3.10.1",
     "lucide-react": "^1.33.0",
+    "pdf-lib": "1.17.1",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "sql.js": "1.11.0",

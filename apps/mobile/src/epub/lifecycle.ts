@@ -26,6 +26,7 @@ export type EpubAssetInventoryItem = {
   readonly editionId: string
   readonly title: string
   readonly originalName: string
+  readonly format: 'epub' | 'pdf'
   readonly expectedFingerprint: string
   readonly actualFingerprint?: string
   readonly relativePath: string
@@ -91,7 +92,7 @@ export type EpubRelinkResult = {
 export type EpubBackupContent = {
   readonly assetId: string
   readonly filename: string
-  readonly mediaType: 'application/epub+zip'
+  readonly mediaType: 'application/epub+zip' | 'application/pdf'
   readonly bytes: Uint8Array
 }
 
@@ -153,6 +154,7 @@ export class EpubAssetLifecycleService {
         editionId: readText(row, 'edition_id'),
         title,
         originalName: readText(row, 'original_name'),
+        format: asset.format === 'pdf' ? 'pdf' : 'epub',
         expectedFingerprint,
         ...(file.fingerprint ? { actualFingerprint: file.fingerprint } : {}),
         relativePath,
@@ -183,7 +185,7 @@ export class EpubAssetLifecycleService {
     const inventory = await this.inventory()
     const selectedIds = new Set(assetIds ?? inventory.items.filter(({ active }) => !active).map(({ assetId }) => assetId))
     const selected = inventory.items.filter(({ assetId }) => selectedIds.has(assetId))
-    if (selected.length !== selectedIds.size) throw new Error('One or more EPUB assets no longer exist in the catalog.')
+    if (selected.length !== selectedIds.size) throw new Error('One or more ebook assets no longer exist in the catalog.')
     const selections = uniqueItemsByPath(selected).map((item) => ({
       assetId: item.assetId,
       relativePath: item.relativePath,
@@ -210,10 +212,10 @@ export class EpubAssetLifecycleService {
     for (const selection of preview.selections) {
       const item = currentById.get(selection.assetId)
       if (!item || item.relativePath !== selection.relativePath) {
-        throw new Error('The EPUB cleanup preview is stale. Review storage again before removing files.')
+        throw new Error('The ebook cleanup preview is stale. Review storage again before removing files.')
       }
       if (item.actualFingerprint !== selection.actualFingerprint || item.actualByteSize !== selection.byteSize) {
-        throw new Error('An EPUB file changed after the cleanup preview. Nothing was removed.')
+        throw new Error('An ebook file changed after the cleanup preview. Nothing was removed.')
       }
     }
     for (const selection of preview.selections) await this.#managedStore.remove(selection.relativePath)
@@ -222,8 +224,8 @@ export class EpubAssetLifecycleService {
 
   async previewRelink(assetId: string, source: EpubImportSource): Promise<EpubRelinkPreview> {
     const row = await this.#rowForAsset(assetId)
-    const { inspectEpub } = await import('./inspect')
-    const inspection = await inspectEpub(source.bytes, {
+    const { inspectBook } = await import('./inspect-book')
+    const inspection = await inspectBook(source.bytes, {
       fileName: source.name,
       mediaType: source.mediaType,
     })
@@ -260,7 +262,7 @@ export class EpubAssetLifecycleService {
       evidence: match === 'exact-fingerprint'
         ? ['SHA-256 fingerprint is an exact match.', 'The existing Asset and Edition IDs will be retained.']
         : match === 'edition-metadata'
-          ? ['Package identifier, title, and creators match this edition.', 'The fingerprint changed, so this will be recorded as a reviewed EPUB revision.']
+          ? ['Package identifier, title, and creators match this edition.', 'The fingerprint changed, so this will be recorded as a reviewed ebook revision.']
           : ['The fingerprint does not match.', 'Package identity and normalized title/creator metadata do not prove this is the same edition.'],
       ...retained,
     }
@@ -273,14 +275,14 @@ export class EpubAssetLifecycleService {
       || checked.editionId !== preview.editionId
       || checked.match !== preview.match
     ) {
-      throw new Error('The selected EPUB changed after review. Choose it again before re-linking.')
+      throw new Error('The selected ebook changed after review. Choose it again before re-linking.')
     }
-    if (!checked.canRelink) throw new Error('This EPUB cannot be safely linked to the selected edition.')
+    if (!checked.canRelink) throw new Error('This ebook cannot be safely linked to the selected edition.')
 
     if (checked.match === 'exact-fingerprint') {
       const row = await this.#rowForAsset(checked.assetId)
       const asset = assetSchema.parse(JSON.parse(readText(row, 'asset_payload')))
-      const relativePath = `assets/epub/${checked.candidateFingerprint}.epub`
+      const relativePath = `assets/${asset.format}/${checked.candidateFingerprint}.${asset.format}`
       await this.#managedStore.replaceAtomically(relativePath, source.bytes)
       const restored = assetSchema.parse({
         ...asset,
@@ -319,12 +321,12 @@ export class EpubAssetLifecycleService {
     for (const item of inventory.items.filter(({ active, state }) => active && state === 'available')) {
       const bytes = await this.#managedStore.read(item.relativePath)
       if (!bytes || await sha256Hex(bytes) !== item.expectedFingerprint) {
-        throw new Error(`${item.title} changed while its EPUB backup was being built. Try again after reviewing storage.`)
+        throw new Error(`${item.title} changed while its ebook backup was being built. Try again after reviewing storage.`)
       }
       contents.push({
         assetId: item.assetId,
         filename: item.originalName,
-        mediaType: 'application/epub+zip',
+        mediaType: item.format === 'pdf' ? 'application/pdf' : 'application/epub+zip',
         bytes,
       })
     }
@@ -345,7 +347,7 @@ export class EpubAssetLifecycleService {
 
   async #rowForAsset(assetId: string): Promise<LifecycleRow> {
     const row = (await this.#rows()).find(({ content_asset_id }) => content_asset_id === assetId)
-    if (!row) throw new Error('This EPUB Asset is no longer available for re-linking.')
+    if (!row) throw new Error('This ebook Asset is no longer available for re-linking.')
     return row
   }
 
@@ -458,7 +460,7 @@ function activeAssetIdsFor(rows: readonly LifecycleRow[]): Set<string> {
 function managedPathFor(asset: Asset, fingerprint: string): string {
   return asset.location.kind === 'managed-file'
     ? asset.location.relativePath
-    : `assets/epub/${fingerprint}.epub`
+    : `assets/${asset.format}/${fingerprint}.${asset.format}`
 }
 
 function expectedByteSize(asset: Asset): number {
@@ -470,9 +472,9 @@ function expectedByteSize(asset: Asset): number {
 function libraryTitle(payload: string, fallbackName: string): string {
   try {
     const parsed = JSON.parse(payload) as { readonly title?: string }
-    return parsed.title?.trim() || fallbackName.replace(/\.epub$/i, '')
+    return parsed.title?.trim() || fallbackName.replace(/\.(?:epub|pdf)$/i, '')
   } catch {
-    return fallbackName.replace(/\.epub$/i, '')
+    return fallbackName.replace(/\.(?:epub|pdf)$/i, '')
   }
 }
 

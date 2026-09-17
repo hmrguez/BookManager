@@ -49,7 +49,7 @@ export class CapacitorManagedAssetStore implements ManagedAssetStore {
       if (error instanceof EpubImportError) throw error
       throw new EpubImportError(
         'storage-failed',
-        'The EPUB passed validation but could not be copied into private app storage. No library asset was added.',
+        'The book passed validation but could not be copied into private app storage. No library asset was added.',
         { cause: error },
       )
     }
@@ -85,7 +85,7 @@ export class CapacitorManagedAssetStore implements ManagedAssetStore {
       if (error instanceof EpubImportError) throw error
       throw new EpubImportError(
         'storage-failed',
-        'The replacement EPUB could not be committed to private storage. Library records were left unchanged.',
+        'The replacement book could not be committed to private storage. Library records were left unchanged.',
         { cause: error },
       )
     }

@@ -177,7 +177,7 @@ function addNormalizationIssue(context: z.RefinementCtx, message: string): void 
 export const readingEventSourceSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('local'),
-    method: z.enum(['manual', 'epub-reader', 'audio-player', 'quick-capture', 'automation']),
+    method: z.enum(['manual', 'epub-reader', 'pdf-reader', 'audio-player', 'quick-capture', 'automation']),
   }),
   z.object({ kind: z.literal('migration'), migrationKey: z.string().min(1) }),
   z.object({

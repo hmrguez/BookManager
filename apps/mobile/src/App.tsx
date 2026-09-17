@@ -1,3 +1,4 @@
+import { isPdfBytes } from './epub/inspect-book'
 import { purchases, startPurchases } from './purchases/runtime'
 import { LibraryUpgradeRequired } from './purchases/model'
 import { UpgradeDialog } from './purchases/UpgradeDialog'
@@ -731,10 +732,10 @@ function App() {
       const targetBook = targetBookId ? books.find(({ id }) => id === targetBookId) : undefined
       setToast({
         message: targetBook && results.length === 1
-          ? `EPUB attached to ${targetBook.title}`
+          ? `Book attached to ${targetBook.title}`
           : results.length === 1
           ? resultToastMessage(results[0])
-          : `${changedCount} EPUB${changedCount === 1 ? '' : 's'} added or revised; ${duplicateCount} already managed`,
+          : `${changedCount} book${changedCount === 1 ? '' : 's'} added or revised; ${duplicateCount} already managed`,
       })
     } catch (error) {
       const message = epubImportErrorMessage(error)
@@ -750,7 +751,9 @@ function App() {
   const routeIncomingBookFile = async (url: string) => {
     try {
       const source = await audiobookSourceFromIncomingUrl(url)
-      if (isZipContainer(source.bytes)) {
+      if (isPdfBytes(source.bytes)) {
+        await importEpubSources([async () => ({ ...source, name: /\.pdf$/i.test(source.name) ? source.name : `${source.name}.pdf`, mediaType: 'application/pdf' })])
+      } else if (isZipContainer(source.bytes)) {
         const name = source.name.toLocaleLowerCase().endsWith('.epub') ? source.name : `${source.name}.epub`
         await importEpubSources([async () => ({
           name,
@@ -781,8 +784,8 @@ function App() {
       const book = books.find(({ id }) => id === bookId)
       setReaderRecovery({
         bookId,
-        title: book?.title ?? 'EPUB edition',
-        message: error instanceof Error ? error.message : 'This EPUB could not be opened.',
+        title: book?.title ?? 'Book edition',
+        message: error instanceof Error ? error.message : 'This book could not be opened.',
         canRetry: !(error instanceof EpubReaderError)
           || !['not-found', 'unavailable', 'unsupported-content'].includes(error.code),
       })
@@ -822,7 +825,7 @@ function App() {
     if (!incomingDeliveryGuardRef.current.accept(`url:${url}`)) return
     showSettings()
     const explicitCsv = /\.csv(?:[?#]|$)/i.test(url)
-    const explicitBookMedia = /\.(?:epub|m4b|mp3)(?:[?#]|$)/i.test(url)
+    const explicitBookMedia = /\.(?:epub|pdf|m4b|mp3)(?:[?#]|$)/i.test(url)
     if (!explicitBookMedia) {
       void goodreadsCsvFromIncomingUrl(url)
         .then(({ name, content }) => prepareImportPreview(name, content))
@@ -842,6 +845,17 @@ function App() {
   })
 
   const onSharedFiles = useEffectEvent((files: readonly SharedFile[]) => {
+    const books = files.filter((file) => /\.(epub|pdf)$/i.test(file.name) || ['application/pdf', 'application/epub+zip'].includes(file.mimeType))
+    if (books.length) {
+      const incoming = books.filter((file) => incomingDeliveryGuardRef.current.accept(`share:${file.uri}:${file.name}:${file.mimeType}`))
+      showSettings()
+      void importEpubSources(incoming.map((file) => async () => {
+        const url = file.uri.startsWith('/') ? `file://${file.uri}` : file.uri
+        const source = await audiobookSourceFromIncomingUrl(url)
+        return { ...source, name: file.name, mediaType: file.mimeType }
+      }))
+      return
+    }
     const file = files.find(looksLikeSharedCsv)
     if (!file) return
     if (!incomingDeliveryGuardRef.current.accept(`share:${file.uri}:${file.name}:${file.mimeType}`)) return
@@ -934,8 +948,8 @@ function App() {
       setToast({
         message: format === 'archive'
           ? assetContents.length > 0
-            ? `Portable archive verified with ${assetContents.length} EPUB file${assetContents.length === 1 ? '' : 's'}`
-            : 'Portable archive verified; EPUB bytes are excluded'
+            ? `Portable archive verified with ${assetContents.length} book file${assetContents.length === 1 ? '' : 's'}`
+            : 'Portable archive verified; book files are excluded'
           : `${format === 'csv' ? 'CSV' : 'Reading journal'} saved as a readable, lossy view`,
       })
     } catch (error) {
@@ -1688,8 +1702,8 @@ function App() {
 
 function resultToastMessage(result: EpubImportResult): string {
   if (result.outcome === 'duplicate') return `${result.title} is already safely managed`
-  if (result.outcome === 'revision') return `Revised EPUB linked to ${result.title}`
-  return `${result.title} added from a verified EPUB`
+  if (result.outcome === 'revision') return `Revised book linked to ${result.title}`
+  return `${result.title} added from a verified book file`
 }
 
 function audiobookResultToastMessage(result: { readonly outcome: string; readonly title: string }): string {

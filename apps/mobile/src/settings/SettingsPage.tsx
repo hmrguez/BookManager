@@ -174,7 +174,7 @@ export function SettingsPage({
 
   const offerEpubFiles = (files: FileList | readonly File[]) => {
     const epubs = Array.from(files).filter((file) =>
-      file.name.toLocaleLowerCase().endsWith('.epub') || file.type === 'application/epub+zip',
+      /\.(epub|pdf)$/i.test(file.name) || ['application/epub+zip', 'application/pdf'].includes(file.type),
     )
     if (epubs.length > 0) onImportEpubFiles(epubs)
   }
@@ -224,8 +224,6 @@ export function SettingsPage({
             <ChevronRight aria-hidden="true" />
           </button>
         </section>}
-        {FEATURES.advancedFileManagement && (
-          <>
         <section
           className={tw(`settings-card epub-intake${epubDropActive ? ' is-dragging' : ''}`)}
           onDragEnter={(event) => {
@@ -240,19 +238,19 @@ export function SettingsPage({
         >
           <div className={tw('settings-card__icon')}><BookOpen aria-hidden="true" /></div>
           <div className={tw('settings-card__heading')}>
-            <span>Books on this device</span><h2>Bring in a DRM-free EPUB.</h2>
-            <p>The original package is checked offline, fingerprinted, and copied into private managed storage before it joins your library.</p>
+            <span>Books on this device</span><h2>Bring in an EPUB or PDF.</h2>
+            <p>Add an unprotected book from your device. A private copy keeps it available offline.</p>
           </div>
           <label className={tw(`settings-action import-file-picker epub-picker${epubBusy ? ' is-busy' : ''}`)}>
             <FileUp aria-hidden="true" />
             <span>
-              <strong>{epubBusy ? 'Checking the package…' : 'Choose EPUB files'}</strong>
-              <small>Native file picker · EPUB 2 and EPUB 3</small>
+              <strong>{epubBusy ? 'Checking the book…' : 'Choose book files'}</strong>
+              <small>EPUB and PDF · up to 256 MB each</small>
             </span>
             <ChevronRight aria-hidden="true" />
             <input
               type="file"
-              accept=".epub,application/epub+zip"
+              accept=".epub,.pdf,application/epub+zip,application/pdf"
               multiple
               disabled={epubBusy}
               onChange={(event) => {
@@ -263,12 +261,12 @@ export function SettingsPage({
           </label>
           <label className={tw(`settings-action import-file-picker epub-folder-picker${epubBusy ? ' is-busy' : ''}`)}>
             <FolderOpen aria-hidden="true" />
-            <span><strong>Choose a folder</strong><small>Imports only the EPUB files inside · where supported</small></span>
+            <span><strong>Choose a folder</strong><small>Imports EPUB and PDF files inside · where supported</small></span>
             <ChevronRight aria-hidden="true" />
             <input
               ref={(node) => node?.setAttribute('webkitdirectory', '')}
               type="file"
-              accept=".epub,application/epub+zip"
+              accept=".epub,.pdf,application/epub+zip,application/pdf"
               multiple
               disabled={epubBusy}
               onChange={(event) => {
@@ -278,7 +276,7 @@ export function SettingsPage({
             />
           </label>
           <div className={tw('epub-drop-note')} aria-hidden="true">
-            <span>On the web, you can also drop EPUB files here.</span>
+            <span>On the web, you can also drop EPUB and PDF files here.</span>
           </div>
           {(epubImport.progress || epubImport.result || epubImport.error) && (
             <div
@@ -315,6 +313,8 @@ export function SettingsPage({
           onConfirmRelink={onConfirmEpubRelink}
         />
 
+        {FEATURES.advancedFileManagement && (
+          <>
         <section
           className={tw(`settings-card audiobook-intake${audiobookDropActive ? ' is-dragging' : ''}`)}
           onDragEnter={(event) => {
@@ -694,7 +694,7 @@ export function SettingsPage({
             onClick={() => setIncludeExportEpubFiles((value) => !value)}
           >
             <span>
-              <strong>DRM-free EPUB files</strong>
+              <strong>EPUB and PDF files</strong>
               <small>
                 {includeExportEpubFiles
                   ? `${epubStorage.inventory?.items.filter(({ active, state }) => active && state === 'available').length ?? 0} verified current copies will be embedded; the archive may contain copyrighted book files.`
@@ -733,7 +733,7 @@ export function SettingsPage({
           <div className={tw('settings-card__icon')}><RotateCcw aria-hidden="true" /></div>
           <div className={tw('settings-card__heading')}>
             <span>Backup & restore · Three-point rotation</span><h2>A quiet return point.</h2>
-            <p>Wovenleaf checks the whole backup in a separate staging area, keeps the current library as rollback, and only then swaps the catalog. Local recovery points keep history and notes, but never EPUB bytes.</p>
+            <p>Wovenleaf checks the whole backup in a separate staging area, keeps the current library as rollback, and only then swaps the catalog. Local recovery points keep history and notes, but never book files.</p>
           </div>
 
           {recovery.snapshots.length > 0 && (

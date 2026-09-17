@@ -52,7 +52,7 @@ import { readUpNextState, replaceUpNextState } from './up-next-repository'
 
 export const PORTABLE_ARCHIVE_FORMAT = 'wovenleaf-portable-library'
 export const PORTABLE_ARCHIVE_FORMAT_VERSION = 1
-export const PORTABLE_ARCHIVE_SCHEMA_VERSION = 7
+export const PORTABLE_ARCHIVE_SCHEMA_VERSION = 8
 
 const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/)
 const archiveEntryDescriptorSchema = z.object({
@@ -122,7 +122,7 @@ const portableEpubImportSchema = z.object({
   contentHash: sha256Schema,
   packageIdentifier: z.string().min(1),
   metadataKey: z.string().min(1),
-  packageVersion: z.enum(['2', '3']),
+  packageVersion: z.enum(['2', '3', 'pdf']),
   originalName: z.string().min(1),
   bookId: z.string().min(1),
   editionId: z.string().min(1),
@@ -344,7 +344,7 @@ async function restoreIncludedEpubAssets(
   try {
     for (const asset of inspection.catalog.assets) {
       const content = contentById.get(asset.id)
-      if (asset.format !== 'epub' || asset.mediaType !== 'application/epub+zip') {
+      if (!['epub', 'pdf'].includes(asset.format)) {
         assets.push(asset)
         continue
       }
@@ -359,10 +359,10 @@ async function restoreIncludedEpubAssets(
         }
         throw new PortableArchiveIntegrityError(
           `assets/${encodeURIComponent(asset.id)}`,
-          'EPUB bytes do not match the catalog fingerprint',
+          'Book bytes do not match the catalog fingerprint',
         )
       }
-      const relativePath = `assets/epub/${fingerprint}.epub`
+      const relativePath = `assets/${asset.format}/${fingerprint}.${asset.format}`
       const current = await store.read(relativePath)
       if (!content && (!current || await sha256Hex(current) !== fingerprint)) {
         assets.push(asset)

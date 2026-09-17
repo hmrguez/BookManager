@@ -4,6 +4,7 @@ import ReadiumNavigator
 import ReadiumShared
 import ReadiumStreamer
 import UIKit
+import PDFKit
 
 final class WovenleafBridgeViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
@@ -19,6 +20,7 @@ final class WovenleafReaderPlugin: CAPPlugin, CAPBridgedPlugin {
     let identifier = "WovenleafReaderPlugin"
     let jsName = "WovenleafReader"
     let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "pdfCover", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "open", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "drainOutbox", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "acknowledge", returnType: CAPPluginReturnPromise),
@@ -49,7 +51,7 @@ final class WovenleafReaderPlugin: CAPPlugin, CAPBridgedPlugin {
             return
         }
         guard FileManager.default.fileExists(atPath: validatedURL.path) else {
-            call.reject("The managed EPUB file is missing.", "MISSING_ASSET")
+            call.reject("The managed book file is missing.", "MISSING_ASSET")
             return
         }
 
@@ -72,8 +74,15 @@ final class WovenleafReaderPlugin: CAPPlugin, CAPBridgedPlugin {
                     call.reject("The reader host is unavailable.", "OPEN_FAILED")
                     return
                 }
+                if call.getString("format") == "pdf" {
+                    let reader = try WovenleafPDFViewController(url: validatedURL, context: context, initialLocator: call.getObject("initialLocator"))
+                    reader.modalPresentationStyle = .fullScreen
+                    presenter.present(reader, animated: true)
+                    call.resolve()
+                    return
+                }
                 guard let readiumURL = FileURL(url: validatedURL) else {
-                    call.reject("The managed EPUB URL is invalid.", "INVALID_CAPABILITY")
+                    call.reject("The managed book URL is invalid.", "INVALID_CAPABILITY")
                     return
                 }
                 let asset = try await readium.assetRetriever.retrieve(url: readiumURL).get()
@@ -99,8 +108,24 @@ final class WovenleafReaderPlugin: CAPPlugin, CAPBridgedPlugin {
                 presenter.present(navigation, animated: true)
                 call.resolve()
             } catch {
-                call.reject("Readium could not open this EPUB.", "CORRUPT_ASSET", error)
+                call.reject("The reader could not open this book.", "CORRUPT_ASSET", error)
             }
+        }
+    }
+
+    @objc func pdfCover(_ call: CAPPluginCall) {
+        guard let raw = call.getString("fileUri"), let url = URL(string: raw), let file = validateManagedURL(url) else {
+            call.reject("The managed PDF URL is invalid.", "INVALID_CAPABILITY")
+            return
+        }
+        DispatchQueue.global(qos: .userInitiated).async {
+            guard let document = PDFDocument(url: file), !document.isEncrypted,
+                  let page = document.page(at: 0),
+                  let jpeg = page.thumbnail(of: CGSize(width: 480, height: 640), for: .cropBox).jpegData(compressionQuality: 0.82) else {
+                call.reject("This PDF could not be rendered. Choose an unprotected, readable PDF.", "CORRUPT_ASSET")
+                return
+            }
+            call.resolve(["jpeg": jpeg.base64EncodedString()])
         }
     }
 

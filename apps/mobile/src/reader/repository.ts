@@ -94,6 +94,7 @@ export class EpubReaderRepository {
     )
     if (!row) return undefined
     const payload = JSON.parse(readText(row, 'asset_payload')) as {
+      readonly format?: string
       readonly location?: { readonly kind?: string; readonly relativePath?: string }
     }
     if (payload.location?.kind !== 'managed-file' || !payload.location.relativePath) return undefined
@@ -109,6 +110,7 @@ export class EpubReaderRepository {
       assetId: readText(row, 'content_asset_id'),
       assetFingerprint: readText(row, 'content_hash'),
       relativePath: payload.location.relativePath,
+      format: payload.format === 'pdf' ? 'pdf' : 'epub',
       title: row.book_payload === null
         ? readText(row, 'original_name').replace(/\.epub$/i, '')
         : libraryBookSchema.parse(JSON.parse(readText(row, 'book_payload'))).title,
@@ -127,8 +129,20 @@ export class EpubReaderRepository {
        LIMIT 1`,
       [capability.bookId, capability.assetId],
     )
-    if (!row || row.locator_json === null) return undefined
+    if (!row || row.locator_json === null) {
+      // Portable archives retain the library's physical PDF page, while native
+      // checkpoints are device-local caches. Rebuild resume after a clean restore.
+      if (capability.format !== 'pdf') return undefined
+      const book = (await readLibraryBooks(this.#database)).find(({ id }) => id === capability.bookId)
+      if (!book?.currentPage || !book.pageCount) return undefined
+      const page = Math.min(book.currentPage, book.pageCount)
+      return readiumLocatorSchema.parse({
+        href: 'document.pdf', type: 'application/pdf',
+        locations: { position: page, pageCount: book.pageCount, totalProgression: page / book.pageCount },
+      })
+    }
     const locator = readiumLocatorSchema.parse(JSON.parse(row.locator_json))
+    if ((locator.type === 'application/pdf') !== (capability.format === 'pdf')) return undefined
     return readText(row, 'asset_fingerprint') === capability.assetFingerprint
       ? locator
       : fallbackLocatorForReplacement(locator)
@@ -521,6 +535,8 @@ export class EpubReaderRepository {
           ...book,
           shelf: book.shelf === 'finished' ? 'finished' : 'reading',
           progress: book.shelf === 'finished' ? 100 : progress,
+          ...(locator?.type === 'application/pdf' && locator.locations.position
+            ? { currentPage: locator.locations.position, pageCount: locator.locations.pageCount ?? book.pageCount } : {}),
           startedAt: book.startedAt ?? event.emittedAt,
           lastUpdatedAt: event.emittedAt,
         })
@@ -569,7 +585,7 @@ function toReadingEvent(
     id,
     editionId: editionIdSchema.parse(event.editionId),
     assetId: assetIdSchema.parse(event.assetId),
-    source: { kind: 'local' as const, method: 'epub-reader' as const },
+    source: { kind: 'local' as const, method: event.locator?.type === 'application/pdf' ? 'pdf-reader' as const : 'epub-reader' as const },
     deviceId: readingDeviceIdSchema.parse(`reading-device:${event.platform}:readium`),
     observedAt: event.emittedAt,
     effectiveAt: event.emittedAt,
@@ -596,6 +612,17 @@ function toReadingEvent(
 
 function toReadingPosition(event: ReadingNativeReaderEvent): ReadingPosition {
   const locator = readiumLocatorSchema.parse(event.locator)
+  if (locator.type === 'application/pdf') {
+    const page = locator.locations.position ?? 1
+    const totalPages = locator.locations.pageCount
+    return readingPositionSchema.parse({
+      locator: { kind: 'page', page },
+      ...(totalPages ? { normalizedProgress: page / totalPages } : {}),
+      normalization: totalPages
+        ? { kind: 'edition-page-count', totalPages, confidence: 1 }
+        : { kind: 'none', confidence: 0, reason: 'PDF page count unavailable' },
+    })
+  }
   // Completion describes the visible page; the canonical resume locator still
   // describes its beginning and must be stored without changing its anchor.
   const progression = event.reachedEnd ? 1 : locator.locations.totalProgression

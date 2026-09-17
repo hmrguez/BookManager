@@ -17,11 +17,11 @@ export class EpubReaderService {
 
   async open(bookId: string): Promise<void> {
     if (!Capacitor.isNativePlatform()) {
-      throw new EpubReaderError('unavailable', 'EPUB reading is available in the iOS and Android app.')
+      throw new EpubReaderError('unavailable', 'Reading is available in the iOS and Android app.')
     }
     const capability = await this.#repository.capabilityForBook(bookId)
     if (!capability) {
-      throw new EpubReaderError('not-found', 'No readable EPUB is attached to this book.')
+      throw new EpubReaderError('not-found', 'No readable ebook is attached to this book.')
     }
     const unsupportedMessage = capability.compatibility
       ? epubUnsupportedMessage(capability.compatibility)
@@ -34,7 +34,7 @@ export class EpubReaderService {
     } catch (error) {
       throw new EpubReaderError(
         'missing-asset',
-        'The managed EPUB file is missing. Re-import this edition to restore reading; notes and history were kept.',
+        'The managed book file is missing. Re-import this edition to restore reading; notes and history were kept.',
         { cause: error },
       )
     }
@@ -61,8 +61,8 @@ export class EpubReaderService {
       throw new EpubReaderError(
         code === 'CORRUPT_ASSET' ? 'corrupt-asset' : 'open-failed',
         code === 'CORRUPT_ASSET'
-          ? 'This EPUB can no longer be opened safely. Re-import the edition; notes and reading history were kept.'
-          : 'Wovenleaf could not open this EPUB. The managed file, notes, and reading history were left unchanged.',
+          ? 'This book can no longer be opened safely. Re-import the edition; notes and reading history were kept.'
+          : 'Wovenleaf could not open this book. The managed file, notes, and reading history were left unchanged.',
         { cause: error },
       )
     }

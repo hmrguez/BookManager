@@ -34,11 +34,12 @@ import { applyEmbeddedCover } from '../covers/embedded-cover'
 import type { SqlDatabase, SqlRow } from '../storage/database'
 import { readText } from '../storage/database'
 import { readLibraryBooks, writeLibraryBook } from '../storage/library-repository'
-import type { EpubInspection, EpubImportResult } from './model'
+import type { EpubImportResult } from './model'
+import { ebookFormat, type EbookInspection } from './inspect-book'
 
 export type EpubCommitInput = {
   readonly originalName: string
-  readonly inspection: EpubInspection
+  readonly inspection: EbookInspection
   readonly contentRelativePath: string
   readonly coverRelativePath?: string
   readonly targetBookId?: string
@@ -86,6 +87,18 @@ export class EpubImportRepository {
     return row ? duplicateResult(row) : undefined
   }
 
+  async restoreManagedAsset(assetId: string, relativePath: string, inspection: EbookInspection): Promise<void> {
+    await this.#database.transaction(async (database) => {
+      const [row] = await database.query('SELECT payload_json FROM assets WHERE id = ?', [assetId])
+      if (!row) throw new Error('The managed book no longer exists.')
+      const asset = assetSchema.parse(JSON.parse(readText(row, 'payload_json')))
+      const restored = assetSchema.parse({ ...asset, location: {
+        kind: 'managed-file', relativePath, sha256: inspection.contentHash, byteSize: inspection.byteSize,
+      } })
+      await database.run('UPDATE assets SET payload_json = ? WHERE id = ?', [JSON.stringify(restored), assetId])
+    })
+  }
+
   async commit(input: EpubCommitInput): Promise<EpubImportResult> {
     return this.#database.transaction(async (database) => {
       const [duplicate] = await database.query<EpubImportRow>(
@@ -96,6 +109,8 @@ export class EpubImportRepository {
       if (duplicate) return duplicateResult(duplicate)
 
       const importedAt = this.#now().toISOString()
+      const format = ebookFormat(input.inspection)
+      const sourceName = format === 'pdf' ? 'PDF document' : 'EPUB package'
       const metadataKey = createMetadataKey(input.inspection)
       const association = await findAssociation(database, input.inspection, metadataKey, input.targetBookId)
       const workId = association.edition?.workId
@@ -137,6 +152,7 @@ export class EpubImportRepository {
           id: editionId,
           workId,
           medium: 'ebook',
+          ...(input.inspection.packageVersion === 'pdf' ? { pageCount: resolvedSourceField(targetEdition, 'edition.pageCount', input.inspection.pageCount, source.claimsByField, sourceRecordId, importedAt) } : {}),
           title: resolvedSourceField(targetEdition, 'edition.title', input.inspection.title, source.claimsByField, sourceRecordId, importedAt),
           language: resolvedSourceField(targetEdition, 'edition.language', input.inspection.language, source.claimsByField, sourceRecordId, importedAt),
           ...(input.inspection.publisher
@@ -158,8 +174,8 @@ export class EpubImportRepository {
         id: contentAssetId,
         editionId,
         role: 'content',
-        format: 'epub',
-        mediaType: 'application/epub+zip',
+        format,
+        mediaType: format === 'pdf' ? 'application/pdf' : 'application/epub+zip',
         location: {
           kind: 'managed-file',
           relativePath: input.contentRelativePath,
@@ -190,6 +206,14 @@ export class EpubImportRepository {
       if (coverAssetId && association.edition && association.edition.coverAssetId !== coverAssetId) {
         await setEditionCover(database, association.edition, coverAssetId, importedAt)
       }
+      if (association.edition && input.inspection.packageVersion === 'pdf') {
+        const current = await readEdition(database, editionId)
+        const updated = editionSchema.parse({ ...current,
+          pageCount: resolvedSourceField(targetEdition, 'edition.pageCount', input.inspection.pageCount, source.claimsByField, sourceRecordId, importedAt),
+          updatedAt: importedAt,
+        })
+        await database.run('UPDATE editions SET updated_at = ?, payload_json = ? WHERE id = ?', [importedAt, JSON.stringify(updated), editionId])
+      }
 
       await insertIdentifiers(database, input.inspection, editionId, sourceRecordId, importedAt, this.#createId)
       await ensureOwnership(database, editionId, sourceRecordId, importedAt, this.#createId)
@@ -197,8 +221,9 @@ export class EpubImportRepository {
       const book = libraryBookSchema.parse(association.book
         ? {
             ...association.book,
-            format: 'EPUB',
-            sourceNames: distinct([...(association.book.sourceNames ?? []), 'EPUB package']),
+            format: format.toUpperCase(),
+            ...(input.inspection.packageVersion === 'pdf' ? { pageCount: input.inspection.pageCount, currentPage: 0 } : {}),
+            sourceNames: distinct([...(association.book.sourceNames ?? []), sourceName]),
             identifiers: distinct([...(association.book.identifiers ?? []), ...input.inspection.identifiers.map(({ normalizedValue }) => normalizedValue)]),
             lastUpdatedAt: importedAt,
           }
@@ -207,9 +232,9 @@ export class EpubImportRepository {
             title: input.inspection.title,
             authors: [...input.inspection.creators],
             identifiers: input.inspection.identifiers.map(({ normalizedValue }) => normalizedValue),
-            sourceNames: ['EPUB package'],
-            format: 'EPUB',
-            pageCount: 0,
+            sourceNames: [sourceName],
+            format: format.toUpperCase(),
+            pageCount: input.inspection.packageVersion === 'pdf' ? input.inspection.pageCount : 0,
             shelf: 'tbr',
             progress: 0,
             currentPage: 0,
@@ -241,7 +266,7 @@ export class EpubImportRepository {
           packagePath: input.inspection.packagePath,
           entryCount: input.inspection.entryCount,
           scriptedContentDiscovered: input.inspection.containsScriptedContent,
-          compatibility: input.inspection.compatibility,
+          ...(input.inspection.compatibility ? { compatibility: input.inspection.compatibility } : {}),
           replacedAssetId: association.previousImport?.content_asset_id,
         },
       }
@@ -288,7 +313,7 @@ function duplicateResult(row: EpubImportRow): EpubImportResult {
   return {
     importId: readText(row, 'id'),
     outcome: 'duplicate',
-    title: readText(row, 'original_name').replace(/\.epub$/i, ''),
+    title: readText(row, 'original_name').replace(/\.(?:epub|pdf)$/i, ''),
     bookId: readText(row, 'book_id'),
     editionId: readText(row, 'edition_id'),
     assetId: readText(row, 'content_asset_id'),
@@ -300,13 +325,13 @@ function duplicateResult(row: EpubImportRow): EpubImportResult {
 
 async function findAssociation(
   database: SqlDatabase,
-  inspection: EpubInspection,
+  inspection: EbookInspection,
   metadataKey: string,
   targetBookId?: string,
 ): Promise<Association> {
   if (targetBookId) {
     const book = (await readLibraryBooks(database)).find(({ id }) => id === targetBookId)
-    if (!book) throw new Error(`Cannot attach EPUB to missing library book ${targetBookId}`)
+    if (!book) throw new Error(`Cannot attach ebook to missing library book ${targetBookId}`)
     const [previousImport] = await database.query<EpubImportRow>(
       `SELECT id, content_hash, original_name, book_id, edition_id, content_asset_id, imported_at
        FROM epub_imports WHERE book_id = ?
@@ -385,14 +410,14 @@ function createSourceRecord(input: {
   readonly sourceRecordId: ReturnType<typeof sourceRecordIdSchema.parse>
   readonly targetWork: MetadataTarget
   readonly targetEdition: MetadataTarget
-  readonly inspection: EpubInspection
+  readonly inspection: EbookInspection
   readonly originalName: string
   readonly importedAt: string
   readonly createId: (prefix: string) => string
 }) {
   const claims: SourceClaim[] = []
   const claimsByField = new Map<string, SourceClaim>()
-  const addClaim = (target: MetadataTarget, field: MetadataField, value: string) => {
+  const addClaim = (target: MetadataTarget, field: MetadataField, value: string | number) => {
     const claim = sourceRecordSchema.shape.claims.element.parse({
       id: sourceClaimIdSchema.parse(input.createId('source-claim')),
       target,
@@ -410,9 +435,11 @@ function createSourceRecord(input: {
   if (input.inspection.publisher) addClaim(input.targetEdition, 'edition.publisher', input.inspection.publisher)
   if (input.inspection.publicationDate) addClaim(input.targetEdition, 'edition.publicationDate', input.inspection.publicationDate)
 
+  if (input.inspection.packageVersion === 'pdf') addClaim(input.targetEdition, 'edition.pageCount', input.inspection.pageCount)
+
   const record = sourceRecordSchema.parse({
     id: input.sourceRecordId,
-    source: { kind: 'file-import', name: 'EPUB package' },
+    source: { kind: 'file-import', name: ebookFormat(input.inspection) === 'pdf' ? 'PDF document' : 'EPUB package' },
     externalKey: `${input.inspection.packageIdentifier}:${input.inspection.contentHash}`,
     observedAt: input.importedAt,
     importedAt: input.importedAt,
@@ -430,7 +457,7 @@ function createSourceRecord(input: {
       packagePath: input.inspection.packagePath,
       creators: [...input.inspection.creators],
       containsScriptedContent: input.inspection.containsScriptedContent,
-      compatibility: input.inspection.compatibility,
+      ...(input.inspection.compatibility ? { compatibility: input.inspection.compatibility } : {}),
     },
   })
   return { record, claimsByField }
@@ -439,7 +466,7 @@ function createSourceRecord(input: {
 function resolvedSourceField(
   target: MetadataTarget,
   field: MetadataField,
-  value: string,
+  value: string | number,
   claims: ReadonlyMap<string, SourceClaim>,
   sourceRecordId: ReturnType<typeof sourceRecordIdSchema.parse>,
   observedAt: string,
@@ -502,7 +529,7 @@ async function insertCreators(
 
 async function insertIdentifiers(
   database: SqlDatabase,
-  inspection: EpubInspection,
+  inspection: EbookInspection,
   editionId: ReturnType<typeof editionIdSchema.parse>,
   sourceRecordId: ReturnType<typeof sourceRecordIdSchema.parse>,
   importedAt: string,
@@ -703,7 +730,7 @@ function claimKey(target: MetadataTarget, field: MetadataField): string {
   return `${target.type}:${target.id}:${field}`
 }
 
-function createMetadataKey(inspection: EpubInspection): string {
+function createMetadataKey(inspection: EbookInspection): string {
   return [inspection.title, ...inspection.creators]
     .join('|')
     .normalize('NFKC')

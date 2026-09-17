@@ -18,7 +18,7 @@
 	<array>
 		<dict>
 			<key>CFBundleTypeName</key>
-			<string>EPUB publication</string>
+			<string>EPUB or PDF book</string>
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
 			<key>LSHandlerRank</key>
@@ -26,6 +26,7 @@
 			<key>LSItemContentTypes</key>
 			<array>
 				<string>org.idpf.epub-container</string>
+				<string>com.adobe.pdf</string>
 			</array>
 		</dict>
 		<dict>

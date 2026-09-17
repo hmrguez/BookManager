@@ -51,13 +51,13 @@ export function EpubStorageCard({
     <section className={tw('settings-card epub-storage-card')}>
       <div className={tw('settings-card__icon')}><HardDrive aria-hidden="true" /></div>
       <div className={tw('settings-card__heading')}>
-        <span>EPUB storage · Managed copies</span><h2>Files can leave. Your reading stays.</h2>
+        <span>Book storage · Managed copies</span><h2>Files can leave. Your reading stays.</h2>
         <p>Wovenleaf verifies each private copy against its SHA-256 fingerprint. Removing bytes never removes the Edition, progress, bookmarks, or notes.</p>
       </div>
 
       {inventory ? (
         <>
-          <dl className={tw('epub-storage-tally')} aria-label="EPUB storage use">
+          <dl className={tw('epub-storage-tally')} aria-label="Book storage use">
             <div><dt>On device</dt><dd>{formatBytes(inventory.totalManagedBytes)}</dd></div>
             <div><dt>Current copies</dt><dd>{formatBytes(inventory.activeManagedBytes)}</dd></div>
             <div><dt>Safe to review</dt><dd>{formatBytes(inventory.reclaimableBytes)}</dd></div>
@@ -74,7 +74,7 @@ export function EpubStorageCard({
           </div>
 
           {inventory.items.length > 0 ? (
-            <div className={tw('epub-asset-ledger')} role="region" aria-label="Managed EPUB files">
+            <div className={tw('epub-asset-ledger')} role="region" aria-label="Managed book files">
               <header>
                 <span>Asset ledger</span>
                 <button type="button" disabled={state.busy} onClick={onRefresh}>
@@ -100,7 +100,7 @@ export function EpubStorageCard({
                         <Link2 aria-hidden="true" /> Choose file
                         <input
                           type="file"
-                          accept=".epub,application/epub+zip"
+                          accept=".epub,.pdf,application/epub+zip,application/pdf"
                           disabled={state.busy}
                           onChange={(event) => {
                             const file = event.currentTarget.files?.[0]
@@ -115,7 +115,7 @@ export function EpubStorageCard({
               ))}
             </div>
           ) : (
-            <p className={tw('epub-storage-empty')}>No managed EPUB copies yet. Imported files will appear here with their verified storage use.</p>
+            <p className={tw('epub-storage-empty')}>No managed book copies yet. Imported files will appear here with their verified storage use.</p>
           )}
 
           {obsoleteAssetIds.length > 0 && !state.cleanupPreview && !state.relinkPreview && (
@@ -134,7 +134,7 @@ export function EpubStorageCard({
       ) : (
         <button className={tw('epub-storage-load')} type="button" disabled={state.busy} onClick={onRefresh}>
           <RotateCcw aria-hidden="true" />
-          {state.busy ? 'Verifying managed copies…' : 'Review EPUB storage'}
+          {state.busy ? 'Verifying managed copies…' : 'Review Book storage'}
         </button>
       )}
 

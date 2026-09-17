@@ -377,7 +377,7 @@ function SimpleBookDetail({
   const [pageCount, setPageCount] = useState(book.pageCount ? String(book.pageCount) : '')
   const [confirmRemove, setConfirmRemove] = useState(false)
   const [overwriteCover, setOverwriteCover] = useState(false)
-  const hasReadableFile = ['EPUB', 'AUDIOBOOK'].includes(book.format?.toLocaleUpperCase() ?? '')
+  const hasReadableFile = ['EPUB', 'PDF', 'AUDIOBOOK'].includes(book.format?.toLocaleUpperCase() ?? '')
   const epubResult = epubImport.result?.bookId === book.id ? epubImport.result : undefined
   const audiobookResult = audiobookImport.result?.bookId === book.id ? audiobookImport.result : undefined
 
@@ -415,11 +415,11 @@ function SimpleBookDetail({
         <div className={tw('simple-attachments__actions')}>
           <label className={tw(epubBusy ? 'is-busy' : '')}>
             <FileText aria-hidden="true" />
-            <span><strong>{epubBusy ? 'Attaching EPUB…' : 'Attach EPUB'}</strong><small>Choose one .epub file</small></span>
+            <span><strong>{epubBusy ? 'Attaching book…' : 'Attach book'}</strong><small>Choose an EPUB or PDF</small></span>
             <ChevronRight aria-hidden="true" />
             <input
               type="file"
-              accept=".epub,application/epub+zip"
+              accept=".epub,.pdf,application/epub+zip,application/pdf"
               disabled={epubBusy}
               onChange={(event) => {
                 if (event.currentTarget.files?.length) onAttachEpub(Array.from(event.currentTarget.files), overwriteCover)
@@ -454,7 +454,7 @@ function SimpleBookDetail({
             busy={epubBusy}
             error={epubImport.error}
             complete={Boolean(epubResult)}
-            detail={epubImport.error ?? epubImport.progress?.detail ?? (epubResult ? 'EPUB attached and ready to read.' : '')}
+            detail={epubImport.error ?? epubImport.progress?.detail ?? (epubResult ? 'Book attached and ready to read.' : '')}
           />
         )}
         {(audiobookBusy || audiobookResult || audiobookImport.error) && (
@@ -791,7 +791,7 @@ function ReadingPanel({
           <span><strong>{selectedEdition.shortLabel}</strong>{selectedEdition.progressLabel}</span>
         </div>
         <div className={tw("reading-overview__actions")}>
-          {book.format?.toLocaleUpperCase() === 'EPUB' && (
+          {['EPUB', 'PDF'].includes(book.format?.toLocaleUpperCase() ?? '') && (
             <button type="button" onClick={onRead}><BookOpen aria-hidden="true" />{book.startedAt || book.progress > 0 ? 'Continue reading' : 'Start reading'}</button>
           )}
           {book.format?.toLocaleUpperCase() === 'AUDIOBOOK' && (

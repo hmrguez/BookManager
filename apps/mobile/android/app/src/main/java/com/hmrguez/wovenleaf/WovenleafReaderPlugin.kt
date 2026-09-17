@@ -1,5 +1,10 @@
 package com.hmrguez.wovenleaf
 
+import android.graphics.pdf.PdfRenderer
+import android.os.ParcelFileDescriptor
+import android.util.Base64
+import android.graphics.Bitmap
+import java.io.ByteArrayOutputStream
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -50,15 +55,15 @@ class WovenleafReaderPlugin : Plugin() {
 
         val file = fileUri?.let(::managedFile)
         if (file == null) {
-            call.reject("The managed EPUB URL is invalid.", "INVALID_CAPABILITY")
+            call.reject("The managed book URL is invalid.", "INVALID_CAPABILITY")
             return
         }
         if (!file.isFile) {
-            call.reject("The managed EPUB file is missing.", "MISSING_ASSET")
+            call.reject("The managed book file is missing.", "MISSING_ASSET")
             return
         }
 
-        val intent = Intent(context, WovenleafReaderActivity::class.java).apply {
+        val intent = Intent(context, if (call.getString("format") == "pdf") WovenleafPDFActivity::class.java else WovenleafReaderActivity::class.java).apply {
             putExtra(ReaderContract.BOOK_ID, bookId)
             putExtra(ReaderContract.EDITION_ID, editionId)
             putExtra(ReaderContract.ASSET_ID, assetId)
@@ -78,6 +83,33 @@ class WovenleafReaderPlugin : Plugin() {
         }
         activity.startActivity(intent)
         call.resolve()
+    }
+
+    @PluginMethod
+    fun pdfCover(call: PluginCall) {
+        val file = call.getString("fileUri")?.let(::managedFile)
+        if (file == null || !file.isFile) {
+            call.reject("The managed PDF is unavailable.", "INVALID_CAPABILITY")
+            return
+        }
+        bridge.execute {
+            try {
+                val jpeg = PdfRenderer(ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)).use { pdf ->
+                    pdf.openPage(0).use { page ->
+                        val bitmap = renderPDFPage(page, 480)
+                        try {
+                            ByteArrayOutputStream().use { output ->
+                                bitmap.compress(Bitmap.CompressFormat.JPEG, 82, output)
+                                Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
+                            }
+                        } finally { bitmap.recycle() }
+                    }
+                }
+                call.resolve(JSObject().put("jpeg", jpeg))
+            } catch (error: Exception) {
+                call.reject("This PDF could not be rendered. Choose an unprotected, readable PDF.", "CORRUPT_ASSET", error)
+            }
+        }
     }
 
     @PluginMethod

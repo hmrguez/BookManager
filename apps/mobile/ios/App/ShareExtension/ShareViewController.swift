@@ -20,7 +20,7 @@ final class ShareViewController: UIViewController {
         var texts: [String] = []
         var files: [[String: String]] = []
         for provider in item.attachments ?? [] {
-            if let file = await copySharedCSV(from: provider) {
+            if let file = await copySharedDocument(from: provider) {
                 files.append(file)
             } else if let value = await loadText(from: provider), !value.isEmpty {
                 texts.append(value)
@@ -49,15 +49,13 @@ final class ShareViewController: UIViewController {
         finish()
     }
 
-    private func copySharedCSV(from provider: NSItemProvider) async -> [String: String]? {
-        let suggestedName = provider.suggestedName ?? "goodreads-library.csv"
-        let hasCSVName = suggestedName.lowercased().hasSuffix(".csv")
-        let csvType = UTType.commaSeparatedText.identifier
-        guard provider.hasItemConformingToTypeIdentifier(csvType) || hasCSVName else { return nil }
-
-        let type = provider.hasItemConformingToTypeIdentifier(csvType)
-            ? csvType
-            : UTType.data.identifier
+    private func copySharedDocument(from provider: NSItemProvider) async -> [String: String]? {
+        let supported = [UTType.pdf.identifier, "org.idpf.epub-container", UTType.commaSeparatedText.identifier]
+        let detectedType = supported.first { provider.hasItemConformingToTypeIdentifier($0) }
+        let suggestedName = provider.suggestedName ?? (detectedType == UTType.pdf.identifier ? "Shared book.pdf" : detectedType == "org.idpf.epub-container" ? "Shared book.epub" : "goodreads-library.csv")
+        let suffix = (suggestedName as NSString).pathExtension.lowercased()
+        guard detectedType != nil || ["csv", "epub", "pdf"].contains(suffix) else { return nil }
+        let type = detectedType ?? UTType.data.identifier
         guard provider.hasItemConformingToTypeIdentifier(type) else { return nil }
 
         return await withCheckedContinuation { continuation in
@@ -75,13 +73,14 @@ final class ShareViewController: UIViewController {
                         at: incoming,
                         withIntermediateDirectories: true
                     )
-                    let safeName = self.safeFilename(suggestedName)
+                    let extensionName = UTType(type)?.preferredFilenameExtension ?? suffix
+                    let safeName = self.safeFilename(suggestedName, extensionName: extensionName)
                     let destination = incoming.appendingPathComponent(
                         "\(UUID().uuidString)-\(safeName)"
                     )
                     try FileManager.default.copyItem(at: sourceURL, to: destination)
                     continuation.resume(returning: [
-                        "uri": destination.path,
+                        "uri": destination.absoluteString,
                         "name": safeName,
                         "mimeType": UTType(type)?.preferredMIMEType ?? "text/csv",
                     ])
@@ -92,16 +91,16 @@ final class ShareViewController: UIViewController {
         }
     }
 
-    private func safeFilename(_ value: String) -> String {
+    private func safeFilename(_ value: String, extensionName: String) -> String {
         let name = URL(fileURLWithPath: value).lastPathComponent
         let cleaned = name.replacingOccurrences(
             of: "[^A-Za-z0-9._ -]",
             with: "-",
             options: .regularExpression
         )
-        return cleaned.lowercased().hasSuffix(".csv")
+        return cleaned.lowercased().hasSuffix(".\(extensionName)")
             ? cleaned
-            : "\(cleaned).csv"
+            : "\(cleaned).\(extensionName)"
     }
 
     private func loadText(from provider: NSItemProvider) async -> String? {

@@ -467,7 +467,32 @@ export const STORAGE_MIGRATIONS: readonly StorageMigration[] = [
       await database.execute(epubReaderAnnotationSchemaSql())
     },
   },
+  {
+    version: 17,
+    name: 'managed PDF imports alongside EPUBs',
+    kind: 'additive',
+    signature: pdfImportSchemaSql(),
+    async up(database) {
+      await database.execute(pdfImportSchemaSql())
+    },
+  },
 ]
+
+// Preserve the historical table name so existing reader checkpoints and archives
+// retain their identities. Rebuild only to widen the format constraint.
+function pdfImportSchemaSql(): string {
+  const create = epubImportSchemaSql()
+    .replace('CREATE TABLE epub_imports', 'CREATE TABLE ebook_imports_next')
+    .replace("('2', '3')", "('2', '3', 'pdf')")
+    .split('CREATE INDEX')[0]
+  return `${create}
+INSERT INTO ebook_imports_next SELECT * FROM epub_imports;
+DROP TABLE epub_imports;
+ALTER TABLE ebook_imports_next RENAME TO epub_imports;
+CREATE INDEX idx_epub_imports_package ON epub_imports(package_identifier, metadata_key, imported_at DESC, id);
+CREATE INDEX idx_epub_imports_edition ON epub_imports(edition_id, imported_at DESC, id);
+`
+}
 
 function epubReaderAnnotationSchemaSql(): string {
   return `

@@ -12,6 +12,7 @@ export const readiumLocatorSchema = z.object({
     progression: fractionSchema.optional(),
     totalProgression: fractionSchema.optional(),
     position: z.number().int().positive().optional(),
+    pageCount: z.number().int().positive().optional(),
   }).passthrough().default({ fragments: [] }),
   text: z.object({
     before: z.string().optional(),
@@ -211,6 +212,7 @@ export type EpubReaderCapability = {
   readonly assetId: string
   readonly assetFingerprint: string
   readonly relativePath: string
+  readonly format?: 'epub' | 'pdf'
   readonly title: string
   readonly compatibility?: EpubCompatibilityProfile
 }
