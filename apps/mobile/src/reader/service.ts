@@ -15,6 +15,14 @@ export class EpubReaderService {
     this.#repository = new EpubReaderRepository(database, ledger)
   }
 
+  async closeForIncomingFile(): Promise<void> {
+    // Android's singleTask file handoff already returns to MainActivity. On iOS,
+    // dismiss the native presentation before showing an import review or player.
+    if (Capacitor.getPlatform() !== 'ios') return
+    await nativeReader.closeForIncomingFile()
+    await this.drainOutbox()
+  }
+
   async open(bookId: string): Promise<void> {
     if (!Capacitor.isNativePlatform()) {
       throw new EpubReaderError('unavailable', 'Reading is available in the iOS and Android app.')

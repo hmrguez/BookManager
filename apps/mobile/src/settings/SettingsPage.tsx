@@ -313,7 +313,7 @@ export function SettingsPage({
           onConfirmRelink={onConfirmEpubRelink}
         />
 
-        {FEATURES.advancedFileManagement && (
+        {(FEATURES.advancedFileManagement || audiobookImport.draft || audiobookImport.progress || audiobookImport.result || audiobookImport.error) && (
           <>
         <section
           className={tw(`settings-card audiobook-intake${audiobookDropActive ? ' is-dragging' : ''}`)}

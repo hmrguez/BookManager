@@ -96,6 +96,15 @@ export class AudiobookImportRepository {
     return row ? duplicateResult(row) : undefined
   }
 
+  async findBySourceSetFingerprint(fingerprint: string): Promise<AudiobookImportResult | undefined> {
+    const [row] = await this.#database.query<AudiobookImportRow>(
+      `${AUDIOBOOK_RESULT_SELECT} FROM audiobook_imports
+       WHERE source_set_fingerprint = ? ORDER BY imported_at DESC, rowid DESC LIMIT 1`,
+      [fingerprint],
+    )
+    return row ? duplicateResult(row) : undefined
+  }
+
   async commit(input: AudiobookCommitInput): Promise<AudiobookImportResult> {
     return this.#database.transaction(async (database) => {
       const [duplicate] = await database.query<AudiobookImportRow>(

@@ -42,6 +42,10 @@ export class IncomingFileDeliveryGuard {
     this.#seenAt.set(key, now)
     return true
   }
+
+  release(key: string): void {
+    this.#seenAt.delete(key)
+  }
 }
 
 export function looksLikeSharedCsv(file: SharedFile): boolean {

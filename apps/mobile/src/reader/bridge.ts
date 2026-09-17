@@ -27,6 +27,7 @@ type ReaderOpenOptions = {
 interface WovenleafReaderPlugin {
   pdfCover(options: { fileUri: string }): Promise<{ jpeg: string }>
   open(options: ReaderOpenOptions): Promise<void>
+  closeForIncomingFile(): Promise<void>
   drainOutbox(): Promise<{ events: readonly NativeReaderEvent[] }>
   acknowledge(options: { ids: readonly string[] }): Promise<void>
   addListener(

@@ -202,6 +202,7 @@ function App() {
   const epubRelinkSourceRef = useRef<EpubImportSource | undefined>(undefined)
   const audiobookAbortRef = useRef<AbortController | undefined>(undefined)
   const audiobookSourcesRef = useRef<readonly AudiobookImportSource[]>([])
+  const openAudiobookAfterImportRef = useRef(false)
   const recoveryArchiveRef = useRef<string | undefined>(undefined)
   const shelfMotionSequenceRef = useRef(0)
   const incomingDeliveryGuardRef = useRef(new IncomingFileDeliveryGuard())
@@ -360,20 +361,36 @@ function App() {
     loadSources: () => Promise<readonly AudiobookImportSource[]>,
     targetBook?: LibraryBook,
     overwriteCover = false,
+    openAfterImport = false,
   ) => {
-    if (audiobookBusy) return
+    if (audiobookAbortRef.current) return
     const controller = new AbortController()
     audiobookAbortRef.current = controller
     setAudiobookBusy(true)
     setAudiobookImport({})
+    openAudiobookAfterImportRef.current = openAfterImport
     try {
       const sources = await loadSources()
       if (sources.length === 0) return
       audiobookSourcesRef.current = sources
-      const draft = await (await getStorageRuntime()).audiobooks.prepare(sources, {
+      const runtime = await getStorageRuntime()
+      if (openAfterImport) await runtime.reader.closeForIncomingFile()
+      const draft = await runtime.audiobooks.prepare(sources, {
         signal: controller.signal,
         onProgress: (progress) => setAudiobookImport({ progress }),
       })
+      if (openAfterImport) {
+        const existing = await runtime.audiobooks.findImported(draft)
+        if (existing) {
+          audiobookSourcesRef.current = []
+          openAudiobookAfterImportRef.current = false
+          setAudiobookImport({ result: existing })
+          await reload()
+          showLibrary()
+          setSheet({ kind: 'audiobook-player', bookId: existing.bookId })
+          return
+        }
+      }
       if (!targetBook) {
         setAudiobookImport({ draft })
         return
@@ -384,7 +401,6 @@ function App() {
         authors: targetBook.authors,
         orderConfirmed: true,
       }
-      const runtime = await getStorageRuntime()
       const result = await runtime.audiobooks.import(sources, review, {
         signal: controller.signal,
         targetBookId: targetBook.id,
@@ -398,6 +414,7 @@ function App() {
       setToast({ message: `Audiobook attached to ${targetBook.title}` })
     } catch (error) {
       audiobookSourcesRef.current = []
+      openAudiobookAfterImportRef.current = false
       const message = audiobookImportErrorMessage(error)
       setAudiobookImport({ error: message })
       setToast({ message })
@@ -419,7 +436,7 @@ function App() {
   }
 
   const commitAudiobook = async (review: AudiobookImportReview) => {
-    if (audiobookBusy || audiobookSourcesRef.current.length === 0) return
+    if (audiobookAbortRef.current || audiobookSourcesRef.current.length === 0) return
     const controller = new AbortController()
     audiobookAbortRef.current = controller
     setAudiobookBusy(true)
@@ -437,12 +454,18 @@ function App() {
       await reload()
       setSmartListCatalog(await (await getStorageRuntime()).catalog.read())
       setToast({ message: audiobookResultToastMessage(result) })
+      if (openAudiobookAfterImportRef.current) {
+        openAudiobookAfterImportRef.current = false
+        showLibrary()
+        setSheet({ kind: 'audiobook-player', bookId: result.bookId })
+      }
     } catch (error) {
       if (error instanceof LibraryUpgradeRequired) {
         setAudiobookImport((current) => ({ ...current, progress: undefined, error: error.message }))
         return
       }
       audiobookSourcesRef.current = []
+      openAudiobookAfterImportRef.current = false
       const message = audiobookImportErrorMessage(error)
       setAudiobookImport({ error: message })
       setToast({ message })
@@ -456,6 +479,7 @@ function App() {
   const dismissAudiobookImport = () => {
     if (audiobookBusy) return
     audiobookSourcesRef.current = []
+    openAudiobookAfterImportRef.current = false
     setAudiobookImport({})
   }
 
@@ -545,6 +569,7 @@ function App() {
   }
 
   const showSettings = () => {
+    setSheet(null)
     setView('settings')
     void refreshImportHistory()
     void refreshRecovery()
@@ -704,8 +729,9 @@ function App() {
     sources: readonly (() => Promise<EpubImportSource>)[],
     targetBookId?: string,
     overwriteCover = false,
+    openAfterImport = false,
   ) => {
-    if (epubBusy || sources.length === 0) return
+    if (epubAbortRef.current || sources.length === 0) return
     const controller = new AbortController()
     epubAbortRef.current = controller
     setEpubBusy(true)
@@ -713,6 +739,7 @@ function App() {
     const results: EpubImportResult[] = []
     try {
       const runtime = await getStorageRuntime()
+      if (openAfterImport) await runtime.reader.closeForIncomingFile()
       for (const loadSource of sources) {
         const source = await loadSource()
         const result = await runtime.epubs.import(source, {
@@ -737,6 +764,10 @@ function App() {
           ? resultToastMessage(results[0])
           : `${changedCount} book${changedCount === 1 ? '' : 's'} added or revised; ${duplicateCount} already managed`,
       })
+      if (openAfterImport && results.length === 1) {
+        showLibrary()
+        await openReader(results[0]!.bookId)
+      }
     } catch (error) {
       const message = epubImportErrorMessage(error)
       setEpubImport((current) => ({ ...current, error: message }))
@@ -752,22 +783,24 @@ function App() {
     try {
       const source = await audiobookSourceFromIncomingUrl(url)
       if (isPdfBytes(source.bytes)) {
-        await importEpubSources([async () => ({ ...source, name: /\.pdf$/i.test(source.name) ? source.name : `${source.name}.pdf`, mediaType: 'application/pdf' })])
+        await importEpubSources([async () => ({ ...source, name: /\.pdf$/i.test(source.name) ? source.name : `${source.name}.pdf`, mediaType: 'application/pdf' })], undefined, false, true)
       } else if (isZipContainer(source.bytes)) {
         const name = source.name.toLocaleLowerCase().endsWith('.epub') ? source.name : `${source.name}.epub`
         await importEpubSources([async () => ({
           name,
           mediaType: 'application/epub+zip',
           bytes: source.bytes,
-        })])
+        })], undefined, false, true)
       } else {
-        await prepareAudiobookSources(async () => [source])
+        await prepareAudiobookSources(async () => [source], undefined, false, true)
       }
     } catch (error) {
       const message = audiobookImportErrorMessage(error)
       setAudiobookImport({ error: message })
       setToast({ message })
       void feedback.emit('error')
+    } finally {
+      incomingDeliveryGuardRef.current.release(`url:${url}`)
     }
   }
 
@@ -825,7 +858,7 @@ function App() {
     if (!incomingDeliveryGuardRef.current.accept(`url:${url}`)) return
     showSettings()
     const explicitCsv = /\.csv(?:[?#]|$)/i.test(url)
-    const explicitBookMedia = /\.(?:epub|pdf|m4b|mp3)(?:[?#]|$)/i.test(url)
+    const explicitBookMedia = /\.(?:epub|pdf|m4b|m4a|mp4|mp3)(?:[?#]|$)/i.test(url)
     if (!explicitBookMedia) {
       void goodreadsCsvFromIncomingUrl(url)
         .then(({ name, content }) => prepareImportPreview(name, content))
@@ -848,12 +881,29 @@ function App() {
     const books = files.filter((file) => /\.(epub|pdf)$/i.test(file.name) || ['application/pdf', 'application/epub+zip'].includes(file.mimeType))
     if (books.length) {
       const incoming = books.filter((file) => incomingDeliveryGuardRef.current.accept(`share:${file.uri}:${file.name}:${file.mimeType}`))
+      if (!incoming.length) return
       showSettings()
       void importEpubSources(incoming.map((file) => async () => {
         const url = file.uri.startsWith('/') ? `file://${file.uri}` : file.uri
         const source = await audiobookSourceFromIncomingUrl(url)
         return { ...source, name: file.name, mediaType: file.mimeType }
-      }))
+      }), undefined, false, true).finally(() => {
+        for (const file of incoming) incomingDeliveryGuardRef.current.release(`share:${file.uri}:${file.name}:${file.mimeType}`)
+      })
+      return
+    }
+    const audio = files.filter((file) => /\.(m4b|m4a|mp4|mp3)$/i.test(file.name) || file.mimeType.startsWith('audio/'))
+    if (audio.length) {
+      const incoming = audio.filter((file) => incomingDeliveryGuardRef.current.accept(`share:${file.uri}:${file.name}:${file.mimeType}`))
+      if (!incoming.length) return
+      showSettings()
+      void prepareAudiobookSources(() => Promise.all(incoming.map(async (file) => {
+        const url = file.uri.startsWith('/') ? `file://${file.uri}` : file.uri
+        const source = await audiobookSourceFromIncomingUrl(url)
+        return { ...source, name: file.name, relativePath: file.name, mediaType: file.mimeType }
+      })), undefined, false, true).finally(() => {
+        for (const file of incoming) incomingDeliveryGuardRef.current.release(`share:${file.uri}:${file.name}:${file.mimeType}`)
+      })
       return
     }
     const file = files.find(looksLikeSharedCsv)

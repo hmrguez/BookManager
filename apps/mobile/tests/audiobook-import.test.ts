@@ -132,6 +132,30 @@ describe('audiobook inspection and normalization', () => {
 
 describe('managed audiobook import', () => {
 
+  test('recognizes reopened audio by its bytes without replacing reviewed metadata or importing again', async () => {
+    const database = new BunSqliteDatabase()
+    await migrateStorage(database)
+    const managedStore = new MemoryManagedAudiobookStore()
+    const service = new AudiobookImportService(database, { managedStore })
+    const sources = [mp3Source('original.mp3', { album: 'Embedded title' })]
+    const draft = await service.prepare(sources)
+    expect(await service.findImported(draft)).toBeUndefined()
+    const imported = await service.import(sources, {
+      ...defaultAudiobookReview(draft),
+      title: 'My reviewed title',
+    })
+    const fileCount = managedStore.files.size
+    const reopened = await service.prepare([{ ...sources[0]!, name: 'renamed.mp3', relativePath: 'renamed.mp3' }])
+    expect(await service.findImported(reopened)).toMatchObject({
+      outcome: 'duplicate', bookId: imported.bookId, assetId: imported.assetId, title: 'My reviewed title',
+    })
+    expect(await database.query('SELECT id FROM audiobook_imports')).toHaveLength(1)
+    expect(managedStore.files.size).toBe(fileCount)
+    const changed = await service.prepare([mp3Source('original.mp3', { album: 'Embedded title', frames: 100 })])
+    expect(await service.findImported(changed)).toBeUndefined()
+    await database.close()
+  })
+
   test('catalogs chunked MP3 files and covers with the original playback capabilities and fingerprints', async () => {
     const database = new BunSqliteDatabase()
     await migrateStorage(database)
@@ -282,6 +306,9 @@ describe('managed audiobook import', () => {
 
     expect(revised).toMatchObject({ outcome: 'revision', editionId: original.editionId, bookId: original.bookId })
     expect(revised.assetId).not.toBe(original.assetId)
+    expect(await service.findImported(draft)).toMatchObject({
+      assetId: revised.assetId, title: 'Corrected audiobook title', outcome: 'duplicate',
+    })
     expect(managedStore.files.size).toBe(2)
     const catalog = await new CatalogRepository(database).read()
     expect(catalog.works[0]?.title.value).toBe('Corrected audiobook title')

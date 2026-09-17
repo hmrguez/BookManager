@@ -140,6 +140,8 @@ describe('isolated CSV parser', () => {
     expect(guard.accept('content://provider/export', 10_100)).toBe(false)
     expect(guard.accept('content://provider/other', 10_100)).toBe(true)
     expect(guard.accept('content://provider/export', 11_000)).toBe(true)
+    guard.release('content://provider/export')
+    expect(guard.accept('content://provider/export', 11_001)).toBe(true)
   })
 
   test('rejects calendar dates that JavaScript would otherwise roll into the next month', () => {

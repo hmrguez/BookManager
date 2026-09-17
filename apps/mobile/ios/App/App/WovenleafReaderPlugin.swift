@@ -22,6 +22,7 @@ final class WovenleafReaderPlugin: CAPPlugin, CAPBridgedPlugin {
     let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "pdfCover", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "open", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "closeForIncomingFile", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "drainOutbox", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "acknowledge", returnType: CAPPluginReturnPromise),
     ]
@@ -31,6 +32,21 @@ final class WovenleafReaderPlugin: CAPPlugin, CAPBridgedPlugin {
 
     override func load() {
         Self.current = self
+    }
+
+    @objc func closeForIncomingFile(_ call: CAPPluginCall) {
+        Task { @MainActor in
+            let presented = bridge?.viewController?.presentedViewController
+            if let navigation = presented as? UINavigationController,
+               let reader = navigation.viewControllers.first as? WovenleafReaderViewController {
+                reader.closeForIncomingFile { call.resolve() }
+            } else if let pdf = presented as? WovenleafPDFViewController {
+                // viewWillDisappear checkpoints and ends the PDF reading session.
+                pdf.dismiss(animated: false) { call.resolve() }
+            } else {
+                call.resolve()
+            }
+        }
     }
 
     @objc func open(_ call: CAPPluginCall) {

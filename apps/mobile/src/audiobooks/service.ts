@@ -52,6 +52,10 @@ export class AudiobookImportService {
     return inspectAudiobook(sources, options)
   }
 
+  findImported(draft: AudiobookImportDraft): Promise<AudiobookImportResult | undefined> {
+    return this.#repository.findBySourceSetFingerprint(draft.sourceSetFingerprint)
+  }
+
   async import(
     sources: readonly AudiobookImportSource[],
     review: AudiobookImportReview,

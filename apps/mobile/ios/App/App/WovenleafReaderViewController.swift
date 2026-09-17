@@ -494,6 +494,14 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
     }
 
     @objc private func closeReader() {
+        finishReading(animated: true)
+    }
+
+    func closeForIncomingFile(completion: @escaping () -> Void) {
+        finishReading(animated: false, completion: completion)
+    }
+
+    private func finishReading(animated: Bool, completion: (() -> Void)? = nil) {
         checkpointTimer?.invalidate()
         for token in inputObserverTokens {
             navigator.removeObserver(token)
@@ -513,7 +521,7 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
             activeDurationMs: max(0, Int((ProcessInfo.processInfo.systemUptime - sessionStartedUptime) * 1_000)),
             extra: ["reachedEnd": isAtEnd]
         )
-        navigationController?.dismiss(animated: true)
+        navigationController?.dismiss(animated: animated, completion: completion)
     }
 
     private func flushLocation() {

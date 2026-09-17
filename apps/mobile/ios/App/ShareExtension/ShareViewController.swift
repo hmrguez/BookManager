@@ -50,11 +50,16 @@ final class ShareViewController: UIViewController {
     }
 
     private func copySharedDocument(from provider: NSItemProvider) async -> [String: String]? {
-        let supported = [UTType.pdf.identifier, "org.idpf.epub-container", UTType.commaSeparatedText.identifier]
+        let supported = [UTType.pdf.identifier, "org.idpf.epub-container", UTType.mp3.identifier, UTType.mpeg4Audio.identifier, UTType.commaSeparatedText.identifier]
         let detectedType = supported.first { provider.hasItemConformingToTypeIdentifier($0) }
-        let suggestedName = provider.suggestedName ?? (detectedType == UTType.pdf.identifier ? "Shared book.pdf" : detectedType == "org.idpf.epub-container" ? "Shared book.epub" : "goodreads-library.csv")
+        let defaultName = detectedType == UTType.pdf.identifier ? "Shared book.pdf"
+            : detectedType == "org.idpf.epub-container" ? "Shared book.epub"
+            : detectedType == UTType.mp3.identifier ? "Shared audiobook.mp3"
+            : detectedType == UTType.mpeg4Audio.identifier ? "Shared audiobook.m4b"
+            : "goodreads-library.csv"
+        let suggestedName = provider.suggestedName ?? defaultName
         let suffix = (suggestedName as NSString).pathExtension.lowercased()
-        guard detectedType != nil || ["csv", "epub", "pdf"].contains(suffix) else { return nil }
+        guard detectedType != nil || ["csv", "epub", "pdf", "mp3", "m4b", "m4a", "mp4"].contains(suffix) else { return nil }
         let type = detectedType ?? UTType.data.identifier
         guard provider.hasItemConformingToTypeIdentifier(type) else { return nil }
 
