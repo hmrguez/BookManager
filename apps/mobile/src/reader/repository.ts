@@ -511,7 +511,7 @@ export class EpubReaderRepository {
     )
     if (isReadingEvent) {
       const book = (await readLibraryBooks(this.#database)).find(({ id }) => id === event.bookId)
-      if (book) {
+      if (book && book.shelf !== 'dnf') {
         const progress = normalizedProgress === undefined
           ? book.progress
           : event.reachedEnd

@@ -6,7 +6,7 @@ import {
 } from './metadata/model'
 import { bookCaptureSchema, type BookCapture } from './capture/model'
 
-export const shelfIdSchema = z.enum(['tbr', 'next', 'reading', 'finished'])
+export const shelfIdSchema = z.enum(['tbr', 'next', 'reading', 'finished', 'dnf'])
 
 export const libraryLoanSchema = z.object({
   provider: z.string().trim().min(1),

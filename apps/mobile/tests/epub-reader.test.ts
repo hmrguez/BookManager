@@ -44,6 +44,28 @@ const semanticLocator = readiumLocatorSchema.parse({
 })
 
 describe('native EPUB resume checkpoints', () => {
+  test('keeps DNF progress until the book is explicitly returned to reading', async () => {
+    const database = new BunSqliteDatabase()
+    await migrateStorage(database)
+    await new CatalogRepository(database).replace(representativeCatalog)
+    const library = new LibraryRepository(database)
+    const book = libraryBookSchema.parse({
+      id: 'book:left-hand-reader', title: 'The Left Hand of Darkness', authors: ['Ursula K. Le Guin'],
+      pageCount: 300, currentPage: 126, progress: 42, shelf: 'dnf', rating: 0, notes: 'Keep my place.',
+      addedAt: '2026-08-20T10:00:00.000Z', lastUpdatedAt: '2026-08-20T10:00:00.000Z',
+    })
+    await library.save(book)
+    const reader = new EpubReaderRepository(database)
+    await reader.ingest(readerEvent({ sequence: 1, progression: 0.5 }))
+    expect((await library.list())[0]).toEqual(book)
+    expect((await reader.checkpointForBook(book.id))?.locator?.locations.totalProgression).toBe(0.5)
+
+    await library.save({ ...book, shelf: 'reading' })
+    await reader.ingest(readerEvent({ sequence: 2, progression: 0.6 }))
+    expect((await library.list())[0]).toMatchObject({ shelf: 'reading', progress: 60 })
+    await database.close()
+  })
+
   test('keeps the Android reader chrome inside system bars and display cutouts', async () => {
     const source = await Bun.file(
       new URL(

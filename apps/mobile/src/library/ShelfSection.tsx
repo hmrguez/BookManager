@@ -3,7 +3,7 @@ import { BookTile } from './LibraryPresentation'
 import { useLibraryView } from './use-library-view'
 import { libraryDropTarget } from './library-drag'
 import type { ReactNode } from 'react'
-import { ArrowRight, Check, ChevronDown, CirclePlus, Plus, Search } from 'lucide-react'
+import { ArrowRight, ChevronDown, CirclePlus, Plus, Search } from 'lucide-react'
 import { BookCover, ProgressMeter, RatingStars, type MotionMode } from '../design-system'
 import type { LibraryBook, ShelfId } from '../library'
 import type { LocalSearchResult, SearchHighlight } from '../search'
@@ -11,6 +11,7 @@ import { shelfCopy } from '../app/config'
 import { tw } from '../tailwind/styles'
 import { shelfCascadeItem, useShelfCascade } from './shelf-cascade'
 import { useAnimatedShelfBooks, type ShelfMotionEvent } from './shelf-motion'
+import { FinishBookAction } from './FinishBookAction'
 
 function SearchHighlightedText({ value, highlight }: { value: string; highlight?: SearchHighlight }) {
   if (!highlight?.ranges.length) return value
@@ -94,6 +95,7 @@ export function ShelfSection({
   onNext,
   onStart,
   onFinish,
+  onDnf,
   onRate,
   shelfMotion,
   motionMode,
@@ -109,6 +111,7 @@ export function ShelfSection({
   onNext: (id: string) => void
   onStart: (id: string) => void
   onFinish: (id: string) => void
+  onDnf: (id: string) => void
   onRate: (id: string, rating: number) => void
   shelfMotion?: ShelfMotionEvent
   motionMode: MotionMode
@@ -206,15 +209,18 @@ export function ShelfSection({
                         <span>{book.progress}%</span>
                         <ProgressMeter value={book.progress} label={`${book.title} reading progress`} />
                       </button>
-                      <button className={tw('row-action row-action--finish')} type="button" onClick={() => onFinish(book.id)}>
-                        Finish <Check aria-hidden="true" />
-                      </button>
+                      <FinishBookAction onFinish={() => onFinish(book.id)} onDnf={() => onDnf(book.id)} />
                     </div>
                   )}
                   {shelf === 'finished' && (
                     <RatingStars compact value={book.rating} onChange={(rating) => onRate(book.id, rating)} />
                   )}
                 </>}
+                {shelf === 'dnf' && (
+                  <button className={tw('row-action')} type="button" onClick={() => onStart(book.id)} aria-label={`Return ${book.title} to Reading`}>
+                    Resume <ArrowRight aria-hidden="true" />
+                  </button>
+                )}
               </article>
             )}
           </VirtualBookList>

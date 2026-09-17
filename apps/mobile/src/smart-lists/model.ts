@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { shelfIdSchema } from '../library-model'
 
 export const SMART_LIST_RULE_SCHEMA_VERSION = 1
 export const SMART_LIST_POSITION_STEP = 1_024
@@ -354,7 +355,7 @@ function valueSchemaFor(field: SmartListRuleField, operator: SmartListRuleOperat
     return z.number().int().nonnegative().max(36_500)
   }
   if (['before', 'after'].includes(operator)) return z.iso.datetime({ offset: true })
-  if (field === 'status') return z.enum(['tbr', 'next', 'reading', 'finished'])
+  if (field === 'status') return shelfIdSchema
   if (field === 'ownership') return smartListOwnershipSchema
   if (field === 'availability') return smartListAvailabilitySchema
   if (['progress', 'rating', 'durationMinutes'].includes(field)) return z.number().finite()

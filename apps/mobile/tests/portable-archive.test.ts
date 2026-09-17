@@ -26,6 +26,7 @@ import { BunSqliteDatabase } from './storage-test-database'
 const exportedAt = '2026-08-25T16:30:00.000Z'
 const representativeLibrary = createStarterLibrary(exportedAt).slice(0, 3).map((book, index) => ({
   ...book,
+  shelf: index === 0 ? 'dnf' as const : book.shelf,
   rating: index === 0 ? 5 : book.rating,
   notes: index === 0 ? 'A private note, with a comma and "quotation".' : book.notes,
 }))
@@ -164,6 +165,8 @@ describe('portable archive contract', () => {
     expect(bundle.archive).toContain('reader-annotation:portable')
     expect(bundle.markdown).toContain('Estraven looked east.')
     expect(bundle.markdown).toContain('#Character #Revisit')
+    expect(bundle.markdown).toContain('## DNF (1)')
+    expect(bundle.csv).toContain('dnf')
     expect(restored.manifest.entries.every(({ sha256 }) => sha256.length === 64)).toBe(true)
     expect(restored.organization).toEqual(representativeOrganization)
     expect(restored.upNext).toEqual(representativeUpNext)

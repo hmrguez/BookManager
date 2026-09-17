@@ -361,6 +361,7 @@ function RuleValueEditor({
         <option value="next">Up Next</option>
         <option value="reading">Reading</option>
         <option value="finished">Finished</option>
+        <option value="dnf">DNF</option>
       </select>
     )
   }

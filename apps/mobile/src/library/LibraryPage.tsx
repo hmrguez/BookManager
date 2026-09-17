@@ -65,6 +65,7 @@ export function LibraryPage({
   onNext,
   onStart,
   onFinish,
+  onDnf,
   onRate,
   onMoveQueueBook,
   onDismissSuggestion,
@@ -94,6 +95,7 @@ export function LibraryPage({
   onNext: (bookId: string) => void
   onStart: (bookId: string) => void
   onFinish: (bookId: string) => void
+  onDnf: (bookId: string) => void
   onRate: (bookId: string, rating: number) => void
   onMoveQueueBook: (bookId: string, targetIndex: number, visibleIds: readonly string[]) => void
   onDismissSuggestion: (bookId: string) => void
@@ -334,6 +336,7 @@ export function LibraryPage({
                 onNext={onNext}
                 onStart={onStart}
                 onFinish={onFinish}
+                onDnf={onDnf}
                 onRate={onRate}
               />
             ))}
@@ -387,7 +390,7 @@ export function LibraryPage({
 
             {!librarySearchActive && (
               <div className={tw('custom-shelves-heading')}>
-                <div><span>Your collections</span><h2>Custom shelves</h2><p>Collect freely. Reading status still belongs to the four shelves above.</p></div>
+                <div><span>Your collections</span><h2>Custom shelves</h2><p>Collect freely. Reading status still belongs to the shelves above.</p></div>
                 <button type="button" onClick={() => onOpenSheet({ kind: 'custom-shelf' })}>
                   <FolderPlus aria-hidden="true" /> New shelf
                 </button>

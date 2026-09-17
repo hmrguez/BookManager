@@ -781,6 +781,7 @@ function listName(shelf: ShelfId): string {
     next: 'Up Next',
     reading: 'Reading',
     finished: 'Finished',
+    dnf: 'DNF',
   }[shelf]
 }
 

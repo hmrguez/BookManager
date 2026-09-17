@@ -20,6 +20,19 @@ const savedBook = libraryBookSchema.parse({
 })
 
 describe('Wovenleaf library repository', () => {
+  test('persists DNF and resumes without losing reading progress or notes', async () => {
+    const database = new BunSqliteDatabase()
+    await migrateStorage(database)
+    const repository = new LibraryRepository(database)
+    await repository.save({ ...savedBook, shelf: 'dnf' })
+
+    const [saved] = await new LibraryRepository(database).list()
+    expect(saved).toEqual({ ...savedBook, shelf: 'dnf' })
+    await repository.save({ ...saved!, shelf: 'reading' })
+    expect(await new LibraryRepository(database).list()).toEqual([savedBook])
+    await database.close()
+  })
+
   test('keeps a new library empty until the reader adds a book', async () => {
     const database = new BunSqliteDatabase()
     await migrateStorage(database)

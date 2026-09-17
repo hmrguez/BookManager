@@ -579,4 +579,5 @@ const STATUS_LABELS: Record<ShelfId, string> = {
   next: 'Up Next',
   reading: 'Reading',
   finished: 'Finished',
+  dnf: 'DNF',
 }

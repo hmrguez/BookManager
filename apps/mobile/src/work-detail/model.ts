@@ -99,7 +99,7 @@ export function buildWorkDetailModel(book: LibraryBook): WorkDetailModel {
 
   const editionId = `${book.id}:print`
   const source = book.sourceNames?.join(' · ') || 'Local library entry'
-  const hasReading = book.shelf === 'reading' || book.shelf === 'finished'
+  const hasReading = book.shelf === 'reading' || book.shelf === 'finished' || book.shelf === 'dnf'
   const progressLabel = book.pageCount > 0
     ? `${book.currentPage} of ${book.pageCount} pages`
     : `${book.progress}% complete`
@@ -380,6 +380,7 @@ function denseTaintedCupModel(book: LibraryBook): WorkDetailModel {
 
 function shelfActivityLabel(book: LibraryBook): string {
   if (book.shelf === 'finished') return 'Finished'
+  if (book.shelf === 'dnf') return `Did not finish · ${book.progress}% complete`
   if (book.shelf === 'reading') return `${book.progress}% complete`
   if (book.shelf === 'next') return 'Up Next · not started'
   return 'To Be Read · not started'

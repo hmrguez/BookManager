@@ -1136,6 +1136,7 @@ export function createLibraryMarkdown(
     next: 'Up Next',
     reading: 'Reading',
     finished: 'Finished',
+    dnf: 'DNF',
   }
   const lines = [
     '# Wovenleaf Reading Journal',
@@ -1145,7 +1146,7 @@ export function createLibraryMarkdown(
     `Exported ${createdAt}`,
   ]
 
-  for (const shelf of ['tbr', 'next', 'reading', 'finished'] as const) {
+  for (const shelf of ['tbr', 'next', 'reading', 'finished', 'dnf'] as const) {
     const shelfBooks = books.filter((book) => book.shelf === shelf)
     lines.push('', `## ${shelfLabels[shelf]} (${shelfBooks.length})`)
     if (!shelfBooks.length) {

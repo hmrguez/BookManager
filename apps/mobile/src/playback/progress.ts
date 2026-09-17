@@ -934,7 +934,7 @@ async function updateLibraryProgress(
   const [row] = await database.query('SELECT payload_json FROM library_books WHERE id = ? LIMIT 1', [bookId])
   if (!row) return
   const book = libraryBookSchema.parse(JSON.parse(readText(row, 'payload_json')))
-  if (book.shelf === 'finished' || Date.parse(book.lastUpdatedAt) > Date.parse(observedAt)) return
+  if (book.shelf === 'finished' || book.shelf === 'dnf' || Date.parse(book.lastUpdatedAt) > Date.parse(observedAt)) return
   await writeLibraryBook(database, {
     ...book,
     shelf: 'reading',

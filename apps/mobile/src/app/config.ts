@@ -44,4 +44,9 @@ export const shelfCopy: Record<ShelfId, { label: string; eyebrow: string; empty:
     eyebrow: 'A private reading record',
     empty: 'Finished books land here',
   },
+  dnf: {
+    label: 'DNF',
+    eyebrow: 'Did not finish',
+    empty: 'Set a book aside for now',
+  },
 }

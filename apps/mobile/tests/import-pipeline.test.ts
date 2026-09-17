@@ -44,6 +44,14 @@ const existingBook = libraryBookSchema.parse({
 })
 
 describe('isolated CSV parser', () => {
+  test.each(['DNF', 'Did not finish'])('imports the %s shelf with partial progress', (shelf) => {
+    const [row] = wovenleafCsvParser.parse(`title,authors,shelf,progress,current_page,page_count\nA Book,An Author,${shelf},42,126,300`)
+    expect(wovenleafCsvParser.normalize(row!)).toMatchObject({
+      ok: true,
+      record: { shelf: 'dnf', progress: 42, currentPage: 126, pageCount: 300 },
+    })
+  })
+
   test('parses quoted fixture rows and quarantines invalid values during normalization', async () => {
     const rows = wovenleafCsvParser.parse(await Bun.file(fixtureUrl).text())
 

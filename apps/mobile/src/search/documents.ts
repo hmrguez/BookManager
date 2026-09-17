@@ -7,6 +7,7 @@ const shelfNames: Record<LibraryBook['shelf'], string> = {
   next: 'Up Next',
   reading: 'Reading',
   finished: 'Finished',
+  dnf: 'DNF · Did not finish',
 }
 
 export function libraryBookSearchDocument(book: LibraryBook): LocalSearchDocument {

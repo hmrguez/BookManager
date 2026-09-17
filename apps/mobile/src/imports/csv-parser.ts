@@ -381,6 +381,8 @@ function parseShelf(value: string | undefined, errors: string[]) {
     currentlyreading: 'reading',
     finished: 'finished',
     read: 'finished',
+    dnf: 'dnf',
+    didnotfinish: 'dnf',
   } as const
   const shelf = shelves[normalized as keyof typeof shelves]
   if (!shelf) errors.push(`Unknown shelf “${value}”`)

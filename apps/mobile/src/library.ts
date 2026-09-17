@@ -15,6 +15,7 @@ export const SHELVES: Array<{ id: ShelfId; label: string; shortLabel: string }> 
   { id: 'next', label: 'Up Next', shortLabel: 'Next' },
   { id: 'reading', label: 'Reading', shortLabel: 'Reading' },
   { id: 'finished', label: 'Finished', shortLabel: 'Done' },
+  { id: 'dnf', label: 'DNF', shortLabel: 'DNF' },
 ]
 
 export function useLibrary() {

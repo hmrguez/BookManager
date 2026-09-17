@@ -80,16 +80,17 @@ describe('audiobook progress and listening sessions', () => {
     await database.close()
   })
 
-  test('recovered playback leaves explicitly finished books finished', async () => {
+  test.each(['finished', 'dnf'] as const)('recovered playback preserves an explicit %s status', async (shelf) => {
     const database = await progressDatabase()
     const library = new LibraryRepository(database)
     const book = (await library.list())[0]!
-    await library.save({ ...book, shelf: 'finished', progress: 100, finishedAt: book.lastUpdatedAt })
+    const progress = shelf === 'finished' ? 100 : 42
+    await library.save({ ...book, shelf, progress, finishedAt: shelf === 'finished' ? book.lastUpdatedAt : undefined })
     await new AudiobookProgressRepository(database).checkpointSnapshot(playbackSnapshot({
       state: 'paused', playIntent: false, activeDurationMs: 20_000,
       absolutePositionMs: durationMs / 2, suppressionReason: 'process-recreated',
     }), true)
-    expect((await library.list())[0]).toMatchObject({ shelf: 'finished', progress: 100 })
+    expect((await library.list())[0]).toMatchObject({ shelf, progress })
     await database.close()
   })
 

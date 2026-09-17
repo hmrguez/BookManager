@@ -1245,6 +1245,11 @@ function App() {
     openSheet({ kind: 'finished', bookId: id })
   }
 
+  const handleDnf = (id: string) => {
+    const book = books.find((item) => item.id === id)
+    moveWithUndo(id, 'dnf', `${book?.title ?? 'Book'} moved to DNF`)
+  }
+
   const saveUpNextSettings = (
     mode: typeof upNext.mode,
     preferences: typeof upNext.preferences,
@@ -1394,6 +1399,7 @@ function App() {
             onNext={handleNext}
             onStart={handleStart}
             onFinish={handleFinish}
+            onDnf={handleDnf}
             onRate={rateBook}
             onMoveQueueBook={moveQueueBook}
             onDismissSuggestion={dismissSuggestion}

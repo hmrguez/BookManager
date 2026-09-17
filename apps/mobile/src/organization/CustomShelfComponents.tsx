@@ -185,7 +185,7 @@ export function CustomShelfEditorSheet({
       <form className={tw('custom-shelf-editor')} onSubmit={submit}>
         <div className={tw('custom-shelf-editor__intro')}>
           <span>Collection, not reading status</span>
-          <p>Books can live on several custom shelves. Their TBR, Up Next, Reading, or Finished status stays unchanged.</p>
+          <p>Books can live on several custom shelves. Their TBR, Up Next, Reading, Finished, or DNF status stays unchanged.</p>
         </div>
 
         <label className={tw('shelf-field')}>
