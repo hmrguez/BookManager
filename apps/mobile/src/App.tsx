@@ -199,7 +199,6 @@ function App() {
   const [coverEnrichmentStatus, setCoverEnrichmentStatus] = useState<CoverEnrichmentStatus>()
   const sheetTriggerRef = useRef<HTMLElement | null>(null)
   const epubAbortRef = useRef<AbortController | undefined>(undefined)
-  const epubRelinkSourceRef = useRef<EpubImportSource | undefined>(undefined)
   const audiobookAbortRef = useRef<AbortController | undefined>(undefined)
   const audiobookSourcesRef = useRef<readonly AudiobookImportSource[]>([])
   const openAudiobookAfterImportRef = useRef(false)
@@ -617,7 +616,7 @@ function App() {
   }
 
   const previewEpubCleanup = async (assetIds?: readonly string[]) => {
-    setEpubStorage((current) => ({ ...current, busy: true, error: undefined, relinkPreview: undefined }))
+    setEpubStorage((current) => ({ ...current, busy: true, error: undefined }))
     try {
       const cleanupPreview = await (await getStorageRuntime()).epubAssets.previewCleanup(assetIds)
       setEpubStorage((current) => ({ ...current, busy: false, cleanupPreview }))
@@ -648,53 +647,10 @@ function App() {
     }
   }
 
-  const previewEpubRelink = async (assetId: string, file: File) => {
-    setEpubStorage((current) => ({ ...current, busy: true, error: undefined, cleanupPreview: undefined }))
-    try {
-      const source = await epubSourceFromFile(file)
-      const relinkPreview = await (await getStorageRuntime()).epubAssets.previewRelink(assetId, source)
-      epubRelinkSourceRef.current = source
-      setEpubStorage((current) => ({ ...current, busy: false, relinkPreview }))
-    } catch (error) {
-      epubRelinkSourceRef.current = undefined
-      setEpubStorage((current) => ({
-        ...current,
-        busy: false,
-        error: error instanceof Error ? error.message : String(error),
-      }))
-    }
-  }
-
-  const confirmEpubRelink = async () => {
-    const preview = epubStorage.relinkPreview
-    const source = epubRelinkSourceRef.current
-    if (!preview || !source) return
-    setEpubStorage((current) => ({ ...current, busy: true, error: undefined }))
-    try {
-      const result = await (await getStorageRuntime()).epubAssets.relink(preview, source)
-      epubRelinkSourceRef.current = undefined
-      setToast({
-        message: result.kind === 'restored'
-          ? 'EPUB fingerprint verified and offline reading restored'
-          : 'Reviewed EPUB revision linked; history and notes were kept',
-      })
-      await refreshEpubStorage()
-      await reload()
-    } catch (error) {
-      setEpubStorage((current) => ({
-        ...current,
-        busy: false,
-        error: error instanceof Error ? error.message : String(error),
-      }))
-    }
-  }
-
   const cancelEpubReview = () => {
-    epubRelinkSourceRef.current = undefined
     setEpubStorage((current) => ({
       ...current,
       cleanupPreview: undefined,
-      relinkPreview: undefined,
       error: undefined,
     }))
   }
@@ -1523,8 +1479,6 @@ function App() {
             onPreviewEpubCleanup={(assetIds) => { void previewEpubCleanup(assetIds) }}
             onConfirmEpubCleanup={() => { void confirmEpubCleanup() }}
             onCancelEpubReview={cancelEpubReview}
-            onPreviewEpubRelink={(assetId, file) => { void previewEpubRelink(assetId, file) }}
-            onConfirmEpubRelink={() => { void confirmEpubRelink() }}
             onPrepareAudiobookFiles={(files) => { void prepareAudiobookFiles(files) }}
             onCommitAudiobook={(review) => { void commitAudiobook(review) }}
             onCancelAudiobookImport={() => audiobookAbortRef.current?.abort()}

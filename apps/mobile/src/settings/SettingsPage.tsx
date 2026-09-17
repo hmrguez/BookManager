@@ -106,8 +106,6 @@ export function SettingsPage({
   onPreviewEpubCleanup,
   onConfirmEpubCleanup,
   onCancelEpubReview,
-  onPreviewEpubRelink,
-  onConfirmEpubRelink,
   onPrepareAudiobookFiles,
   onCommitAudiobook,
   onCancelAudiobookImport,
@@ -150,8 +148,6 @@ export function SettingsPage({
   onPreviewEpubCleanup: (assetIds?: readonly string[]) => void
   onConfirmEpubCleanup: () => void
   onCancelEpubReview: () => void
-  onPreviewEpubRelink: (assetId: string, file: File) => void
-  onConfirmEpubRelink: () => void
   onPrepareAudiobookFiles: (files: readonly File[]) => void
   onCommitAudiobook: (review: AudiobookImportReview) => void
   onCancelAudiobookImport: () => void
@@ -491,8 +487,6 @@ export function SettingsPage({
           onPreviewCleanup={onPreviewEpubCleanup}
           onConfirmCleanup={onConfirmEpubCleanup}
           onCancelReview={onCancelEpubReview}
-          onPreviewRelink={onPreviewEpubRelink}
-          onConfirmRelink={onConfirmEpubRelink}
         />
 
         {(FEATURES.advancedFileManagement || audiobookImport.draft || audiobookImport.progress || audiobookImport.result || audiobookImport.error) && (
