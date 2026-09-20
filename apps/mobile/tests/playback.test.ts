@@ -210,6 +210,24 @@ function fakePlugin(initial = snapshot()): {
 }
 
 describe('native audiobook playback contract', () => {
+  test('keeps a newer completion event when an earlier play response arrives late', async () => {
+    const database = new BunSqliteDatabase()
+    await migrateStorage(database)
+    const fake = fakePlugin()
+    fake.plugin.play = async () => {
+      const response = snapshot({ state: 'playing', revision: 2, absolutePositionMs: 59_500 })
+      fake.emitSnapshot(snapshot({ state: 'ended', revision: 3, absolutePositionMs: 60_000 }))
+      return response
+    }
+    const service = new AudiobookPlaybackService(database, { plugin: fake.plugin })
+    await service.connect()
+
+    expect(await service.play()).toMatchObject({ state: 'ended', revision: 3, absolutePositionMs: 60_000 })
+    expect(service.snapshot).toMatchObject({ state: 'ended', revision: 3 })
+    await service.disconnect()
+    await database.close()
+  })
+
   test('publishes and saves the full duration immediately when playback ends', async () => {
     const database = new BunSqliteDatabase()
     await migrateStorage(database)

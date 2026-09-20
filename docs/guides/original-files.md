@@ -15,7 +15,8 @@ Book/audio Open With and share intake intercept sources before Wovenleaf's gener
 - Cleanup validates app ownership and rejects original paths, including stale or forged previews. It never deletes or overwrites external content. Book content accounting separates linked bytes from private content copies.
 - Portable archives omit device-local references. Optional EPUB/PDF inclusion reads the original explicitly and verifies its hash; unavailable active originals prevent an incomplete file-inclusive export. Audio byte backups are unchanged and outside this feature.
 - Registry reconciliation follows storage migration/recovery. It retains catalog references and active/native audio consumers, with a one-day grace period for unfinished picks and extension handoffs. Releasing abandoned references never removes the source file.
-- Inspection still assembles file bytes in memory, with existing size/file-count limits checked before native selection is read. Removing private copies does not make multi-gigabyte imports memory-free or remove fingerprinting costs.
+- Native EPUB and audio selections retain a reference without constructing a full JavaScript file payload. EPUB inspection reads the ZIP directory and selected publication resources; M4B inspection reads container metadata while seeking over audio; MP3 inspection reads ID3 metadata and an audio prefix, with duration supplied by the native media framework. Covers and small sidecars still need their own byte buffers. Browser imports and PDF metadata inspection still read full bytes in memory.
+- SHA-256 identity is streamed natively from the original. Android reuses fingerprints within the process only while descriptor identity, size, modification time, and high-resolution change time match. Every check still opens the provider descriptor and validates access. Coarse timestamps, non-regular sources, process restarts, and changed originals require a fresh hash. Existing archive/file-count limits remain, including the 256 MiB EPUB limit.
 
 ## Verification, 2026-09-20
 
@@ -34,3 +35,23 @@ Files shared a 10.8 MB generated PDF through the iOS extension. Its payload cont
 The simulator exposed and verified a fix for an AVQueuePlayer completion crash: its temporary indefinite time is now guarded before integer conversion, and completed queues can be replayed.
 
 Physical-device calls, Bluetooth, long-running locked playback, cloud/provider-offline behavior, stale bookmarks, and Android provider seekability still require the existing release device matrix. Provider-owned downloads and caches are outside Wovenleaf's storage ownership.
+
+## Large-original verification, 2026-09-20
+
+The connected Pixel 9 ran an updated Debug build through Files by Google → Open with Wovenleaf. Measurements below are individual verification runs, including the Android handoff; they are not benchmark averages. Audio readiness comes from the native loaded-queue snapshot; EPUB readiness comes from the first rendered-location event. Screenshots confirmed the corresponding player/pages.
+
+| Original | Size (decimal) | First measured open | Warm reopen | JavaScript inspection reads per open |
+| --- | ---: | ---: | ---: | ---: |
+| AAC M4B derived from local video audio | 595.0 MB | 4.6 s after process start | 3.0 s | 6.74 MB of container metadata/header ranges |
+| Generated illustrated EPUB, 130 chapters/260 images | 202.0 MB | 8.4 s | 7.1 s | 190 KB in 270 range requests |
+| Existing illustrated EPUB, *El Imperio Final* | 11.1 MB | 4.5 s | 5.2 s | 800 KB in 64 range requests, including cover/text |
+
+The M4B was produced by remuxing the audio track of an existing local video, then repeating that audio six times without re-encoding to exceed 500 MB. The original video was unchanged. The stress EPUB repeated an existing illustration in a valid EPUB 3 package; its image payloads remain in the original ZIP. Generated files live in `Download/Wovenleaf-Verification` on the test phone, outside app storage, and are not repository fixtures.
+
+Before this optimization, the same M4B made 568 full-content bridge reads over 79 seconds and failed after about 85 seconds with a false DRM error. The old detector matched the bytes `sinf` inside ordinary compressed audio. Protection and codec checks now parse actual MPEG-4 sample-description atoms; compressed audio and artwork cannot trigger that false match.
+
+Audio playback, seeking to 75%, pausing, and reopening at the saved position passed. The large EPUB rendered illustrations, navigated to 70%, and restored the same page after reopening. The real EPUB rendered its cover and chapter text and restored its position at 49%. A private files/cache audit found no large audiobook or EPUB copies; its only file over 10 MB was the existing generated PDF instrumentation fixture.
+
+The full Android Open With instrumentation passes, including same-size source mutation invalidating the fingerprint cache, missing files, duplicate handoffs, and playback completion. A delayed play response discovered during testing can no longer overwrite a newer completion snapshot; Android reports the canonical duration at the end of the queue. The iOS simulator Debug build also passes with the native audio-duration method. `bun run lint`, `bun run typecheck`, and all 367 Bun tests pass, including range-inspection equivalence, ZIP safety checks, a virtual 600 MB M4B with metadata after its payload, MP3 inspection, structural DRM detection, and delayed playback responses.
+
+No private full-content copy or full JavaScript preload is required for native EPUB/audio intake. Opening still includes provider access, initial native fingerprinting, metadata inspection, and reader startup/layout. In particular, a chapter-heavy EPUB makes multiple small metadata reads and takes several seconds even when its large image payloads are skipped.

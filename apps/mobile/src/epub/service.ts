@@ -53,7 +53,8 @@ export class EpubImportService {
     const { signal, onProgress } = options
     throwIfEpubImportCanceled(signal)
     onProgress?.({ stage: 'reading', fileName: source.name, detail: 'Reading the selected file locally' })
-    let inspection = await inspectBook(source.bytes, {
+    if (source.originalInspection && !source.reference) throw new EpubImportError('invalid-container', 'The original book reference is missing.')
+    let inspection = source.originalInspection ?? await inspectBook(source.bytes, {
       fileName: source.name,
       mediaType: source.mediaType,
       signal,

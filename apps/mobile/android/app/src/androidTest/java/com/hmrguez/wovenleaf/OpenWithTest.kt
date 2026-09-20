@@ -218,6 +218,12 @@ class OpenWithTest {
         assertEquals("\"%PDF\"", evaluate(scenario, "window.originalBridgeResult.first"))
         assertEquals(org.json.JSONObject.quote(String(file.readBytes().copyOfRange(4, 8))), evaluate(scenario, "window.originalBridgeResult.second"))
         assertEquals("\"FILE_CHANGED\"", evaluate(scenario, "window.originalBridgeResult.sizeError"))
+        val fingerprint = OriginalFiles.verify(context, "wovenleaf-file://$id", hashContent = true).getString("fingerprint")
+        OriginalFiles.verify(context, "wovenleaf-file://$id", expected = fingerprint)
+        val changed = file.readBytes().also { it[it.lastIndex] = (it.last().toInt() xor 1).toByte() }
+        file.writeBytes(changed)
+        try { OriginalFiles.verify(context, "wovenleaf-file://$id", expected = fingerprint); fail("Cached identity must reject same-size changes") }
+        catch (error: OriginalFileException) { assertEquals("FILE_CHANGED", error.code) }
         assertTrue(file.delete())
         try { OriginalFiles.verify(context, "wovenleaf-file://$id"); fail("Missing originals must not open") }
         catch (error: OriginalFileException) { assertEquals("FILE_MISSING", error.code) }

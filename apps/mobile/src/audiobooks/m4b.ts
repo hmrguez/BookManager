@@ -21,16 +21,29 @@ export function parseM4b(bytes: Uint8Array, fileName: string): ParsedAudioMetada
     )
   }
   const brands = readAscii(bytes, ftyp.dataStart, ftyp.end - ftyp.dataStart)
-  if (!/(?:M4A |M4B |mp4[12]|isom|iso2)/.test(brands) || !containsFourCc(bytes, 'mp4a')) {
-    throw new AudiobookImportError(
-      'unsupported-format',
-      `“${fileName}” is MPEG-4, but it does not contain supported AAC audiobook audio.`,
-    )
-  }
-  if (['drms', 'enca', 'sinf', 'fair'].some((marker) => containsFourCc(bytes, marker))) {
+  const sampleDescriptions = descendants(moov).filter(({ type }) => type === 'stsd').flatMap((atom) => {
+    if (atom.dataStart + 8 > atom.end) {
+      throw new AudiobookImportError('corrupt-file', 'The audio sample description is truncated.')
+    }
+    const count = dataView(bytes).getUint32(atom.dataStart + 4, false)
+    const entries = readAtoms(bytes, atom.dataStart + 8, atom.end, true)
+    if (entries.length !== count) {
+      throw new AudiobookImportError('corrupt-file', 'The audio sample description table is incomplete.')
+    }
+    return entries
+  })
+  // Codec/protection identifiers are sample-description atoms, not arbitrary
+  // four-byte sequences. Compressed audio and cover art can contain those bytes.
+  if (sampleDescriptions.some((entry) => isProtectedAudio(bytes, entry))) {
     throw new AudiobookImportError(
       'drm-protected',
       `“${fileName}” contains protected audio. Wovenleaf imports only unprotected M4B/AAC and does not offer circumvention guidance.`,
+    )
+  }
+  if (!/(?:M4A |M4B |mp4[12]|isom|iso2)/.test(brands) || !sampleDescriptions.some(({ type }) => type === 'mp4a')) {
+    throw new AudiobookImportError(
+      'unsupported-format',
+      `“${fileName}” is MPEG-4, but it does not contain supported AAC audiobook audio.`,
     )
   }
 
@@ -215,16 +228,22 @@ function readChapterList(bytes: Uint8Array, atom: Mp4Atom, durationMs: number): 
   return []
 }
 
-function containsFourCc(bytes: Uint8Array, marker: string): boolean {
-  if (marker.length !== 4) return false
-  const target = [...marker].map((character) => character.charCodeAt(0))
-  outer: for (let offset = 0; offset + 4 <= bytes.byteLength; offset += 1) {
-    for (let index = 0; index < 4; index += 1) {
-      if (bytes[offset + index] !== target[index]) continue outer
-    }
-    return true
+function isProtectedAudio(bytes: Uint8Array, entry: Mp4Atom): boolean {
+  if (entry.type === 'enca' || entry.type === 'drms') return true
+  if (entry.type !== 'mp4a') return false
+  if (entry.dataStart + 28 > entry.end) {
+    throw new AudiobookImportError('corrupt-file', 'The AAC sample description is truncated.')
   }
-  return false
+  const version = dataView(bytes).getUint16(entry.dataStart + 8, false)
+  // QuickTime sound descriptions extend the 28-byte header for versions 1 and 2.
+  const headerSize = [28, 44, 64][version]
+  if (headerSize === undefined) {
+    throw new AudiobookImportError('unsupported-format', 'The audio sample description version is unsupported.')
+  }
+  if (entry.dataStart + headerSize > entry.end) {
+    throw new AudiobookImportError('corrupt-file', 'The AAC sample description is truncated.')
+  }
+  return readAtoms(bytes, entry.dataStart + headerSize, entry.end, true).some(({ type }) => type === 'sinf')
 }
 
 const MP4_CONTAINER_TYPES = new Set([

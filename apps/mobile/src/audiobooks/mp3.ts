@@ -46,9 +46,10 @@ type MpegFrameHeader = {
   readonly protectedByCrc: boolean
 }
 
-export function parseMp3(bytes: Uint8Array, fileName: string): ParsedAudioMetadata {
+export function parseMp3(bytes: Uint8Array, fileName: string, originalDurationMs?: number): ParsedAudioMetadata {
   const tag = readId3(bytes)
-  const durationMs = readMp3Duration(bytes, tag.audioStart)
+  const durationMs = findFirstMpegFrame(bytes, tag.audioStart) < 0 ? 0
+    : originalDurationMs ?? readMp3Duration(bytes, tag.audioStart)
   if (!Number.isFinite(durationMs) || durationMs <= 0) {
     throw new AudiobookImportError(
       'corrupt-file',

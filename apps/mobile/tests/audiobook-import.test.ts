@@ -29,6 +29,7 @@ import { BunSqliteDatabase } from './storage-test-database'
 import { AudiobookTestFilesystem } from './fixtures/audiobook-filesystem'
 import { AudiobookPlaybackRepository } from '../src/playback/repository'
 import { AudiobookProgressRepository } from '../src/playback/progress'
+import { audiobookSourceFromOriginal } from '../src/audiobooks/original-source'
 
 describe('audiobook inspection and normalization', () => {
   test('uses track evidence to make one deterministic absolute MP3 timeline', async () => {
@@ -129,6 +130,26 @@ describe('audiobook inspection and normalization', () => {
       expect(error).toMatchObject({ code: 'drm-protected' })
       expect((error as Error).message).toContain('does not offer circumvention')
     }
+  })
+
+  test('does not mistake marker bytes in audio or padding for M4B encryption', async () => {
+    const source = m4bSource('unprotected.m4b')
+    const bytes = concat(source.bytes, atom('free', fourCc('fair')), atom('mdat',
+      fourCc('sinf'), fourCc('enca'), fourCc('drms'), fourCc('fair'),
+    ))
+    const draft = await inspectAudiobook([{ ...source, bytes }])
+    expect(draft.totalDurationMs).toBe(3_600_000)
+  })
+
+  test('requires an AAC sample description rather than marker bytes in audio', async () => {
+    const source = m4bSource('unsupported.m4b', { sampleFormat: 'alac' })
+    const bytes = concat(source.bytes, atom('mdat', fourCc('mp4a')))
+    await expect(inspectAudiobook([{ ...source, bytes }])).rejects.toMatchObject({ code: 'unsupported-format' })
+  })
+
+  test.each(['enca', 'drms'])('rejects the protected %s audio sample entry', async (sampleFormat) => {
+    await expect(inspectAudiobook([m4bSource('protected.m4b', { sampleFormat })]))
+      .rejects.toMatchObject({ code: 'drm-protected' })
   })
 })
 
@@ -502,7 +523,7 @@ function synchsafe(value: number): Uint8Array {
 
 function m4bSource(
   name: string,
-  options: { readonly durationMs?: number; readonly cover?: boolean; readonly protected?: boolean } = {},
+  options: { readonly durationMs?: number; readonly cover?: boolean; readonly protected?: boolean; readonly sampleFormat?: string } = {},
 ): AudiobookImportSource {
   const durationMs = options.durationMs ?? 3_600_000
   const ftyp = atom('ftyp', fourCc('M4B '), uint32Bytes(0), fourCc('M4B '), fourCc('isom'))
@@ -521,8 +542,13 @@ function m4bSource(
     { title: 'First leaf', startMs: 0 },
     { title: 'Second leaf', startMs: Math.min(3_600_000, Math.floor(durationMs / 2)) },
   ]))
-  const evidence = atom('free', fourCc('mp4a'), ...(options.protected ? [fourCc('sinf')] : []))
-  const moov = atom('moov', atom('mvhd', mvhdBody), atom('udta', metadata, chpl), evidence)
+  const sample = atom(options.sampleFormat ?? 'mp4a', new Uint8Array(28),
+    ...(options.protected ? [atom('sinf', atom('frma', fourCc('mp4a')))] : []),
+  )
+  const track = atom('trak', atom('mdia', atom('minf', atom('stbl',
+    atom('stsd', new Uint8Array(4), uint32Bytes(1), sample),
+  ))))
+  const moov = atom('moov', atom('mvhd', mvhdBody), atom('udta', metadata, chpl), track)
   return { name, relativePath: name, mediaType: 'audio/mp4', bytes: concat(ftyp, moov) }
 }
 
@@ -616,6 +642,59 @@ test('free limit rolls back audiobook bytes and catalog, while attachments remai
 
 
 describe('original audiobook files', () => {
+  test('inspects an original M4B by range without reading its audio payload', async () => {
+    const source = m4bSource('large.m4b', { cover: true })
+    const ftypSize = new DataView(source.bytes.buffer).getUint32(0, false)
+    const ftyp = source.bytes.slice(0, ftypSize)
+    const moov = source.bytes.slice(ftypSize)
+    const audioSize = 600_000_000
+    const reference = { id: 'large-original', name: source.name, size: ftyp.length + audioSize + moov.length }
+    const mdatHeader = concat(uint32Bytes(audioSize), fourCc('mdat'))
+    const ranges: Array<{ offset: number; length: number }> = []
+    const access = new MemoryOriginalFiles()
+    access.read = async () => { throw new Error('Do not preload the original') }
+    access.inspect = async () => ({ size: reference.size, fingerprint: 'a'.repeat(64) })
+    access.readRange = async (_reference, offset, length) => {
+      ranges.push({ offset, length })
+      const bytes = new Uint8Array(length)
+      for (const [start, part] of [[0, ftyp], [ftyp.length, mdatHeader], [ftyp.length + audioSize, moov]] as const) {
+        const from = Math.max(offset, start)
+        const to = Math.min(offset + length, start + part.length)
+        if (to > from) bytes.set(part.subarray(from - start, to - start), from - offset)
+      }
+      return bytes
+    }
+    const original = await audiobookSourceFromOriginal(reference, source.name, source.mediaType, access)
+    const draft = await inspectAudiobook([original])
+    expect(original.bytes.length).toBe(0)
+    expect(draft.segments[0]?.byteSize).toBe(reference.size)
+    expect(draft.segments[0]?.fingerprint).toBe('a'.repeat(64))
+    expect(draft.cover?.mediaType).toBe('image/png')
+    expect(draft.totalDurationMs).toBe(3_600_000)
+    expect(ranges.reduce((total, range) => total + range.length, 0)).toBeLessThan(4096)
+    expect(ranges.some(({ offset }) => offset === ftyp.length + audioSize)).toBe(true)
+    const opaque = await inspectAudiobook([{ ...original, name: 'provider-object', mediaType: 'application/octet-stream' }])
+    expect(opaque.totalDurationMs).toBe(draft.totalDurationMs)
+  })
+
+  test('imports native MP3 metadata and duration without retaining audio bytes', async () => {
+    const database = new BunSqliteDatabase()
+    await migrateStorage(database)
+    const access = new MemoryOriginalFiles()
+    const input = access.link(mp3Source('original.mp3', { frames: 200 }))
+    const original = await audiobookSourceFromOriginal(input.reference, input.relativePath, input.mediaType, access)
+    const managedStore = new MemoryManagedAudiobookStore()
+    const service = new AudiobookImportService(database, { originalFiles: access, managedStore })
+    const draft = await service.prepare([original])
+    const fullDraft = await inspectAudiobook([input])
+    expect(draft).toEqual(fullDraft)
+    expect(original.bytes.length).toBe(0)
+    const result = await service.import([original], defaultAudiobookReview(draft))
+    expect(result.manifest.segments[0]?.durationMs).toBe(fullDraft.totalDurationMs)
+    expect(managedStore.files.size).toBe(0)
+    await database.close()
+  })
+
   test('reopens a completed audiobook after relinking without losing its end position', async () => {
     const database = new BunSqliteDatabase()
     await migrateStorage(database)

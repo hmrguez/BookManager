@@ -106,7 +106,7 @@ export class AudiobookPlaybackService {
         }),
       ]
     }
-    const snapshot = this.#accept(await this.#plugin.getSnapshot(), true)
+    const snapshot = this.#accept(await this.#plugin.getSnapshot())
     if (snapshot.queueId) {
       this.#currentBookId = (await this.#controls.contextForQueue(snapshot.queueId))?.bookId
     }
@@ -225,13 +225,13 @@ export class AudiobookPlaybackService {
   }
 
   async flush(): Promise<void> {
-    const snapshot = this.#accept(await this.#plugin.getSnapshot(), true)
+    const snapshot = this.#accept(await this.#plugin.getSnapshot())
     await this.drainJournal()
     await this.#checkpoint(snapshot, true)
   }
 
   setSystemSurfacePrivacy(previewEnabled: boolean): Promise<PlaybackSnapshot> {
-    return this.#plugin.setSystemSurfacePrivacy({ previewEnabled }).then((snapshot) => this.#accept(snapshot, true))
+    return this.#plugin.setSystemSurfacePrivacy({ previewEnabled }).then((snapshot) => this.#accept(snapshot))
   }
 
   subscribeSeekUndo(listener: (seek: PlaybackSeekUndo | undefined) => void): () => void {
@@ -423,12 +423,12 @@ export class AudiobookPlaybackService {
     const expectedRevision = this.#snapshot?.revision ?? 0
     try {
       const result = await invoke({ commandId: commandId(`playback-${prefix}`), expectedRevision })
-      const snapshot = this.#accept(result, true)
+      const snapshot = this.#accept(result)
       await this.drainJournal()
       await this.#checkpoint(snapshot, true)
       return snapshot
     } catch (error) {
-      const current = this.#accept(await this.#plugin.getSnapshot(), true)
+      const current = this.#accept(await this.#plugin.getSnapshot())
       if (current.error) {
         throw new AudiobookPlaybackError(current.error.code, current.error.message, {
           cause: error,
@@ -446,7 +446,7 @@ export class AudiobookPlaybackService {
     }
   }
 
-  #accept(candidate: PlaybackSnapshot, force = false): PlaybackSnapshot {
+  #accept(candidate: PlaybackSnapshot): PlaybackSnapshot {
     const parsed = playbackSnapshotSchema.parse(candidate)
     const snapshot = parsed.state === 'ended'
       ? {
@@ -455,7 +455,7 @@ export class AudiobookPlaybackService {
           segmentPositionMs: Math.max(0, parsed.segmentPositionMs + parsed.durationMs - parsed.absolutePositionMs),
         }
       : parsed
-    if (force || isNewerPlaybackSnapshot(this.#snapshot, snapshot)) {
+    if (isNewerPlaybackSnapshot(this.#snapshot, snapshot)) {
       const previousSessionId = this.#snapshot?.playbackSessionId
       this.#snapshot = snapshot
       if (previousSessionId && previousSessionId !== snapshot.playbackSessionId) {
@@ -473,7 +473,7 @@ export class AudiobookPlaybackService {
   }
 
   async #authoritativeSnapshot(): Promise<PlaybackSnapshot> {
-    const snapshot = this.#accept(await this.#plugin.getSnapshot(), true)
+    const snapshot = this.#accept(await this.#plugin.getSnapshot())
     await this.#checkpoint(snapshot, true)
     return snapshot
   }

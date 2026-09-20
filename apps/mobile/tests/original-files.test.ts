@@ -10,7 +10,8 @@ import { EpubReaderRepository } from '../src/reader/repository'
 import { CatalogRepository } from '../src/storage/catalog-repository'
 import { PortableArchiveService } from '../src/storage/portable-archive'
 import { migrateStorage } from '../src/storage/migrations'
-import { FileAccessError, originalFileError } from '../src/files/original-files'
+import { FileAccessError, originalFileError, originalFiles } from '../src/files/original-files'
+import { inspectEpub, inspectOriginalEpub } from '../src/epub/inspect'
 import { BunSqliteDatabase } from './storage-test-database'
 import { createPdf } from './fixtures/pdf'
 import { MemoryOriginalFiles } from './fixtures/original-files'
@@ -26,6 +27,52 @@ async function epub() {
 }
 
 describe('original ebook files', () => {
+  test('inspects selected ZIP entries with the same metadata and safety checks as a complete EPUB', async () => {
+    const original = await epub()
+    const zip = await JSZip.loadAsync(original)
+    zip.file('unused-image.bin', crypto.getRandomValues(new Uint8Array(65_536)))
+    const bytes = await zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' })
+    // EPUB requires its first mimetype to remain uncompressed.
+    const validZip = await JSZip.loadAsync(bytes)
+    validZip.file('mimetype', 'application/epub+zip', { compression: 'STORE' })
+    const valid = await validZip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' })
+    const access = new MemoryOriginalFiles()
+    const source = access.link({ name: 'book.epub', bytes: valid })
+    let transferred = 0
+    access.read = async () => { throw new Error('Do not preload the archive') }
+    access.readRange = async (_reference, start, length) => { transferred += length; return valid.slice(start, start + length) }
+    const options = { fileName: source.name }
+    expect(await inspectOriginalEpub(source.reference, options, access)).toEqual(await inspectEpub(valid, options))
+    // A fixed-size directory tail and small publication resources; no image body request.
+    expect(transferred).toBeLessThan(75_000)
+  })
+
+  test.each(['unsafe-path', 'archive-bomb', 'drm-protected'] as const)('preserves %s rejection when inspecting the original ZIP by range', async (code) => {
+    const zip = await JSZip.loadAsync(await epub())
+    if (code === 'unsafe-path') zip.file('../outside.txt', 'unsafe')
+    if (code === 'archive-bomb') zip.file('compressed.txt', 'a'.repeat(1_000_000), { compression: 'DEFLATE' })
+    if (code === 'drm-protected') zip.file('META-INF/encryption.xml', '<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><EncryptedData xmlns="http://www.w3.org/2001/04/xmlenc#"><EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc"/></EncryptedData></encryption>')
+    const access = new MemoryOriginalFiles()
+    const source = access.link({ name: 'unsafe.epub', bytes: await zip.generateAsync({ type: 'uint8array' }) })
+    await expect(inspectOriginalEpub(source.reference, { fileName: source.name }, access)).rejects.toMatchObject({ code })
+  })
+
+  test('rejects a ZIP directory pointing a publication resource outside the original', async () => {
+    const bytes = await epub()
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+    const directory = view.getUint32(bytes.length - 6, true)
+    let offset = directory
+    while (offset < bytes.length - 22) {
+      const nameSize = view.getUint16(offset + 28, true)
+      const name = new TextDecoder().decode(bytes.subarray(offset + 46, offset + 46 + nameSize))
+      if (name === 'META-INF/container.xml') { view.setUint32(offset + 42, bytes.length, true); break }
+      offset += 46 + nameSize + view.getUint16(offset + 30, true) + view.getUint16(offset + 32, true)
+    }
+    const access = new MemoryOriginalFiles()
+    const source = access.link({ name: 'bad-offset.epub', bytes })
+    await expect(inspectOriginalEpub(source.reference, { fileName: source.name }, access)).rejects.toMatchObject({ code: 'invalid-container' })
+  })
+
   test.each(['epub', 'pdf'] as const)('imports and opens a %s reference without storing content', async (format) => {
     const database = new BunSqliteDatabase()
     await migrateStorage(database)
@@ -117,12 +164,16 @@ describe('original ebook files', () => {
 
 test('native HTML file handoffs require the durable picker instead of falling back to copying', async () => {
   const native = spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true)
+  const access = new MemoryOriginalFiles()
+  const source = access.link({ name: 'selected.epub', bytes: await epub() }, 'picker-reference')
+  const ranges = spyOn(originalFiles, 'readRange').mockImplementation((reference, start, length) => access.readRange(reference, start, length))
+  const inspect = spyOn(originalFiles, 'inspect').mockImplementation((id) => access.inspect(id))
   try {
     const file = new File(['temporary provider representation'], 'shared.epub')
     await expect(epubSourceFromFile(file)).rejects.toThrow('temporary file')
     await expect(audiobookSourceFromFile(file)).rejects.toThrow('temporary file')
-    Object.defineProperty(file, 'originalReference', { value: { id: 'picker-reference', name: file.name, size: file.size } })
+    Object.defineProperty(file, 'originalReference', { value: source.reference })
     expect((await epubSourceFromFile(file)).reference?.id).toBe('picker-reference')
     expect((await audiobookSourceFromFile(file)).reference?.id).toBe('picker-reference')
-  } finally { native.mockRestore() }
+  } finally { native.mockRestore(); ranges.mockRestore(); inspect.mockRestore() }
 })

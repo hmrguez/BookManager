@@ -1046,7 +1046,7 @@ class WovenleafPlaybackService : MediaLibraryService() {
         }
     }
 
-    private fun absolutePositionMs(): Long = retainedErrorPositionMs ?: min(
+    private fun absolutePositionMs(): Long = retainedErrorPositionMs ?: if (player.playbackState == Player.STATE_ENDED) durationMs() else min(
         durationMs(),
         max(0, segmentStartMs(currentSegmentIndex()) + player.currentPosition),
     )

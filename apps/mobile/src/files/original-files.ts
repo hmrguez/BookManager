@@ -12,6 +12,7 @@ interface OriginalFilesPlugin {
   register(options: { uri: string }): Promise<OriginalSelection>
   stat(options: { id: string; fingerprint?: string; byteSize?: number; hash?: boolean }): Promise<{ size: number; fingerprint?: string }>
   read(options: { id: string; offset: number; length: number }): Promise<{ data: string }>
+  audioDuration(options: { id: string }): Promise<{ durationMs: number }>
   reconcile(options: { ids: string[] }): Promise<void>
   incoming(): Promise<{ files: IncomingOriginalFile[] }>
   addListener(event: 'incoming', listener: () => void): Promise<PluginListenerHandle>
@@ -41,28 +42,37 @@ export interface OriginalFileAccess {
   inspect(id: string): Promise<{ size: number; fingerprint?: string }>
   verify(reference: OriginalFileReference, fingerprint: string, size: number): Promise<void>
   read(reference: OriginalFileReference): Promise<Uint8Array>
+  readRange(reference: OriginalFileReference, offset: number, length: number): Promise<Uint8Array>
+  audioDuration(id: string): Promise<number>
 }
 
 export const originalFiles: OriginalFileAccess = {
   inspect(id) { return nativeOriginalFiles.stat({ id, hash: true }) },
+  async audioDuration(id) { return (await nativeOriginalFiles.audioDuration({ id })).durationMs },
   async verify(reference, fingerprint, byteSize) {
     try { await nativeOriginalFiles.stat({ id: reference.id, fingerprint, byteSize }) }
     catch (error) { throw new FileAccessError(error) }
+  },
+  async readRange(reference, start, length) {
+    try {
+      if (!Number.isSafeInteger(start) || !Number.isSafeInteger(length) || start < 0 || length < 0 || start + length > reference.size) throw { code: 'FILE_CHANGED' }
+      const bytes = new Uint8Array(length)
+      for (let offset = 0; offset < length;) {
+        const count = Math.min(1024 * 1024, length - offset)
+        const { data } = await nativeOriginalFiles.read({ id: reference.id, offset: start + offset, length: count })
+        const binary = atob(data)
+        if (!binary.length || binary.length > count) throw { code: 'FILE_CHANGED' }
+        for (let index = 0; index < binary.length; index++) bytes[offset + index] = binary.charCodeAt(index)
+        offset += binary.length
+      }
+      return bytes
+    } catch (error) { throw new FileAccessError(error) }
   },
   async read(reference) {
     try {
       const { size } = await nativeOriginalFiles.stat({ id: reference.id })
       if (!Number.isSafeInteger(size) || size < 0 || size !== reference.size) throw { code: 'FILE_CHANGED' }
-      const bytes = new Uint8Array(size)
-      for (let offset = 0; offset < size;) {
-        const length = Math.min(1024 * 1024, size - offset)
-        const { data } = await nativeOriginalFiles.read({ id: reference.id, offset, length })
-        const binary = atob(data)
-        if (!binary.length || binary.length > length) throw { code: 'FILE_CHANGED' }
-        for (let index = 0; index < binary.length; index++) bytes[offset + index] = binary.charCodeAt(index)
-        offset += binary.length
-      }
-      return bytes
+      return await this.readRange(reference, 0, size)
     } catch (error) { throw new FileAccessError(error) }
   },
 }
@@ -85,13 +95,17 @@ export async function pickOriginalFiles(kind: 'ebook' | 'audio', folder = false)
     const oversized = selections.find((file) => !audio.includes(file) && file.size > AUDIOBOOK_IMPORT_LIMITS.maxSidecarBytes)
     if (oversized) throw new Error(`“${oversized.name}” is too large to use as audiobook metadata or cover art.`)
   }
-  // Keep the existing metadata inspection and order review, without ever writing content to app storage.
+  // Native books/audio are reference-only selections. Importers read their own
+  // metadata from the original; only small sidecars need immediate byte payloads.
   const result: File[] = []
   for (const selection of selections) {
     const limit = kind === 'ebook' ? MAX_EPUB_ARCHIVE_BYTES : AUDIOBOOK_IMPORT_LIMITS.maxTotalBytes
     if (selection.size > limit) throw new Error(`“${selection.name}” is too large to open.`)
-    const bytes = await originalFiles.read(selection)
+    const isAudio = kind === 'audio' && (/\.(mp3|m4b|m4a|mp4)$/i.test(selection.name) || selection.mediaType.startsWith('audio/'))
+    const referenceOnly = isAudio || kind === 'ebook'
+    const bytes = referenceOnly ? new Uint8Array() : await originalFiles.read(selection)
     const file = new File([bytes as Uint8Array<ArrayBuffer>], selection.name, { type: selection.mediaType })
+    if (referenceOnly) Object.defineProperty(file, 'size', { value: selection.size })
     Object.defineProperty(file, 'originalReference', { value: selection })
     Object.defineProperty(file, 'webkitRelativePath', { value: selection.relativePath ?? selection.name })
     result.push(file)

@@ -1,4 +1,5 @@
 import type { OriginalFileReference } from '../files/original-files'
+import type { ParsedAudioMetadata } from './mp3'
 export const AUDIOBOOK_MANIFEST_VERSION = 1 as const
 
 export const AUDIOBOOK_MEDIA_TYPES = {
@@ -14,6 +15,12 @@ export type AudiobookImportSource = {
   readonly relativePath: string
   readonly mediaType: string
   readonly bytes: Uint8Array
+  /** Native audio keeps only inspected metadata here; bytes is empty and playback uses reference. */
+  readonly originalInspection?: {
+    readonly container: AudiobookContainer
+    readonly metadata: ParsedAudioMetadata
+    readonly fingerprint: string
+  }
 }
 
 export type AudiobookCover = {

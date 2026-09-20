@@ -1,5 +1,5 @@
 import { Capacitor } from '@capacitor/core'
-import { nativeOriginalFiles, pickOriginalFiles, type IncomingOriginalFile } from './files/original-files'
+import { nativeOriginalFiles, originalFiles, originalSelectionFromUri, pickOriginalFiles, type IncomingOriginalFile } from './files/original-files'
 import { isPdfBytes } from './epub/inspect-book'
 import { purchases, startPurchases } from './purchases/runtime'
 import { LibraryUpgradeRequired } from './purchases/model'
@@ -82,6 +82,7 @@ import { motionStyles } from './tailwind/motion'
 import {
   epubImportErrorMessage,
   epubSourceFromFile,
+  epubSourceFromIncomingUrl,
   type EpubImportSource,
   type EpubImportResult,
 } from './epub'
@@ -781,13 +782,22 @@ function App() {
 
   const routeIncomingBookFile = async (url: string) => {
     try {
+      if (Capacitor.isNativePlatform()) {
+        const reference = await originalSelectionFromUri(url)
+        const header = await originalFiles.readRange(reference, 0, Math.min(reference.size, 16))
+        if (isPdfBytes(header) || isZipContainer(header)) {
+          await importEpubSources([() => epubSourceFromIncomingUrl(url)], undefined, false, true)
+        } else {
+          await prepareAudiobookSources(async () => [await audiobookSourceFromIncomingUrl(url)], undefined, false, true)
+        }
+        return
+      }
       const source = await audiobookSourceFromIncomingUrl(url)
       if (isPdfBytes(source.bytes)) {
-        await importEpubSources([async () => ({ ...source, name: /\.pdf$/i.test(source.name) ? source.name : `${source.name}.pdf`, mediaType: 'application/pdf' })], undefined, false, true)
+        await importEpubSources([async () => ({ bytes: source.bytes, name: /\.pdf$/i.test(source.name) ? source.name : `${source.name}.pdf`, mediaType: 'application/pdf' })], undefined, false, true)
       } else if (isZipContainer(source.bytes)) {
         const name = source.name.toLocaleLowerCase().endsWith('.epub') ? source.name : `${source.name}.epub`
         await importEpubSources([async () => ({
-          ...source,
           name,
           mediaType: 'application/epub+zip',
           bytes: source.bytes,
@@ -894,7 +904,7 @@ function App() {
       if (!incoming.length) return
       void withIncomingFileOpening(incoming.length === 1 ? incoming[0]!.name : `${incoming.length} books`, () => importEpubSources(incoming.map((file) => async () => {
         const url = file.uri.startsWith('/') ? `file://${file.uri}` : file.uri
-        const source = await audiobookSourceFromIncomingUrl(url)
+        const source = await epubSourceFromIncomingUrl(url)
         return { ...source, name: file.name, mediaType: file.mimeType }
       }), undefined, false, true)).finally(() => {
         for (const file of incoming) incomingDeliveryGuardRef.current.release(`share:${file.uri}:${file.name}:${file.mimeType}`)

@@ -1,6 +1,8 @@
 import { Capacitor } from '@capacitor/core'
 import { FileAccessError, originalFiles, originalSelectionFromUri, type OriginalFile, type OriginalFileReference } from '../files/original-files'
 import { isPdfBytes } from './inspect-book'
+import { inspectOriginalEpub } from './inspect'
+import type { EpubInspection } from './model'
 import { Filesystem } from '@capacitor/filesystem'
 import { EPUB_MEDIA_TYPE, EpubImportError, MAX_EPUB_ARCHIVE_BYTES } from './model'
 
@@ -9,11 +11,14 @@ export type EpubImportSource = {
   readonly name: string
   readonly mediaType: string
   readonly bytes: Uint8Array
+  readonly originalInspection?: EpubInspection
 }
 
 export async function epubSourceFromFile(file: File): Promise<EpubImportSource> {
   if (Capacitor.isNativePlatform() && !(file as OriginalFile).originalReference) throw new FileAccessError({ code: 'RESELECT_FILE' })
   assertSafeIncomingSize(file.size)
+  const reference = (file as OriginalFile).originalReference
+  if (reference) return epubSourceFromOriginal(reference, file.type)
   return {
     reference: (file as OriginalFile).originalReference,
     name: file.name,
@@ -26,7 +31,7 @@ export async function epubSourceFromIncomingUrl(url: string): Promise<EpubImport
   if (Capacitor.isNativePlatform()) {
     const reference = await originalSelectionFromUri(url)
     assertSafeIncomingSize(reference.size)
-    return { name: reference.name, mediaType: reference.mediaType, reference, bytes: await originalFiles.read(reference) }
+    return epubSourceFromOriginal(reference, reference.mediaType)
   }
   if (!/^(?:file|content|capacitor):/i.test(url)) {
     throw new EpubImportError(
@@ -58,6 +63,14 @@ export async function epubSourceFromIncomingUrl(url: string): Promise<EpubImport
       { cause: error },
     )
   }
+}
+
+export async function epubSourceFromOriginal(reference: OriginalFileReference, mediaType: string): Promise<EpubImportSource> {
+  assertSafeIncomingSize(reference.size)
+  const header = await originalFiles.readRange(reference, 0, Math.min(16, reference.size))
+  if (isPdfBytes(header)) return { name: reference.name, mediaType: 'application/pdf', reference, bytes: await originalFiles.read(reference) }
+  const inspection = await inspectOriginalEpub(reference, { fileName: reference.name, mediaType })
+  return { name: reference.name, mediaType, reference, bytes: new Uint8Array(), originalInspection: inspection }
 }
 
 function assertSafeIncomingSize(byteSize: number): void {

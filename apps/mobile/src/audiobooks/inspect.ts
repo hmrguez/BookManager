@@ -54,7 +54,7 @@ export async function inspectAudiobook(
     relativePath: safeRelativePath(source.relativePath || source.name),
   }))
   assertUniquePaths(sources)
-  const totalBytes = sources.reduce((total, { bytes }) => total + bytes.byteLength, 0)
+  const totalBytes = sources.reduce((total, source) => total + (source.reference?.size ?? source.bytes.byteLength), 0)
   if (totalBytes > AUDIOBOOK_IMPORT_LIMITS.maxTotalBytes) {
     throw new AudiobookImportError('unsupported-format', 'This audiobook is larger than the managed import limit.')
   }
@@ -81,10 +81,11 @@ export async function inspectAudiobook(
       completedFiles: index,
       totalFiles: audioSources.length,
     })
-    const container = probeContainer(source.bytes)
-    const metadata = container === 'mpeg-4-audio'
+    if (source.originalInspection && !source.reference) throw new AudiobookImportError('corrupt-file', 'The original audio reference is missing.')
+    const container = sourceContainer(source)
+    const metadata = source.originalInspection?.metadata ?? (container === 'mpeg-4-audio'
       ? parseM4b(source.bytes, source.name)
-      : parseMp3(source.bytes, source.name)
+      : parseMp3(source.bytes, source.name))
     onProgress?.({
       stage: 'fingerprinting',
       fileName: source.name,
@@ -92,11 +93,11 @@ export async function inspectAudiobook(
       completedFiles: index,
       totalFiles: audioSources.length,
     })
-    inspected.push({ source, metadata, fingerprint: await sha256(source.bytes) })
+    inspected.push({ source, metadata, fingerprint: source.originalInspection?.fingerprint ?? await sha256(source.bytes) })
   }
   throwIfAudiobookImportCanceled(signal)
 
-  const containers = new Set(inspected.map(({ source }) => probeContainer(source.bytes)))
+  const containers = new Set(inspected.map(({ source }) => sourceContainer(source)))
   if (containers.has('mpeg-4-audio') && (containers.size > 1 || inspected.length > 1)) {
     throw new AudiobookImportError(
       'unsupported-combination',
@@ -111,12 +112,12 @@ export async function inspectAudiobook(
       sourceIndex,
       fileName: source.name,
       relativePath: source.relativePath,
-      container: probeContainer(source.bytes),
-      mediaType: probeContainer(source.bytes) === 'mpeg-4-audio'
+      container: sourceContainer(source),
+      mediaType: sourceContainer(source) === 'mpeg-4-audio'
         ? AUDIOBOOK_MEDIA_TYPES.m4b
         : AUDIOBOOK_MEDIA_TYPES.mp3,
       durationMs: metadata.durationMs,
-      byteSize: source.bytes.byteLength,
+      byteSize: source.reference?.size ?? source.bytes.byteLength,
       fingerprint,
       ...(metadata.title ? { title: metadata.title } : {}),
       ...(metadata.album ? { album: metadata.album } : {}),
@@ -258,6 +259,10 @@ export async function normalizeAudiobookReview(
   }
 }
 
+function sourceContainer(source: AudiobookImportSource): 'mpeg-4-audio' | 'mpeg-audio' {
+  return source.originalInspection?.container ?? probeContainer(source.bytes)
+}
+
 function probeContainer(bytes: Uint8Array): 'mpeg-4-audio' | 'mpeg-audio' {
   if (readAscii(bytes, 4, 4) === 'ftyp') return 'mpeg-4-audio'
   if (readAscii(bytes, 0, 3) === 'ID3' || containsMpegSync(bytes)) return 'mpeg-audio'
@@ -276,6 +281,7 @@ function containsMpegSync(bytes: Uint8Array): boolean {
 }
 
 function isAudioCandidate(source: AudiobookImportSource): boolean {
+  if (source.originalInspection) return true
   const suffix = extension(source.name)
   if (['m4b', 'm4a', 'mp4', 'mp3'].includes(suffix)) return true
   if (source.mediaType.startsWith('audio/')) return true

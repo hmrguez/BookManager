@@ -3,6 +3,7 @@ package com.hmrguez.wovenleaf
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.ParcelFileDescriptor
 import android.provider.DocumentsContract
@@ -25,6 +26,18 @@ class OriginalFileException(val code: String, message: String = "Choose the orig
 
 /** Original provider URIs; persist access when offered, otherwise use the live Open With grant. */
 object OriginalFiles {
+    private val fingerprints = object : LinkedHashMap<String, String>(128, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>?) = size > 128
+    }
+
+    private fun fileVersion(descriptor: ParcelFileDescriptor): String? = runCatching {
+        if (android.os.Build.VERSION.SDK_INT < 27) return@runCatching null
+        val stat = android.system.Os.fstat(descriptor.fileDescriptor)
+        // ctime changes on writes even when a download/transfer preserves a whole-second mtime.
+        // Providers with pipes or coarse/unknown change timestamps are always rehashed.
+        if (!android.system.OsConstants.S_ISREG(stat.st_mode) || stat.st_ctim.tv_nsec == 0L) return@runCatching null
+        "${stat.st_dev}:${stat.st_ino}:${stat.st_size}:${stat.st_mtim.tv_sec}:${stat.st_mtim.tv_nsec}:${stat.st_ctim.tv_sec}:${stat.st_ctim.tv_nsec}"
+    }.getOrNull()
     private fun preferences(context: Context) = context.getSharedPreferences("wovenleaf.original-files.v1", Context.MODE_PRIVATE)
 
     fun register(context: Context, uri: Uri, flags: Int, scope: Uri = uri, relative: String? = null): JSObject {
@@ -111,12 +124,18 @@ object OriginalFiles {
     fun verify(context: Context, raw: String, expected: String? = null, size: Long? = null, hashContent: Boolean = false): JSObject {
         val metadata = metadata(context, resolve(context, raw))
         if (size != null && metadata.getLong("size") != size) throw OriginalFileException("FILE_CHANGED")
-        stream(context, raw).use { input ->
+        descriptor(context, raw).use { descriptor ->
             if (expected != null || hashContent) {
-                val hash = MessageDigest.getInstance("SHA-256")
-                val buffer = ByteArray(1024 * 1024)
-                while (true) { val count = input.read(buffer); if (count < 0) break; hash.update(buffer, 0, count) }
-                val actual = hex(hash.digest())
+                val version = fileVersion(descriptor)
+                val key = version?.let { "$raw:$it" }
+                val cached = key?.let { synchronized(fingerprints) { fingerprints[it] } }
+                val actual = cached ?: ParcelFileDescriptor.AutoCloseInputStream(descriptor).use { input ->
+                    val hash = MessageDigest.getInstance("SHA-256")
+                    val buffer = ByteArray(1024 * 1024)
+                    while (true) { val count = input.read(buffer); if (count < 0) break; hash.update(buffer, 0, count) }
+                    if (version != null && fileVersion(descriptor) != version) throw OriginalFileException("FILE_CHANGED")
+                    hex(hash.digest()).also { value -> if (key != null) synchronized(fingerprints) { fingerprints[key] = value } }
+                }
                 if (expected != null && actual != expected) throw OriginalFileException("FILE_CHANGED")
                 metadata.put("fingerprint", actual)
             }
@@ -219,6 +238,17 @@ class WovenleafFilesPlugin : Plugin() {
     }
     @PluginMethod fun stat(call: PluginCall) = work(call) {
         OriginalFiles.verify(context, "wovenleaf-file://" + call.getString("id"), call.getString("fingerprint"), integerArgument(call, "byteSize"), call.getBoolean("hash", false) == true)
+    }
+    @PluginMethod fun audioDuration(call: PluginCall) = work(call) {
+        val raw = "wovenleaf-file://" + call.getString("id")
+        OriginalFiles.seekableDescriptor(context, raw).use { descriptor ->
+            MediaMetadataRetriever().use { metadata ->
+                metadata.setDataSource(descriptor.fileDescriptor)
+                val duration = metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+                    ?: throw OriginalFileException("FILE_UNSUPPORTED")
+                JSObject().put("durationMs", duration)
+            }
+        }
     }
     @PluginMethod fun read(call: PluginCall) = work(call) {
         val offset = integerArgument(call, "offset") ?: -1

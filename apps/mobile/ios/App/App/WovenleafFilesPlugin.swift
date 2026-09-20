@@ -2,12 +2,13 @@ import Capacitor
 import Foundation
 import UIKit
 import UniformTypeIdentifiers
+import AVFoundation
 
 @objc(WovenleafFilesPlugin)
 final class WovenleafFilesPlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPickerDelegate {
     let identifier = "WovenleafFilesPlugin"
     let jsName = "WovenleafFiles"
-    let pluginMethods = ["pick", "register", "stat", "read", "reconcile", "incoming"].compactMap {
+    let pluginMethods = ["pick", "register", "stat", "read", "audioDuration", "reconcile", "incoming"].compactMap {
         CAPPluginMethod(name: $0, returnType: CAPPluginReturnPromise)
     }
     private var pickerCall: CAPPluginCall?
@@ -92,6 +93,18 @@ final class WovenleafFilesPlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPickerD
                 try handle.seek(toOffset: UInt64(offset))
                 return ["data": (try handle.read(upToCount: length) ?? Data()).base64EncodedString()]
             }
+        }
+    }
+
+    @objc func audioDuration(_ call: CAPPluginCall) {
+        Task {
+            do {
+                let access = try WovenleafFileReferences.acquire("wovenleaf-file://" + (call.getString("id") ?? ""))
+                let url = try access.coordinated { $0 }
+                let duration = try await AVURLAsset(url: url).load(.duration).seconds * 1000
+                guard duration.isFinite, duration > 0 else { throw WovenleafFileReferences.unavailable("FILE_UNSUPPORTED") }
+                withExtendedLifetime(access) { call.resolve(["durationMs": duration.rounded()]) }
+            } catch { Self.reject(call, error) }
         }
     }
 

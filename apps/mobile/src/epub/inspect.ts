@@ -1,6 +1,7 @@
 import { DOMParser } from '@xmldom/xmldom'
 import type { Document as XmlDocument, Element as XmlElement } from '@xmldom/xmldom'
-import JSZip, { type JSZipObject } from 'jszip'
+import JSZip from 'jszip'
+import { FileAccessError, originalFiles, type OriginalFileAccess, type OriginalFileReference } from '../files/original-files'
 import {
   createEpubCompatibilityProfile,
   type EpubCompatibilityProfile,
@@ -40,7 +41,12 @@ type CentralEntry = {
   readonly compressedSize: number
   readonly uncompressedSize: number
   readonly encrypted: boolean
+  readonly localHeaderOffset: number
+  readonly directoryRecord: Uint8Array
 }
+
+type EpubArchiveFile = { readonly name: string; async(type: 'text'): Promise<string>; async(type: 'uint8array'): Promise<Uint8Array> }
+type EpubArchive = { file(path: string): EpubArchiveFile | null }
 
 const ALLOWED_INPUT_MEDIA_TYPES = new Set([
   '',
@@ -84,6 +90,70 @@ export async function inspectEpub(
     )
   }
 
+  return inspectArchive(archive, centralEntries, bytes.byteLength, () => sha256(bytes), options)
+}
+
+/** Inspect ZIP metadata and selected resources in place, leaving image/font payloads in the original. */
+export async function inspectOriginalEpub(reference: OriginalFileReference, options: InspectEpubOptions, access: OriginalFileAccess = originalFiles): Promise<EpubInspection> {
+  validateInputIdentity(options.fileName, options.mediaType ?? '')
+  if (reference.size > EPUB_SAFETY_LIMITS.maxArchiveBytes) throw new EpubImportError('archive-too-large', 'This EPUB exceeds the 256 MB import limit.')
+  validateMimetypeEntry(await access.readRange(reference, 0, Math.min(reference.size, 58)))
+  const tailOffset = Math.max(0, reference.size - 65_557)
+  const tail = await access.readRange(reference, tailOffset, reference.size - tailOffset)
+  const view = dataView(tail)
+  let end = tail.length - 22
+  while (end >= 0 && (view.getUint32(end, true) !== 0x06054b50 || end + 22 + view.getUint16(end + 20, true) !== tail.length)) end--
+  if (end < 0) throw new EpubImportError('invalid-container', 'The EPUB ZIP directory is missing or truncated.')
+  const directorySize = view.getUint32(end + 12, true)
+  const directoryOffset = view.getUint32(end + 16, true)
+  if (directorySize > 16 * 1024 * 1024 || directoryOffset + directorySize > tailOffset + end) {
+    throw new EpubImportError('invalid-container', 'The EPUB ZIP directory has unsafe bounds.')
+  }
+  const directory = await access.readRange(reference, directoryOffset, directorySize)
+  const central = new Uint8Array(directorySize + tail.length - end)
+  central.set(directory)
+  central.set(tail.subarray(end), directorySize)
+  dataView(central).setUint32(directorySize + 16, 0, true)
+  const entries = readCentralDirectory(central)
+  validateArchiveEntries(entries)
+  const byName = new Map(entries.map((entry) => [entry.name, entry]))
+  const archive: EpubArchive = {
+    file(path) {
+      const entry = byName.get(path)
+      if (!entry || path.endsWith('/')) return null
+      return { name: path, async: (async (type: 'text' | 'uint8array') => {
+        if (entry.localHeaderOffset + 30 > directoryOffset) throw new EpubImportError('invalid-container', 'An EPUB entry has unsafe bounds.')
+        const header = await access.readRange(reference, entry.localHeaderOffset, 30)
+        const local = dataView(header)
+        if (local.getUint32(0, true) !== 0x04034b50) throw new EpubImportError('invalid-container', 'An EPUB entry header is malformed.')
+        const length = 30 + local.getUint16(26, true) + local.getUint16(28, true) + entry.compressedSize
+        if (entry.localHeaderOffset + length > directoryOffset) throw new EpubImportError('invalid-container', 'An EPUB entry has unsafe bounds.')
+        const payload = await access.readRange(reference, entry.localHeaderOffset, length)
+        const record = entry.directoryRecord.slice()
+        dataView(record).setUint32(42, 0, true)
+        const single = new Uint8Array(payload.length + record.length + 22)
+        single.set(payload)
+        single.set(record, payload.length)
+        const eocd = new DataView(single.buffer, payload.length + record.length)
+        eocd.setUint32(0, 0x06054b50, true)
+        eocd.setUint16(8, 1, true); eocd.setUint16(10, 1, true)
+        eocd.setUint32(12, record.length, true); eocd.setUint32(16, payload.length, true)
+        const zip = await JSZip.loadAsync(single, { checkCRC32: true, createFolders: false })
+        const file = zip.file(path)
+        if (!file) throw new EpubImportError('invalid-container', 'An EPUB entry name does not match its directory.')
+        return type === 'text' ? file.async('text') : file.async('uint8array')
+      }) as EpubArchiveFile['async'] }
+    },
+  }
+  return inspectArchive(archive, entries, reference.size, async () => {
+    const identity = await access.inspect(reference.id)
+    if (identity.size !== reference.size || !identity.fingerprint) throw new FileAccessError({ code: 'FILE_CHANGED' })
+    return identity.fingerprint
+  }, options)
+}
+
+async function inspectArchive(archive: EpubArchive, centralEntries: CentralEntry[], byteSize: number, fingerprint: () => Promise<string>, options: InspectEpubOptions): Promise<EpubInspection> {
+  const { fileName, signal, onProgress } = options
   const centralByName = new Map(centralEntries.map((entry) => [entry.name, entry]))
   const containerFile = requireFile(archive, 'META-INF/container.xml')
   assertExtractableSize(containerFile.name, centralByName, EPUB_SAFETY_LIMITS.maxContainerBytes)
@@ -154,13 +224,13 @@ export async function inspectEpub(
   })
 
   onProgress?.({ stage: 'fingerprinting', fileName, detail: 'Fingerprinting the original package' })
-  const contentHash = await sha256(bytes)
+  const contentHash = await fingerprint()
   throwIfEpubImportCanceled(signal)
   const publicationDate = optionalMetadataText(packageDocument, 'date')
 
   return {
     contentHash,
-    byteSize: bytes.byteLength,
+    byteSize,
     entryCount: centralEntries.length,
     packagePath,
     packageVersion,
@@ -193,7 +263,7 @@ const MAX_COMPATIBILITY_RESOURCE_BYTES = 8 * 1024 * 1024
 const MAX_COMPATIBILITY_TOTAL_BYTES = 32 * 1024 * 1024
 
 async function inspectCompatibility(input: {
-  readonly archive: JSZip
+  readonly archive: EpubArchive
   readonly entries: ReadonlyMap<string, CentralEntry>
   readonly packageDocument: XmlDocument
   readonly packagePath: string
@@ -298,7 +368,7 @@ function resolveReadableManifestItem(
 }
 
 async function compatibilitySources(
-  archive: JSZip,
+  archive: EpubArchive,
   entries: ReadonlyMap<string, CentralEntry>,
   packagePath: string,
   resources: readonly ManifestRecord[],
@@ -449,7 +519,8 @@ function readCentralDirectory(bytes: Uint8Array): CentralEntry[] {
     const nextOffset = offset + 46 + nameLength + extraLength + commentLength
     if (nextOffset > endOffset) throw new EpubImportError('invalid-container', 'An EPUB ZIP entry is truncated.')
     const name = new TextDecoder().decode(bytes.subarray(offset + 46, offset + 46 + nameLength))
-    entries.push({ name, compressedSize, uncompressedSize, encrypted: (flags & 0x1) !== 0 })
+    entries.push({ name, compressedSize, uncompressedSize, encrypted: (flags & 0x1) !== 0,
+      localHeaderOffset: view.getUint32(offset + 42, true), directoryRecord: bytes.subarray(offset, nextOffset) })
     offset = nextOffset
   }
   return entries
@@ -489,7 +560,7 @@ function validateArchiveEntries(entries: readonly CentralEntry[]): void {
 }
 
 async function validateProtection(
-  archive: JSZip,
+  archive: EpubArchive,
   entries: ReadonlyMap<string, CentralEntry>,
 ): Promise<void> {
   if (archive.file('META-INF/license.lcpl')) {
@@ -525,7 +596,7 @@ async function validateProtection(
 async function extractCover(
   item: XmlElement,
   packagePath: string,
-  archive: JSZip,
+  archive: EpubArchive,
   entries: ReadonlyMap<string, CentralEntry>,
 ) {
   const href = item.getAttribute('href')?.trim()
@@ -620,7 +691,7 @@ function textContent(element: XmlElement | undefined): string {
   return element?.textContent?.trim().replace(/\s+/g, ' ') ?? ''
 }
 
-function requireFile(archive: JSZip, path: string): JSZipObject {
+function requireFile(archive: EpubArchive, path: string): EpubArchiveFile {
   const file = archive.file(path)
   if (!file) throw new EpubImportError('invalid-package', `The EPUB is missing “${path}”.`)
   return file

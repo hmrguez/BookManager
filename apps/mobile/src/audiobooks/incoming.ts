@@ -1,4 +1,5 @@
-import { FileAccessError, originalFiles, originalSelectionFromUri, type OriginalFile } from '../files/original-files'
+import { FileAccessError, originalSelectionFromUri, type OriginalFile } from '../files/original-files'
+import { audiobookSourceFromOriginal } from './original-source'
 import { Capacitor } from '@capacitor/core'
 import { Filesystem } from '@capacitor/filesystem'
 import { extension, safeRelativePath } from './binary'
@@ -11,6 +12,8 @@ type FileWithRelativePath = File & { readonly webkitRelativePath?: string }
 export async function audiobookSourceFromFile(file: File): Promise<AudiobookImportSource> {
   if (Capacitor.isNativePlatform() && !(file as OriginalFile).originalReference) throw new FileAccessError({ code: 'RESELECT_FILE' })
   const relativePath = (file as FileWithRelativePath).webkitRelativePath || file.name
+  const reference = (file as OriginalFile).originalReference
+  if (reference && isAudioFile(file)) return audiobookSourceFromOriginal(reference, relativePath, file.type)
   return {
     reference: (file as OriginalFile).originalReference,
     name: file.name,
@@ -42,7 +45,7 @@ export async function audiobookSourceFromIncomingUrl(url: string): Promise<Audio
   if (Capacitor.isNativePlatform()) {
     const reference = await originalSelectionFromUri(url)
     if (reference.size > AUDIOBOOK_IMPORT_LIMITS.maxTotalBytes) throw new AudiobookImportError('unsupported-format', 'This audiobook is too large to open.')
-    return { name: reference.name, relativePath: reference.name, mediaType: reference.mediaType, reference, bytes: await originalFiles.read(reference) }
+    return audiobookSourceFromOriginal(reference, reference.name, reference.mediaType)
   }
   if (!/^(?:file|content|capacitor):/i.test(url)) {
     throw new AudiobookImportError(

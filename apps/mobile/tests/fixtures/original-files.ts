@@ -1,4 +1,5 @@
 import { sha256 } from '../../src/audiobooks/binary'
+import { parseMp3 } from '../../src/audiobooks/mp3'
 import { FileAccessError, type OriginalFileAccess, type OriginalFileReference } from '../../src/files/original-files'
 
 export class MemoryOriginalFiles implements OriginalFileAccess {
@@ -17,6 +18,14 @@ export class MemoryOriginalFiles implements OriginalFileAccess {
     const bytes = this.files.get(id)
     if (!bytes) throw new FileAccessError({ code: 'FILE_MISSING' })
     return { size: bytes.length, fingerprint: await sha256(bytes) }
+  }
+  async readRange(reference: OriginalFileReference, offset: number, length: number) {
+    return (await this.read(reference)).slice(offset, offset + length)
+  }
+  async audioDuration(id: string) {
+    const bytes = this.files.get(id)
+    if (!bytes) throw new FileAccessError({ code: 'FILE_MISSING' })
+    return parseMp3(bytes, id).durationMs
   }
   async verify(reference: OriginalFileReference, fingerprint: string, size: number) {
     const actual = await this.inspect(reference.id)
