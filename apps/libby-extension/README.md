@@ -19,7 +19,7 @@ The browser test installs the real MV3 extension in isolated Chromium and serves
 ## Delivery
 
 - **Safari (iPhone/iPad):** the bundled `LibbyExtension.appex` receives `runtime.sendNativeMessage`. It validates a bounded snapshot and queues it in `group.com.hmrguez.wovenleaf/LibbyInbox` with data protection, backup exclusion, atomic files, and a cross-process lock. Wovenleaf drains the queue on launch/resume or “Check received captures”, then acknowledges each database commit. The native receiver is off until Wovenleaf Settings → Libby is enabled.
-- **Quetta (Android):** the extension uses the Web Share API after a user tap. It prefers an `application/json` file, falls back to marked text when file sharing is unsupported, and always offers a file download. Wovenleaf accepts SEND and JSON VIEW intents; cold-start delivery and private payload logging in the existing share plugin are fixed by a pinned Bun patch. Quetta may not expose Web Share in an extension popup; the file path is a supported fallback, not an assumed native-messaging bridge.
+- **Quetta (Android):** the verified path on Quetta 2.0.5 / Pixel 9 is **Save progress file → download → import in Wovenleaf**, or open it from **Quetta Downloads → Share → Wovenleaf**. Direct Web Share stalled in the popup and was unavailable in a full extension tab. The popup shows fallback instructions even when the share promise never settles. On browsers supporting Web Share, it prefers an `application/json` file and falls back to marked text. Wovenleaf accepts SEND and JSON VIEW intents; cold-start delivery and private payload logging in the existing share plugin are fixed by a pinned Bun patch.
 
 The companion also requires explicit “Capture this browser’s Libby shelf” opt-in. It observes only rendered loan tiles on `/shelf` or `/shelf/loans` at `https://libbyapp.com`. Site permission is origin-wide because Libby navigates as an SPA, but observation checks the current route and document visibility each time. It never accesses page local storage, cookies, tokens, library cards, book contents, or browsing history.
 
@@ -29,7 +29,7 @@ Only one last snapshot is cached in extension session storage, or local storage 
 
 1. Follow [the implementation and release guide](../../docs/integrations/libby.md).
 2. Build and zip the **contents** of `dist/chromium`, including the root `manifest.json`, for a Chrome Web Store or Edge Add-ons listing. No listing is published by this repository.
-3. After a real listing exists, set `VITE_LIBBY_EXTENSION_STORE_URL` to its HTTPS URL when building the app. Only the two supported store hosts are accepted. Without it, the Quetta guide explicitly says public installation is unavailable; it never invents a listing.
+3. After a real listing exists, set `VITE_LIBBY_EXTENSION_STORE_URL` to its HTTPS URL when building the app. Only the two supported store hosts are accepted. Without it, the Quetta guide gives the verified 2.0.5 development ZIP path: **Extensions → Manage Extensions → Developer options → Developer mode → from .zip/.crx/.user.js**. It never invents a store listing.
 4. Sign the app and new Safari extension with the existing team's App Group entitlement. The extension bundle ID is `com.hmrguez.wovenleaf.LibbyExtension`. Distribute through the containing Wovenleaf app/TestFlight.
 5. Complete the physical-device checks in the guide before advertising this as a verified mobile integration.
 

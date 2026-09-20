@@ -46,6 +46,13 @@ try {
   await popup.evaluate(() => { navigator.share = async data => { globalThis.shared = data; }; navigator.canShare = () => false; });
   await popup.getByRole('button',{name:'Send to Wovenleaf',exact:true}).click();
   assert.equal(await popup.evaluate(() => globalThis.shared.text), 'Wovenleaf Libby progress\n' + JSON.stringify(current));
+  await popup.evaluate(() => { navigator.share = () => new Promise(() => {}); });
+  await popup.getByRole('button',{name:'Send to Wovenleaf',exact:true}).click();
+  await expect(popup.locator('#status')).toContainText('If nothing opens, choose Save progress file');
+  const stalledShareDownload = popup.waitForEvent('download');
+  await popup.getByRole('button',{name:'Save progress file'}).click();
+  assert.deepEqual(JSON.parse(await readFile(await (await stalledShareDownload).path(),'utf8')),current);
+  await expect(popup.locator('#status')).toContainText('Finish the download');
   await popup.getByRole('checkbox').uncheck();
   await expect.poll(snapshot).toBeUndefined();
   console.log('PASS: opt-in, installed MV3 capture, zero/fractional progress, duplicates/hidden/invalid labels, SPA changes, isolated world, validation, popup export, share fallback, and erase on pause.');

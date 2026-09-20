@@ -20,7 +20,7 @@ The bundled Manifest V3 companion requires iOS/iPadOS 15.4 or later ([WebKit rel
 
 1. Enable **Libby progress** in Wovenleaf Settings. The automatic-updates setting applies only to books you explicitly match.
 2. In iPhone/iPad Settings, open **Apps → Safari → Extensions → Wovenleaf Libby** and enable it. Older iOS versions list Safari directly in Settings.
-3. Open **libbyapp.com in Safari**. Choose the option to copy from another device. Get a setup code from native Libby at **Menu → Settings → Copy To Another Device** and enter it in the Libby website. Never put that code in Wovenleaf.
+3. Open **libbyapp.com in Safari**. Choose **Yes, I Have A Library Card → Recover Your Data → Display Setup Code**. In native Libby, open **Menu → Copy To Another Device** (under Your Information) and enter the code displayed by the website. Return to Safari and wait for the transfer to finish. The code expires quickly; generate another if needed. Never put that code in Wovenleaf.
 4. Use Safari’s page menu / Manage Extensions to allow the companion on **libbyapp.com**. Open the companion and enable **Capture this browser’s Libby shelf**.
 5. Visit the web **Shelf**, wait for percentage labels, then choose **Capture shelf now**. Open Wovenleaf and match each title once, or add it to Reading.
 6. After future reading, let native Libby sync online, visit the web Shelf in Safari, and return to Wovenleaf. If the website shows an old percentage, use **Shelf → Actions → Synchronize Shelf**, then capture again.
@@ -30,13 +30,15 @@ Capture runs when the shelf is visible and changes. The native inbox can receive
 ## Quetta setup
 
 1. Enable Libby progress in Wovenleaf Settings.
-2. In **Quetta for Android**, open its Extensions menu and the Chrome Web Store / Edge Add-ons store. Install **Wovenleaf · Libby progress** from the published listing, enable it, and allow access to libbyapp.com. **A public listing still needs publication.** The source bundle is prepared; do not claim Quetta supports unpacked installation on every build. Developer installation and store acceptance must be checked on the target Quetta version.
+2. **A public store listing is not available yet.** For development, save the companion ZIP on your phone. In Quetta, open **Extensions → Manage Extensions → Developer options**, enable **Developer mode**, choose **from .zip/.crx/.user.js**, and select the ZIP. Confirm **Wovenleaf · Libby progress** is enabled. This local installation path was verified on Quetta **2.0.5**; it is not a claim about every Quetta version. After publication, use the actual Chrome Web Store or Edge Add-ons listing instead.
 3. Open **libbyapp.com in Quetta** and link it using native Libby’s Copy To Another Device flow, as above.
-4. Open the web Shelf, wait for percentages, then open the companion. Enable capture, choose **Capture shelf now**, then **Send to Wovenleaf** and select Wovenleaf in Android’s share sheet.
-5. Match each title once. After each later web-shelf visit, send again. Linked, forward updates apply on receipt if enabled.
-6. If Web Share is unavailable, choose **Save progress file**. In Wovenleaf Settings → Libby, choose **Import progress file**, or open/share the JSON file with Wovenleaf. Never select an export destination you do not want to receive those private titles and percentages.
+4. Open the web Shelf, wait for percentages, then open the companion from **Quetta menu → Extensions → Wovenleaf · Libby progress**. Enable capture and choose **Capture shelf now**.
+5. Choose **Save progress file** and finish the download. In Wovenleaf Settings → Libby, choose **Import progress file** and select `wovenleaf-libby.json`. Alternatively, open that file in **Quetta → Downloads**, tap the viewer’s **Share** icon, select **Wovenleaf**, then **Just once**. This download/viewer/share route was verified on the Pixel. Direct **Send to Wovenleaf** did not work in Quetta 2.0.5: the popup could leave Web Share pending, and a full extension tab reported sharing unavailable. The companion keeps file instructions visible while sharing is pending.
+6. Match each title once. After each later web-shelf visit, save and import/share a fresh capture. Linked, forward updates apply on receipt if enabled. Never select an export destination you do not want to receive those private titles and percentages.
 
 Browser Libby needs internet. People can also read in mobile Safari/Quetta and return to the Shelf to capture afterward. The companion does not observe the full reader itself.
+
+Quetta's development ZIP installer can create a second extension instance when installing a rebuilt ZIP. Remove the earlier development instance in the extension manager, keep only the new one, then refresh the Shelf and enable capture again. This does not remove Wovenleaf's saved book links.
 
 ## Data and reconciliation contract
 
@@ -62,7 +64,20 @@ Verified on 2026-09-20:
 - iOS Simulator app build with the Safari extension embedded; production Swift boundary validation.
 - Android debug app build including JSON VIEW/SEND routing and the pinned share-target fix.
 
-The connected-phone check returned **no ADB devices** during implementation. The earlier spike established matching audiobook 0% on native Libby and its linked web shelf, but not nonzero propagation. Do not promote synthetic tests or successful builds into a claim of live mobile end-to-end verification.
+Physical-device follow-up on 2026-09-20 used Android Studio’s Running Devices mirror and Run configuration on a connected **Pixel 9, Android 17 / API 37**, with **Quetta 2.0.5** and **Libby 9.5.0**. Verified:
+
+- Android Studio installed and launched the Wovenleaf debug app without erasing its existing library.
+- Quetta installed and enabled the companion directly from its ZIP.
+- Official Libby setup linked native Libby to the Quetta web client. This caught and corrected the reversed setup-code instructions in both browser guides.
+- The real audiobook displayed 0% in native Libby, the linked web shelf, and the companion capture.
+- Saving the JSON and sharing it from Quetta’s file viewer opened Wovenleaf Settings, presented one review item, and added/linked a new Reading entry at 0%. Existing books were unchanged.
+- Force-stopping Wovenleaf and sharing the same file again cold-launched Settings without creating another review item or link. Importing the same file through Wovenleaf’s Android file picker also completed without duplication. The link and library entry survived installing the updated app through Android Studio.
+- Direct Web Share failed as described above. The working file path is now the primary Quetta guide, and a regression test covers a share promise that never settles while file export remains usable.
+- Installed the rebuilt companion on the Pixel and confirmed that tapping Send immediately shows the file fallback instructions. The refreshed web shelf and rebuilt companion still displayed 0% after restoring the native player.
+
+Do not promote synthetic tests or successful builds into claims about untested physical-device behavior.
+
+Nonzero native-to-web propagation has not yet been established in this device run. A temporary paused chapter position was restored to the original **00:00 / 0%** before proceeding with unrelated import checks. A controlled provider-sync test remains outstanding, as does physical Safari verification.
 
 Before public release, verify on signed physical iPhone/iPad and a current Quetta Android build: extension installation, permissions, native↔web nonzero sync on a disposable/sample title, ebook and audiobook formatting, Web Share support or file fallback, cold/warm app launch, offline/resume, duplicate capture, manual-edit conflict, Undo, disconnect, and app upgrade. Also test Safari's native message response/inbox and the distribution team's App Group provisioning. The repository creates no store accounts, publishes no listing, and uploads no release.
 

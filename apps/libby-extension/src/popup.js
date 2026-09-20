@@ -42,6 +42,9 @@ $('send').addEventListener('click', async () => {
       if (!navigator.share) { $('status').textContent = 'Sharing is unavailable here. Save the file and import it in Wovenleaf → Settings → Libby.'; return; }
       const data = navigator.canShare?.({ files: [file] }) ? { files: [file], title: 'Wovenleaf Libby progress' }
         : { text: 'Wovenleaf Libby progress\n' + JSON.stringify(snapshot), title: 'Wovenleaf Libby progress' };
+      // Some mobile extension popups expose Web Share but never open its sheet
+      // or settle its promise. Keep the working local-file path visible.
+      $('status').textContent = 'Opening the share sheet. If nothing opens, choose Save progress file, then import it in Wovenleaf → Settings → Libby.';
       await navigator.share(data);
       $('status').textContent = 'Share sheet closed. Check Wovenleaf for your update.';
     }
@@ -51,6 +54,7 @@ $('save').addEventListener('click', () => {
   if (!snapshot) return;
   const url = URL.createObjectURL(new Blob([JSON.stringify(snapshot)], { type: 'application/json' }));
   const link = document.createElement('a'); link.href = url; link.download = 'wovenleaf-libby.json'; link.click();
+  $('status').textContent = 'Finish the download, then import wovenleaf-libby.json in Wovenleaf → Settings → Libby. You can also open it from Quetta Downloads and share it with Wovenleaf.';
   setTimeout(() => URL.revokeObjectURL(url), 30000);
 });
 refresh().catch(() => { $('status').textContent = 'Reopen the companion to try again.'; });
