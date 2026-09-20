@@ -5,7 +5,7 @@
     if (inFlight) return inFlight.catch(() => ({ ok: false, message: 'Reopen the companion and refresh your shelf.' }));
     const player = readWovenleafPlayer();
     let snapshot = player ? { ...player, id: crypto.randomUUID(), capturedAt: new Date().toISOString() } : readWovenleafShelf();
-    if (!snapshot) return { ok: false, message: 'Open your Libby Shelf or audiobook player and wait for its progress label.' };
+    if (!snapshot) return { ok: false, message: 'Open your Libby Shelf, ebook reader or audiobook player and wait for its progress to load.' };
     const next = JSON.stringify(player ?? snapshot.observations);
     if (!force && !pending && signature === next) return { ok: true };
     // Retain the ID across retries so a lost receipt cannot fill the native inbox.

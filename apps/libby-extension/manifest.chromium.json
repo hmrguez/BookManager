@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Wovenleaf \u00b7 Libby progress",
-  "version": "0.4.1",
-  "description": "Bring your visible Libby shelf and audiobook progress to Wovenleaf. Private and local.",
+  "version": "0.5.0",
+  "description": "Bring your Libby web books and reading progress to Wovenleaf. Private and local.",
   "permissions": [
     "storage"
   ],
@@ -10,7 +10,9 @@
     "https://libbyapp.com/*",
     "http://127.0.0.1/*",
     "https://*.listen.overdrive.com/*",
-    "https://*.listen.libbyapp.com/*"
+    "https://*.listen.libbyapp.com/*",
+    "https://*.read.libbyapp.com/*",
+    "https://*.read.overdrive.com/*"
   ],
   "icons": {
     "192": "icon.png"
@@ -39,7 +41,9 @@
     {
       "matches": [
         "https://*.listen.overdrive.com/*",
-        "https://*.listen.libbyapp.com/*"
+        "https://*.listen.libbyapp.com/*",
+        "https://*.read.libbyapp.com/*",
+        "https://*.read.overdrive.com/*"
       ],
       "js": [
         "common.js",

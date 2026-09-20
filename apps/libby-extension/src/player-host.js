@@ -6,8 +6,10 @@
     const titleId = /^\/open\/loan\/[^/]+\/(\d{1,20})\/?$/.exec(location.pathname)?.[1];
     if (!titleId) return null; // Samples, magazines and other routes never count.
     const frames = [...document.querySelectorAll('.bifocal-frame.is-revealed iframe')].filter(WovenleafLibby.visible);
-    if (frames.length !== 1 || !WovenleafLibby.playerOrigin(frames[0].src)) return null;
-    return { titleId, frame: frames[0] };
+    if (frames.length !== 1) return null;
+    const format = WovenleafLibby.playerFormat(frames[0].src);
+    if (!format) return null;
+    return { titleId, format, frame: frames[0], origin: new URL(frames[0].src).origin };
   }
   addEventListener('message', event => {
     const value = event.data;
@@ -21,7 +23,7 @@
   });
   globalThis.readWovenleafPlayer = () => {
     const current = active();
-    if (!current || !latest || latest.frame !== current.frame || latest.titleId !== current.titleId || Date.now() - latest.receivedAt > 10000) return null;
-    return { titleId: current.titleId, title: latest.title, percent: latest.percent };
+    if (!current || !latest || latest.frame !== current.frame || latest.titleId !== current.titleId || latest.origin !== current.origin || Date.now() - latest.receivedAt > 10000) return null;
+    return { titleId: current.titleId, format: current.format, title: latest.title, percent: latest.percent };
   };
 })();

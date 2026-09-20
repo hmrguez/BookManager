@@ -42,10 +42,15 @@
     const value = match ? Number(match[1].replace(',', '.')) : NaN;
     return Number.isFinite(value) && value >= 0 && value <= 100 ? value : null;
   };
-  const playerOrigin = value => {
-    try { const u = new URL(value); return u.protocol === 'https:' && !u.port && /^[a-z0-9-]+\.listen\.(?:overdrive|libbyapp)\.com$/.test(u.hostname); } catch { return false; }
+  const playerFormat = value => {
+    try {
+      const u = new URL(value);
+      if (u.protocol !== 'https:' || u.port || u.username || u.password) return null;
+      const kind = /^[a-z0-9-]+\.(listen|read)\.(?:overdrive|libbyapp)\.com$/.exec(u.hostname)?.[1];
+      return kind === 'listen' ? 'audiobook' : kind === 'read' ? 'ebook' : null;
+    } catch { return null; }
   };
-  globalThis.WovenleafLibby = Object.freeze({ api, valid, coverURL, visible, percentLabel, playerOrigin,
+  globalThis.WovenleafLibby = Object.freeze({ api, valid, coverURL, visible, percentLabel, playerFormat,
     shelf: url => { try { const u = new URL(url); return u.origin === 'https://libbyapp.com' && /^\/shelf(?:\/loans)?\/?$/.test(u.pathname); } catch { return false; } },
   });
 })();

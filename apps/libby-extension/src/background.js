@@ -26,10 +26,10 @@ if (typeof importScripts === 'function') importScripts('common.js', 'local.js');
     return { ...snapshot, observations };
   }
   async function playerSnapshot(position) {
-    if (!position || typeof position.titleId !== 'string' || !/^\d{1,20}$/.test(position.titleId) || typeof position.title !== 'string' ||
-        Object.keys(position).some(key => !['titleId', 'title', 'percent', 'id', 'capturedAt'].includes(key))) return null;
+    if (!position || typeof position.titleId !== 'string' || !/^\d{1,20}$/.test(position.titleId) || typeof position.title !== 'string' || !['ebook', 'audiobook'].includes(position.format) ||
+        Object.keys(position).some(key => !['titleId', 'format', 'title', 'percent', 'id', 'capturedAt'].includes(key))) return null;
     const remembered = await loans();
-    const entry = remembered.find(entry => key(entry.observation) === `audiobook:${position.titleId}`);
+    const entry = remembered.find(entry => key(entry.observation) === `${position.format}:${position.titleId}`);
     if (!entry) return null;
     // Reject a previous book's frame during an SPA switch, even on the same origin.
     const normalized = text => text.normalize('NFKC').replace(/\s+/g, ' ').trim().toLocaleLowerCase('en');
