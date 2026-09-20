@@ -50,20 +50,21 @@ final class ShareViewController: UIViewController {
     }
 
     private func captureSharedDocument(from provider: NSItemProvider) async -> [String: String]? {
-        let supported = [UTType.pdf.identifier, "org.idpf.epub-container", UTType.mp3.identifier, UTType.mpeg4Audio.identifier, UTType.commaSeparatedText.identifier]
+        let supported = [UTType.pdf.identifier, "org.idpf.epub-container", UTType.mp3.identifier, UTType.mpeg4Audio.identifier, UTType.commaSeparatedText.identifier, UTType.json.identifier]
         let detectedType = supported.first { provider.hasItemConformingToTypeIdentifier($0) }
         let defaultName = detectedType == UTType.pdf.identifier ? "Shared book.pdf"
             : detectedType == "org.idpf.epub-container" ? "Shared book.epub"
             : detectedType == UTType.mp3.identifier ? "Shared audiobook.mp3"
             : detectedType == UTType.mpeg4Audio.identifier ? "Shared audiobook.m4b"
+            : detectedType == UTType.json.identifier ? "wovenleaf-libby.json"
             : "goodreads-library.csv"
         let suggestedName = provider.suggestedName ?? defaultName
         let suffix = (suggestedName as NSString).pathExtension.lowercased()
-        guard detectedType != nil || ["csv", "epub", "pdf", "mp3", "m4b", "m4a", "mp4"].contains(suffix) else { return nil }
+        guard detectedType != nil || ["csv", "json", "epub", "pdf", "mp3", "m4b", "m4a", "mp4"].contains(suffix) else { return nil }
         let type = detectedType ?? UTType.data.identifier
         guard provider.hasItemConformingToTypeIdentifier(type) else { return nil }
 
-        if suffix != "csv" && detectedType != UTType.commaSeparatedText.identifier {
+        if suffix != "csv" && suffix != "json" && detectedType != UTType.commaSeparatedText.identifier && detectedType != UTType.json.identifier {
             return await withCheckedContinuation { continuation in
                 provider.loadInPlaceFileRepresentation(forTypeIdentifier: type) { url, inPlace, _ in
                     var file = ["name": suggestedName, "mimeType": UTType(type)?.preferredMIMEType ?? "application/octet-stream"]

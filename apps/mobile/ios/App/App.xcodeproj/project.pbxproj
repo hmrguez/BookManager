@@ -31,6 +31,11 @@
 		A15000012FF5000000000002 /* WovenleafFileAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = A15000012FF5000000000001; };
 		A15000022FF5000000000002 /* WovenleafFilesPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A15000022FF5000000000001; };
 		A15000032FF5000000000002 /* WovenleafFileAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = A15000012FF5000000000001; };
+		A16000012FEC000000000001 /* SafariWebExtensionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16000022FEC000000000002 /* SafariWebExtensionHandler.swift */; };
+		A16000062FEC000000000006 /* LibbyExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A16000052FEC000000000005 /* LibbyExtension.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		32612ED2BF08AED9F8AD304F /* LibbyInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A32A7CEEBC973E60D980735; };
+		12E88B465BB217FE936DFAD6 /* WovenleafLibbyPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7736A0714CA318FEB4FA010; };
+		F859F07A3EF446B14DC19246 /* LibbyInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A32A7CEEBC973E60D980735; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -40,6 +45,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = A12600082FEC000000000008;
 			remoteInfo = ShareExtension;
+		};
+		A160000D2FEC00000000000D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A16000082FEC000000000008;
+			remoteInfo = LibbyExtension;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -51,6 +63,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				A12600062FEC000000000006 /* ShareExtension.appex in Embed App Extensions */,
+				A16000062FEC000000000006 /* LibbyExtension.appex in Embed App Extensions */,
 			);
 			name = "Embed App Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -85,6 +98,12 @@
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
 		A15000012FF5000000000001 /* WovenleafFileAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WovenleafFileAccess.swift; sourceTree = "<group>"; };
 		A15000022FF5000000000001 /* WovenleafFilesPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WovenleafFilesPlugin.swift; sourceTree = "<group>"; };
+		A16000022FEC000000000002 /* SafariWebExtensionHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafariWebExtensionHandler.swift; sourceTree = "<group>"; };
+		A16000032FEC000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A16000042FEC000000000004 /* LibbyExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LibbyExtension.entitlements; sourceTree = "<group>"; };
+		A16000052FEC000000000005 /* LibbyExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LibbyExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		5A32A7CEEBC973E60D980735 /* LibbyInbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibbyInbox.swift; sourceTree = "<group>"; };
+		B7736A0714CA318FEB4FA010 /* WovenleafLibbyPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WovenleafLibbyPlugin.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -103,6 +122,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A160000A2FEC00000000000A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -112,6 +138,7 @@
 				958DCC722DB07C7200EA8C5F /* debug.xcconfig */,
 				504EC3061FED79650016851F /* App */,
 				A12600072FEC000000000007 /* ShareExtension */,
+				A16000072FEC000000000007 /* LibbyExtension */,
 				504EC3051FED79650016851F /* Products */,
 			);
 			sourceTree = "<group>";
@@ -121,6 +148,7 @@
 			children = (
 				504EC3041FED79650016851F /* App.app */,
 				A12600052FEC000000000005 /* ShareExtension.appex */,
+				A16000052FEC000000000005 /* LibbyExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -133,6 +161,8 @@
 				A14200022FF3000000000002 /* ReviewAccessVerifier.swift */,
 				A13700022FF0000000000002 /* WovenleafPlaybackPlugin.swift */,
 				A15000012FF5000000000001 /* WovenleafFileAccess.swift */,
+				5A32A7CEEBC973E60D980735 /* LibbyInbox.swift */,
+				B7736A0714CA318FEB4FA010 /* WovenleafLibbyPlugin.swift */,
 				A15000022FF5000000000001 /* WovenleafFilesPlugin.swift */,
 				A13500022FEA000000000002 /* WovenleafReaderPlugin.swift */,
 				A14300022FF3000000000002 /* WovenleafPDFViewController.swift */,
@@ -163,6 +193,16 @@
 			path = ShareExtension;
 			sourceTree = "<group>";
 		};
+		A16000072FEC000000000007 /* LibbyExtension */ = {
+			isa = PBXGroup;
+			children = (
+				A16000022FEC000000000002 /* SafariWebExtensionHandler.swift */,
+				A16000032FEC000000000003 /* Info.plist */,
+				A16000042FEC000000000004 /* LibbyExtension.entitlements */,
+			);
+			path = LibbyExtension;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -179,6 +219,7 @@
 			);
 			dependencies = (
 				A126000E2FEC00000000000E /* PBXTargetDependency */,
+				A160000E2FEC00000000000E /* PBXTargetDependency */,
 			);
 			name = App;
 			packageProductDependencies = (
@@ -205,6 +246,26 @@
 			);
 			productName = ShareExtension;
 			productReference = A12600052FEC000000000005 /* ShareExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		A16000082FEC000000000008 /* LibbyExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A160000F2FEC00000000000F /* Build configuration list for PBXNativeTarget "LibbyExtension" */;
+			buildPhases = (
+				A16000092FEC000000000009 /* Sources */,
+				A160000A2FEC00000000000A /* Frameworks */,
+				A160000B2FEC00000000000B /* Resources */,
+				9F40E08086FCEC81530A65F7 /* Build Libby companion */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = LibbyExtension;
+			packageProductDependencies = (
+			);
+			productName = LibbyExtension;
+			productReference = A16000052FEC000000000005 /* LibbyExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
@@ -248,6 +309,7 @@
 			targets = (
 				504EC3031FED79650016851F /* App */,
 				A12600082FEC000000000008 /* ShareExtension */,
+				A16000082FEC000000000008 /* LibbyExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -273,7 +335,29 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A160000B2FEC00000000000B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		9F40E08086FCEC81530A65F7 /* Build Libby companion */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = ();
+			inputPaths = ();
+			outputPaths = ();
+			name = "Build Libby companion";
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "/bin/sh \"$SRCROOT/../../../libby-extension/build-safari.sh\"";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		504EC3001FED79650016851F /* Sources */ = {
@@ -285,6 +369,8 @@
 				A14200012FF3000000000001 /* ReviewAccessVerifier.swift in Sources */,
 				A13700012FF0000000000001 /* WovenleafPlaybackPlugin.swift in Sources */,
 				A15000012FF5000000000002 /* WovenleafFileAccess.swift in Sources */,
+				32612ED2BF08AED9F8AD304F /* LibbyInbox.swift in Sources */,
+				12E88B465BB217FE936DFAD6 /* WovenleafLibbyPlugin.swift in Sources */,
 				A15000022FF5000000000002 /* WovenleafFilesPlugin.swift in Sources */,
 				A13500012FEA000000000001 /* WovenleafReaderPlugin.swift in Sources */,
 				A14300012FF3000000000001 /* WovenleafPDFViewController.swift in Sources */,
@@ -306,6 +392,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A16000092FEC000000000009 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F859F07A3EF446B14DC19246 /* LibbyInbox.swift in Sources */,
+				A16000012FEC000000000001 /* SafariWebExtensionHandler.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -313,6 +408,11 @@
 			isa = PBXTargetDependency;
 			target = A12600082FEC000000000008 /* ShareExtension */;
 			targetProxy = A126000D2FEC00000000000D /* PBXContainerItemProxy */;
+		};
+		A160000E2FEC00000000000E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A16000082FEC000000000008 /* LibbyExtension */;
+			targetProxy = A160000D2FEC00000000000D /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -539,6 +639,56 @@
 			};
 			name = Release;
 		};
+		A16000102FEC000000000010 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				CODE_SIGN_ENTITLEMENTS = LibbyExtension/LibbyExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = LibbyExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.4;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.hmrguez.wovenleaf.LibbyExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A16000112FEC000000000011 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				CODE_SIGN_ENTITLEMENTS = LibbyExtension/LibbyExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = LibbyExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.4;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.hmrguez.wovenleaf.LibbyExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -565,6 +715,15 @@
 			buildConfigurations = (
 				A12600102FEC000000000010 /* Debug */,
 				A12600112FEC000000000011 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A160000F2FEC00000000000F /* Build configuration list for PBXNativeTarget "LibbyExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A16000102FEC000000000010 /* Debug */,
+				A16000112FEC000000000011 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

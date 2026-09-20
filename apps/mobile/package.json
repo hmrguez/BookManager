@@ -75,6 +75,7 @@
     "sql.js": "1.11.0"
   },
   "patchedDependencies": {
-    "@capacitor-community/sqlite@8.1.1": "patches/@capacitor-community%2Fsqlite@8.1.1.patch"
+    "@capacitor-community/sqlite@8.1.1": "patches/@capacitor-community%2Fsqlite@8.1.1.patch",
+    "@capgo/capacitor-share-target@8.0.49": "patches/@capgo%2Fcapacitor-share-target@8.0.49.patch"
   }
 }

@@ -12,6 +12,7 @@ final class WovenleafBridgeViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(WovenleafPurchasesPlugin())
         bridge?.registerPluginInstance(WovenleafReaderPlugin())
         bridge?.registerPluginInstance(WovenleafFilesPlugin())
+        bridge?.registerPluginInstance(WovenleafLibbyPlugin())
         bridge?.registerPluginInstance(WovenleafPlaybackPlugin())
     }
 }
