@@ -12,11 +12,13 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         window?.rootViewController = WovenleafBridgeViewController()
         window?.makeKeyAndVisible()
 
-        SceneDelegateProxy.shared.scene(scene, willConnectTo: session, options: connectionOptions)
+        let received = connectionOptions.urlContexts.map { WovenleafFilesPlugin.receive($0.url) }
+        if !received.contains(true) { SceneDelegateProxy.shared.scene(scene, willConnectTo: session, options: connectionOptions) }
     }
 
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
-        SceneDelegateProxy.shared.scene(scene, openURLContexts: URLContexts)
+        let remaining = Set(URLContexts.filter { !WovenleafFilesPlugin.receive($0.url) })
+        if !remaining.isEmpty { SceneDelegateProxy.shared.scene(scene, openURLContexts: remaining) }
     }
 
     func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {

@@ -1,3 +1,4 @@
+import { originalFiles, type OriginalFileAccess } from '../files/original-files'
 import type { SqlDatabase } from '../storage/database'
 import { LibraryUpgradeRequired } from '../purchases/model'
 import { applyEmbeddedCover } from '../covers/embedded-cover'
@@ -24,17 +25,20 @@ import {
 } from './repository'
 
 export type AudiobookImportServiceOptions = AudiobookImportRepositoryOptions & {
+  readonly originalFiles?: OriginalFileAccess
   readonly managedStore?: ManagedAudiobookStore
   readonly createCapabilityId?: () => string
 }
 
 export class AudiobookImportService {
+  readonly #originalFiles: OriginalFileAccess
   readonly #database: SqlDatabase
   readonly #repository: AudiobookImportRepository
   readonly #managedStore: ManagedAudiobookStore
   readonly #createCapabilityId: () => string
 
   constructor(database: SqlDatabase, options: AudiobookImportServiceOptions = {}) {
+    this.#originalFiles = options.originalFiles ?? originalFiles
     this.#database = database
     this.#repository = new AudiobookImportRepository(database, options)
     this.#managedStore = options.managedStore ?? new CapacitorManagedAudiobookStore()
@@ -56,6 +60,17 @@ export class AudiobookImportService {
     return this.#repository.findBySourceSetFingerprint(draft.sourceSetFingerprint)
   }
 
+  async relinkImported(result: AudiobookImportResult, sources: readonly AudiobookImportSource[], draft: AudiobookImportDraft): Promise<void> {
+    const references = new Map<string, string>()
+    for (const segment of draft.segments) {
+      const source = sources.find((candidate) => candidate.relativePath === segment.relativePath)
+      if (!source?.reference) continue
+      await this.#originalFiles.verify(source.reference, segment.fingerprint, segment.byteSize)
+      references.set(segment.fingerprint, source.reference.id)
+    }
+    if (references.size) await this.#repository.linkOriginalSegments(result.assetId, references)
+  }
+
   async import(
     sources: readonly AudiobookImportSource[],
     review: AudiobookImportReview,
@@ -70,8 +85,13 @@ export class AudiobookImportService {
     throwIfAudiobookImportCanceled(signal)
     const draft = await inspectAudiobook(sources, { signal })
     const audiobook = await normalizeAudiobookReview(draft, review)
+    for (const segment of audiobook.segments) {
+      const source = sources.find((candidate) => candidate.relativePath === segment.relativePath)
+      if (source?.reference) await this.#originalFiles.verify(source.reference, segment.fingerprint, segment.byteSize)
+    }
     const duplicate = await this.#repository.findByFingerprint(audiobook.fingerprint)
     if (duplicate) {
+      await this.relinkImported(duplicate, sources, draft)
       if (!options.targetBookId || options.targetBookId === duplicate.bookId) {
         await this.#database.transaction((database) =>
           applyEmbeddedCover(database, duplicate.bookId, audiobook.cover, options.overwriteCover),
@@ -98,16 +118,17 @@ export class AudiobookImportService {
         onProgress?.({
           stage: 'storing',
           fileName: segment.fileName,
-          detail: 'Copying verified audio into private managed storage',
+          detail: source.reference ? 'Keeping access to the original audio' : 'Saving verified audio on this device',
           completedFiles: index,
           totalFiles: audiobook.segments.length,
         })
         const suffix = segment.container === 'mpeg-4-audio' ? 'm4b' : 'mp3'
         const relativePath = `${bundleRelativePath}/segments/${segment.fingerprint}.${suffix}`
-        writes.push(await this.#managedStore.putAtomically(relativePath, source.bytes, signal))
+        if (!source.reference) writes.push(await this.#managedStore.putAtomically(relativePath, source.bytes, signal))
         storedSegments.push({
           segmentId: segment.id,
-          relativePath,
+          relativePath: source.reference ? '' : relativePath,
+          ...(source.reference ? { referenceId: source.reference.id } : {}),
           capabilityId: this.#createCapabilityId(),
         })
       }
@@ -146,7 +167,7 @@ export class AudiobookImportService {
       await Promise.all(
         distinctCreatedWrites(writes).map(({ relativePath }) => this.#managedStore.remove(relativePath)),
       )
-      if (error instanceof AudiobookImportError || error instanceof LibraryUpgradeRequired) throw error
+      if (error instanceof AudiobookImportError || error instanceof LibraryUpgradeRequired || (error instanceof Error && error.name === 'FileAccessError')) throw error
       throw new AudiobookImportError(
         'storage-failed',
         'The audiobook could not be committed. Its catalog records and newly managed files were rolled back.',

@@ -3,6 +3,7 @@ import UIKit
 
 /// Fixed-layout documents use PDFKit; EPUB typography preferences never alter a PDF.
 final class WovenleafPDFViewController: UIViewController {
+    var fileAccess: OriginalFileAccess?
     private let document: PDFDocument
     private let context: ReaderContext
     private let initialLocator: [String: Any]?

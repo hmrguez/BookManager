@@ -1,16 +1,21 @@
+import { Capacitor } from '@capacitor/core'
+import { FileAccessError, originalFiles, originalSelectionFromUri, type OriginalFile, type OriginalFileReference } from '../files/original-files'
 import { isPdfBytes } from './inspect-book'
 import { Filesystem } from '@capacitor/filesystem'
 import { EPUB_MEDIA_TYPE, EpubImportError, MAX_EPUB_ARCHIVE_BYTES } from './model'
 
 export type EpubImportSource = {
+  readonly reference?: OriginalFileReference
   readonly name: string
   readonly mediaType: string
   readonly bytes: Uint8Array
 }
 
 export async function epubSourceFromFile(file: File): Promise<EpubImportSource> {
+  if (Capacitor.isNativePlatform() && !(file as OriginalFile).originalReference) throw new FileAccessError({ code: 'RESELECT_FILE' })
   assertSafeIncomingSize(file.size)
   return {
+    reference: (file as OriginalFile).originalReference,
     name: file.name,
     mediaType: file.type,
     bytes: new Uint8Array(await file.arrayBuffer()),
@@ -18,6 +23,11 @@ export async function epubSourceFromFile(file: File): Promise<EpubImportSource> 
 }
 
 export async function epubSourceFromIncomingUrl(url: string): Promise<EpubImportSource> {
+  if (Capacitor.isNativePlatform()) {
+    const reference = await originalSelectionFromUri(url)
+    assertSafeIncomingSize(reference.size)
+    return { name: reference.name, mediaType: reference.mediaType, reference, bytes: await originalFiles.read(reference) }
+  }
   if (!/^(?:file|content|capacitor):/i.test(url)) {
     throw new EpubImportError(
       'wrong-media-type',

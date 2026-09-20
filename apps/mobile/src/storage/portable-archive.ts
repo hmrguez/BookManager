@@ -752,13 +752,13 @@ function preparePortableCatalog(
         },
       }
     }
-    if (asset.location.kind === 'managed-bundle') {
+    if (asset.location.kind === 'managed-bundle' || asset.location.kind === 'linked-bundle') {
       return {
         ...asset,
         location: {
           kind: 'missing' as const,
           fingerprint: `sha256:${asset.location.fingerprint}`,
-          lastKnownName: asset.location.relativePath.split('/').at(-1) ?? 'audiobook',
+          lastKnownName: asset.location.kind === 'linked-bundle' ? asset.location.lastKnownName : asset.location.relativePath.split('/').at(-1) ?? 'audiobook',
         },
       }
     }

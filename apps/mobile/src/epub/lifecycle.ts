@@ -1,3 +1,4 @@
+import { originalFiles, originalFileUri, type OriginalFileAccess } from '../files/original-files'
 import { Capacitor } from '@capacitor/core'
 import { assetSchema, type Asset } from '../domain/catalog'
 import type { SqlDatabase, SqlRow } from '../storage/database'
@@ -13,7 +14,7 @@ export type EpubStoragePlatform = 'ios' | 'android' | 'web'
 
 export type EpubStoragePolicy = {
   readonly platform: EpubStoragePlatform
-  readonly mode: 'managed-copy'
+  readonly mode: 'managed-copy' | 'original-file'
   readonly sourceHandling: string
   readonly storageLocation: string
   readonly systemBackup: 'excluded'
@@ -21,6 +22,9 @@ export type EpubStoragePolicy = {
 }
 
 export type EpubAssetInventoryItem = {
+  readonly referenceId?: string
+  readonly managed?: boolean
+  readonly retainedCopy?: { readonly relativePath: string; readonly byteSize: number; readonly actualFingerprint?: string }
   readonly assetId: string
   readonly bookId: string
   readonly editionId: string
@@ -40,6 +44,7 @@ export type EpubAssetInventoryItem = {
 export type EpubStorageInventory = {
   readonly policy: EpubStoragePolicy
   readonly items: readonly EpubAssetInventoryItem[]
+  readonly linkedBytes?: number
   readonly totalManagedBytes: number
   readonly activeManagedBytes: number
   readonly reclaimableBytes: number
@@ -97,6 +102,7 @@ export type EpubBackupContent = {
 }
 
 export type EpubAssetLifecycleServiceOptions = EpubImportRepositoryOptions & {
+  readonly originalFiles?: OriginalFileAccess
   readonly managedStore?: ManagedAssetStore
   readonly importer?: EpubImportService
   readonly platform?: EpubStoragePlatform
@@ -117,16 +123,19 @@ type LifecycleRow = SqlRow & {
 }
 
 export class EpubAssetLifecycleService {
+  readonly #originalFiles: OriginalFileAccess
   readonly #database: SqlDatabase
   readonly #managedStore: ManagedAssetStore
   readonly #importer: EpubImportService
   readonly #platform: EpubStoragePlatform
 
   constructor(database: SqlDatabase, options: EpubAssetLifecycleServiceOptions = {}) {
+    this.#originalFiles = options.originalFiles ?? originalFiles
     this.#database = database
     this.#managedStore = options.managedStore ?? new CapacitorManagedAssetStore()
     this.#importer = options.importer ?? new EpubImportService(database, {
       managedStore: this.#managedStore,
+      originalFiles: this.#originalFiles,
       ...(options.now ? { now: options.now } : {}),
       ...(options.createId ? { createId: options.createId } : {}),
     })
@@ -139,13 +148,18 @@ export class EpubAssetLifecycleService {
     const inspectedByPath = new Map<string, Promise<InspectedManagedFile>>()
     const items = await Promise.all(rows.map(async (row): Promise<EpubAssetInventoryItem> => {
       const asset = assetSchema.parse(JSON.parse(readText(row, 'asset_payload')))
-      const relativePath = managedPathFor(asset, readText(row, 'content_hash'))
+      const referenceId = asset.location.kind === 'linked-file' ? asset.location.bookmarkId : undefined
+      const relativePath = referenceId ? originalFileUri(referenceId) : managedPathFor(asset, readText(row, 'content_hash'))
       let inspected = inspectedByPath.get(relativePath)
       if (!inspected) {
-        inspected = inspectManagedFile(this.#managedStore, relativePath)
+        inspected = referenceId
+          ? this.#originalFiles.inspect(referenceId).then(({ size, fingerprint }) => ({ byteSize: size, fingerprint })).catch(() => ({ byteSize: 0 }))
+          : inspectManagedFile(this.#managedStore, relativePath)
         inspectedByPath.set(relativePath, inspected)
       }
       const file = await inspected
+      const retained = asset.location.kind === 'linked-file' ? asset.location.retainedCopy : undefined
+      const retainedFile = retained ? await inspectManagedFile(this.#managedStore, retained.relativePath) : undefined
       const expectedFingerprint = readText(row, 'content_hash')
       const title = libraryTitle(readText(row, 'book_payload'), readText(row, 'original_name'))
       return {
@@ -158,6 +172,9 @@ export class EpubAssetLifecycleService {
         expectedFingerprint,
         ...(file.fingerprint ? { actualFingerprint: file.fingerprint } : {}),
         relativePath,
+        managed: !referenceId,
+        ...(retained && retainedFile?.fingerprint ? { retainedCopy: { relativePath: retained.relativePath, byteSize: retainedFile.byteSize, actualFingerprint: retainedFile.fingerprint } } : {}),
+        ...(referenceId ? { referenceId } : {}),
         expectedByteSize: expectedByteSize(asset),
         actualByteSize: file.byteSize,
         importedAt: readText(row, 'imported_at'),
@@ -169,13 +186,15 @@ export class EpubAssetLifecycleService {
             : 'replaced',
       }
     }))
-    const uniqueFiles = uniqueItemsByPath(items.filter(({ state }) => state !== 'missing'))
+    const uniqueFiles = uniqueItemsByPath(items.filter(({ state, managed }) => managed && state !== 'missing'))
+    const retainedCopies = items.flatMap(({ retainedCopy }) => retainedCopy ? [retainedCopy] : [])
     return {
       policy: epubStoragePolicyForPlatform(this.#platform),
       items,
-      totalManagedBytes: sumBytes(uniqueFiles),
-      activeManagedBytes: sumBytes(uniqueItemsByPath(items.filter(({ active, state }) => active && state !== 'missing'))),
-      reclaimableBytes: sumBytes(uniqueItemsByPath(items.filter(({ active, state }) => !active && state !== 'missing'))),
+      totalManagedBytes: sumBytes(uniqueItemsByPath([...uniqueFiles, ...retainedCopies])),
+      linkedBytes: sumBytes(uniqueItemsByPath(items.filter(({ managed }) => !managed))),
+      activeManagedBytes: sumBytes(uniqueItemsByPath(items.filter(({ active, state, managed }) => managed && active && state !== 'missing'))),
+      reclaimableBytes: sumBytes(uniqueItemsByPath([...items.filter(({ active, state, managed }) => managed && !active && state !== 'missing'), ...retainedCopies])),
       availableCount: items.filter(({ state }) => state === 'available').length,
       attentionCount: items.filter(({ state }) => state !== 'available').length,
     }
@@ -183,17 +202,15 @@ export class EpubAssetLifecycleService {
 
   async previewCleanup(assetIds?: readonly string[]): Promise<EpubCleanupPreview> {
     const inventory = await this.inventory()
-    const selectedIds = new Set(assetIds ?? inventory.items.filter(({ active }) => !active).map(({ assetId }) => assetId))
+    const selectedIds = new Set(assetIds ?? inventory.items.filter(({ active, managed, retainedCopy }) => (managed && !active) || retainedCopy).map(({ assetId }) => assetId))
     const selected = inventory.items.filter(({ assetId }) => selectedIds.has(assetId))
+    if (selected.some(({ managed, retainedCopy }) => !managed && !retainedCopy)) throw new Error('Original files belong to you and cannot be removed by app cleanup.')
     if (selected.length !== selectedIds.size) throw new Error('One or more ebook assets no longer exist in the catalog.')
-    const selections = uniqueItemsByPath(selected).map((item) => ({
-      assetId: item.assetId,
-      relativePath: item.relativePath,
-      ...(item.actualFingerprint ? { actualFingerprint: item.actualFingerprint } : {}),
-      byteSize: item.actualByteSize,
-      active: item.active,
-    }))
-    const activeBookIds = new Set(selected.filter(({ active, state }) => active && state !== 'missing').map(({ bookId }) => bookId))
+    const selections = uniqueItemsByPath(selected.map((item) => item.retainedCopy
+      ? { assetId: item.assetId, ...item.retainedCopy, active: false }
+      : { assetId: item.assetId, relativePath: item.relativePath, actualFingerprint: item.actualFingerprint,
+          byteSize: item.actualByteSize, active: item.active }))
+    const activeBookIds = new Set(selected.filter(({ active, managed, state }) => managed && active && state !== 'missing').map(({ bookId }) => bookId))
     const retained = await this.#retainedCounts(selected.map(({ assetId }) => assetId))
     return {
       selections,
@@ -211,10 +228,12 @@ export class EpubAssetLifecycleService {
     const currentById = new Map(current.items.map((item) => [item.assetId, item]))
     for (const selection of preview.selections) {
       const item = currentById.get(selection.assetId)
-      if (!item || item.relativePath !== selection.relativePath) {
+      const candidate = item?.retainedCopy ?? (item?.managed ? { relativePath: item.relativePath,
+        actualFingerprint: item.actualFingerprint, byteSize: item.actualByteSize } : undefined)
+      if (!candidate || candidate.relativePath !== selection.relativePath) {
         throw new Error('The ebook cleanup preview is stale. Review storage again before removing files.')
       }
-      if (item.actualFingerprint !== selection.actualFingerprint || item.actualByteSize !== selection.byteSize) {
+      if (candidate.actualFingerprint !== selection.actualFingerprint || candidate.byteSize !== selection.byteSize) {
         throw new Error('An ebook file changed after the cleanup preview. Nothing was removed.')
       }
     }
@@ -279,6 +298,10 @@ export class EpubAssetLifecycleService {
     }
     if (!checked.canRelink) throw new Error('This ebook cannot be safely linked to the selected edition.')
 
+    if (checked.match === 'exact-fingerprint' && source.reference) {
+      const result = await this.#importer.import(source)
+      return { kind: 'restored', assetId: result.assetId, editionId: result.editionId, fingerprint: result.fingerprint }
+    }
     if (checked.match === 'exact-fingerprint') {
       const row = await this.#rowForAsset(checked.assetId)
       const asset = assetSchema.parse(JSON.parse(readText(row, 'asset_payload')))
@@ -318,8 +341,12 @@ export class EpubAssetLifecycleService {
   async backupContents(): Promise<readonly EpubBackupContent[]> {
     const inventory = await this.inventory()
     const contents: EpubBackupContent[] = []
+    const unavailableOriginal = inventory.items.find(({ active, referenceId, state }) => active && referenceId && state !== 'available')
+    if (unavailableOriginal) throw new Error(`${unavailableOriginal.title} is unavailable. Choose the original again before including files in this backup.`)
     for (const item of inventory.items.filter(({ active, state }) => active && state === 'available')) {
-      const bytes = await this.#managedStore.read(item.relativePath)
+      const bytes = item.referenceId
+        ? await this.#originalFiles.read({ id: item.referenceId, name: item.originalName, size: item.actualByteSize })
+        : await this.#managedStore.read(item.relativePath)
       if (!bytes || await sha256Hex(bytes) !== item.expectedFingerprint) {
         throw new Error(`${item.title} changed while its ebook backup was being built. Try again after reviewing storage.`)
       }
@@ -406,9 +433,9 @@ export function epubStoragePolicyForPlatform(platform: EpubStoragePlatform): Epu
   if (platform === 'ios') {
     return {
       platform,
-      mode: 'managed-copy',
-      sourceHandling: 'The selected document-provider file is read once; its permission is not retained.',
-      storageLocation: 'A private Library/NoCloud copy remains available offline until you remove it.',
+      mode: 'original-file',
+      sourceHandling: 'Books are read from their original location with saved Files access.',
+      storageLocation: 'Keep originals downloaded for offline reading. Existing private copies remain available.',
       systemBackup: 'excluded',
       portableBackup: 'optional',
     }
@@ -416,9 +443,9 @@ export function epubStoragePolicyForPlatform(platform: EpubStoragePlatform): Epu
   if (platform === 'android') {
     return {
       platform,
-      mode: 'managed-copy',
-      sourceHandling: 'The selected content-provider file is read once; its URI permission is not retained.',
-      storageLocation: 'An app-private no-backup copy remains available offline until you remove it.',
+      mode: 'original-file',
+      sourceHandling: 'Books are read from their original location with saved document access.',
+      storageLocation: 'Keep originals downloaded for offline reading. Existing private copies remain available.',
       systemBackup: 'excluded',
       portableBackup: 'optional',
     }
@@ -464,8 +491,8 @@ function managedPathFor(asset: Asset, fingerprint: string): string {
 }
 
 function expectedByteSize(asset: Asset): number {
-  return asset.location.kind === 'managed-file' || asset.location.kind === 'managed-bundle'
-    ? asset.location.byteSize
+  return 'byteSize' in asset.location
+    ? asset.location.byteSize ?? 0
     : 0
 }
 

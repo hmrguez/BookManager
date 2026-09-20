@@ -1,13 +1,14 @@
 # PDF import and native reading
 
 Choose **Settings → Choose book files**, attach an EPUB or PDF to a book, or share a PDF
-from the operating system. Unprotected PDFs up to 256 MB are validated locally, copied into
-private storage, and cataloged with their title, author, language, and physical page count.
+from the operating system. Unprotected PDFs up to 256 MB are validated locally, linked to their
+original location, and cataloged with their title, author, language, and physical page count.
 Missing titles fall back to the filename. Native imports render the first page as a cover.
 
 Identical bytes are deduplicated. Documents with identical metadata are kept separate unless
 the user explicitly attaches a replacement to an existing book. Re-importing identical bytes
-restores a missing or damaged managed copy without resetting its reading history.
+repairs the original-file reference without resetting its reading history. Existing private
+copies remain supported; see [original-file access and current verification](original-files.md).
 
 The iOS reader uses PDFKit with horizontal paging, pinch zoom, previous/next controls,
 fit-to-page, and a page-number picker. Android uses PdfRenderer with bounded bitmap allocation

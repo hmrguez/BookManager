@@ -95,9 +95,9 @@ export class EpubReaderRepository {
     if (!row) return undefined
     const payload = JSON.parse(readText(row, 'asset_payload')) as {
       readonly format?: string
-      readonly location?: { readonly kind?: string; readonly relativePath?: string }
+      readonly location?: { readonly kind?: string; readonly relativePath?: string; readonly bookmarkId?: string }
     }
-    if (payload.location?.kind !== 'managed-file' || !payload.location.relativePath) return undefined
+    if (!['managed-file', 'linked-file', 'missing'].includes(payload.location?.kind ?? '')) return undefined
     const importPayload = JSON.parse(readText(row, 'import_payload')) as {
       readonly provenance?: { readonly compatibility?: unknown }
     }
@@ -109,7 +109,8 @@ export class EpubReaderRepository {
       editionId: readText(row, 'edition_id'),
       assetId: readText(row, 'content_asset_id'),
       assetFingerprint: readText(row, 'content_hash'),
-      relativePath: payload.location.relativePath,
+      relativePath: payload.location?.kind === 'managed-file' ? payload.location.relativePath ?? '' : '',
+      ...(payload.location?.kind === 'linked-file' ? { referenceId: payload.location.bookmarkId } : {}),
       format: payload.format === 'pdf' ? 'pdf' : 'epub',
       title: row.book_payload === null
         ? readText(row, 'original_name').replace(/\.epub$/i, '')

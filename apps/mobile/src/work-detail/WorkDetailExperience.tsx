@@ -1,3 +1,4 @@
+import { OriginalFileInput } from '../files/OriginalFileInput'
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import {
@@ -417,29 +418,23 @@ function SimpleBookDetail({
             <FileText aria-hidden="true" />
             <span><strong>{epubBusy ? 'Attaching book…' : 'Attach book'}</strong><small>Choose an EPUB or PDF</small></span>
             <ChevronRight aria-hidden="true" />
-            <input
-              type="file"
+            <OriginalFileInput
+              kind="ebook"
               accept=".epub,.pdf,application/epub+zip,application/pdf"
               disabled={epubBusy}
-              onChange={(event) => {
-                if (event.currentTarget.files?.length) onAttachEpub(Array.from(event.currentTarget.files), overwriteCover)
-                event.currentTarget.value = ''
-              }}
+              onFiles={(files) => onAttachEpub(files, overwriteCover)}
             />
           </label>
           <label className={tw(audiobookBusy ? 'is-busy' : '')}>
             <Headphones aria-hidden="true" />
             <span><strong>{audiobookBusy ? 'Attaching audio…' : 'Attach audiobook'}</strong><small>M4B or ordered MP3 files</small></span>
             <ChevronRight aria-hidden="true" />
-            <input
-              type="file"
+            <OriginalFileInput
+              kind="audio"
               accept=".m4b,.m4a,.mp4,.mp3,audio/mpeg,audio/mp4"
               multiple
               disabled={audiobookBusy}
-              onChange={(event) => {
-                if (event.currentTarget.files?.length) onAttachAudiobook(Array.from(event.currentTarget.files), overwriteCover)
-                event.currentTarget.value = ''
-              }}
+              onFiles={(files) => onAttachAudiobook(files, overwriteCover)}
             />
           </label>
         </div>

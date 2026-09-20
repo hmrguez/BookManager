@@ -12,10 +12,12 @@ export function ReaderRecoverySheet({
   recovery,
   onClose,
   onRetry,
+  onChooseFile,
 }: {
   readonly recovery: ReaderRecovery
   readonly onClose: () => void
   readonly onRetry: () => void
+  readonly onChooseFile?: () => void
 }) {
   return (
     <Sheet title="Reader recovery" onClose={onClose}>
@@ -30,8 +32,10 @@ export function ReaderRecoverySheet({
         </div>
         <ul className={tw('reader-recovery__assurances')}>
           <li><History aria-hidden="true" /><span><strong>Reading history kept</strong><small>The failed open did not replace your last trusted locator.</small></span></li>
-          <li><ShieldCheck aria-hidden="true" /><span><strong>Annotations kept</strong><small>Recovery never deletes notes, highlights, or the managed record.</small></span></li>
+          <li><ShieldCheck aria-hidden="true" /><span><strong>Annotations kept</strong><small>Recovery never deletes notes, highlights, or the library record.</small></span></li>
         </ul>
+        {onChooseFile && <button className={tw('primary-button')} type="button" onClick={onChooseFile}>Choose file</button>}
+        <button type="button" onClick={onClose}>Cancel</button>
         {recovery.canRetry && (
           <button className={tw('primary-button')} type="button" onClick={onRetry}>
             <BookOpen aria-hidden="true" /> Try opening again

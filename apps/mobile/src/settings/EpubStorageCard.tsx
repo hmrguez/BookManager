@@ -32,38 +32,39 @@ export function EpubStorageCard({
   readonly onCancelReview: () => void
 }) {
   const inventory = state.inventory
-  const obsoleteAssetIds = inventory?.items.filter(({ active, state: itemState }) =>
-    !active && itemState !== 'missing',
+  const obsoleteAssetIds = inventory?.items.filter(({ active, managed, retainedCopy, state: itemState }) =>
+    retainedCopy || (managed !== false && !active && itemState !== 'missing'),
   ).map(({ assetId }) => assetId) ?? []
 
   return (
     <section className={tw('settings-card epub-storage-card')}>
       <div className={tw('settings-card__icon')}><HardDrive aria-hidden="true" /></div>
       <div className={tw('settings-card__heading')}>
-        <span>Book storage · Managed copies</span><h2>Files can leave. Your reading stays.</h2>
-        <p>Wovenleaf verifies each private copy against its SHA-256 fingerprint. Removing bytes never removes the Edition, progress, bookmarks, or notes.</p>
+        <span>Book storage</span><h2>Files can leave. Your reading stays.</h2>
+        <p>Original files stay where you keep them. Cleanup only removes private copies; your originals, progress, bookmarks, and notes stay safe.</p>
       </div>
 
       {inventory ? (
         <>
           <dl className={tw('epub-storage-tally')} aria-label="Book storage use">
-            <div><dt>On device</dt><dd>{formatBytes(inventory.totalManagedBytes)}</dd></div>
+            <div><dt>Private content</dt><dd>{formatBytes(inventory.totalManagedBytes)}</dd></div>
             <div><dt>Current copies</dt><dd>{formatBytes(inventory.activeManagedBytes)}</dd></div>
             <div><dt>Safe to review</dt><dd>{formatBytes(inventory.reclaimableBytes)}</dd></div>
+            <div><dt>Linked originals</dt><dd>{formatBytes(inventory.linkedBytes ?? 0)}</dd></div>
             <div><dt>Needs attention</dt><dd>{inventory.attentionCount}</dd></div>
           </dl>
 
           <div className={tw('epub-storage-policy')}>
             <FileKey2 aria-hidden="true" />
             <span>
-              <strong>{platformLabel(inventory.policy.platform)} · private managed copy</strong>
+              <strong>{platformLabel(inventory.policy.platform)} · {inventory.policy.mode === 'original-file' ? 'original files' : 'private copies'}</strong>
               <small>{inventory.policy.sourceHandling} {inventory.policy.storageLocation}</small>
             </span>
             <span><b>System backup</b> Excluded</span>
           </div>
 
           {inventory.items.length === 0 && (
-            <p className={tw('epub-storage-empty')}>No managed book copies yet. Import an EPUB or PDF to see its storage use.</p>
+            <p className={tw('epub-storage-empty')}>No book files yet. Add an EPUB or PDF to see its storage use.</p>
           )}
 
           {obsoleteAssetIds.length > 0 && !state.cleanupPreview && (
@@ -82,7 +83,7 @@ export function EpubStorageCard({
       ) : (
         <button className={tw('epub-storage-load')} type="button" disabled={state.busy} onClick={onRefresh}>
           <RotateCcw aria-hidden="true" />
-          {state.busy ? 'Verifying managed copies…' : 'Review Book storage'}
+          {state.busy ? 'Checking book files…' : 'Review Book storage'}
         </button>
       )}
 

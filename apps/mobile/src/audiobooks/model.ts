@@ -1,3 +1,4 @@
+import type { OriginalFileReference } from '../files/original-files'
 export const AUDIOBOOK_MANIFEST_VERSION = 1 as const
 
 export const AUDIOBOOK_MEDIA_TYPES = {
@@ -8,6 +9,7 @@ export const AUDIOBOOK_MEDIA_TYPES = {
 export type AudiobookContainer = 'mpeg-audio' | 'mpeg-4-audio'
 
 export type AudiobookImportSource = {
+  readonly reference?: OriginalFileReference
   readonly name: string
   readonly relativePath: string
   readonly mediaType: string
@@ -243,7 +245,7 @@ export function throwIfAudiobookImportCanceled(signal?: AbortSignal): void {
 }
 
 export function audiobookImportErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.name === 'LibraryUpgradeRequired') return error.message
+  if (error instanceof Error && ['LibraryUpgradeRequired', 'FileAccessError'].includes(error.name)) return error.message
   if (error instanceof AudiobookImportError) return error.message
   return 'This audiobook could not be imported. The library and managed files were left unchanged.'
 }

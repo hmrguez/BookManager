@@ -225,16 +225,19 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
 
     private fun openPublication() {
         lifecycleScope.launch {
-            val file = File(requireNotNull(intent.getStringExtra(ReaderContract.FILE_PATH)))
-            if (!file.isFile) {
-                showRecovery("The managed EPUB file is missing.")
+            val uri = try {
+                val source = requireNotNull(intent.getStringExtra(ReaderContract.FILE_PATH))
+                OriginalFiles.verify(this@WovenleafReaderActivity, source)
+                OriginalFiles.resolve(this@WovenleafReaderActivity, source)
+            } catch (_: Exception) {
+                showRecovery("This file is no longer available. Choose it again; your progress and notes are safe.")
                 return@launch
             }
             val httpClient = DefaultHttpClient()
             val assetRetriever = AssetRetriever(contentResolver, httpClient)
             val parser = DefaultPublicationParser(this@WovenleafReaderActivity, httpClient, assetRetriever, null)
             val opener = PublicationOpener(parser)
-            val asset = assetRetriever.retrieve(file.toUrl(isDirectory = false)).getOrElse {
+            val asset = assetRetriever.retrieve(requireNotNull(AbsoluteUrl(uri.toString()))).getOrElse {
                 showRecovery("This EPUB could not be read safely.")
                 return@launch
             }

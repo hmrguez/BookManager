@@ -1,3 +1,4 @@
+import { reconcileOriginalFiles } from '../files/original-files'
 import { AudiobookImportService } from '../audiobooks'
 import { EpubImportService } from '../epub'
 import { EpubAssetLifecycleService } from '../epub/lifecycle'
@@ -85,6 +86,7 @@ async function initializeStorageRuntime(): Promise<StorageRuntime> {
     new UpNextRepository(database).read(),
   ])
   await recovery.confirmPendingLaunch()
+  await reconcileOriginalFiles(database).catch(() => undefined)
   let recoveryWarning: string | undefined
   try {
     await recovery.ensureAutomaticSnapshot()

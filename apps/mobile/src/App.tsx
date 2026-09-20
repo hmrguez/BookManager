@@ -1,3 +1,5 @@
+import { Capacitor } from '@capacitor/core'
+import { nativeOriginalFiles, pickOriginalFiles, type IncomingOriginalFile } from './files/original-files'
 import { isPdfBytes } from './epub/inspect-book'
 import { purchases, startPurchases } from './purchases/runtime'
 import { LibraryUpgradeRequired } from './purchases/model'
@@ -198,6 +200,7 @@ function App() {
   const [exportError, setExportError] = useState<string>()
   const [recovery, setRecovery] = useState<RecoveryViewState>({ snapshots: [], busy: false })
   const [smartListCatalog, setSmartListCatalog] = useState<Catalog>()
+  const [originalRecovery, setOriginalRecovery] = useState<{ name: string; kind: 'ebook' | 'audio' }>()
   const [readerRecovery, setReaderRecovery] = useState<(ReaderRecovery & { readonly bookId: string })>()
   const [readerBusyBookId, setReaderBusyBookId] = useState<string>()
   const [coverEnrichmentStatus, setCoverEnrichmentStatus] = useState<CoverEnrichmentStatus>()
@@ -385,6 +388,8 @@ function App() {
       if (openAfterImport) {
         const existing = await runtime.audiobooks.findImported(draft)
         if (existing) {
+          await runtime.audiobooks.relinkImported(existing, sources, draft)
+          await runtime.playback.loadBook(existing.bookId)
           setIncomingFileOpening((current) => current && { ...current, phase: 'opening' })
           audiobookSourcesRef.current = []
           openAudiobookAfterImportRef.current = false
@@ -782,6 +787,7 @@ function App() {
       } else if (isZipContainer(source.bytes)) {
         const name = source.name.toLocaleLowerCase().endsWith('.epub') ? source.name : `${source.name}.epub`
         await importEpubSources([async () => ({
+          ...source,
           name,
           mediaType: 'application/epub+zip',
           bytes: source.bytes,
@@ -877,6 +883,11 @@ function App() {
   })
 
   const onSharedFiles = useEffectEvent((files: readonly SharedFile[]) => {
+    const temporary = files.find((file) => file.uri.startsWith('wovenleaf-reselect://'))
+    if (temporary) {
+      setOriginalRecovery({ name: temporary.name, kind: /\.(epub|pdf)$/i.test(temporary.name) || ['application/pdf', 'application/epub+zip'].includes(temporary.mimeType) ? 'ebook' : 'audio' })
+      return
+    }
     const books = files.filter((file) => /\.(epub|pdf)$/i.test(file.name) || ['application/pdf', 'application/epub+zip'].includes(file.mimeType))
     if (books.length) {
       const incoming = books.filter((file) => incomingDeliveryGuardRef.current.accept(`share:${file.uri}:${file.name}:${file.mimeType}`))
@@ -917,6 +928,29 @@ function App() {
         void feedback.emit('error')
       })
   })
+
+  const onOriginalIncoming = useEffectEvent((files: IncomingOriginalFile[]) => {
+    const unavailable = files.find((file) => file.needsSelection)
+    if (unavailable) { setOriginalRecovery(unavailable); return }
+    onSharedFiles(files.flatMap((file) => file.uri ? [{ uri: file.uri, name: file.name,
+      mimeType: file.kind === 'audio' ? 'audio/mp4' : /\.pdf$/i.test(file.name) ? 'application/pdf' : 'application/epub+zip' }] : []))
+  })
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return
+    let disposed = false
+    let remove: (() => Promise<void>) | undefined
+    const drain = async () => {
+      const { files } = await nativeOriginalFiles.incoming()
+      if (!disposed && files.length) onOriginalIncoming(files)
+    }
+    void nativeOriginalFiles.addListener('incoming', () => { void drain() }).then(async (handle) => {
+      if (disposed) { await handle.remove(); return }
+      remove = () => handle.remove()
+      await drain()
+    })
+    return () => { disposed = true; void remove?.() }
+  }, [])
 
   useEffect(() => {
     let disposed = false
@@ -1655,7 +1689,13 @@ function App() {
       )}
       {sheet?.kind === 'audiobook-player' && selectedBook && (
         <Sheet title="Audiobook player" onClose={closeSheet} tall>
-          <AudiobookPlayer key={selectedBook.id} book={selectedBook} />
+          <AudiobookPlayer key={selectedBook.id} book={selectedBook} onChooseFile={Capacitor.isNativePlatform() ? () => {
+            const book = selectedBook
+            closeSheet()
+            void pickOriginalFiles('audio').then((files) => {
+              if (files.length) return prepareAudiobookSources(() => audiobookSourcesFromFiles(files), book, false, true)
+            }).catch((error: unknown) => setToast({ message: error instanceof Error ? error.message : 'The audio could not be opened.' }))
+          } : undefined} />
         </Sheet>
       )}
       {sheet?.kind === 'custom-shelf' && (
@@ -1709,11 +1749,35 @@ function App() {
           /> : <p>This suggestion has changed. Check your TBR for the latest picks.</p>}
         </Sheet>
       })()}
+      {originalRecovery && <Sheet title="Choose the original file" onClose={() => setOriginalRecovery(undefined)}>
+        <div className={tw('reader-recovery')}>
+          <h3>{originalRecovery.name}</h3>
+          <p>This app shared a temporary file. Choose the original in Files so Wovenleaf can read it where it is.</p>
+          <button type="button" className={tw('primary-button')} onClick={() => {
+            const kind = originalRecovery.kind
+            setOriginalRecovery(undefined)
+            void pickOriginalFiles(kind).then(async (files) => {
+              if (!files.length) return
+              if (kind === 'ebook') await importEpubSources(files.map((file) => () => epubSourceFromFile(file)), undefined, false, true)
+              else await prepareAudiobookSources(() => audiobookSourcesFromFiles(files), undefined, false, true)
+            }).catch((error: unknown) => setToast({ message: error instanceof Error ? error.message : 'The file could not be opened.' }))
+          }}>Choose file</button>
+          <button type="button" onClick={() => setOriginalRecovery(undefined)}>Cancel</button>
+        </div>
+      </Sheet>}
       {readerRecovery && (
         <ReaderRecoverySheet
           recovery={readerRecovery}
           onClose={() => setReaderRecovery(undefined)}
           onRetry={() => void openReader(readerRecovery.bookId)}
+          onChooseFile={Capacitor.isNativePlatform() ? () => {
+            const bookId = readerRecovery.bookId
+            void pickOriginalFiles('ebook').then(async (files) => {
+              if (!files.length) return
+              setReaderRecovery(undefined)
+              await importEpubSources(files.map((file) => () => epubSourceFromFile(file)), bookId, false, true)
+            }).catch((error: unknown) => setToast({ message: error instanceof Error ? error.message : 'The file could not be opened.' }))
+          } : undefined}
         />
       )}
 

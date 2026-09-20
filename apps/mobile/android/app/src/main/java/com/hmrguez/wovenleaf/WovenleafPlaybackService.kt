@@ -48,6 +48,7 @@ class WovenleafPlaybackService : MediaLibraryService() {
     private var manifest: JSONObject? = null
     private var sources = JSONArray()
     private var sourceByCapability = emptyMap<String, JSONObject>()
+    private var sourceUris = emptyMap<String, Uri>()
     private var artwork: JSONObject? = null
     private var playbackSessionId: String? = null
     private var revision = 0L
@@ -394,11 +395,12 @@ class WovenleafPlaybackService : MediaLibraryService() {
             ?: throw PlaybackCommandException("QUEUE_INVALID", "The audiobook queue has no segments.")
         if (segments.length() == 0) throw PlaybackCommandException("QUEUE_INVALID", "The audiobook queue has no segments.")
         val resolved = candidateSources.objects().associateBy { it.optString("capability") }
-        validateQueue(candidateManifest, resolved)
+        val verifiedUris = validateQueue(candidateManifest, resolved)
         player.pause()
         manifest = candidateManifest
         sources = candidateSources
         sourceByCapability = resolved
+        sourceUris = verifiedUris
         artwork = validatedArtwork(candidateArtwork)
         lastPublishedMetadataIdentity = null
         playbackSessionId = "playback-session:android:${UUID.randomUUID().toString().lowercase()}"
@@ -426,6 +428,7 @@ class WovenleafPlaybackService : MediaLibraryService() {
             throw PlaybackCommandException("QUEUE_INVALID", "Load an audiobook before playing.")
         }
         if (playIntent && transportState in setOf("playing", "buffering")) return
+        checkOriginalSources()
         val wasPlaying = playIntent
         playIntent = true
         suppressionReason = "none"
@@ -460,6 +463,7 @@ class WovenleafPlaybackService : MediaLibraryService() {
     }
 
     private fun seek(requestedPositionMs: Long, reason: String) {
+        checkOriginalSources()
         if (manifest == null) throw PlaybackCommandException("QUEUE_INVALID", "No audiobook queue is loaded.")
         val before = absolutePositionMs()
         val target = requestedPositionMs.coerceIn(0, max(0, durationMs() - 1))
@@ -740,10 +744,10 @@ class WovenleafPlaybackService : MediaLibraryService() {
     }
 
     private fun mediaItem(segment: JSONObject, chapter: JSONObject?): MediaItem? {
-        val source = sourceByCapability[segment.optString("playableCapability")] ?: return null
+        val uri = sourceUris[segment.optString("playableCapability")] ?: return null
         return MediaItem.Builder()
             .setMediaId(segment.optString("id"))
-            .setUri(source.optString("uri"))
+            .setUri(uri)
             .setMimeType(segment.optString("mediaType"))
             .setMediaMetadata(systemMetadata(chapter))
             .build()
@@ -839,7 +843,7 @@ class WovenleafPlaybackService : MediaLibraryService() {
             activeDurationMs = saved.optLong("activeDurationMs", 0)
             previewEnabled = saved.optBoolean("previewEnabled", false)
             rate = savedSnapshot.optDouble("rate", 1.0).toFloat().coerceIn(0.5f, 3f)
-            validateQueue(savedManifest, sourceByCapability)
+            sourceUris = validateQueue(savedManifest, sourceByCapability)
             playIntent = false
             suppressionReason = "process-recreated"
             transportState = "paused"
@@ -1126,22 +1130,34 @@ class WovenleafPlaybackService : MediaLibraryService() {
         return candidate.takeIf { it.path.startsWith(root.path + File.separator) }
     }
 
-    private fun validateQueue(candidateManifest: JSONObject, resolved: Map<String, JSONObject>) {
+    private fun validateQueue(candidateManifest: JSONObject, resolved: Map<String, JSONObject>): Map<String, Uri> {
+        val verifiedUris = mutableMapOf<String, Uri>()
         val segments = candidateManifest.optJSONArray("segments")?.objects()
             ?: throw PlaybackCommandException("QUEUE_INVALID", "The audiobook queue has no segments.")
         segments.forEach { segment ->
             val capability = segment.optString("playableCapability")
             val source = resolved[capability]
                 ?: throw PlaybackCommandException("RELINK_REQUIRED", "A managed audiobook segment is unavailable.")
-            val file = managedFile(source.optString("uri"))
-            if (
-                source.optString("fingerprint") != segment.optString("fingerprint") ||
-                source.optString("mediaType") != segment.optString("mediaType") ||
-                file == null || !file.isFile || !file.canRead() ||
-                file.length() != source.optLong("byteSize") || sha256(file) != source.optString("fingerprint")
-            ) {
-                throw PlaybackCommandException("RELINK_REQUIRED", "A managed audiobook segment is missing or changed.")
+            if (source.optString("fingerprint") != segment.optString("fingerprint") || source.optString("mediaType") != segment.optString("mediaType")) {
+                throw PlaybackCommandException("RELINK_REQUIRED", "An audiobook file has changed. Choose it again; progress is safe.")
             }
+            try {
+                OriginalFiles.verify(this, source.optString("uri"), source.optString("fingerprint"), source.optLong("byteSize"))
+                verifiedUris[capability] = OriginalFiles.resolve(this, source.optString("uri"))
+            } catch (_: Exception) {
+                throw PlaybackCommandException("RELINK_REQUIRED", "An audiobook file is unavailable or changed. Choose it again; progress is safe.")
+            }
+        }
+        return verifiedUris
+    }
+
+    private fun checkOriginalSources() {
+        try {
+            sourceByCapability.values.filter { it.optString("uri").startsWith("wovenleaf-file://") }.forEach {
+                OriginalFiles.verify(this, it.optString("uri"), size = it.optLong("byteSize"))
+            }
+        } catch (_: Exception) {
+            throw PlaybackCommandException("RELINK_REQUIRED", "An original audiobook file is unavailable. Choose it again; progress is safe.")
         }
     }
 

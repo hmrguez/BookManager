@@ -7,6 +7,8 @@
 - **Decision horizon:** The complete audiobook path in QUI-42 through QUI-49, including future Audiobookshelf and vehicle surfaces
 - **Reference versions:** Capacitor 8.5.0, iOS deployment target 15.0, Android min/target/compile 24/36/36, AndroidX Media3 1.11.0
 
+The original managed-content policy is extended by [original-file access](../../guides/original-files.md) as of 2026-09-20. Native queue ownership, durable events, and physical-device validation gates remain in force.
+
 ## Context
 
 Wovenleaf is a React application in a Capacitor shell, but an audiobook is normally controlled while

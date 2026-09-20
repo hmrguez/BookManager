@@ -1,3 +1,4 @@
+import { originalFileUri, originalFileError } from '../files/original-files'
 import { Capacitor } from '@capacitor/core'
 import { Directory, Filesystem } from '@capacitor/filesystem'
 import type { ReadingLedgerRepository } from '../storage/catalog-repository'
@@ -37,19 +38,25 @@ export class EpubReaderService {
     if (unsupportedMessage) {
       throw new EpubReaderError('unsupported-content', unsupportedMessage)
     }
-    try {
-      await Filesystem.stat({ path: capability.relativePath, directory: Directory.LibraryNoCloud })
-    } catch (error) {
-      throw new EpubReaderError(
-        'missing-asset',
-        'The managed book file is missing. Re-import this edition to restore reading; notes and history were kept.',
-        { cause: error },
-      )
+    let uri: string
+    if (capability.referenceId) {
+      uri = originalFileUri(capability.referenceId)
+    } else {
+      try {
+        if (!capability.relativePath) throw new Error('Missing file reference')
+        await Filesystem.stat({ path: capability.relativePath, directory: Directory.LibraryNoCloud })
+      } catch (error) {
+        throw new EpubReaderError(
+          'missing-asset',
+          'This book file is missing. Choose it again to continue; your notes and history are safe.',
+          { cause: error },
+        )
+      }
+      uri = (await Filesystem.getUri({
+        path: capability.relativePath,
+        directory: Directory.LibraryNoCloud,
+      })).uri
     }
-    const { uri } = await Filesystem.getUri({
-      path: capability.relativePath,
-      directory: Directory.LibraryNoCloud,
-    })
     const initialLocator = await this.#repository.resumeLocator(capability)
     const preferences = await this.#repository.preferencesForBook(bookId)
     const navigationState = await this.#repository.navigationStateForBook(capability)
@@ -66,11 +73,14 @@ export class EpubReaderService {
       })
     } catch (error) {
       const code = nativeErrorCode(error)
+      if (code?.startsWith('FILE_') || code === 'MISSING_ASSET') {
+        throw new EpubReaderError('missing-asset', originalFileError(error), { cause: error })
+      }
       throw new EpubReaderError(
         code === 'CORRUPT_ASSET' ? 'corrupt-asset' : 'open-failed',
         code === 'CORRUPT_ASSET'
           ? 'This book can no longer be opened safely. Re-import the edition; notes and reading history were kept.'
-          : 'Wovenleaf could not open this book. The managed file, notes, and reading history were left unchanged.',
+          : 'Wovenleaf could not open this book. Your notes and reading history are safe.',
         { cause: error },
       )
     }

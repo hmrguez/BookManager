@@ -1,15 +1,18 @@
+import { FileAccessError, originalFiles, originalSelectionFromUri, type OriginalFile } from '../files/original-files'
 import { Capacitor } from '@capacitor/core'
 import { Filesystem } from '@capacitor/filesystem'
 import { extension, safeRelativePath } from './binary'
-import { base64ToBytes, readNativeAudiobookFile } from './file-transfer'
+import { base64ToBytes } from './file-transfer'
 import { AUDIOBOOK_IMPORT_LIMITS } from './inspect'
 import { AudiobookImportError, type AudiobookImportSource } from './model'
 
 type FileWithRelativePath = File & { readonly webkitRelativePath?: string }
 
 export async function audiobookSourceFromFile(file: File): Promise<AudiobookImportSource> {
+  if (Capacitor.isNativePlatform() && !(file as OriginalFile).originalReference) throw new FileAccessError({ code: 'RESELECT_FILE' })
   const relativePath = (file as FileWithRelativePath).webkitRelativePath || file.name
   return {
+    reference: (file as OriginalFile).originalReference,
     name: file.name,
     relativePath: safeRelativePath(relativePath),
     mediaType: file.type,
@@ -36,6 +39,11 @@ export function audiobookSourcesFromFiles(files: FileList | readonly File[]): Pr
 }
 
 export async function audiobookSourceFromIncomingUrl(url: string): Promise<AudiobookImportSource> {
+  if (Capacitor.isNativePlatform()) {
+    const reference = await originalSelectionFromUri(url)
+    if (reference.size > AUDIOBOOK_IMPORT_LIMITS.maxTotalBytes) throw new AudiobookImportError('unsupported-format', 'This audiobook is too large to open.')
+    return { name: reference.name, relativePath: reference.name, mediaType: reference.mediaType, reference, bytes: await originalFiles.read(reference) }
+  }
   if (!/^(?:file|content|capacitor):/i.test(url)) {
     throw new AudiobookImportError(
       'unsupported-format',
@@ -43,15 +51,10 @@ export async function audiobookSourceFromIncomingUrl(url: string): Promise<Audio
     )
   }
   try {
-    let bytes: Uint8Array
-    if (Capacitor.isNativePlatform()) {
-      bytes = await readNativeAudiobookFile(url, AUDIOBOOK_IMPORT_LIMITS.maxTotalBytes)
-    } else {
-      const result = await Filesystem.readFile({ path: url })
-      bytes = result.data instanceof Blob
-        ? new Uint8Array(await result.data.arrayBuffer())
-        : base64ToBytes(result.data)
-    }
+    const result = await Filesystem.readFile({ path: url })
+    const bytes = result.data instanceof Blob
+      ? new Uint8Array(await result.data.arrayBuffer())
+      : base64ToBytes(result.data)
     const name = incomingName(url)
     return { name, relativePath: name, mediaType: mediaTypeFromName(name), bytes }
   } catch (error) {

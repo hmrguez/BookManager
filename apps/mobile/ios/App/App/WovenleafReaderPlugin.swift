@@ -11,6 +11,7 @@ final class WovenleafBridgeViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(WovenleafFeedbackPlugin())
         bridge?.registerPluginInstance(WovenleafPurchasesPlugin())
         bridge?.registerPluginInstance(WovenleafReaderPlugin())
+        bridge?.registerPluginInstance(WovenleafFilesPlugin())
         bridge?.registerPluginInstance(WovenleafPlaybackPlugin())
     }
 }
@@ -57,17 +58,11 @@ final class WovenleafReaderPlugin: CAPPlugin, CAPBridgedPlugin {
             let fingerprint = call.getString("assetFingerprint"),
             let title = call.getString("title"),
             let fileURI = call.getString("fileUri"),
-            let fileURL = URL(string: fileURI),
-            let validatedURL = validateManagedURL(fileURL),
             let globalPreferences = WovenleafReaderPreferences(object: call.getObject("globalPreferences")),
             let navigationState = ReaderNavigationState(object: call.getObject("navigationState")),
             let annotationState = ReaderAnnotationCollection(object: call.getObject("annotationState"))
         else {
             call.reject("The reader capability is invalid.", "INVALID_CAPABILITY")
-            return
-        }
-        guard FileManager.default.fileExists(atPath: validatedURL.path) else {
-            call.reject("The managed book file is missing.", "MISSING_ASSET")
             return
         }
 
@@ -86,19 +81,25 @@ final class WovenleafReaderPlugin: CAPPlugin, CAPBridgedPlugin {
 
         Task { @MainActor in
             do {
+                let access = try WovenleafFileReferences.acquire(fileURI)
+                let validatedURL = access.url
+                if fileURI.hasPrefix("wovenleaf-file://"), try access.fingerprint() != fingerprint {
+                    throw WovenleafFileReferences.unavailable("FILE_CHANGED")
+                }
                 guard let presenter = bridge?.viewController else {
                     call.reject("The reader host is unavailable.", "OPEN_FAILED")
                     return
                 }
                 if call.getString("format") == "pdf" {
                     let reader = try WovenleafPDFViewController(url: validatedURL, context: context, initialLocator: call.getObject("initialLocator"))
+                    reader.fileAccess = access
                     reader.modalPresentationStyle = .fullScreen
                     presenter.present(reader, animated: true)
                     call.resolve()
                     return
                 }
                 guard let readiumURL = FileURL(url: validatedURL) else {
-                    call.reject("The managed book URL is invalid.", "INVALID_CAPABILITY")
+                    call.reject("The book URL is invalid.", "INVALID_CAPABILITY")
                     return
                 }
                 let asset = try await readium.assetRetriever.retrieve(url: readiumURL).get()
@@ -119,29 +120,31 @@ final class WovenleafReaderPlugin: CAPPlugin, CAPBridgedPlugin {
                     globalPreferences: globalPreferences,
                     bookPreferences: bookPreferences
                 )
+                reader.fileAccess = access
                 let navigation = UINavigationController(rootViewController: reader)
                 navigation.modalPresentationStyle = .fullScreen
                 presenter.present(navigation, animated: true)
                 call.resolve()
             } catch {
-                call.reject("The reader could not open this book.", "CORRUPT_ASSET", error)
+                call.reject("The reader could not open this book.", (error as? OriginalFileError)?.code ?? "CORRUPT_ASSET", error)
             }
         }
     }
 
     @objc func pdfCover(_ call: CAPPluginCall) {
-        guard let raw = call.getString("fileUri"), let url = URL(string: raw), let file = validateManagedURL(url) else {
-            call.reject("The managed PDF URL is invalid.", "INVALID_CAPABILITY")
-            return
-        }
         DispatchQueue.global(qos: .userInitiated).async {
-            guard let document = PDFDocument(url: file), !document.isEncrypted,
-                  let page = document.page(at: 0),
-                  let jpeg = page.thumbnail(of: CGSize(width: 480, height: 640), for: .cropBox).jpegData(compressionQuality: 0.82) else {
-                call.reject("This PDF could not be rendered. Choose an unprotected, readable PDF.", "CORRUPT_ASSET")
-                return
-            }
-            call.resolve(["jpeg": jpeg.base64EncodedString()])
+            do {
+                let access = try WovenleafFileReferences.acquire(call.getString("fileUri") ?? "")
+                let jpeg = try access.coordinated { file -> Data in
+                    guard let document = PDFDocument(url: file), !document.isEncrypted,
+                          let page = document.page(at: 0),
+                          let jpeg = page.thumbnail(of: CGSize(width: 480, height: 640), for: .cropBox).jpegData(compressionQuality: 0.82) else {
+                        throw WovenleafFileReferences.unavailable("CORRUPT_ASSET")
+                    }
+                    return jpeg
+                }
+                call.resolve(["jpeg": jpeg.base64EncodedString()])
+            } catch { call.reject("This PDF could not be rendered.", (error as? OriginalFileError)?.code ?? "CORRUPT_ASSET", error) }
         }
     }
 

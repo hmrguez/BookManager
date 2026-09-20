@@ -1,3 +1,4 @@
+import { OriginalFileInput } from '../files/OriginalFileInput'
 import { useState, useSyncExternalStore, type DragEvent } from 'react'
 import {
   Archive,
@@ -417,7 +418,7 @@ export function SettingsPage({
           <div className={tw('settings-card__icon')}><BookOpen aria-hidden="true" /></div>
           <div className={tw('settings-card__heading')}>
             <span>Books on this device</span><h2>Bring in an EPUB or PDF.</h2>
-            <p>Add an unprotected book from your device. A private copy keeps it available offline.</p>
+            <p>Add an unprotected book from your device. Wovenleaf reads the original file where it is. Keep it on your device to read offline.</p>
           </div>
           <label className={tw(`settings-action import-file-picker epub-picker${epubBusy ? ' is-busy' : ''}`)}>
             <FileUp aria-hidden="true" />
@@ -426,31 +427,24 @@ export function SettingsPage({
               <small>EPUB and PDF · up to 256 MB each</small>
             </span>
             <ChevronRight aria-hidden="true" />
-            <input
-              type="file"
+            <OriginalFileInput
+              kind="ebook"
               accept=".epub,.pdf,application/epub+zip,application/pdf"
               multiple
               disabled={epubBusy}
-              onChange={(event) => {
-                if (event.currentTarget.files) offerEpubFiles(event.currentTarget.files)
-                event.currentTarget.value = ''
-              }}
+              onFiles={(files) => offerEpubFiles(files)}
             />
           </label>
           <label className={tw(`settings-action import-file-picker epub-folder-picker${epubBusy ? ' is-busy' : ''}`)}>
             <FolderOpen aria-hidden="true" />
             <span><strong>Choose a folder</strong><small>Imports EPUB and PDF files inside · where supported</small></span>
             <ChevronRight aria-hidden="true" />
-            <input
-              ref={(node) => node?.setAttribute('webkitdirectory', '')}
-              type="file"
+            <OriginalFileInput
+              kind="ebook" folder
               accept=".epub,.pdf,application/epub+zip,application/pdf"
               multiple
               disabled={epubBusy}
-              onChange={(event) => {
-                if (event.currentTarget.files) offerEpubFiles(event.currentTarget.files)
-                event.currentTarget.value = ''
-              }}
+              onFiles={(files) => offerEpubFiles(files)}
             />
           </label>
           <div className={tw('epub-drop-note')} aria-hidden="true">
@@ -468,7 +462,7 @@ export function SettingsPage({
                 <small>
                   {epubImport.error
                     ?? (epubImport.result?.outcome === 'duplicate'
-                      ? 'Already in managed storage · no duplicate asset created'
+                      ? 'Already in your library · original file linked'
                       : epubImport.result?.outcome === 'revision'
                         ? 'Revised package linked to the existing edition'
                         : epubImport.result
@@ -506,7 +500,7 @@ export function SettingsPage({
           <div className={tw('settings-card__icon')}><Headphones aria-hidden="true" /></div>
           <div className={tw('settings-card__heading')}>
             <span>Listening library</span><h2>Make one audiobook from its files.</h2>
-            <p>M4B chapters or ordered MP3s become one private timeline. Covers, CUE sheets, tags, and revisions stay attached to the same edition.</p>
+            <p>Listen directly to your original M4B or MP3 files in one timeline. Covers, CUE sheets, tags, and revisions stay attached to the same edition.</p>
           </div>
           <label className={tw(`settings-action import-file-picker audiobook-picker${audiobookBusy ? ' is-busy' : ''}`)}>
             <AudioLines aria-hidden="true" />
@@ -515,30 +509,23 @@ export function SettingsPage({
               <small>M4B, MP3, CUE, JSON, and cover art</small>
             </span>
             <ChevronRight aria-hidden="true" />
-            <input
-              type="file"
+            <OriginalFileInput
+              kind="audio"
               accept=".m4b,.m4a,.mp4,.mp3,.cue,.json,.jpg,.jpeg,.png,.gif,.webp,.avif,audio/mpeg,audio/mp4,image/jpeg,image/png,image/gif,image/webp,image/avif"
               multiple
               disabled={audiobookBusy}
-              onChange={(event) => {
-                if (event.currentTarget.files) offerAudiobookFiles(event.currentTarget.files)
-                event.currentTarget.value = ''
-              }}
+              onFiles={(files) => offerAudiobookFiles(files)}
             />
           </label>
           <label className={tw(`settings-action import-file-picker audiobook-folder-picker${audiobookBusy ? ' is-busy' : ''}`)}>
             <FolderOpen aria-hidden="true" />
             <span><strong>Choose an MP3 folder</strong><small>Keeps only supported audio and sidecar evidence</small></span>
             <ChevronRight aria-hidden="true" />
-            <input
-              ref={(node) => node?.setAttribute('webkitdirectory', '')}
-              type="file"
+            <OriginalFileInput
+              kind="audio" folder
               multiple
               disabled={audiobookBusy}
-              onChange={(event) => {
-                if (event.currentTarget.files) offerAudiobookFiles(event.currentTarget.files)
-                event.currentTarget.value = ''
-              }}
+              onFiles={(files) => offerAudiobookFiles(files)}
             />
           </label>
           <div className={tw('audiobook-drop-note')} aria-hidden="true">
@@ -556,7 +543,7 @@ export function SettingsPage({
                 <small>
                   {audiobookImport.error
                     ?? (audiobookImport.result?.outcome === 'duplicate'
-                      ? 'Already managed · no duplicate asset created'
+                      ? 'Already in your library · no duplicate created'
                       : audiobookImport.result?.outcome === 'revision'
                         ? 'Revision linked · existing progress retained'
                         : audiobookImport.result
@@ -691,7 +678,7 @@ export function SettingsPage({
               <strong>EPUB and PDF files</strong>
               <small>
                 {includeExportEpubFiles
-                  ? `${epubStorage.inventory?.items.filter(({ active, state }) => active && state === 'available').length ?? 0} verified current copies will be embedded; the archive may contain copyrighted book files.`
+                  ? `${epubStorage.inventory?.items.filter(({ active, state }) => active && state === 'available').length ?? 0} verified book files will be embedded; the archive may contain copyrighted book files.`
                   : 'Excluded by default; library metadata, progress, highlights, and notes still remain restorable.'}
               </small>
             </span>

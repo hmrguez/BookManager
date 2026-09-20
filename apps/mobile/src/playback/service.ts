@@ -126,6 +126,10 @@ export class AudiobookPlaybackService {
     return playbackCapabilitiesSchema.parse(await this.#plugin.getCapabilities())
   }
 
+  async checkBook(bookId: string): Promise<void> {
+    if (!await this.#repository.queueForBook(bookId)) throw new AudiobookPlaybackError('notFound', 'No playable audiobook is attached to this book.')
+  }
+
   async loadBook(bookId: string): Promise<PlaybackSnapshot> {
     const queue = await this.#repository.queueForBook(bookId)
     if (!queue) throw new AudiobookPlaybackError('notFound', 'No playable audiobook is attached to this book.')

@@ -61,7 +61,7 @@ describe('EPUB asset lifecycle', () => {
     await library.save({ ...book, notes: 'Keep this private note.', lastUpdatedAt: now })
 
     const inventory = await lifecycle.inventory()
-    expect(inventory.policy).toMatchObject({ mode: 'managed-copy', systemBackup: 'excluded' })
+    expect(inventory.policy).toMatchObject({ mode: 'original-file', systemBackup: 'excluded' })
     expect(inventory.items).toHaveLength(1)
     expect(inventory.items[0]).toMatchObject({ state: 'available', active: true })
 

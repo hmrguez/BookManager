@@ -53,7 +53,7 @@ export function AudiobookImportReviewPanel({
         <div>
           <span>One book · {segments.length} {segments.length === 1 ? 'file' : 'files'}</span>
           <h3 id="audio-review-title">Check the listening order.</h3>
-          <p>Nothing is copied until you approve this sequence and its shared metadata.</p>
+          <p>Review the sequence and shared details before adding this audiobook.</p>
         </div>
         <button type="button" onClick={onDismiss} disabled={busy} aria-label="Dismiss audiobook review">
           <X aria-hidden="true" />

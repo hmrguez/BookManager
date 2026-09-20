@@ -1,3 +1,4 @@
+import { MemoryOriginalFiles } from './fixtures/original-files'
 import { seedFreeLibrary } from './fixtures/purchases'
 import { LibraryUpgradeRequired } from '../src/purchases/model'
 import { describe, expect, test } from 'bun:test'
@@ -610,4 +611,73 @@ test('free limit rolls back audiobook bytes and catalog, while attachments remai
   expect(await library.list()).toHaveLength(20)
   expect(managedStore.files.size).toBeGreaterThan(0)
   await database.close()
+})
+
+
+describe('original audiobook files', () => {
+  test('links every track, preserves capabilities when reselected, and reports a missing track', async () => {
+    const database = new BunSqliteDatabase()
+    await migrateStorage(database)
+    const originals = new MemoryOriginalFiles()
+    const managedStore = new MemoryManagedAudiobookStore()
+    const service = new AudiobookImportService(database, { managedStore, originalFiles: originals })
+    const sources = [originals.link(mp3Source('01.mp3', { track: 1, frames: 100 })),
+      originals.link(mp3Source('02.mp3', { track: 2, frames: 200 }))]
+    const draft = await service.prepare(sources)
+    const result = await service.import(sources, defaultAudiobookReview(draft))
+    expect(managedStore.files.size).toBe(0)
+    expect((await new CatalogRepository(database).read()).assets.find(({ id }) => id === result.assetId)?.location.kind).toBe('linked-bundle')
+    const rows = await database.query('SELECT capability_id, reference_id, relative_path FROM audiobook_files ORDER BY position')
+    expect(rows.map(({ reference_id }) => reference_id)).toEqual(sources.map(({ reference }) => reference.id))
+    expect(rows.every(({ relative_path }) => relative_path === '')).toBe(true)
+    const playback = new AudiobookPlaybackRepository(database, { originalFiles: originals })
+    const queue = await playback.queueForBook(result.bookId)
+    expect(queue?.sources.every(({ uri }) => uri.startsWith('wovenleaf-file://'))).toBe(true)
+    const changed = sources[0]!.bytes.slice()
+    changed[changed.length - 1] ^= 1
+    originals.files.set(sources[0]!.reference.id, changed)
+    await expect(playback.queueForBook(result.bookId)).rejects.toThrow('This file has changed')
+    originals.files.set(sources[0]!.reference.id, sources[0]!.bytes)
+    originals.files.delete(sources[1]!.reference.id)
+    await expect(playback.queueForBook(result.bookId)).rejects.toMatchObject({ code: 'relinkRequired' })
+    const replacements = sources.map((source, index) => originals.link(source, `replacement:${index}`))
+    await service.relinkImported(result, replacements, await service.prepare(replacements))
+    const restored = await playback.queueForBook(result.bookId)
+    expect(restored?.manifest).toEqual(queue?.manifest)
+    expect(restored?.sources.map(({ capability }) => capability)).toEqual(queue?.sources.map(({ capability }) => capability))
+    expect(restored?.sources[1]?.uri).toContain('replacement%3A1')
+    expect(managedStore.files.size).toBe(0)
+    await database.close()
+  })
+
+  test('rejects changed originals after order review and retains no content copies', async () => {
+    const database = new BunSqliteDatabase()
+    await migrateStorage(database)
+    const originals = new MemoryOriginalFiles()
+    const managedStore = new MemoryManagedAudiobookStore()
+    const service = new AudiobookImportService(database, { managedStore, originalFiles: originals })
+    const source = originals.link(m4bSource('changed.m4b', { durationMs: 60000 }))
+    const review = defaultAudiobookReview(await service.prepare([source]))
+    originals.files.set(source.reference.id, new Uint8Array(source.bytes.length))
+    await expect(service.import([source], review)).rejects.toThrow('changed')
+    expect((await new CatalogRepository(database).read()).assets).toHaveLength(0)
+    expect(managedStore.files.size).toBe(0)
+    await database.close()
+  })
+
+  test('migrates existing managed audio locations without altering the timeline or capability IDs', async () => {
+    const database = new BunSqliteDatabase()
+    await migrateStorage(database)
+    const service = new AudiobookImportService(database, { managedStore: new MemoryManagedAudiobookStore() })
+    const sources = [mp3Source('legacy.mp3')]
+    const imported = await service.import(sources, defaultAudiobookReview(await service.prepare(sources)))
+    const before = await database.query('SELECT capability_id, relative_path, fingerprint FROM audiobook_files')
+    // Recreate the previous version's column shape with real imported rows.
+    await database.execute('ALTER TABLE audiobook_files DROP COLUMN reference_id; DELETE FROM schema_migrations WHERE version = 18;')
+    await migrateStorage(database)
+    expect(await database.query('SELECT capability_id, relative_path, fingerprint FROM audiobook_files')).toEqual(before)
+    expect((await database.query('SELECT reference_id FROM audiobook_files'))[0]?.reference_id).toBeNull()
+    expect((await service.findImported(await service.prepare(sources)))?.assetId).toBe(imported.assetId)
+    await database.close()
+  })
 })

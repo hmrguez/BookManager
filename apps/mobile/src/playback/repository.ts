@@ -1,4 +1,5 @@
 import { Directory, Filesystem, type FilesystemPlugin } from '@capacitor/filesystem'
+import { originalFiles, originalFileError, originalFileUri, type OriginalFileAccess } from '../files/original-files'
 import { normalizeImageMediaType } from '../audiobooks/binary'
 import { immutablePlaybackManifest } from '../audiobooks/manifest'
 import type { PlaybackManifest } from '../audiobooks/model'
@@ -20,6 +21,7 @@ type PlaybackArtworkRow = SqlRow & {
 type PlaybackFileRow = SqlRow & {
   readonly capability_id: string
   readonly relative_path: string
+  readonly reference_id: string | null
   readonly fingerprint: string
   readonly byte_size: number
   readonly media_type: string
@@ -31,13 +33,15 @@ export class AudiobookPlaybackRepository {
   readonly #database: SqlDatabase
   readonly #progress: AudiobookProgressRepository
   readonly #controls: AudiobookControlsRepository
+  readonly #originalFiles: Pick<OriginalFileAccess, 'inspect'>
   readonly #filesystem: PlaybackFilesystem
 
-  constructor(database: SqlDatabase, options: { readonly filesystem?: PlaybackFilesystem } = {}) {
+  constructor(database: SqlDatabase, options: { readonly filesystem?: PlaybackFilesystem; readonly originalFiles?: Pick<OriginalFileAccess, 'inspect'> } = {}) {
     this.#database = database
     this.#progress = new AudiobookProgressRepository(database)
     this.#controls = new AudiobookControlsRepository(database)
     this.#filesystem = options.filesystem ?? Filesystem
+    this.#originalFiles = options.originalFiles ?? originalFiles
   }
 
   async queueForBook(bookId: string): Promise<PlaybackQueueRequest | undefined> {
@@ -84,7 +88,7 @@ export class AudiobookPlaybackRepository {
   async #resolve(manifest: PlaybackManifest): Promise<PlaybackQueueRequest> {
     const [rows, artworkRows] = await Promise.all([
       this.#database.query<PlaybackFileRow>(
-        `SELECT f.capability_id, f.relative_path, f.fingerprint, f.byte_size, f.media_type
+        `SELECT f.capability_id, f.relative_path, f.reference_id, f.fingerprint, f.byte_size, f.media_type
          FROM audiobook_files f
          JOIN audiobook_imports i ON i.id = f.import_id
          WHERE i.content_asset_id = ?
@@ -104,6 +108,13 @@ export class AudiobookPlaybackRepository {
       const capability = readText(row, 'capability_id')
       const relativePath = readText(row, 'relative_path')
       try {
+        if (typeof row.reference_id === 'string') {
+          // Reopening an already loaded player must also reject replacement at the same location.
+          const { size, fingerprint } = await this.#originalFiles.inspect(row.reference_id)
+          if (size !== readNumber(row, 'byte_size') || (fingerprint && fingerprint !== readText(row, 'fingerprint'))) throw { code: 'FILE_CHANGED' }
+          return { capability, uri: originalFileUri(row.reference_id), fingerprint: readText(row, 'fingerprint'),
+            byteSize: readNumber(row, 'byte_size'), mediaType: readText(row, 'media_type') }
+        }
         const stat = await this.#filesystem.stat({ path: relativePath, directory: Directory.LibraryNoCloud })
         const expectedSize = readNumber(row, 'byte_size')
         if (stat.size !== expectedSize) {
@@ -125,7 +136,7 @@ export class AudiobookPlaybackRepository {
         if (error instanceof AudiobookPlaybackError) throw error
         throw new AudiobookPlaybackError(
           'relinkRequired',
-          'A managed audiobook segment is missing. Re-import or re-link this edition; progress was preserved.',
+          row.reference_id ? originalFileError(error) : 'An audiobook file is missing. Choose it again; progress was preserved.',
           { cause: error, recoverable: true },
         )
       }

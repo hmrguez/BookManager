@@ -28,6 +28,9 @@
 		A14200012FF3000000000001 /* ReviewAccessVerifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = A14200022FF3000000000002 /* ReviewAccessVerifier.swift */; };
 		A12600012FEC000000000001 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12600022FEC000000000002 /* ShareViewController.swift */; };
 		A12600062FEC000000000006 /* ShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A12600052FEC000000000005 /* ShareExtension.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		A15000012FF5000000000002 /* WovenleafFileAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = A15000012FF5000000000001; };
+		A15000022FF5000000000002 /* WovenleafFilesPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A15000022FF5000000000001; };
+		A15000032FF5000000000002 /* WovenleafFileAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = A15000012FF5000000000001; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -80,6 +83,8 @@
 		A12600042FEC000000000004 /* ShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShareExtension.entitlements; sourceTree = "<group>"; };
 		A12600052FEC000000000005 /* ShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
+		A15000012FF5000000000001 /* WovenleafFileAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WovenleafFileAccess.swift; sourceTree = "<group>"; };
+		A15000022FF5000000000001 /* WovenleafFilesPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WovenleafFilesPlugin.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -127,6 +132,8 @@
 				A14100022FF3000000000002 /* WovenleafPurchasesPlugin.swift */,
 				A14200022FF3000000000002 /* ReviewAccessVerifier.swift */,
 				A13700022FF0000000000002 /* WovenleafPlaybackPlugin.swift */,
+				A15000012FF5000000000001 /* WovenleafFileAccess.swift */,
+				A15000022FF5000000000001 /* WovenleafFilesPlugin.swift */,
 				A13500022FEA000000000002 /* WovenleafReaderPlugin.swift */,
 				A14300022FF3000000000002 /* WovenleafPDFViewController.swift */,
 				A13500042FEA000000000004 /* WovenleafReaderViewController.swift */,
@@ -277,6 +284,8 @@
 				A14100012FF3000000000001 /* WovenleafPurchasesPlugin.swift in Sources */,
 				A14200012FF3000000000001 /* ReviewAccessVerifier.swift in Sources */,
 				A13700012FF0000000000001 /* WovenleafPlaybackPlugin.swift in Sources */,
+				A15000012FF5000000000002 /* WovenleafFileAccess.swift in Sources */,
+				A15000022FF5000000000002 /* WovenleafFilesPlugin.swift in Sources */,
 				A13500012FEA000000000001 /* WovenleafReaderPlugin.swift in Sources */,
 				A14300012FF3000000000001 /* WovenleafPDFViewController.swift in Sources */,
 				A13500032FEA000000000003 /* WovenleafReaderViewController.swift in Sources */,
@@ -292,6 +301,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A15000032FF5000000000002 /* WovenleafFileAccess.swift in Sources */,
 				A12600012FEC000000000001 /* ShareViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -476,6 +476,13 @@ export const STORAGE_MIGRATIONS: readonly StorageMigration[] = [
       await database.execute(pdfImportSchemaSql())
     },
   },
+  {
+    version: 18,
+    name: 'persistent original audiobook file references',
+    kind: 'additive',
+    signature: 'ALTER TABLE audiobook_files ADD COLUMN reference_id TEXT;',
+    async up(database) { await database.execute('ALTER TABLE audiobook_files ADD COLUMN reference_id TEXT;') },
+  },
 ]
 
 // Preserve the historical table name so existing reader checkpoints and archives

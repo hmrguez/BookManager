@@ -1,3 +1,4 @@
+import type { AssetLocation } from '../domain/catalog'
 import {
   accessGrantIdSchema,
   accessGrantSchema,
@@ -40,6 +41,7 @@ import { ebookFormat, type EbookInspection } from './inspect-book'
 export type EpubCommitInput = {
   readonly originalName: string
   readonly inspection: EbookInspection
+  readonly contentLocation?: AssetLocation
   readonly contentRelativePath: string
   readonly coverRelativePath?: string
   readonly targetBookId?: string
@@ -85,6 +87,18 @@ export class EpubImportRepository {
       [contentHash],
     )
     return row ? duplicateResult(row) : undefined
+  }
+
+  async linkOriginalAsset(assetId: string, location: AssetLocation): Promise<void> {
+    await this.#database.transaction(async (database) => {
+      const [row] = await database.query('SELECT payload_json FROM assets WHERE id = ?', [assetId])
+      if (!row) throw new Error('This book is no longer in the library.')
+      const asset = assetSchema.parse(JSON.parse(readText(row, 'payload_json')))
+      const retainedCopy = asset.location.kind === 'managed-file' ? asset.location
+        : asset.location.kind === 'linked-file' ? asset.location.retainedCopy : undefined
+      const linked = location.kind === 'linked-file' && retainedCopy ? { ...location, retainedCopy } : location
+      await database.run('UPDATE assets SET payload_json = ? WHERE id = ?', [JSON.stringify(assetSchema.parse({ ...asset, location: linked })), assetId])
+    })
   }
 
   async restoreManagedAsset(assetId: string, relativePath: string, inspection: EbookInspection): Promise<void> {
@@ -176,7 +190,7 @@ export class EpubImportRepository {
         role: 'content',
         format,
         mediaType: format === 'pdf' ? 'application/pdf' : 'application/epub+zip',
-        location: {
+        location: input.contentLocation ?? {
           kind: 'managed-file',
           relativePath: input.contentRelativePath,
           sha256: input.inspection.contentHash,

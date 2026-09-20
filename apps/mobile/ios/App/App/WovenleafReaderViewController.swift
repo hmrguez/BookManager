@@ -5,6 +5,7 @@ import UIKit
 
 @MainActor
 final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelegate {
+    var fileAccess: OriginalFileAccess?
     private static let readerRightPadding: CGFloat = 8
 
     private let publication: Publication

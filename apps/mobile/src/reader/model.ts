@@ -211,6 +211,7 @@ export type EpubReaderCapability = {
   readonly editionId: string
   readonly assetId: string
   readonly assetFingerprint: string
+  readonly referenceId?: string
   readonly relativePath: string
   readonly format?: 'epub' | 'pdf'
   readonly title: string

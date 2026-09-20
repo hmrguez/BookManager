@@ -30,7 +30,7 @@ while Command/Control-F opens search and Command/Control-B toggles a bookmark.
 
 Footnotes open over the current passage with an explicit return action. Web links are limited to
 HTTP(S), name their destination before handing off to the system browser, and never expose the
-managed EPUB URL. Tapping an EPUB image opens bytes read from the publication container in a
+original EPUB URL. Tapping an EPUB image opens bytes read from the publication container in a
 local-only zoom surface; missing resources and broken TOC targets leave the current passage intact
 and show a recoverable message.
 
@@ -68,15 +68,16 @@ an unprotected EPUB is stored.
 
 ## Replacement and recovery
 
-Every checkpoint records the managed asset's SHA-256 fingerprint. If a new import replaces that
+Every checkpoint records the asset's SHA-256 fingerprint. If a new import replaces that
 asset, Wovenleaf preserves the semantic resource, progression, chapter title, and text context but
 removes revision-specific fragments before asking Readium to resume. This avoids applying a stale
 CFI or selector to changed content while retaining the best safe passage-level anchor.
 
-The native hosts only accept file URLs inside the app-managed private library. A missing file,
+Native hosts resolve registered original-file references and retain access for the reader session;
+legacy managed URLs remain restricted to the private library. A missing file, lost access,
 invalid archive, protected publication, or resource load failure leaves the last trusted checkpoint,
-reading-event ledger, notes, and annotations untouched. Recovery UI directs the reader back to the
-library to re-import the edition; it never offers destructive cleanup as part of opening a book.
+reading-event ledger, notes, and annotations untouched. Recovery offers **Choose file** to repair
+the reference without copying the original. See [original-file access](original-files.md).
 
 ## Paper-aware appearance
 

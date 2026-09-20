@@ -41,6 +41,7 @@ import type {
 
 export type StoredAudiobookSegment = {
   readonly segmentId: string
+  readonly referenceId?: string
   readonly relativePath: string
   readonly capabilityId: string
 }
@@ -94,6 +95,26 @@ export class AudiobookImportRepository {
       [fingerprint],
     )
     return row ? duplicateResult(row) : undefined
+  }
+
+  async linkOriginalSegments(assetId: string, references: ReadonlyMap<string, string>): Promise<void> {
+    await this.#database.transaction(async (database) => {
+      const [row] = await database.query('SELECT payload_json FROM assets WHERE id = ?', [assetId])
+      if (!row) throw new Error('This audiobook is no longer in the library.')
+      const asset = assetSchema.parse(JSON.parse(readText(row, 'payload_json')))
+      for (const [fingerprint, reference] of references) {
+        await database.run(`UPDATE audiobook_files SET reference_id = ?, relative_path = ''
+          WHERE fingerprint = ? AND import_id IN (SELECT id FROM audiobook_imports WHERE content_asset_id = ?)`,
+        [reference, fingerprint, assetId])
+      }
+      const [entry] = await database.query(`SELECT COUNT(*) AS count, SUM(byte_size) AS size FROM audiobook_files
+        WHERE import_id IN (SELECT id FROM audiobook_imports WHERE content_asset_id = ?)`, [assetId])
+      const [imported] = await database.query('SELECT title, fingerprint FROM audiobook_imports WHERE content_asset_id = ?', [assetId])
+      if (!entry || !imported) throw new Error('The audiobook segments are missing.')
+      const location = { kind: 'linked-bundle', fingerprint: readText(imported, 'fingerprint'),
+        lastKnownName: readText(imported, 'title'), byteSize: entry.size, entryCount: entry.count }
+      await database.run('UPDATE assets SET payload_json = ? WHERE id = ?', [JSON.stringify(assetSchema.parse({ ...asset, location })), assetId])
+    })
   }
 
   async findBySourceSetFingerprint(fingerprint: string): Promise<AudiobookImportResult | undefined> {
@@ -199,8 +220,9 @@ export class AudiobookImportRepository {
         format: input.audiobook.format,
         mediaType: input.audiobook.mediaType,
         location: {
-          kind: 'managed-bundle',
-          relativePath: input.bundleRelativePath,
+          ...(input.storedSegments.some((segment) => segment.referenceId)
+            ? { kind: 'linked-bundle', lastKnownName: input.audiobook.metadata.title }
+            : { kind: 'managed-bundle', relativePath: input.bundleRelativePath }),
           fingerprint: input.audiobook.fingerprint,
           byteSize: input.audiobook.segments.reduce((total, { byteSize }) => total + byteSize, 0),
           entryCount: input.audiobook.segments.length,
@@ -317,8 +339,8 @@ export class AudiobookImportRepository {
         await database.run(
           `INSERT INTO audiobook_files(
              capability_id, import_id, segment_id, position, relative_path,
-             fingerprint, byte_size, media_type
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+             fingerprint, byte_size, media_type, reference_id
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             stored.capabilityId,
             importId,
@@ -328,6 +350,7 @@ export class AudiobookImportRepository {
             segment.fingerprint,
             segment.byteSize,
             segment.mediaType,
+            stored.referenceId ?? null,
           ],
         )
       }

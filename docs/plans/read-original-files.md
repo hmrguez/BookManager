@@ -1,6 +1,6 @@
 # Read original EPUB, PDF, and audiobook files
 
-Status: implementation proposal; no runtime changes made.
+Status: implemented on 2026-09-20. This document preserves the original assessment and estimate; see [the implementation and validation guide](../guides/original-files.md) for shipped behavior and verification limits.
 
 Assessed on 2026-09-18 against commit `52c7032` and the current source tree. Scope: the native iOS and Android apps.
 

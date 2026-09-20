@@ -252,6 +252,7 @@ private final class WovenleafPlaybackEngine: NSObject {
     private let engineEpoch = "ios-engine:\(UUID().uuidString.lowercased())"
     private var manifest: PlaybackManifest?
     private var sources: [String: PlaybackSource] = [:]
+    private var sourceAccess: [String: OriginalFileAccess] = [:]
     private var artwork: PlaybackArtwork?
     private var cachedArtwork: (fingerprint: String, value: MPMediaItemArtwork)?
     private var items: [ObjectIdentifier: Int] = [:]
@@ -285,8 +286,13 @@ private final class WovenleafPlaybackEngine: NSObject {
 
     var absolutePositionMs: Int {
         if state == "error", let retainedErrorPositionMs { return retainedErrorPositionMs }
+        if state == "ended" { return durationMs }
         guard let segment = currentSegment else { return 0 }
-        let position = max(0, Int((player.currentTime().seconds * 1_000).rounded()))
+        // AVQueuePlayer briefly reports an indefinite time when it removes its last item.
+        // Preserve the last checkpoint until the end notification confirms completion.
+        let milliseconds = player.currentTime().seconds * 1_000
+        guard milliseconds.isFinite else { return min(durationMs, max(segment.absoluteStartMs, lastDurablePositionMs)) }
+        let position = Int(min(Double(segment.absoluteEndMs - segment.absoluteStartMs), max(0, milliseconds.rounded())))
         return min(durationMs, segment.absoluteStartMs + position)
     }
 
@@ -403,7 +409,7 @@ private final class WovenleafPlaybackEngine: NSObject {
         }
         let decodedSources: [PlaybackSource] = try decode(sourceObjects)
         let byCapability = Dictionary(uniqueKeysWithValues: decodedSources.map { ($0.capability, $0) })
-        try validateQueue(manifest: decodedManifest, sources: byCapability)
+        let candidateAccess = try validateQueue(manifest: decodedManifest, sources: byCapability)
         let decodedArtwork: PlaybackArtwork? = try artworkObject.map { try decode($0) }
         for source in decodedSources {
             guard let url = URL(string: source.uri), let validURL = validateManagedURL(url) else { continue }
@@ -422,6 +428,8 @@ private final class WovenleafPlaybackEngine: NSObject {
         }
         player.pause()
         manifest = decodedManifest
+        player.removeAllItems()
+        sourceAccess = candidateAccess
         sources = byCapability
         artwork = validatedArtwork(decodedArtwork)
         cachedArtwork = nil
@@ -440,10 +448,15 @@ private final class WovenleafPlaybackEngine: NSObject {
     }
 
     func play(reason: String = "user-command") throws {
+        if state == "ended" {
+            try checkOriginalSources()
+            rebuildQueue(at: 0, autoplay: false)
+        }
         guard manifest != nil, player.currentItem != nil else {
             throw PlaybackEngineError(code: "QUEUE_INVALID", message: "Load an audiobook before playing.")
         }
         if playIntent && (state == "playing" || state == "buffering") { return }
+        try checkOriginalSources()
         do {
             let audio = AVAudioSession.sharedInstance()
             try audio.setCategory(.playback, mode: .spokenAudio, options: [.allowAirPlay, .allowBluetoothA2DP])
@@ -493,6 +506,7 @@ private final class WovenleafPlaybackEngine: NSObject {
         let before = absolutePositionMs
         let target = max(0, min(requestedMs, max(0, durationMs - 1)))
         if target == before { return }
+        try checkOriginalSources()
         rebuildQueue(at: target, autoplay: playIntent)
         enqueue(kind: "seek", reason: reason, before: before, after: target)
         updateNowPlaying()
@@ -601,10 +615,9 @@ private final class WovenleafPlaybackEngine: NSObject {
         for index in targetIndex..<manifest.segments.count {
             let segment = manifest.segments[index]
             guard
-                let source = sources[segment.playableCapability],
-                let url = URL(string: source.uri),
-                let validURL = validateManagedURL(url)
+                let access = sourceAccess[segment.playableCapability]
             else { continue }
+            let validURL = access.url
             let item = AVPlayerItem(url: validURL)
             item.audioTimePitchAlgorithm = .timeDomain
             items[ObjectIdentifier(item)] = index
@@ -978,7 +991,7 @@ private final class WovenleafPlaybackEngine: NSObject {
             activeDurationMs = journalState["activeDurationMs"] as? Int ?? 0
             rate = Float(savedSnapshot["rate"] as? Double ?? Double(restoredManifest.rate))
             previewEnabled = journalState["previewEnabled"] as? Bool ?? false
-            try validateQueue(manifest: restoredManifest, sources: restoredByCapability)
+            sourceAccess = try validateQueue(manifest: restoredManifest, sources: restoredByCapability)
             suppressionReason = "process-recreated"
             playIntent = false
             state = "paused"
@@ -1106,26 +1119,30 @@ private final class WovenleafPlaybackEngine: NSObject {
     private func validateQueue(
         manifest: PlaybackManifest,
         sources: [String: PlaybackSource]
-    ) throws {
+    ) throws -> [String: OriginalFileAccess] {
+        var acquired: [String: OriginalFileAccess] = [:]
         for segment in manifest.segments {
-            guard
-                let source = sources[segment.playableCapability],
-                source.fingerprint == segment.fingerprint,
-                source.mediaType == segment.mediaType,
-                let url = URL(string: source.uri),
-                let validURL = validateManagedURL(url),
-                FileManager.default.fileExists(atPath: validURL.path)
-            else {
-                throw PlaybackEngineError(code: "RELINK_REQUIRED", message: "A managed audiobook segment is missing or changed.")
+            guard let source = sources[segment.playableCapability],
+                  source.fingerprint == segment.fingerprint, source.mediaType == segment.mediaType else {
+                throw PlaybackEngineError(code: "RELINK_REQUIRED", message: "An audiobook file is unavailable. Choose it again; your progress is safe.")
             }
-            guard FileManager.default.isReadableFile(atPath: validURL.path) else {
-                throw PlaybackEngineError(code: "AUTHENTICATION_REQUIRED", message: "Unlock the device before playing protected audiobook files.")
-            }
-            let actualSize = (try? FileManager.default.attributesOfItem(atPath: validURL.path)[.size] as? NSNumber)?.intValue
-            guard actualSize == source.byteSize, (try? sha256(validURL)) == source.fingerprint else {
-                throw PlaybackEngineError(code: "RELINK_REQUIRED", message: "A managed audiobook segment is missing or changed.")
+            do {
+                let access = try WovenleafFileReferences.acquire(source.uri)
+                let size = try access.coordinated { try $0.resourceValues(forKeys: [.fileSizeKey]).fileSize }
+                guard size == source.byteSize, try access.fingerprint() == source.fingerprint else {
+                    throw WovenleafFileReferences.unavailable("FILE_CHANGED")
+                }
+                acquired[segment.playableCapability] = access
+            } catch {
+                throw PlaybackEngineError(code: "RELINK_REQUIRED", message: "An audiobook file is missing, changed, or no longer accessible. Choose it again; your progress is safe.")
             }
         }
+        return acquired
+    }
+
+    private func checkOriginalSources() throws {
+        do { for access in sourceAccess.values { try access.check() } }
+        catch { throw PlaybackEngineError(code: "RELINK_REQUIRED", message: "An audiobook file is no longer available. Choose it again; your progress is safe.") }
     }
 
     private func sha256(_ url: URL) throws -> String {

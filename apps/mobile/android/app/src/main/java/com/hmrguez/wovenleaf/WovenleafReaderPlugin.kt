@@ -1,13 +1,11 @@
 package com.hmrguez.wovenleaf
 
 import android.graphics.pdf.PdfRenderer
-import android.os.ParcelFileDescriptor
 import android.util.Base64
 import android.graphics.Bitmap
 import java.io.ByteArrayOutputStream
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import com.getcapacitor.JSArray
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
@@ -17,7 +15,6 @@ import com.getcapacitor.annotation.CapacitorPlugin
 import org.json.JSONArray
 import org.json.JSONObject
 import org.readium.r2.shared.publication.Locator
-import java.io.File
 import java.time.Instant
 import java.util.UUID
 
@@ -53,13 +50,10 @@ class WovenleafReaderPlugin : Plugin() {
             return
         }
 
-        val file = fileUri?.let(::managedFile)
-        if (file == null) {
-            call.reject("The managed book URL is invalid.", "INVALID_CAPABILITY")
-            return
-        }
-        if (!file.isFile) {
-            call.reject("The managed book file is missing.", "MISSING_ASSET")
+        try {
+            OriginalFiles.verify(context, requireNotNull(fileUri), if (fileUri.startsWith("wovenleaf-file://")) fingerprint else null)
+        } catch (error: Exception) {
+            call.reject("The original book is unavailable. Choose it again.", (error as? OriginalFileException)?.code ?: "FILE_MISSING", error)
             return
         }
 
@@ -69,7 +63,7 @@ class WovenleafReaderPlugin : Plugin() {
             putExtra(ReaderContract.ASSET_ID, assetId)
             putExtra(ReaderContract.ASSET_FINGERPRINT, fingerprint)
             putExtra(ReaderContract.TITLE, title)
-            putExtra(ReaderContract.FILE_PATH, file.path)
+            putExtra(ReaderContract.FILE_PATH, fileUri)
             putExtra(ReaderContract.GLOBAL_PREFERENCES, globalPreferences.toString())
             putExtra(ReaderContract.NAVIGATION_STATE, call.getObject("navigationState").toString())
             putExtra(ReaderContract.ANNOTATION_STATE, call.getObject("annotationState").toString())
@@ -87,14 +81,9 @@ class WovenleafReaderPlugin : Plugin() {
 
     @PluginMethod
     fun pdfCover(call: PluginCall) {
-        val file = call.getString("fileUri")?.let(::managedFile)
-        if (file == null || !file.isFile) {
-            call.reject("The managed PDF is unavailable.", "INVALID_CAPABILITY")
-            return
-        }
         bridge.execute {
             try {
-                val jpeg = PdfRenderer(ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)).use { pdf ->
+                val jpeg = openOriginalPDF(context, call.getString("fileUri") ?: "").use { pdf ->
                     pdf.openPage(0).use { page ->
                         val bitmap = renderPDFPage(page, 480)
                         try {
@@ -107,7 +96,7 @@ class WovenleafReaderPlugin : Plugin() {
                 }
                 call.resolve(JSObject().put("jpeg", jpeg))
             } catch (error: Exception) {
-                call.reject("This PDF could not be rendered. Choose an unprotected, readable PDF.", "CORRUPT_ASSET", error)
+                call.reject("This PDF could not be rendered. Choose an unprotected, readable PDF.", (error as? OriginalFileException)?.code ?: "CORRUPT_ASSET", error)
             }
         }
     }
@@ -122,15 +111,6 @@ class WovenleafReaderPlugin : Plugin() {
         val ids = call.getArray("ids")?.toList<String>()?.toSet() ?: emptySet()
         ReaderOutbox.acknowledge(context, ids)
         call.resolve()
-    }
-
-    private fun managedFile(rawUri: String): File? {
-        val uri = runCatching { Uri.parse(rawUri) }.getOrNull() ?: return null
-        if (uri.scheme != "file") return null
-        val candidate = runCatching { File(requireNotNull(uri.path)).canonicalFile }.getOrNull() ?: return null
-        // Capacitor maps LibraryNoCloud to the private application files directory on Android.
-        val root = context.filesDir.canonicalFile
-        return candidate.takeIf { it.path.startsWith(root.path + File.separator) }
     }
 
     companion object {
@@ -373,4 +353,11 @@ internal object ReaderOutbox {
 
     private fun preferences(context: Context) =
         context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+}
+
+/** PdfRenderer owns a successful descriptor; failed construction must close it here. */
+internal fun openOriginalPDF(context: Context, uri: String): PdfRenderer {
+    val descriptor = OriginalFiles.seekableDescriptor(context, uri)
+    try { return PdfRenderer(descriptor) }
+    catch (error: Exception) { descriptor.close(); throw error }
 }

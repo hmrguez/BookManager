@@ -20,7 +20,7 @@ final class ShareViewController: UIViewController {
         var texts: [String] = []
         var files: [[String: String]] = []
         for provider in item.attachments ?? [] {
-            if let file = await copySharedDocument(from: provider) {
+            if let file = await captureSharedDocument(from: provider) {
                 files.append(file)
             } else if let value = await loadText(from: provider), !value.isEmpty {
                 texts.append(value)
@@ -49,7 +49,7 @@ final class ShareViewController: UIViewController {
         finish()
     }
 
-    private func copySharedDocument(from provider: NSItemProvider) async -> [String: String]? {
+    private func captureSharedDocument(from provider: NSItemProvider) async -> [String: String]? {
         let supported = [UTType.pdf.identifier, "org.idpf.epub-container", UTType.mp3.identifier, UTType.mpeg4Audio.identifier, UTType.commaSeparatedText.identifier]
         let detectedType = supported.first { provider.hasItemConformingToTypeIdentifier($0) }
         let defaultName = detectedType == UTType.pdf.identifier ? "Shared book.pdf"
@@ -62,6 +62,21 @@ final class ShareViewController: UIViewController {
         guard detectedType != nil || ["csv", "epub", "pdf", "mp3", "m4b", "m4a", "mp4"].contains(suffix) else { return nil }
         let type = detectedType ?? UTType.data.identifier
         guard provider.hasItemConformingToTypeIdentifier(type) else { return nil }
+
+        if suffix != "csv" && detectedType != UTType.commaSeparatedText.identifier {
+            return await withCheckedContinuation { continuation in
+                provider.loadInPlaceFileRepresentation(forTypeIdentifier: type) { url, inPlace, _ in
+                    var file = ["name": suggestedName, "mimeType": UTType(type)?.preferredMIMEType ?? "application/octet-stream"]
+                    if inPlace, let url, let reference = try? WovenleafFileReferences.register(url), let id = reference["id"] as? String {
+                        file["uri"] = "wovenleaf-file://" + id
+                    } else {
+                        // A temporary representation cannot become a durable original.
+                        file["uri"] = "wovenleaf-reselect://" + suggestedName.addingPercentEncoding(withAllowedCharacters: .urlHostAllowed)!
+                    }
+                    continuation.resume(returning: file)
+                }
+            }
+        }
 
         return await withCheckedContinuation { continuation in
             provider.loadFileRepresentation(forTypeIdentifier: type) { [appGroupId] sourceURL, _ in

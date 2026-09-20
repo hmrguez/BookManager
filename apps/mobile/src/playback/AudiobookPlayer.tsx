@@ -50,7 +50,7 @@ export type AudiobookPlayerPreview = {
   readonly preferences: AudiobookControlPreferenceState
 }
 
-export function AudiobookPlayer({ book, preview }: { readonly book: LibraryBook; readonly preview?: AudiobookPlayerPreview }) {
+export function AudiobookPlayer({ book, preview, onChooseFile }: { readonly book: LibraryBook; readonly preview?: AudiobookPlayerPreview; readonly onChooseFile?: () => void }) {
   // Static capture data is accepted only by the development build.
   const capture = import.meta.env.DEV ? preview : undefined
   const bookId = book.id
@@ -95,7 +95,8 @@ export function AudiobookPlayer({ book, preview }: { readonly book: LibraryBook;
       const bookContext = await playback.contextForBook(bookId)
       if (!bookContext) throw new Error('No playable audiobook is attached to this book.')
       await playback.connect()
-      const current = playback.snapshot?.queueId === bookContext.queueId
+      await playback.checkBook(bookId)
+      const current = playback.snapshot?.queueId === bookContext.queueId && playback.snapshot.state !== 'error'
         ? playback.snapshot
         : await playback.loadBook(bookId)
       const [preferenceState, savedAnnotations] = await Promise.all([
@@ -316,7 +317,8 @@ export function AudiobookPlayer({ book, preview }: { readonly book: LibraryBook;
   if (!snapshot || !context || !preferences) {
     return (
       <div className={tw('audiobook-player audiobook-player--loading')}>
-        <span>{issue ?? 'Preparing your listening place…'}</span>
+        <span role={issue ? 'alert' : 'status'}>{issue ?? 'Preparing your listening place…'}</span>
+        {issue && onChooseFile && <button type="button" onClick={onChooseFile}>Choose file</button>}
       </div>
     )
   }
@@ -488,7 +490,7 @@ export function AudiobookPlayer({ book, preview }: { readonly book: LibraryBook;
         ) : <p className={tw('audiobook-player__empty')}>Your first bookmark will keep the exact time and chapter here.</p>}
       </section>
 
-      {issue && <p className={tw('audiobook-player__issue')} role="alert">{issue}</p>}
+      {(issue || snapshot.error) && <div className={tw('audiobook-player__issue')} role="alert"><p>{issue ?? snapshot.error?.message}</p>{onChooseFile && <button type="button" onClick={onChooseFile}>Choose file</button>}</div>}
     </div>
   )
 

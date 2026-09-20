@@ -10,7 +10,6 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.pdf.PdfRenderer
 import android.os.Bundle
-import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import android.text.InputType
 import android.view.GestureDetector
@@ -31,7 +30,6 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.File
 import java.util.UUID
 import java.util.concurrent.Executors
 import kotlin.math.abs
@@ -97,13 +95,10 @@ class WovenleafPDFActivity : AppCompatActivity() {
         root.addView(bottom)
         setContentView(root)
         val path = intent.getStringExtra(ReaderContract.FILE_PATH)
-        val file = path?.let { File(it).canonicalFile }
-        if (file == null || !file.path.startsWith(filesDir.canonicalPath + File.separator)) {
-            showError(); return
-        }
+        if (path == null) { showError(); return }
         worker.execute {
             try {
-                renderer = PdfRenderer(ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY))
+                renderer = openOriginalPDF(this, path)
                 val count = requireNotNull(renderer).pageCount
                 require(count > 0)
                 runOnUiThread {
@@ -116,7 +111,7 @@ class WovenleafPDFActivity : AppCompatActivity() {
                         ?: (ceil((locations?.optDouble("totalProgression", 0.0) ?: 0.0) * count).toInt() - 1)
                     showPage(start.coerceIn(0, count - 1))
                 }
-            } catch (_: Exception) { runOnUiThread { showError() } }
+            } catch (error: Exception) { runOnUiThread { showError(error) } }
         }
     }
 
@@ -218,10 +213,10 @@ class WovenleafPDFActivity : AppCompatActivity() {
             }.show()
     }
 
-    private fun showError() {
+    private fun showError(error: Exception? = null) {
         if (isDestroyed || isFinishing) return
         AlertDialog.Builder(this).setTitle("This PDF couldn’t be opened")
-            .setMessage("Choose a readable, unprotected PDF. Your saved position and library are kept.")
+            .setMessage((error as? OriginalFileException)?.message ?: "Choose a readable, unprotected PDF. Your saved position and library are kept.")
             .setPositiveButton("Library") { _, _ -> finish() }.setOnCancelListener { finish() }.show()
     }
 
