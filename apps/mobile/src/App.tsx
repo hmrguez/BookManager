@@ -1,5 +1,6 @@
 import { useLibby } from './libby/use-libby'
 import { LibbySettings } from './libby/LibbySettings'
+import { LibbyBookLink } from './libby/LibbyBookLink'
 import { Capacitor } from '@capacitor/core'
 import { nativeOriginalFiles, originalFiles, originalSelectionFromUri, pickOriginalFiles, type IncomingOriginalFile } from './files/original-files'
 import { isPdfBytes } from './epub/inspect-book'
@@ -129,6 +130,7 @@ function App() {
     reload,
   } = useLibrary()
   const libby = useLibby(reload)
+  const [revealLibby, setRevealLibby] = useState(false)
   const {
     organization,
     hydrated: organizationHydrated,
@@ -1538,7 +1540,7 @@ function App() {
           />
         ) : (
           <SettingsPage
-            libby={<LibbySettings controller={libby} books={books} />}
+            libby={<LibbySettings controller={libby} books={books} reveal={revealLibby} onRevealed={() => setRevealLibby(false)} />}
             purchaseView={purchaseView}
             onUpgrade={() => { setUpgradeOpen(true); void purchases.refresh() }}
             books={books}
@@ -1637,6 +1639,7 @@ function App() {
       {sheet?.kind === 'detail' && selectedBook && (
         <DetailSheet
           book={selectedBook}
+          libby={<LibbyBookLink key={selectedBook.id} book={selectedBook} controller={libby} onSettings={() => { showSettings(); setRevealLibby(true) }} />}
           customShelves={activeCustomShelves}
           customShelfIds={organization.entries
             .filter((entry) => entry.bookId === selectedBook.id

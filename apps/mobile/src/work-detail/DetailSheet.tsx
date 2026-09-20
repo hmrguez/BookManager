@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { LibraryBook, ShelfId } from '../library'
 import type { CustomShelf } from '../organization-model'
 import { Sheet } from '../app/components/Sheet'
@@ -9,6 +10,7 @@ import {
 
 export function DetailSheet({
   book,
+  libby,
   customShelves,
   customShelfIds,
   tags,
@@ -34,6 +36,7 @@ export function DetailSheet({
   audiobookImport,
 }: {
   book: LibraryBook
+  libby?: ReactNode
   customShelves: readonly CustomShelf[]
   customShelfIds: readonly string[]
   tags: readonly string[]
@@ -63,6 +66,7 @@ export function DetailSheet({
       <WorkDetailExperience
         key={book.id}
         book={book}
+        libby={libby}
         customShelves={customShelves}
         customShelfIds={customShelfIds}
         tags={tags}

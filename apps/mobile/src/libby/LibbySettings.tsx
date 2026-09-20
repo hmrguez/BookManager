@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Capacitor } from '@capacitor/core'
 import { ArrowUpRight, BookOpen, Check, ChevronDown, Upload } from 'lucide-react'
 import type { LibraryBook } from '../library-model'
@@ -16,14 +16,22 @@ function storeUrl(): string | undefined {
   return undefined
 }
 
-export function LibbySettings({ controller: c, books }: { controller: LibbyController; books: LibraryBook[] }) {
+export function LibbySettings({ controller: c, books, reveal = false, onRevealed }: { controller: LibbyController; books: LibraryBook[]; reveal?: boolean; onRevealed?: () => void }) {
+  const panel = useRef<HTMLDetailsElement>(null)
+  useEffect(() => {
+    if (!reveal || !panel.current) return
+    panel.current.open = true
+    panel.current.scrollIntoView({ block: 'start', behavior: 'instant' })
+    panel.current.querySelector('summary')?.focus({ preventScroll: true })
+    onRevealed?.()
+  }, [reveal, onRevealed])
   const [platform, setPlatform] = useState<'safari' | 'quetta'>(Capacitor.getPlatform() === 'android' ? 'quetta' : 'safari')
   const [guideOpen, setGuideOpen] = useState(!c.state.enabled)
   const [disconnecting, setDisconnecting] = useState(false)
   const id = useId()
   const pending = c.state.items.filter(item => item.status === 'pending').slice().reverse()
   const listing = storeUrl()
-  return <details className="libby-settings">
+  return <details ref={panel} className="libby-settings">
     <summary className="libby-summary"><BookOpen size={22} aria-hidden="true" /><span><strong>Libby</strong><small role="status">{c.error ? 'Needs attention' : pending.length ? `${pending.length} ${pending.length === 1 ? 'book' : 'books'} to review` : c.state.enabled ? 'Connected reading · enabled' : 'Connect your books and reading progress'}</small></span><ChevronDown className="libby-chevron" size={18} aria-hidden="true" /></summary>
     <div className="libby-panel" aria-labelledby={`${id}-heading`}>
     <h2 id={`${id}-heading`}>Your place, kept.</h2>

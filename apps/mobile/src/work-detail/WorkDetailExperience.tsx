@@ -63,6 +63,7 @@ export type AudiobookAttachmentState = {
 
 type WorkDetailExperienceProps = {
   readonly book: LibraryBook
+  readonly libby?: ReactNode
   readonly customShelves: readonly CustomShelf[]
   readonly customShelfIds: readonly string[]
   readonly tags: readonly string[]
@@ -114,6 +115,7 @@ const editionIcons: Record<WorkEditionDetail['kind'], ReactNode> = {
 
 export function WorkDetailExperience({
   book,
+  libby,
   customShelves,
   customShelfIds,
   tags,
@@ -152,6 +154,7 @@ export function WorkDetailExperience({
     return (
       <SimpleBookDetail
         book={book}
+        libby={libby}
         customShelves={customShelves}
         customShelfIds={customShelfIds}
         tags={tags}
@@ -234,6 +237,8 @@ export function WorkDetailExperience({
       </header>
 
       <p className={tw("work-detail__summary")}>{model.summary}</p>
+
+      {libby}
 
       <section className={tw("edition-switcher")} aria-labelledby="edition-switcher-title">
         <header>
@@ -350,6 +355,7 @@ export function WorkDetailExperience({
 
 function SimpleBookDetail({
   book,
+  libby,
   customShelves,
   customShelfIds,
   tags,
@@ -472,6 +478,8 @@ function SimpleBookDetail({
         <button type="button" onClick={onProgress}><Clock3 aria-hidden="true" /> Update progress</button>
         {book.shelf !== 'finished' && <button type="button" onClick={onFinish}><BookCheck aria-hidden="true" /> Mark finished</button>}
       </section>
+
+      {libby}
 
       <section className={tw('simple-detail-section')} aria-labelledby="book-information-title">
         <header><div><span>Book information</span><h4 id="book-information-title">The essentials</h4></div></header>
