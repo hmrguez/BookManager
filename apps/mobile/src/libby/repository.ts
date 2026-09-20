@@ -148,6 +148,8 @@ export class LibbyRepository {
       receipt.undone = true
       const mapping = state.mappings.find((entry) => entry.key === receipt.key)
       if (mapping) { mapping.baseline = lastUpdatedAt; mapping.paused = true }
+      const item = state.items.find(entry => entry.key === receipt.key && entry.status === 'pending')
+      if (item) item.reason = 'Automatic updates are paused after Undo. Review to resume.'
       await this.write(db, state)
       return state
     })

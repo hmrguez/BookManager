@@ -266,3 +266,25 @@ QUI-17 must apply the same classification to SQLite and verify OS data-protectio
 devices. QUI-54/QUI-56 must implement nonce expiry/replay state and extension origin binding. QUI-59
 must make capability checks and safe diagnostic events mandatory adapter interfaces. QUI-64 must
 define the archive cryptography, recovery model, corrupt/tampered archive behavior, and restore drill.
+
+## QUI-54: opt-in local Libby progress (2026-09-20)
+
+The [Libby companion](../../integrations/libby.md) adds a narrowly scoped exception to per-capture
+confirmation: after explicit feature opt-in and one-time per-book matching, a newer, forward shelf
+percentage may update that unchanged Reading book automatically. Manual edits, backward positions,
+stale captures, paused links and other shelves require review. Every applied write has an atomic,
+revision-checked undo receipt. The automatic-update preference and disconnect revoke this capability.
+
+This uses Safari's same-app native-message/App Group boundary or an explicit OS share/file import,
+not the generic deep-link handoff. The opaque nonce-only `wovenleaf://handoff` contract is unchanged;
+no progress payload is put in a URL. Each boundary validates the strict, bounded progress schema,
+rejects extra fields, suppresses replay and checks the feature grant before a library write.
+Capture requires separate browser opt-in, the exact supported origin, the visible shelf route and
+rendered loan fields. It never reads Libby credentials, page storage, reader text or browsing history.
+The pinned Android share-target patch removes raw payload/URI logging and handles cold-start shares.
+
+The Safari inbox is protected, excluded from automatic backup, bounded and acknowledged only after
+SQLite persistence. Operational links and receipts stay in the local database; full recovery
+snapshots contain them, portable exports do not. Disconnect clears integration state and native
+pending captures; users also disable capture to erase the browser's single cached snapshot. Nothing
+in this exception authorizes a remote sync client, a cloud relay, or writes back into Libby.

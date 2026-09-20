@@ -1,5 +1,5 @@
 import { OriginalFileInput } from '../files/OriginalFileInput'
-import { useState, useSyncExternalStore, type DragEvent } from 'react'
+import { useState, useSyncExternalStore, type ReactNode, type DragEvent } from 'react'
 import {
   Archive,
   AudioLines,
@@ -76,6 +76,7 @@ export type RecoveryViewState = {
 }
 
 export function SettingsPage({
+  libby,
   purchaseView,
   onUpgrade,
   books,
@@ -118,6 +119,7 @@ export function SettingsPage({
   onRestoreBackup,
   onClearBooks,
 }: {
+  libby?: ReactNode
   purchaseView?: PurchaseView
   onUpgrade?: () => void
   books: LibraryBook[]
@@ -208,6 +210,7 @@ export function SettingsPage({
       </header>
 
       <div className={tw('settings-ledger')}>
+        {libby}
         {purchaseView && !purchaseView.owned && !reviewView.active && onUpgrade && <section className={tw('settings-card')}>
           <div className={tw('settings-card__icon')}><BookOpen aria-hidden="true" /></div>
           <div className={tw('settings-card__heading')}>

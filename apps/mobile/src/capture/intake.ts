@@ -1,3 +1,4 @@
+import { LIBBY_SHARE_PREFIX } from '../libby/model'
 import { Capacitor } from '@capacitor/core'
 import { Clipboard } from '@capacitor/clipboard'
 import {
@@ -32,14 +33,18 @@ export async function listenForSharedIsbn(
 }
 
 export function isbnFromShare(event: Pick<ShareReceivedEvent, 'title' | 'texts'>): ValidIsbn | undefined {
+  if (event.texts.some(text => text.startsWith(LIBBY_SHARE_PREFIX))) return undefined
   return extractValidIsbn([event.title, ...event.texts].join('\n'))
 }
 
 export async function listenForSharedFiles(
   listener: (files: readonly SharedFile[]) => void,
+  onLibbyText?: (text: string) => void,
 ): Promise<() => Promise<void>> {
   if (!Capacitor.isNativePlatform()) return async () => undefined
   const handle = await CapacitorShareTarget.addListener('shareReceived', (event) => {
+    const libby = event.texts.find(text => text.startsWith(LIBBY_SHARE_PREFIX))
+    if (libby && onLibbyText) { onLibbyText(libby); return }
     if (event.files.length) listener(event.files)
   })
   return () => handle.remove()

@@ -1,3 +1,5 @@
+import { useLibby } from './libby/use-libby'
+import { LibbySettings } from './libby/LibbySettings'
 import { Capacitor } from '@capacitor/core'
 import { nativeOriginalFiles, originalFiles, originalSelectionFromUri, pickOriginalFiles, type IncomingOriginalFile } from './files/original-files'
 import { isPdfBytes } from './epub/inspect-book'
@@ -126,6 +128,7 @@ function App() {
     clearBooks,
     reload,
   } = useLibrary()
+  const libby = useLibby(reload)
   const {
     organization,
     hydrated: organizationHydrated,
@@ -864,6 +867,7 @@ function App() {
       return
     }
     if (!/^(?:file|content|capacitor):/i.test(url)) return
+    if (/\.json(?:[?#]|$)/i.test(url)) { showSettings(); void libby.receiveFile(url); return }
     if (!incomingDeliveryGuardRef.current.accept(`url:${url}`)) return
     const explicitCsv = /\.csv(?:[?#]|$)/i.test(url)
     const explicitBookMedia = /\.(?:epub|pdf|m4b|m4a|mp4|mp3)(?:[?#]|$)/i.test(url)
@@ -892,7 +896,11 @@ function App() {
     }
   })
 
+  const onLibbyText = useEffectEvent((text: string) => { showSettings(); void libby.receiveText(text) })
+
   const onSharedFiles = useEffectEvent((files: readonly SharedFile[]) => {
+    const progressFile = files.find(file => /\.json$/i.test(file.name) || file.mimeType === 'application/json')
+    if (progressFile) { showSettings(); void libby.receiveFile(progressFile.uri); return }
     const temporary = files.find((file) => file.uri.startsWith('wovenleaf-reselect://'))
     if (temporary) {
       setOriginalRecovery({ name: temporary.name, kind: /\.(epub|pdf)$/i.test(temporary.name) || ['application/pdf', 'application/epub+zip'].includes(temporary.mimeType) ? 'ebook' : 'audio' })
@@ -982,7 +990,7 @@ function App() {
   useEffect(() => {
     let disposed = false
     let removeListener: (() => Promise<void>) | undefined
-    void listenForSharedFiles((files) => onSharedFiles(files))
+    void listenForSharedFiles((files) => onSharedFiles(files), (text) => onLibbyText(text))
       .then((remove) => {
         if (disposed) void remove()
         else removeListener = remove
@@ -1530,6 +1538,7 @@ function App() {
           />
         ) : (
           <SettingsPage
+            libby={<LibbySettings controller={libby} books={books} />}
             purchaseView={purchaseView}
             onUpgrade={() => { setUpgradeOpen(true); void purchases.refresh() }}
             books={books}
