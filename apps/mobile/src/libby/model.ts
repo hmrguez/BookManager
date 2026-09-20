@@ -51,9 +51,11 @@ const receiptSchema = z.object({
 })
 export const libbyStateSchema = z.object({
   enabled: z.boolean(), automatic: z.boolean(), lastReceivedAt: z.iso.datetime().optional(),
+  autoAdd: z.boolean().default(false),
+  excluded: z.array(z.string()).max(500).default([]),
   mappings: z.array(mappingSchema).max(500), items: z.array(itemSchema).max(100),
   receipts: z.array(receiptSchema).max(50), seen: z.array(z.uuid()).max(200),
 })
 export type LibbyState = z.infer<typeof libbyStateSchema>
 export type LibbyItem = LibbyState['items'][number]
-export const emptyLibbyState = (): LibbyState => ({ enabled: false, automatic: true, mappings: [], items: [], receipts: [], seen: [] })
+export const emptyLibbyState = (): LibbyState => ({ enabled: false, automatic: true, autoAdd: true, excluded: [], mappings: [], items: [], receipts: [], seen: [] })

@@ -35,3 +35,6 @@
 .libby-details { border-top:1px solid var(--border-subtle); margin-top:12px; font-size:var(--text-sm); }.libby-details summary { cursor:pointer; padding:15px 0; min-height:44px; }.libby-history { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:12px 0; border-top:1px solid var(--border-subtle); }.libby-history>div,.libby-history>span { min-width:0; overflow-wrap:anywhere; }.libby-history button { flex:none; }.libby-history small { margin-top:5px; }
 .libby-settings .libby-error { padding:12px; border:1px solid var(--state-destructive-border); color:var(--state-destructive-text); background:var(--state-destructive-surface); font-size:var(--text-sm); }
 .libby-disconnect { font-size:var(--text-sm); line-height:1.6; }.libby-disconnect button+button { margin-left:24px; }.libby-disconnect-button { font-size:var(--text-xs)!important; color:var(--text-secondary)!important; }
+.libby-connection { padding-block:16px; border-bottom:1px solid var(--border-subtle); font-size:var(--text-sm); }
+.libby-connection h3 { font:var(--font-heading-weight) 1.3rem var(--font-reading); margin:8px 0; }
+.libby-code { display:block; padding:16px; border:1px solid var(--border-strong); border-radius:4px; font:var(--text-md)/1.8 monospace; overflow-wrap:anywhere; letter-spacing:.06em; }

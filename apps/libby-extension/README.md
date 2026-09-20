@@ -1,6 +1,6 @@
 # Wovenleaf Libby companion
 
-A local companion for linked Libby web shelves. People can keep reading in native Libby, then briefly visit its web shelf. This captures displayed percentages; it does not monitor the native app, open books, use private APIs, or poll a Libby account in the background.
+A local companion for Libby web reading. Read on the website, visit its Shelf, and open Wovenleaf: new loans and eligible forward percentages arrive automatically. Native-to-web synchronization is best effort. This captures displayed percentages; it does not monitor the native app, open books, use private APIs, or poll a Libby account in the background.
 
 ## Build and verification
 
@@ -9,6 +9,7 @@ From the repository root, with the mobile app's dependencies installed:
 ```sh
 node apps/libby-extension/build.mjs
 node apps/libby-extension/verify.mjs
+node apps/libby-extension/verify-local.mjs # isolated browser + synthetic encrypted loopback peer
 sh apps/libby-extension/verify-native.sh # macOS + Xcode
 ```
 
@@ -19,11 +20,13 @@ The browser test installs the real MV3 extension in isolated Chromium and serves
 ## Delivery
 
 - **Safari (iPhone/iPad):** the bundled `LibbyExtension.appex` receives `runtime.sendNativeMessage`. It validates a bounded snapshot and queues it in `group.com.hmrguez.wovenleaf/LibbyInbox` with data protection, backup exclusion, atomic files, and a cross-process lock. Wovenleaf drains the queue on launch/resume or “Check received captures”, then acknowledges each database commit. The native receiver is off until Wovenleaf Settings → Libby is enabled.
-- **Quetta (Android):** the verified path on Quetta 2.0.5 / Pixel 9 is **Save progress file → download → import in Wovenleaf**, or open it from **Quetta Downloads → Share → Wovenleaf**. Direct Web Share stalled in the popup and was unavailable in a full extension tab. The popup shows fallback instructions even when the share promise never settles. On browsers supporting Web Share, it prefers an `application/json` file and falls back to marked text. Wovenleaf accepts SEND and JSON VIEW intents; cold-start delivery and private payload logging in the existing share plugin are fixed by a pinned Bun patch.
+- **Quetta (Android):** pair once using Wovenleaf Settings → Libby → Get connection code. The companion sends AES-GCM encrypted captures directly to the same phone’s loopback receiver. A foreground service has a generic notification and Pause action; reopen Wovenleaf after restart/force-stop. The app drains its bounded, no-backup inbox on receipt/resume and acknowledges after database commit. Android Keystore and a nonextractable extension IndexedDB CryptoKey hold the connection key. No provider credential, raw secret in URLs/storage.local, or cloud relay is involved. File import/viewer sharing remains the verified fallback; direct Web Share stalled in Quetta 2.0.5.
+
+The installed-browser local test checks encrypted 5→10 delivery, pairing/key persistence across restart, unavailable receiver retries with stable IDs, authenticated receipts, full inboxes and disconnect. Android production AES-GCM/schema tests are in `LibbyConnectionTest`; run the targeted `:app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.hmrguez.wovenleaf.LibbyConnectionTest` Gradle task. The test methods do not change saved pairing or library data. Keep the repository’s `android.injected.androidTest.leaveApksInstalledAfterRun=true` setting: AGP otherwise uninstalls the target app during cleanup, deleting its data.
 
 The companion also requires explicit “Capture this browser’s Libby shelf” opt-in. It observes only rendered loan tiles on `/shelf` or `/shelf/loans` at `https://libbyapp.com`. Site permission is origin-wide because Libby navigates as an SPA, but observation checks the current route and document visibility each time. It never accesses page local storage, cookies, tokens, library cards, book contents, or browsing history.
 
-Only one last snapshot is cached in extension session storage, or local storage on browsers without session storage. A capture older than 24 hours is discarded on the next cache access; turning capture off erases it immediately. Safari queues at most 20 unacknowledged captures and reports a full inbox rather than silently discarding them. No telemetry or remote Wovenleaf service is used.
+Only one last snapshot is cached in extension session storage, or local storage on browsers without session storage. A capture older than 24 hours is discarded on the next cache access; turning capture off erases it immediately. Each native receiver queues at most 20 unacknowledged captures and reports a full inbox rather than silently discarding them. No telemetry or remote Wovenleaf service is used.
 
 ## Releasing
 
@@ -31,6 +34,6 @@ Only one last snapshot is cached in extension session storage, or local storage 
 2. Build and zip the **contents** of `dist/chromium`, including the root `manifest.json`, for a Chrome Web Store or Edge Add-ons listing. No listing is published by this repository.
 3. After a real listing exists, set `VITE_LIBBY_EXTENSION_STORE_URL` to its HTTPS URL when building the app. Only the two supported store hosts are accepted. Without it, the Quetta guide gives the verified 2.0.5 development ZIP path: **Extensions → Manage Extensions → Developer options → Developer mode → from .zip/.crx/.user.js**. It never invents a store listing.
 4. Sign the app and new Safari extension with the existing team's App Group entitlement. The extension bundle ID is `com.hmrguez.wovenleaf.LibbyExtension`. Distribute through the containing Wovenleaf app/TestFlight.
-5. Complete the physical-device checks in the guide before advertising this as a verified mobile integration.
+5. Declare/review Android’s `specialUse` foreground-service purpose for Google Play. Complete the physical-device checks in the guide before advertising this as a verified mobile integration.
 
 Do not ask users for a Libby password or library card in Wovenleaf. Linking stays in Libby's own UI. Wovenleaf is an independent companion, not an OverDrive/Libby product.

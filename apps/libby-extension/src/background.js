@@ -1,4 +1,4 @@
-if (typeof importScripts === 'function') importScripts('common.js');
+if (typeof importScripts === 'function') importScripts('common.js', 'local.js');
 (() => {
   const { api, valid } = WovenleafLibby;
   const cache = api.storage.session ?? api.storage.local;
@@ -10,7 +10,7 @@ if (typeof importScripts === 'function') importScripts('common.js');
     return snapshot;
   }
   async function deliver(snapshot) {
-    if (!api.runtime.sendNativeMessage || !api.runtime.getManifest().permissions.includes('nativeMessaging')) return { ok: true, transport: 'share' };
+    if (!api.runtime.getManifest().permissions.includes('nativeMessaging')) return WovenleafLocal.deliver(snapshot);
     try {
       const result = await api.runtime.sendNativeMessage('com.hmrguez.wovenleaf.LibbyExtension', { snapshot });
       return result?.ok ? { ok: true, transport: 'native' } : { ok: true, transport: 'pending', message: result?.message ?? 'Enable Libby in Wovenleaf, then capture again.' };
@@ -28,7 +28,12 @@ if (typeof importScripts === 'function') importScripts('common.js');
       return deliver(message.snapshot);
     }
     if (!isPopup(sender)) return { ok: false };
-    if (message?.type === 'status') return { ...await api.storage.local.get('enabled'), snapshot: await latest() };
+    if (message?.type === 'status') return { ...await api.storage.local.get('enabled'), snapshot: await latest(), paired: typeof WovenleafLocal !== 'undefined' && await WovenleafLocal.paired() };
+    if (message?.type === 'pair' && typeof WovenleafLocal !== 'undefined') {
+      await WovenleafLocal.pair(message.code);
+      const snapshot = await latest(); return snapshot ? deliver(snapshot) : { ok: true, message: 'Connected. Return to your Libby Shelf to capture automatically.' };
+    }
+    if (message?.type === 'forget' && typeof WovenleafLocal !== 'undefined') { await WovenleafLocal.forget(); return { ok: true }; }
     if (message?.type === 'enable' && typeof message.enabled === 'boolean') {
       await api.storage.local.set({ enabled: message.enabled });
       if (!message.enabled) await cache.remove('snapshot');

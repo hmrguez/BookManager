@@ -1,87 +1,90 @@
 # Libby progress in Wovenleaf
 
-Implemented under QUI-54. Native Libby remains the reader. The supported workflow is **native Libby → linked web Shelf → Wovenleaf**. An explicit browser visit remains necessary. There is no embedded Libby WebView, desktop dependency, provider credential collection, private sync client, or always-on background tracking.
+Implemented under QUI-54. The MVP is **read in Libby web → visit its Shelf → open Wovenleaf**. After one-time setup, new loans join Reading and forward percentages update automatically. No Capture, Send, Import or Apply tap is needed. Existing-title ambiguities and progress conflicts still require review.
+
+The companion observes the **displayed web Shelf**, not the reader or native Libby process. Libby can leave a shelf percentage behind the player: pause/close the audiobook mini-player and use **Shelf → Actions → Synchronize Shelf** if needed. Wait for the displayed percentage before returning to Wovenleaf. Native-to-web synchronization is best effort and is not an MVP dependency. There is no embedded Libby WebView, desktop requirement, provider credential collection, private sync client or cloud relay.
 
 ## What is implemented
 
 | Layer | Implementation |
 | --- | --- |
-| Browser companion | Shared Safari/Chromium sources, explicit capture consent, rendered shelf metadata only, popup, retry, native delivery, share and JSON export |
-| Safari | Bundled native extension target, App Group inbox, schema validation, atomic writes, cross-process locking, backup exclusion, acknowledgement after app persistence |
-| Android / Quetta | User-initiated JSON/text sharing and file import; Android JSON VIEW handoff normalized to existing share intake, including opaque provider URLs |
-| Wovenleaf | Settings guides for both browsers, first-time title matching or add to Reading, remembered links, forward updates, review of conflicts/backward/stale positions, Undo, unlink, disconnect |
-| Persistence | Additive migration 19; one transactional state record, progress changes and receipts committed together; no inferred reading sessions, pages, start dates or completion |
+| Companion | Shared Safari/Chromium sources; separate capture consent; rendered title ID, title, author, format and percentage only; bounded validation; retry and optional JSON export |
+| Safari | Bundled extension; native-message/App Group inbox; protected atomic files, locking, backup exclusion; acknowledged after app persistence |
+| Quetta / Android | One-time pairing; encrypted same-phone loopback delivery; foreground connection with Pause action; durable inbox; OS share/file import fallback |
+| Wovenleaf | New-loan auto-add, remembered links, automatic forward progress, review for existing titles/conflicts, Undo, unlink and disconnect; browser setup guides |
+| Persistence | Migration 19 transactional state plus the existing `library_books` repository; no inferred reading sessions, page positions, start dates or automatic completion |
 
-The current live library uses `library_books`; this adapter updates that same repository transactionally. It does not invent canonical reading-ledger events or remote page positions. It changes percentage and `lastUpdatedAt`, preserving page markers and other metadata. A 100% capture remains on Reading until the user finishes the book.
+Wovenleaf applies received progress on launch/resume. Android also delivers an event to a running app. A 100% capture stays on Reading until the user finishes the book.
 
 ## Safari setup
 
 The bundled Manifest V3 companion requires iOS/iPadOS 15.4 or later ([WebKit release notes](https://webkit.org/blog/12445/new-webkit-features-in-safari-15-4/)).
 
-1. Enable **Libby progress** in Wovenleaf Settings. The automatic-updates setting applies only to books you explicitly match.
-2. In iPhone/iPad Settings, open **Apps → Safari → Extensions → Wovenleaf Libby** and enable it. Older iOS versions list Safari directly in Settings.
-3. Open **libbyapp.com in Safari**. Choose **Yes, I Have A Library Card → Recover Your Data → Display Setup Code**. In native Libby, open **Menu → Copy To Another Device** (under Your Information) and enter the code displayed by the website. Return to Safari and wait for the transfer to finish. The code expires quickly; generate another if needed. Never put that code in Wovenleaf.
-4. Use Safari’s page menu / Manage Extensions to allow the companion on **libbyapp.com**. Open the companion and enable **Capture this browser’s Libby shelf**.
-5. Visit the web **Shelf**, wait for percentage labels, then choose **Capture shelf now**. Open Wovenleaf and match each title once, or add it to Reading.
-6. After future reading, let native Libby sync online, visit the web Shelf in Safari, and return to Wovenleaf. If the website shows an old percentage, use **Shelf → Actions → Synchronize Shelf**, then capture again.
+1. Enable **Libby progress** in Wovenleaf Settings. Leave **Add new loans to Reading** and **Update progress automatically** enabled. Existing installations retain their previous per-book matching grant until auto-add is enabled separately.
+2. In iPhone/iPad Settings, open **Apps → Safari → Extensions → Wovenleaf Libby** and enable it. Older versions list Safari directly in Settings.
+3. Open **libbyapp.com in Safari**. To copy your existing Libby setup, choose **Yes, I Have A Library Card → Recover Your Data → Display Setup Code**. In native Libby, open **Menu → Copy To Another Device** and enter the website's code. Return to Safari and wait for transfer completion. This code belongs only in Libby.
+4. Use Safari’s page menu / Manage Extensions to allow the companion on **libbyapp.com**. Open it and enable **Capture this browser’s Libby shelf**. Refresh a shelf that was already open during installation.
+5. Read in Libby web, then visit its **Shelf** and wait for the displayed percentages. Capture and delivery run automatically. Open Wovenleaf to see new loans and updated progress.
 
-Capture runs when the shelf is visible and changes. The native inbox can receive captures while the containing app is closed; Wovenleaf applies eligible updates when it next opens/resumes. iOS does not grant an always-running Safari extension or a way to observe native Libby continuously.
+The native inbox can receive while Wovenleaf is closed. iOS does not grant continuous observation of native Libby or an always-running Safari extension. Physical Safari validation remains outstanding; the containing app and embedded extension build in the simulator.
 
 ## Quetta setup
 
-1. Enable Libby progress in Wovenleaf Settings.
-2. **A public store listing is not available yet.** For development, save the companion ZIP on your phone. In Quetta, open **Extensions → Manage Extensions → Developer options**, enable **Developer mode**, choose **from .zip/.crx/.user.js**, and select the ZIP. Confirm **Wovenleaf · Libby progress** is enabled. This local installation path was verified on Quetta **2.0.5**; it is not a claim about every Quetta version. After publication, use the actual Chrome Web Store or Edge Add-ons listing instead.
-3. Open **libbyapp.com in Quetta** and link it using native Libby’s Copy To Another Device flow, as above.
-4. Open the web Shelf, wait for percentages, then open the companion from **Quetta menu → Extensions → Wovenleaf · Libby progress**. Enable capture and choose **Capture shelf now**.
-5. Choose **Save progress file** and finish the download. In Wovenleaf Settings → Libby, choose **Import progress file** and select `wovenleaf-libby.json`. Alternatively, open that file in **Quetta → Downloads**, tap the viewer’s **Share** icon, select **Wovenleaf**, then **Just once**. This download/viewer/share route was verified on the Pixel. Direct **Send to Wovenleaf** did not work in Quetta 2.0.5: the popup could leave Web Share pending, and a full extension tab reported sharing unavailable. The companion keeps file instructions visible while sharing is pending.
-6. Match each title once. After each later web-shelf visit, save and import/share a fresh capture. Linked, forward updates apply on receipt if enabled. Never select an export destination you do not want to receive those private titles and percentages.
+1. Enable Libby progress and the two automatic preferences in Wovenleaf Settings.
+2. **A public store listing is not available yet.** For development, save the companion ZIP on the phone. In Quetta, open **Extensions → Manage Extensions → Developer options**, enable **Developer mode**, choose **from .zip/.crx/.user.js**, then select the ZIP. Confirm **Wovenleaf · Libby progress** is enabled. This path was verified on Quetta **2.0.5**. After publication use the actual Chrome Web Store or Edge Add-ons listing.
+3. Open **libbyapp.com in Quetta** and copy your Libby setup using its own device-code flow above.
+4. In **Wovenleaf → Settings → Libby → Get connection code**, copy the one-time code. Open **Quetta menu → Extensions → Wovenleaf · Libby progress**, paste it into **Wovenleaf connection code**, and choose **Connect automatically**. This is a separate code from Libby’s setup code; it expires after five minutes.
+5. Turn on **Capture this browser’s Libby shelf**, close the companion and refresh the web Shelf after installation. Read on the website, visit its Shelf, and open Wovenleaf. Capture, delivery, new-loan addition and eligible progress updates happen automatically.
+6. Android keeps a **Libby connection** foreground service, with a generic notification and Pause action. Reopen Wovenleaf after a phone restart or force-stop. If explicitly paused, choose **Resume connection** in Settings, then revisit the shelf. Android battery/process restrictions can interrupt availability; the companion retries while the shelf remains visible.
 
-Browser Libby needs internet. People can also read in mobile Safari/Quetta and return to the Shelf to capture afterward. The companion does not observe the full reader itself.
+Only one browser companion is paired at a time. **Connect a different companion** replaces the prior key when pairing succeeds. Development ZIP reinstallations can create a second extension ID: remove the older instance, keep the new one, pair it again, enable capture, and refresh the Shelf. Wovenleaf's book links survive.
 
-Quetta's development ZIP installer can create a second extension instance when installing a rebuilt ZIP. Remove the earlier development instance in the extension manager, keep only the new one, then refresh the Shelf and enable capture again. This does not remove Wovenleaf's saved book links.
+**Fallback:** choose **Save progress file**, finish the download, then import `wovenleaf-libby.json` in Wovenleaf Settings. Alternatively open it in **Quetta → Downloads → Share → Wovenleaf**. Direct Web Share stalled in Quetta 2.0.5 popups and was unavailable in a full extension tab. A paired companion's retry button uses the local receiver; file export remains available. Exporting discloses private titles and progress to the chosen destination.
+
+## Android transport and lifecycle
+
+The foreground service binds **127.0.0.1:43187 only**, never a Wi-Fi interface. The Chromium host permission is `http://127.0.0.1/*` because match patterns cannot restrict ports; code uses only the fixed port and two routes. No Libby cookie, card, account credential or browser history is read.
+
+Pairing uses a random 128-bit bootstrap code, a five-minute monotonic expiry and at most five attempts. An AES-GCM encrypted challenge establishes a random 256-bit key. Android keeps it in Android Keystore; the companion persists a **nonextractable WebCrypto CryptoKey in its own IndexedDB**. No key goes in a URL, ordinary extension storage, library database, logs or exports. User-requested code copying is marked sensitive and cleared after five minutes when Android permits it and the clipboard still contains that code.
+
+All request and response bodies are AES-GCM encrypted with fresh 96-bit IVs and route/origin/direction-bound authenticated data. The app pins the paired extension origin; the extension authenticates receipts and snapshot IDs. Another local process cannot forge a successful receipt or decrypt a capture without the key. A process occupying the fixed port can deny service. Compromise of the unlocked browser/extension can use its key: nonextractability is not protection against code running in that extension context.
+
+The receiver enforces exact Host/Origin, bounded headers and bodies, JSON-only POSTs, strict snapshot validation, and a maximum of 20 pending atomic files in no-backup storage. Wovenleaf acknowledges only after a database commit. Retrying a pending capture retains its ID; a full/unavailable receiver stays pending instead of silently reporting success. The service stops after an unpaired code expires and runs without a polling wake lock. There is no boot receiver or promise of uninterrupted background execution.
+
+Android's `specialUse` foreground-service type requires an appropriate Google Play declaration/review before release ([Android documentation](https://developer.android.com/develop/background-work/services/fgs/service-types#special-use)). A successful debug-device test does not establish store approval.
 
 ## Data and reconciliation contract
 
-Each strict version-1 `wovenleaf-libby` envelope has a UUID, a capture timestamp and 1–100 observations. An observation contains only Libby title ID, ebook/audiobook format, title, author and a finite percentage in [0, 100]. Files are limited to 128 KB. Unknown fields, duplicate title/format keys, bad numbers and future timestamps are rejected. Missing percentages are unknown, not zero; duplicate cards for the same title/format are omitted as ambiguous. Captures are partial: absence never deletes a book or link.
+A strict version-1 `wovenleaf-libby` envelope contains a UUID, capture timestamp and 1–100 observations, within 128 KB. Each observation has only a numeric-string Libby title ID, ebook/audiobook format, title, author and finite percentage in [0,100]. Unknown fields, duplicate identities, invalid values and future timestamps are rejected. Missing progress is unknown, not zero; duplicate visible cards are omitted as ambiguous. Partial capture never deletes absent books or links.
 
-The capture timestamp means **when the website was observed**, not when Libby last synced or when the user read. The provider does not expose that fact through this DOM probe. Even a freshly captured shelf may be stale; there is no guaranteed propagation latency.
+The timestamp means **when the web shelf was observed**, not when the user read or Libby synced. No guaranteed propagation latency is exposed.
 
-A user must opt in and match each `(format, Libby title ID)` once. Automatic writes require a Reading book, the last accepted Wovenleaf revision still matching, a nondecreasing percentage, an unpaused mapping, a capture no older than a day, and the automatic-updates preference. Everything else remains for explicit review. No automatic title-only match or silent deduplication with an existing Wovenleaf book is performed. One local book cannot be linked to two Libby identities.
+With auto-add enabled, a fresh unlinked title absent from the library becomes a Reading book at its captured percentage, with a link and undo receipt in the same transaction. Any normalized same-title library entry requires manual edition selection; there is no silent title-only match. Disabling auto-add leaves new titles for review. Unlinked/dismissed identities are excluded from future automatic addition until explicitly accepted. Existing installations default this new grant off; newly enabled integrations default it on as disclosed in the UI.
 
-The repository remembers up to 500 links, 100 latest title observations, 200 envelope IDs and 50 undo receipts; the UI shows the latest ten receipts. A full pending review queue asks the user to review/dismiss entries. Each mapping also retains its last observed timestamp, so an old capture cannot supersede it after ID-cache eviction. Undo requires the book still to match the committed revision, restores its previous progress fields, and pauses that link until explicit acceptance. Adding a new book uses the existing library capacity policy; Undo restores its progress but does not delete the added book.
+Automatic updates to linked books require: Reading shelf, unchanged last accepted Wovenleaf revision, nondecreasing percentage, unpaused link, capture no older than a day, and automatic updates enabled. Manual edits, backward movement, stale captures, other shelves and Undo-paused links remain for review. One book cannot link to two Libby identities.
 
-Disconnect erases local integration settings, links, captures, deduplication state and receipts, plus the Safari inbox. It preserves the user's books and their current progress. Turn capture off in the companion to erase its cached snapshot too. Revoking browser site access stops collection. Libby account linking itself is controlled by Libby. Reconnection requires fresh matching.
+Limits are 500 links, 500 excluded identities, 100 latest observations, 200 envelope IDs and 50 receipts; the UI shows ten receipts. Full review queues stop ingest transactionally. Each mapping retains an observed timestamp to reject old updates after ID eviction. Undo checks the committed book revision, restores prior progress/page fields and pauses automatic updates. Undo of an auto-added book restores its previous percentage; it does not delete the new Reading entry.
 
-Portable library exports retain library percentages but intentionally exclude operational Libby links/inbox state, as they do other integration cursors. Full local database recovery snapshots include the integration record and should be treated as private. No provider credential is stored by this integration.
+Disconnect erases integration settings, links, captures, exclusions, deduplication and receipts plus native inbox/key; books and their current progress remain. Turn capture off to erase the browser snapshot and use **Disconnect this browser** to erase its key. Revoking site access stops collection. Libby controls its own account link. Portable library exports retain book progress but exclude operational integration state; full database recovery snapshots include that private state. Native inboxes and device keys are excluded from automatic app backup.
 
 ## Verification and release status
 
-Verified on 2026-09-20:
+Physical verification on **2026-09-20** used Android Studio’s Running Devices mirror and Run configuration, a **Pixel 9 / Android 17 / API 37**, **Quetta 2.0.5**, and **Libby 9.5.0**:
 
-- App lint and TypeScript checks; all 374 Bun tests pass (including seven Libby tests).
-- Installed Chromium extension on offline synthetic shelf pages, including opt-in, 0→42→66 changes, partial/invalid/ambiguous data, SPA navigation, popup JSON download, marked text fallback and capture erasure.
-- Local mobile-width app flow: enable, import 0%, add/match, automatic 37%, backward 12% review, Undo back to 0% with automatic updates paused, persistence across reload, and disconnect erasing integration state while preserving the book. Safari and Quetta guides checked at 390px, including Night/high contrast with no horizontal overflow or browser errors.
-- iOS Simulator app build with the Safari extension embedded; production Swift boundary validation.
-- Android debug app build including JSON VIEW/SEND routing and the pinned share-target fix.
+- Installed the updated app without clearing the existing library; loaded the companion ZIP and completed Libby’s official device setup.
+- Initial 0% capture, JSON export/import and viewer sharing worked, including cold launch and duplicate-file replay without duplicate books.
+- Enabled automatic delivery and paired Quetta with the same-phone encrypted receiver.
+- Observed real **0% → 5% → 10%** Wovenleaf receipts. Neither update used Capture, Send, Import, Check received captures or Apply. Returning to Wovenleaf consumed the automatic capture.
+- The first 5% originated in native Libby; opening the web player synchronized that position. Advanced playback in the **web player** to 10%, paused and closed it. Its Shelf stayed at 5% until **Synchronize Shelf**, then the extension delivered 10% automatically. Native sync timing is not part of the MVP promise.
+- After the disposable dev-state reset described below, installed the final app and companion, enabled Libby and paired once. Merely visiting the web Shelf and reopening Wovenleaf automatically created the previously absent loan on Reading at **10%**, with no Capture, Send, Import, manual matching or Apply. The phone is left paired with this one Reading entry.
 
-Physical-device follow-up on 2026-09-20 used Android Studio’s Running Devices mirror and Run configuration on a connected **Pixel 9, Android 17 / API 37**, with **Quetta 2.0.5** and **Libby 9.5.0**. Verified:
+Automated verification covers installed Chromium capture and local encrypted delivery, opaque-key persistence across browser restart, connection loss/retry, mismatched/tampered/full receipts, opt-in and disconnect, plus transactional auto-add, replay, ambiguity, opt-out, stale data, rollback, conflicts and Undo. The app’s lint/typecheck and 376 Bun tests pass. Native Android tests exercise production AES-GCM/schema boundaries using synthetic data without touching the device’s saved connection or books. Safari parser tests and the simulator embedded-extension build were verified in the earlier implementation.
 
-- Android Studio installed and launched the Wovenleaf debug app without erasing its existing library.
-- Quetta installed and enabled the companion directly from its ZIP.
-- Official Libby setup linked native Libby to the Quetta web client. This caught and corrected the reversed setup-code instructions in both browser guides.
-- The real audiobook displayed 0% in native Libby, the linked web shelf, and the companion capture.
-- Saving the JSON and sharing it from Quetta’s file viewer opened Wovenleaf Settings, presented one review item, and added/linked a new Reading entry at 0%. Existing books were unchanged.
-- Force-stopping Wovenleaf and sharing the same file again cold-launched Settings without creating another review item or link. Importing the same file through Wovenleaf’s Android file picker also completed without duplication. The link and library entry survived installing the updated app through Android Studio.
-- Direct Web Share failed as described above. The working file path is now the primary Quetta guide, and a regression test covers a share promise that never settles while file export remains usable.
-- Installed the rebuilt companion on the Pixel and confirmed that tapping Send immediately shows the file fallback instructions. The refreshed web shelf and rebuilt companion still displayed 0% after restoring the native player.
+During the first Gradle connected-test run, AGP cleanup unexpectedly uninstalled the target app and erased the dev library. The user confirmed it was disposable development data and requested no recovery. The repository now sets `android.injected.androidTest.leaveApksInstalledAfterRun=true`; the follow-up run passed both tests with APK retention and no uninstall in its UTP log. The test methods themselves use synthetic crypto/schema inputs and do not write app state. Do not run unreviewed test suites on a personal-data installation.
 
-Do not promote synthetic tests or successful builds into claims about untested physical-device behavior.
+Before public release: signed physical iPhone/iPad installation, permissions/native inbox, ebook and audiobook formatting, offline/resume, upgrades, current Quetta compatibility, Android battery restrictions and foreground-service declaration, App Group provisioning, and real store distribution. Do not promote simulator/synthetic results into physical-device claims. No listing or release has been published.
 
-Nonzero native-to-web propagation has not yet been established in this device run. A temporary paused chapter position was restored to the original **00:00 / 0%** before proceeding with unrelated import checks. A controlled provider-sync test remains outstanding, as does physical Safari verification.
-
-Before public release, verify on signed physical iPhone/iPad and a current Quetta Android build: extension installation, permissions, native↔web nonzero sync on a disposable/sample title, ebook and audiobook formatting, Web Share support or file fallback, cold/warm app launch, offline/resume, duplicate capture, manual-edit conflict, Undo, disconnect, and app upgrade. Also test Safari's native message response/inbox and the distribution team's App Group provisioning. The repository creates no store accounts, publishes no listing, and uploads no release.
-
-Build the packages from [the companion directory](../../apps/libby-extension/README.md). Set the actual companion store URL in `apps/mobile/.env` only once published. The containing iOS app has a target dependency and Embed App Extensions entry for `LibbyExtension`; its resource phase uses the shared source directly. Signing and public store review remain release work.
+Build packages using [the companion guide](../../apps/libby-extension/README.md). Set a store URL only after an actual listing exists.
 
 ## Sources
 
@@ -90,4 +93,4 @@ Build the packages from [the companion directory](../../apps/libby-extension/REA
 - [Apple: Safari web extensions](https://developer.apple.com/documentation/safariservices/creating-a-safari-web-extension)
 - [Apple: native messaging](https://developer.apple.com/documentation/safariservices/messaging-between-the-app-and-javascript-in-a-safari-web-extension)
 - [Quetta: installing mobile browser extensions](https://www.quetta.net/blog/how-to-use-browser-extensions-on-android-phone)
-- [Web Share API and user activation](https://developer.mozilla.org/en-US/docs/Web/API/Navigator/share)
+- [Chrome: cross-origin extension requests](https://developer.chrome.com/docs/extensions/develop/concepts/network-requests)

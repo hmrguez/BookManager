@@ -1,16 +1,22 @@
 (() => {
   const api = WovenleafLibby.api;
-  let signature = '', timer;
+  let signature = '', timer, pending, inFlight;
   async function capture(force = false) {
-    const snapshot = readWovenleafShelf();
+    if (inFlight) return inFlight.catch(() => ({ ok: false, message: 'Reopen the companion and refresh your shelf.' }));
+    let snapshot = readWovenleafShelf();
     if (!snapshot) return { ok: false, message: 'Open your Libby Shelf and wait for its progress labels.' };
     const next = JSON.stringify(snapshot.observations);
     if (!force && signature === next) return { ok: true };
+    // Retain the ID across retries so a lost receipt cannot fill the native inbox.
+    if (pending && JSON.stringify(pending.observations) === next && Date.now() - Date.parse(pending.capturedAt) < 86400000) snapshot = pending;
+    pending = snapshot;
     try {
-      const result = await api.runtime.sendMessage({ type: 'capture', path: location.pathname, snapshot });
-      if (result?.ok) signature = next;
+      inFlight = api.runtime.sendMessage({ type: 'capture', path: location.pathname, snapshot });
+      const result = await inFlight;
+      if (result?.ok && result.transport !== 'pending') { signature = next; pending = undefined; }
       return result;
     } catch { return { ok: false, message: 'Reopen the companion and refresh your shelf.' }; }
+    finally { inFlight = undefined; }
   }
   const schedule = () => { clearTimeout(timer); timer = setTimeout(() => void capture(), 500); };
   new MutationObserver(schedule).observe(document.documentElement, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'style', 'hidden'] });

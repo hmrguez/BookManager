@@ -15,6 +15,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(WovenleafPurchasesPlugin.class);
         registerPlugin(WovenleafReaderPlugin.class);
         registerPlugin(WovenleafPlaybackPlugin.class);
+        registerPlugin(WovenleafLibbyPlugin.class);
         super.onCreate(savedInstanceState);
     }
 

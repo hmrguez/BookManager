@@ -19,11 +19,53 @@ async function setup() {
   const book = libraryBookSchema.parse({ id: 'book:test', title: 'A quiet book', authors: ['A. Reader'],
     pageCount: 200, currentPage: 0, shelf: 'reading', progress: 0, rating: 3, notes: 'Keep me', addedAt: at, lastUpdatedAt: at })
   await library.save(book)
-  await repo.configure(true, true)
+  await repo.configure(true, true, false)
   return { db, repo, library, book }
 }
 
 describe('Libby local progress', () => {
+  test('new loans automatically join Reading at nonzero progress, then advance without review or duplicates', async () => {
+    const { repo, library, db } = await setup()
+    await repo.configure(true, true, true)
+    const first = snapshot(5); first.observations[0]!.title = 'A newly borrowed book'
+    let state = await repo.ingest(JSON.stringify(first))
+    expect(state.items[0]!.status).toBe('applied')
+    const id = state.mappings[0]!.bookId
+    expect((await library.list()).find(book => book.id === id)).toMatchObject({ title: 'A newly borrowed book', shelf: 'reading', progress: 5, format: 'EBOOK' })
+    const forward = { ...first, id: crypto.randomUUID(), capturedAt: '2026-09-20T11:00:00.000Z', observations: [{ ...first.observations[0]!, percent: 23 }] }
+    state = await repo.ingest(JSON.stringify(forward))
+    expect(state.items[0]!.status).toBe('applied')
+    expect((await library.list()).find(book => book.id === id)?.progress).toBe(23)
+    await repo.ingest(JSON.stringify(forward))
+    expect(await library.list()).toHaveLength(2)
+    expect((await repo.read()).receipts).toHaveLength(2)
+    await repo.unlink('ebook:12345')
+    const next = { ...forward, id: crypto.randomUUID(), capturedAt: '2026-09-20T11:30:00.000Z' }
+    state = await repo.ingest(JSON.stringify(next))
+    expect(state.mappings).toHaveLength(0)
+    expect(state.items[0]!.reason).toContain('unlinked')
+    expect(await library.list()).toHaveLength(2)
+    await db.close()
+  })
+  test('automatic adding respects existing titles, opt-out, stale captures and atomic failures', async () => {
+    const { repo, library, db } = await setup()
+    await repo.configure(true, true, true)
+    expect((await repo.ingest(JSON.stringify(snapshot(5)))).items[0]!.reason).toContain('already in your library')
+    const fresh = snapshot(20, '2026-09-20T11:00:00.000Z'); fresh.observations[0]!.title = 'New title'; fresh.observations[0]!.titleId = '67890'
+    await repo.configure(true, true, false)
+    expect((await repo.ingest(JSON.stringify(fresh))).items.find(item => item.key === 'ebook:67890')!.status).toBe('pending')
+    await repo.configure(true, true, true)
+    const later = { ...fresh, id: crypto.randomUUID(), capturedAt: '2026-09-20T11:30:00.000Z' }
+    await db.execute("CREATE TRIGGER reject_libby_insert BEFORE INSERT ON library_books BEGIN SELECT RAISE(ABORT, 'simulated failure'); END;")
+    await expect(repo.ingest(JSON.stringify(later))).rejects.toThrow('simulated failure')
+    expect(await library.list()).toHaveLength(1)
+    expect((await repo.read()).seen).not.toContain(later.id)
+    await db.execute('DROP TRIGGER reject_libby_insert;')
+    const oldRepo = new LibbyRepository(db, () => new Date('2026-09-24T10:00:00Z'))
+    expect((await oldRepo.ingest(JSON.stringify(later))).items.find(item => item.key === 'ebook:67890')!.reason).toContain('day old')
+    expect(await library.list()).toHaveLength(1)
+    await db.close()
+  })
   test('accepts zero and share text, rejects unknown fields, duplicate titles, bad dates and percentages', () => {
     expect(parseLibbySnapshot(LIBBY_SHARE_PREFIX + JSON.stringify(snapshot()), Date.parse(at)).observations[0]!.percent).toBe(0)
     for (const bad of [{ ...snapshot(), cookie: 'secret' }, snapshot(NaN), snapshot(101), snapshot(-1), snapshot(1, '2099-01-01T00:00:00Z')]) {

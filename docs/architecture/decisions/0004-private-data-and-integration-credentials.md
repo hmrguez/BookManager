@@ -270,21 +270,66 @@ define the archive cryptography, recovery model, corrupt/tampered archive behavi
 ## QUI-54: opt-in local Libby progress (2026-09-20)
 
 The [Libby companion](../../integrations/libby.md) adds a narrowly scoped exception to per-capture
-confirmation: after explicit feature opt-in and one-time per-book matching, a newer, forward shelf
-percentage may update that unchanged Reading book automatically. Manual edits, backward positions,
-stale captures, paused links and other shelves require review. Every applied write has an atomic,
-revision-checked undo receipt. The automatic-update preference and disconnect revoke this capability.
+confirmation, authorized by the requested automatic Reading-shelf workflow. After feature opt-in,
+fresh unlinked loans can be added to Reading at their displayed percentage. Any existing normalized
+same-title entry requires manual matching; no existing edition is silently selected. Auto-add is a
+separate revocable preference, defaults off when migrating existing grants, and never overrides an
+explicit unlink/dismissal. Automatic forward updates require an unchanged Reading book and accepted
+link. Manual edits, backward positions, stale captures, paused links and other shelves require review.
+Every write has an atomic, revision-checked undo receipt; Undo preserves an added book and pauses its
+link. These are local library/progress capabilities only, never writes to Libby.
 
-This uses Safari's same-app native-message/App Group boundary or an explicit OS share/file import,
-not the generic deep-link handoff. The opaque nonce-only `wovenleaf://handoff` contract is unchanged;
-no progress payload is put in a URL. Each boundary validates the strict, bounded progress schema,
-rejects extra fields, suppresses replay and checks the feature grant before a library write.
-Capture requires separate browser opt-in, the exact supported origin, the visible shelf route and
-rendered loan fields. It never reads Libby credentials, page storage, reader text or browsing history.
-The pinned Android share-target patch removes raw payload/URI logging and handles cold-start shares.
+Safari uses the same-app native-message/App Group boundary. Android supports an explicitly paired,
+AES-GCM encrypted same-device loopback receiver, plus the existing explicit OS share/file import.
+This does not change the opaque nonce-only `wovenleaf://handoff` contract: no progress or key goes in
+a URL. Each boundary validates the strict bounded snapshot, rejects extra fields, suppresses replay
+and checks the feature grant. Browser capture separately requires consent, exact supported origin,
+visible shelf route and rendered loan fields. It never reads Libby credentials, page storage, book
+text or history. The pinned Android share-target patch removes raw payload/URI logging.
 
-The Safari inbox is protected, excluded from automatic backup, bounded and acknowledged only after
-SQLite persistence. Operational links and receipts stay in the local database; full recovery
-snapshots contain them, portable exports do not. Disconnect clears integration state and native
-pending captures; users also disable capture to erase the browser's single cached snapshot. Nothing
-in this exception authorizes a remote sync client, a cloud relay, or writes back into Libby.
+### Scoped connection-key exception
+
+The Android local bridge necessarily holds an inbox-only secret on both sides. It is an explicit
+exception to the generic browser-secret prohibition, native-vault wrapper requirement, and
+no-secret-display/clipboard rules above; it is not a provider or general Wovenleaf API credential.
+The app stores its AES key directly in Android Keystore. The extension stores a nonextractable
+WebCrypto CryptoKey in extension-origin IndexedDB, never raw bytes in storage.local/session. Its
+only authority is submitting a bounded progress envelope to this phone's enabled inbox; it cannot
+query the library, enumerate the inbox, acknowledge/delete files, or call arbitrary native methods.
+
+Pairing explicitly reveals a fresh random 128-bit code for five minutes, with five attempts and
+single-use redemption. Copy is a user gesture, marks the Android clipboard sensitive and clears only
+its unchanged code after expiry when Android permits. The code is transient UI/native memory, not
+persisted in library data, diagnostics, URLs or exports. The existing Android screenshot policy
+means a visible code can appear in Recents or be photographed; it is not a stored token display.
+Browser entry is cleared immediately on submission. Pairing codes must not be included in support
+screenshots. The long-lived key has no reveal or copy surface.
+
+The channel binds only 127.0.0.1:43187. Fixed routes, exact Host and extension Origin, JSON-only POST,
+bounded headers/bodies and socket timeouts narrow the HTTP boundary. AES-GCM authenticates both
+requests and responses with route/origin/direction-bound data and random IVs. Only a successful
+challenge exchange pins an extension origin; the code is never sent in cleartext to a process that
+might occupy the port. Each receipt must authenticate and match the snapshot ID. Lost receipts retry
+the same ID; a full inbox stays pending. The foreground service is explicit, pausable, uses no wake
+lock and has a generic notification hidden from the lock screen. Its Play special-use declaration
+and battery behavior remain release gates.
+
+Residual risks: another app can deny service by occupying the port or exhausting connection attempts;
+compromise of the unlocked extension/browser can use its nonextractable key; manual file export
+discloses the selected private data; native Libby/shelf synchronization can be stale. None grants
+broader provider access. No cloud relay, remote listener or raw telemetry is authorized.
+
+Both native inboxes are protected by the OS app sandbox, excluded from backup, bounded to 20 files,
+and acknowledged only after SQLite persistence. Operational links, exclusions and receipts remain
+local; full recovery snapshots contain them, portable exports do not. App disconnect clears native
+key/origin/inbox and integration state while preserving books. Browser disconnect erases its key;
+turning capture off erases its snapshot. Successful replacement pairing invalidates the old browser
+key. There is no external grant to revoke at a provider.
+
+Verification uses the real installed MV3 extension with an isolated encrypted peer: nonextractable
+key persistence across restart, automatic 5→10 capture, retry with stable IDs, rejection of forged,
+tampered/full receipts and browser disconnect. Android instrumented tests exercise production
+schema/AES-GCM validation without touching user data. Database tests cover auto-add consent,
+ambiguity, exclusions, transaction rollback, replay, conflicts and Undo. Real Pixel verification
+observed automatic 0→5→10 receipts and first-time loan creation at 10% from Quetta, without a share/import/apply step. Physical Safari
+verification remains outstanding.

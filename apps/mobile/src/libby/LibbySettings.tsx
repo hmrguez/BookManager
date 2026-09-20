@@ -24,13 +24,23 @@ export function LibbySettings({ controller: c, books }: { controller: LibbyContr
   return <section className="libby-settings" aria-labelledby={`${id}-heading`}>
     <div className="libby-masthead"><span>LIBBY · CONNECTED READING</span><BookOpen size={20} aria-hidden="true" /></div>
     <h2 id={`${id}-heading`}>Your place, kept.</h2>
-    <p className="libby-intro">Keep reading in Libby. Bring your place back to Wovenleaf through your browser.</p>
-    <p className="libby-caption">Libby updates its web shelf when you visit. Safari saves that snapshot for Wovenleaf; Quetta lets you send it. This does not track the native Libby app in the background.</p>
+    <p className="libby-intro">Your Libby books, automatically on Reading. Your progress follows.</p>
+    <p className="libby-caption">Read in Libby on the web, then visit its Shelf. The companion captures and delivers the displayed progress automatically; Wovenleaf updates when you open it.</p>
     {c.error && <p className="libby-error" role="alert">{c.error}</p>}
     {!c.state.enabled ? <button className="libby-primary" disabled={!c.ready || c.busy} onClick={() => { void c.configure(true); setGuideOpen(true) }}>Enable Libby progress <ArrowUpRight size={18} aria-hidden="true" /></button>
       : <>
         <div className="libby-status" role="status"><Check size={16} aria-hidden="true" /><span>{c.state.lastReceivedAt ? `Last received ${new Date(c.state.lastReceivedAt).toLocaleString()}` : 'Enabled · waiting for your first shelf capture'}</span></div>
-        <label className="libby-toggle"><span><strong>Update linked books automatically</strong><small>Forward progress applies when Wovenleaf opens. New matches and conflicts always need your review.</small></span><input type="checkbox" checked={c.state.automatic} disabled={c.busy} onChange={event => void c.configure(true, event.target.checked)} /></label>
+        <label className="libby-toggle"><span><strong>Add new loans to Reading</strong><small>New titles arrive automatically. If a title is already in your library, you choose its matching edition once.</small></span><input type="checkbox" checked={c.state.autoAdd} disabled={c.busy} onChange={event => void c.configure(true, c.state.automatic, event.target.checked)} /></label>
+        <label className="libby-toggle"><span><strong>Update progress automatically</strong><small>Forward progress applies when Wovenleaf opens. Backward positions and manual edits stay in review.</small></span><input type="checkbox" checked={c.state.automatic} disabled={c.busy} onChange={event => void c.configure(true, event.target.checked)} /></label>
+        {Capacitor.getPlatform() === 'android' && <div className="libby-connection">
+          <h3>Connect Quetta once</h3>
+          <p className="libby-caption">Captures travel directly on this phone, with no share sheet. Android keeps a visible Libby connection notification. Reopen Wovenleaf after a phone restart or force-stop.</p>
+          <p role="status">{c.connection?.paired ? (c.connection.running ? 'Connected · ready for captures' : 'Connection paused') : 'Your browser is not connected yet'}</p>
+          {c.connection?.error && <p className="libby-error">{c.connection.error}</p>}
+          {c.connection?.paired && !c.connection.running && <button onClick={() => void c.resumeConnection()} disabled={c.busy}>Resume connection</button>}
+          <button onClick={() => void c.pair()} disabled={c.busy}>{c.connection?.paired ? 'Connect a different companion' : 'Get connection code'}</button>
+          {c.pairingCode && <div><output className="libby-code" aria-label="One-time connection code">{c.pairingCode.match(/.{1,4}/g)?.join(' ')}</output><button onClick={() => void c.copyCode()} disabled={c.busy}>Copy code</button><p className="libby-caption">Paste this into the Wovenleaf companion in Quetta and choose Connect automatically. It expires after five minutes. This is a Wovenleaf connection code, separate from Libby’s device setup code.</p></div>}
+        </div>}
       </>}
     <button className="libby-row-action" aria-expanded={guideOpen} aria-controls={`${id}-guide`} onClick={() => setGuideOpen(!guideOpen)}>{guideOpen ? 'Close setup guide' : 'Safari & Quetta setup guide'} <span aria-hidden="true">{guideOpen ? '−' : '+'}</span></button>
     {guideOpen && <div id={`${id}-guide`} className="libby-guide">
@@ -42,15 +52,15 @@ export function LibbySettings({ controller: c, books }: { controller: LibbyContr
         <li><strong>Enable the companion</strong><p>In iPhone or iPad Settings, open Apps → Safari → Extensions → Wovenleaf Libby and turn it on. On older iOS versions, Safari is directly in Settings.</p></li>
         <li><strong>Link your Libby shelf</strong><p>Open <b>libbyapp.com</b> in Safari. Choose “Yes, I Have A Library Card” → “Recover Your Data” → “Display Setup Code”. In the Libby app, open Menu → Copy To Another Device and enter the code shown in Safari. Return to Safari and wait for the transfer to finish.</p></li>
         <li><strong>Allow this shelf</strong><p>On Libby’s website, open Safari’s page menu → Manage Extensions. Allow Wovenleaf Libby on libbyapp.com. Open the companion and turn on “Capture this browser’s Libby shelf”.</p></li>
-        <li><strong>Make your first match</strong><p>Open Libby’s Shelf in Safari and wait for the percentages. Capture the shelf, then open Wovenleaf and choose the matching book below. Future eligible updates apply automatically.</p></li>
+        <li><strong>Let your shelf arrive</strong><p>Open Libby’s Shelf in Safari and wait for the percentages. Capture runs automatically. Open Wovenleaf to see new loans on Reading and updated progress. Only existing-title ambiguities and conflicts need review.</p></li>
       </ol> : <ol>
         <li><strong>Add the companion in Quetta</strong>{listing ? <><p>Open the companion listing in Quetta. Install “Wovenleaf · Libby progress” and enable it with access to libbyapp.com.</p><a href={listing} target="_blank" rel="noreferrer">Open companion listing <ArrowUpRight size={14} aria-hidden="true" /></a></> : <><p>The public store listing is not available yet. This build needs the Wovenleaf companion ZIP.</p><p className="libby-caption">Save the ZIP on your phone. In Quetta, open Extensions → Manage Extensions → Developer options. Turn on Developer mode, choose “from .zip/.crx/.user.js”, then select the ZIP. These steps were checked in Quetta 2.0.5.</p></>}</li>
         <li><strong>Link your Libby shelf</strong><p>Open <b>libbyapp.com</b> in Quetta. Choose “Yes, I Have A Library Card” → “Recover Your Data” → “Display Setup Code”. In the Libby app, open Menu → Copy To Another Device and enter the code shown in Quetta. Return to Quetta and wait for the transfer to finish.</p></li>
-        <li><strong>Capture your shelf</strong><p>Open your web Shelf, then the Wovenleaf companion from Quetta’s Extensions menu. Turn on capture and choose “Capture shelf now”.</p></li>
-        <li><strong>Bring it to Wovenleaf</strong><p>Choose “Save progress file” and finish the download. Import that file below, or open it from Quetta’s Downloads and share it with Wovenleaf. Direct “Send to Wovenleaf” sharing may work in other versions; it is unavailable in Quetta 2.0.5.</p></li>
-        <li><strong>Match once</strong><p>Choose the matching book below. After each later web-shelf visit, save and import a fresh capture. Linked books can then update automatically.</p></li>
+        <li><strong>Connect Wovenleaf</strong><p>Get a connection code above. In Quetta’s Wovenleaf companion, paste the code and choose Connect automatically. Turn on “Capture this browser’s Libby shelf”. This setup is needed only once.</p></li>
+        <li><strong>Read, visit, return</strong><p>Read in Libby on the web, then visit its Shelf in Quetta. Capture and delivery run automatically. Open Wovenleaf: new loans appear on Reading and forward progress updates without a review tap.</p></li>
+        <li><strong>If the connection is paused</strong><p>Open Wovenleaf to resume it, then return to your web Shelf. “Save progress file” and the import below remain available as a fallback.</p></li>
       </ol>}
-      <div className="libby-guide-footnote"><strong>After reading in the Libby app</strong><p>Let Libby sync online, then visit the web Shelf in {platform === 'safari' ? 'Safari' : 'Quetta'}. If the percentage is old, use Shelf → Actions → Synchronize Shelf. Capture again and {platform === 'safari' ? 'open Wovenleaf' : 'send it to Wovenleaf'}.</p><p>A capture records what the shelf displays, including 0%. Missing progress stays unknown. Reading in the browser works too; return to its Shelf when you finish.</p></div>
+      <div className="libby-guide-footnote"><strong>If the shelf shows an old percentage</strong><p>Pause and close the audiobook mini-player, then use Shelf → Actions → Synchronize Shelf. Wait for the displayed percentage to update before returning to Wovenleaf.</p><p>Reading in the native Libby app may work too, after Libby syncs to the web. That timing is controlled by Libby. This feature tracks what the web Shelf displays, including 0%; missing progress stays unknown.</p></div>
       <a href="https://help.libbyapp.com/en-us/6023.htm" target="_blank" rel="noreferrer">Libby’s guide to syncing devices <ArrowUpRight size={14} aria-hidden="true" /></a>
     </div>}
     {c.state.enabled && <>

@@ -27,9 +27,10 @@ export class LibbyRepository {
     await db.run('INSERT INTO libby_state (id, payload_json) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET payload_json = excluded.payload_json', ['primary', JSON.stringify(libbyStateSchema.parse(state))])
   }
 
-  async configure(enabled: boolean, automatic: boolean): Promise<LibbyState> {
+  async configure(enabled: boolean, automatic: boolean, autoAdd?: boolean): Promise<LibbyState> {
     return this.database.transaction(async (db) => {
-      const state = enabled ? { ...await this.read(db), enabled, automatic } : emptyLibbyState()
+      const previous = await this.read(db)
+      const state = enabled ? { ...previous, enabled, automatic, autoAdd: autoAdd ?? previous.autoAdd } : emptyLibbyState()
       await this.write(db, state)
       return state
     })
@@ -52,6 +53,18 @@ export class LibbyRepository {
         const book = books.find((entry) => entry.id === mapping?.bookId)
         const item: LibbyItem = { key, observation, snapshotId: snapshot.id, capturedAt: snapshot.capturedAt, status: 'pending', reason: 'Choose the matching book once.' }
         if (mapping) mapping.observedAt = snapshot.capturedAt
+        if (!mapping && state.autoAdd && !state.excluded.includes(key)) {
+          const normalized = (value: string) => value.normalize('NFKC').toLocaleLowerCase().trim()
+          if (now.getTime() - Date.parse(snapshot.capturedAt) > 86_400_000) item.reason = 'This capture is more than a day old. Review before adding the book.'
+          else if (books.some(entry => normalized(entry.title) === normalized(observation.title))) item.reason = 'A book with this title is already in your library. Choose the matching edition.'
+          else if (state.mappings.length >= 500) item.reason = 'Unlink an old title before linking another.'
+          else {
+            const added = this.newBook(item)
+            await this.applyProgress(db, state, item, added)
+            books.push(added)
+            item.reason = 'Added to Reading from Libby.'
+          }
+        } else if (!mapping && state.excluded.includes(key)) item.reason = 'You unlinked or dismissed this title. Review to connect it again.'
         if (book && mapping) {
           if (book.shelf !== 'reading') item.reason = 'Move this book to Reading before applying progress.'
           else if (mapping.paused) item.reason = 'Automatic updates are paused after Undo. Review to resume.'
@@ -87,11 +100,7 @@ export class LibbyRepository {
       let book = books.find((entry) => entry.id === bookId)
       if (bookId && (!book || book.lastUpdatedAt !== expectedUpdatedAt)) throw new Error('This book changed. Choose it again to review its current progress.')
       if (!bookId) {
-        const at = this.clock().toISOString()
-        book = libraryBookSchema.parse({ id: `book:${crypto.randomUUID()}`, title: item.observation.title,
-          authors: item.observation.author ? [item.observation.author] : [], format: item.observation.format === 'audiobook' ? 'AUDIOBOOK' : 'EBOOK',
-          sourceNames: ['Libby'], pageCount: 0, shelf: 'reading', progress: 0, currentPage: 0,
-          rating: 0, notes: '', addedAt: at, lastUpdatedAt: at })
+        book = this.newBook(item)
       }
       if (!book || book.shelf !== 'reading') throw new Error('Choose a book on your Reading shelf.')
       if (state.mappings.some((mapping) => mapping.bookId === book.id && mapping.key !== key)) throw new Error('This book is already linked to another Libby title. Unlink it first.')
@@ -102,6 +111,14 @@ export class LibbyRepository {
     })
   }
 
+  private newBook(item: LibbyItem): LibraryBook {
+    const at = this.clock().toISOString()
+    return libraryBookSchema.parse({ id: `book:${crypto.randomUUID()}`, title: item.observation.title,
+      authors: item.observation.author ? [item.observation.author] : [], format: item.observation.format === 'audiobook' ? 'AUDIOBOOK' : 'EBOOK',
+      sourceNames: ['Libby'], pageCount: 0, shelf: 'reading', progress: 0, currentPage: 0,
+      rating: 0, notes: '', addedAt: at, lastUpdatedAt: at })
+  }
+
   private async applyProgress(db: SqlDatabase, state: LibbyState, item: LibbyItem, book: LibraryBook) {
     const progress = item.observation.percent
     // A shelf percentage is not a page checkpoint. Retain the existing page marker.
@@ -110,6 +127,7 @@ export class LibbyRepository {
     await writeLibraryBook(db, updated)
     state.mappings = state.mappings.filter((entry) => entry.key !== item.key)
     state.mappings.push({ key: item.key, bookId: book.id, baseline: lastUpdatedAt, paused: false, observedAt: item.capturedAt })
+    state.excluded = state.excluded.filter(key => key !== item.key)
     state.receipts = [...state.receipts, { id: crypto.randomUUID(), key: item.key, bookId: book.id, title: book.title,
       at: lastUpdatedAt, before: { progress: book.progress, currentPage: book.currentPage },
       after: { progress, currentPage: book.currentPage, lastUpdatedAt }, undone: false }].slice(-50)
@@ -121,7 +139,7 @@ export class LibbyRepository {
     return this.database.transaction(async (db) => {
       const state = await this.read(db)
       const item = state.items.find((entry) => entry.key === key && entry.snapshotId === snapshotId)
-      if (item) item.status = 'ignored'
+      if (item) { item.status = 'ignored'; if (!state.mappings.some(mapping => mapping.key === key)) this.exclude(state, key) }
       await this.write(db, state)
       return state
     })
@@ -131,9 +149,16 @@ export class LibbyRepository {
     return this.database.transaction(async (db) => {
       const state = await this.read(db)
       state.mappings = state.mappings.filter((entry) => entry.key !== key)
+      this.exclude(state, key)
       await this.write(db, state)
       return state
     })
+  }
+
+  private exclude(state: LibbyState, key: string) {
+    if (state.excluded.includes(key)) return
+    if (state.excluded.length >= 500) throw new Error('The excluded-title list is full. Disconnect Libby to reset it.')
+    state.excluded.push(key)
   }
 
   async undo(id: string): Promise<LibbyState> {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Capacitor, registerPlugin } from '@capacitor/core'
+import { Capacitor, registerPlugin, type PluginListenerHandle } from '@capacitor/core'
 import { App } from '@capacitor/app'
 import { getStorageRuntime } from '../storage/runtime'
 import type { LibbyRepository } from './repository'
@@ -10,14 +10,22 @@ const native = registerPlugin<{
   configure(options: { enabled: boolean }): Promise<void>
   pending(): Promise<{ snapshots: { id: string; text: string }[] }>
   acknowledge(options: { ids: string[] }): Promise<void>
+  beginPairing(): Promise<{ code: string }>
+  resume(): Promise<void>
+  copyCode(): Promise<void>
+  status(): Promise<{ running: boolean; paired: boolean; pairing?: boolean; error?: string }>
+  addListener(event: 'captureReceived', listener: () => void): Promise<PluginListenerHandle>
 }>('WovenleafLibby')
-const nativeAvailable = () => Capacitor.getPlatform() === 'ios' && Capacitor.isPluginAvailable('WovenleafLibby')
+const nativeAvailable = () => Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('WovenleafLibby')
+const android = () => Capacitor.getPlatform() === 'android' && nativeAvailable()
 
 export function useLibby(reloadLibrary: () => Promise<unknown>) {
   const [state, setState] = useState<LibbyState>(emptyLibbyState)
   const [ready, setReady] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
+  const [connection, setConnection] = useState<{ running: boolean; paired: boolean; error?: string }>()
+  const [pairingCode, setPairingCode] = useState<string>()
   const tail = useRef(Promise.resolve())
   const jobs = useRef(0)
   const run = useCallback((action: (repo: LibbyRepository) => Promise<LibbyState>) => {
@@ -55,6 +63,7 @@ export function useLibby(reloadLibrary: () => Promise<unknown>) {
           await native.acknowledge({ ids: [snapshot.id] })
         }
       }
+      if (android()) { const status = await native.status(); setConnection(status); if (status.paired && !status.pairing) setPairingCode(undefined) }
     }
     return next
   }), [run])
@@ -62,13 +71,17 @@ export function useLibby(reloadLibrary: () => Promise<unknown>) {
     void refresh()
     if (!Capacitor.isNativePlatform()) return
     const listener = App.addListener('appStateChange', ({ isActive }) => { if (isActive) void refresh() })
-    return () => { void listener.then(handle => handle.remove()) }
+    const captures = android() ? native.addListener('captureReceived', () => { void refresh() }) : undefined
+    return () => { void listener.then(handle => handle.remove()); void captures?.then(handle => handle.remove()) }
   }, [refresh])
 
-  const configure = (enabled: boolean, automatic = state.automatic) => run(async (repo) => {
+  useEffect(() => { if (!pairingCode) return; const timer = setTimeout(() => setPairingCode(undefined), 300_000); return () => clearTimeout(timer) }, [pairingCode])
+
+  const configure = (enabled: boolean, automatic = state.automatic, autoAdd = state.autoAdd) => run(async (repo) => {
     if (!enabled && nativeAvailable()) await native.configure({ enabled: false })
-    const next = await repo.configure(enabled, automatic)
+    const next = await repo.configure(enabled, automatic, autoAdd)
     if (enabled && nativeAvailable()) await native.configure({ enabled: true })
+    if (!enabled) { setPairingCode(undefined); setConnection(undefined) }
     return next
   })
   const receiveText = (text: string) => run(repo => repo.ingest(text))
@@ -77,7 +90,10 @@ export function useLibby(reloadLibrary: () => Promise<unknown>) {
     if (typeof source === 'string') await removeLibbyShareCopy(source)
     return next
   })
-  return { state, ready, busy, error, refresh, configure, receiveText, receiveFile,
+  return { state, ready, busy, error, refresh, configure, receiveText, receiveFile, connection, pairingCode,
+    pair: () => run(async repo => { const result = await native.beginPairing(); setPairingCode(result.code); setConnection(await native.status()); return repo.read() }),
+    copyCode: () => run(async repo => { await native.copyCode(); return repo.read() }),
+    resumeConnection: () => run(async repo => { await native.resume(); setConnection(await native.status()); return repo.read() }),
     apply: (key: string, id: string, bookId: string | null, expected?: string) => run(repo => repo.apply(key, id, bookId, expected)),
     dismiss: (key: string, id: string) => run(repo => repo.dismiss(key, id)),
     unlink: (key: string) => run(repo => repo.unlink(key)),

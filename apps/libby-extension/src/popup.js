@@ -1,6 +1,7 @@
 const api = WovenleafLibby.api;
 const $ = id => document.getElementById(id);
 let snapshot = null;
+let paired = false;
 const safari = api.runtime.getManifest().permissions.includes('nativeMessaging');
 function show(value) {
   snapshot = value;
@@ -9,18 +10,34 @@ function show(value) {
   for (const item of snapshot?.observations ?? []) {
     const row = document.createElement('li'); row.textContent = `${item.title} · ${item.percent}%`; $('titles').append(row);
   }
-  $('send').textContent = safari ? 'Send to Wovenleaf again' : 'Send to Wovenleaf';
+  $('send').textContent = safari || paired ? 'Retry automatic delivery' : 'Send to Wovenleaf';
 }
 async function refresh() {
   const result = await api.runtime.sendMessage({ type: 'status' });
   $('enabled').checked = !!result.enabled;
   $('capture').disabled = !result.enabled;
+  paired = !!result.paired;
   show(result.snapshot);
+  $('connection').hidden = safari;
+  $('pair-form').hidden = !!result.paired;
+  $('forget').hidden = !result.paired;
+  $('connection-status').textContent = result.paired ? 'Paired for automatic delivery on this phone.' : 'Open Wovenleaf → Settings → Libby to get a one-time connection code.';
   $('status').textContent = snapshot ? `Captured ${new Date(snapshot.capturedAt).toLocaleString()}` : 'No capture yet. Keep your shelf visible, then capture.';
 }
 $('enabled').addEventListener('change', async () => {
   await api.runtime.sendMessage({ type: 'enable', enabled: $('enabled').checked }); await refresh();
 });
+$('pair-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  const code = $('code').value.replace(/\s/g, ''); $('code').value = '';
+  $('status').textContent = 'Connecting on this phone…';
+  try {
+    const result = await api.runtime.sendMessage({ type: 'pair', code });
+    await refresh();
+    $('status').textContent = result.ok ? result.message ?? 'Connected. Return to your shelf.' : 'Connection failed. Get a fresh code in Wovenleaf and try again.';
+  } catch { $('status').textContent = 'Connection failed. Open Wovenleaf and try again.'; }
+});
+$('forget').addEventListener('click', async () => { await api.runtime.sendMessage({ type: 'forget' }); await refresh(); });
 $('capture').addEventListener('click', async () => {
   try {
     const [tab] = await api.tabs.query({ active: true, currentWindow: true });
@@ -33,7 +50,7 @@ $('capture').addEventListener('click', async () => {
 $('send').addEventListener('click', async () => {
   if (!snapshot) return;
   try {
-    if (safari) {
+    if (safari || paired) {
       const result = await api.runtime.sendMessage({ type: 'retry' });
       $('status').textContent = result.message ?? 'Saved for Wovenleaf. Open the app to apply or review.';
     } else {
