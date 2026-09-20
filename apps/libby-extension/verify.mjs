@@ -14,7 +14,7 @@ const tile = (id, label, format = 'audiobook', style = '') => `<article class="t
 let context;
 try {
   context = await chromium.launchPersistentContext(profile, { headless: true, channel: 'chromium', args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`] });
-  await context.route('https://libbyapp.com/**', route => route.fulfill({ contentType: 'text/html', body: `<!doctype html><body>${tile('111','0%')}${tile('222','37,5%','ebook')}${tile('333','95%','audiobook','display:none')}${tile('444','101%')}${tile('555','Unknown')}${tile('666','28%','magazine')}${tile('777','12%')}${tile('777','55%')}<div id="unrelated">Never capture this</div></body>` }));
+  await context.route('https://libbyapp.com/**', route => route.fulfill({ contentType: 'text/html', body: `<!doctype html><body>${tile('111','0%')}${tile('222','0%','book')}${tile('333','95%','audiobook','display:none')}${tile('444','101%')}${tile('555','Unknown')}${tile('666','28%','magazine')}${tile('777','12%')}${tile('777','55%')}<div id="unrelated">Never capture this</div></body>` }));
   const worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker');
   const page = await context.newPage(); await page.goto('https://libbyapp.com/shelf');
   const snapshot = () => worker.evaluate(async () => (await chrome.storage.session.get('snapshot')).snapshot);
@@ -23,7 +23,12 @@ try {
   await page.locator('#unrelated').evaluate(el => el.textContent = 'Trigger after opt-in');
   await expect.poll(async () => (await snapshot())?.observations.length).toBe(2);
   const first = await snapshot();
-  assert.deepEqual(first.observations, [{ titleId:'111',format:'audiobook',title:'Book 111',author:'A. Reader',percent:0 }, {titleId:'222',format:'ebook',title:'Book 222',author:'A. Reader',percent:37.5}]);
+  assert.deepEqual(first.observations, [{ titleId:'111',format:'audiobook',title:'Book 111',author:'A. Reader',percent:0 }, {titleId:'222',format:'ebook',title:'Book 222',author:'A. Reader',percent:0}]);
+  await page.locator('.data-title_222 [data-access="visual"]').evaluate(el => el.textContent = '37,5%');
+  await expect.poll(async () => (await snapshot())?.observations[1].percent).toBe(37.5);
+  // Keep the earlier "ebook" spelling compatible without changing the wire format.
+  await page.locator('.data-title_222').evaluate(el => { el.classList.replace('data-title-tile-format_book', 'data-title-tile-format_ebook'); el.querySelector('[data-access="visual"]').textContent = '38%'; });
+  await expect.poll(async () => (await snapshot())?.observations[1].percent).toBe(38);
   assert.equal(await page.evaluate(() => typeof globalThis.readWovenleafShelf), 'undefined');
   await page.locator('.data-title_111 [data-access="visual"]').evaluate(el => el.textContent = '42%');
   await expect.poll(async () => (await snapshot())?.observations[0].percent).toBe(42);

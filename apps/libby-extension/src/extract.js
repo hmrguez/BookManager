@@ -8,7 +8,8 @@
       if (!visible(tile) || !visible(link)) continue;
       const titleId = /^\/shelf\/journey\/(\d{1,20})$/.exec(link.getAttribute('href') ?? '')?.[1];
       const format = tile.classList.contains('data-title-tile-format_audiobook') ? 'audiobook'
-        : tile.classList.contains('data-title-tile-format_ebook') ? 'ebook' : null;
+        // Libby's rendered format uses "book"; our snapshot schema uses "ebook".
+        : ['book', 'ebook'].some(value => tile.classList.contains(`data-title-tile-format_${value}`)) ? 'ebook' : null;
       const label = link.querySelector('[data-access="visual"]')?.textContent?.trim() ?? '';
       const match = /^(\d{1,3}(?:[.,]\d+)?)\s*%$/.exec(label);
       const percent = match ? Number(match[1].replace(',', '.')) : NaN;

@@ -2,6 +2,8 @@
 
 A local companion for Libby web reading. Visit the web Shelf once to capture loan metadata, then listen in its web player and open Wovenleaf: new loans and eligible forward percentages arrive automatically. Native-to-web synchronization is best effort. Companion 0.4 adds displayed audiobook-player percentages; ebooks still use the Shelf. The 0.4 player path is verified on a Pixel 9 with Quetta 2.0.5; physical Safari verification remains outstanding. This captures displayed percentages; it does not monitor the native app, open books, use private APIs, or poll a Libby account in the background.
 
+Version 0.4.1 fixes ebook recognition: Libby's rendered Shelf uses `data-title-tile-format_book`, which the companion now maps to the snapshot's `ebook` format. The earlier `ebook` spelling remains supported. Physical Quetta verification automatically added The Well of Ascension with its cover at 0%, then applied its existing 1% reader position after returning to the Shelf. Ebook capture still requires that Shelf visit; direct ebook-reader observation is not implemented.
+
 ## Build and verification
 
 From the repository root, with the mobile app's dependencies installed:
