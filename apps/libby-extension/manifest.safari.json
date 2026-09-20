@@ -9,7 +9,8 @@
   ],
   "host_permissions": [
     "https://libbyapp.com/*",
-    "https://*.listen.overdrive.com/*"
+    "https://*.listen.overdrive.com/*",
+    "https://*.listen.libbyapp.com/*"
   ],
   "icons": {
     "192": "icon.png"
@@ -41,7 +42,8 @@
     },
     {
       "matches": [
-        "https://*.listen.overdrive.com/*"
+        "https://*.listen.overdrive.com/*",
+        "https://*.listen.libbyapp.com/*"
       ],
       "js": [
         "common.js",

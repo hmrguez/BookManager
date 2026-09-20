@@ -10,7 +10,7 @@ const require = createRequire(new URL('../mobile/package.json', import.meta.url)
 const { chromium, expect } = require('@playwright/test');
 const extension = fileURLToPath(new URL('./dist/chromium', import.meta.url));
 const profile = await mkdtemp(join(tmpdir(), 'wovenleaf-libby-player-'));
-const origin = 'https://fixture.listen.overdrive.com';
+const origin = 'https://fixture.listen.libbyapp.com';
 let context;
 try {
   context = await chromium.launchPersistentContext(profile, { headless: true, channel: 'chromium', args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`] });
@@ -78,6 +78,7 @@ try {
   await expect.poll(percent).toBe(6);
   const stored = await worker.evaluate(() => chrome.storage.session.get(null));
   assert.equal(JSON.stringify(stored).includes('private-card-never-forwarded'), false);
+  assert.equal(JSON.stringify(stored).includes('listen.libbyapp.com'), false);
   assert.equal(JSON.stringify(stored).includes('listen.overdrive.com'), false);
   const popup = await context.newPage(); await popup.goto(`chrome-extension://${new URL(worker.url()).host}/popup.html`);
   await popup.getByRole('checkbox').uncheck();
