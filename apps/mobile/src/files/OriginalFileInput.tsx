@@ -26,6 +26,6 @@ export function OriginalFileInput({ kind, folder = false, onFiles, ...props }: O
         if (event.currentTarget.files?.length) onFiles(Array.from(event.currentTarget.files))
         event.currentTarget.value = ''
       }} />
-    {error && <small role="alert" className="text-[var(--text-secondary)]">{error}</small>}
+    {error && <small role="alert" className="col-span-full block min-w-0 w-full py-2 text-center text-[var(--text-secondary)]">{error}</small>}
   </>
 }

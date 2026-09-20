@@ -1,5 +1,6 @@
 package com.hmrguez.wovenleaf
 
+import android.app.Activity
 import android.content.Intent
 import android.database.sqlite.SQLiteDatabase
 import android.graphics.Paint
@@ -10,8 +11,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.webkit.WebView
+import android.widget.TextView
 import androidx.core.content.FileProvider
-import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.*
 import org.junit.Test
@@ -21,42 +22,257 @@ import java.util.concurrent.TimeUnit
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
-/** Temporary FileProvider grants cannot become durable originals; exercise real cold and warm delivery. */
+/** Exercises the real OS file delivery, import, and navigation without resetting the library. */
 class OpenWithTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val context = instrumentation.targetContext
     private val directory get() = File(context.cacheDir, "shared-exports/open-with-test").apply { mkdirs() }
-    private var mainScenario: ActivityScenario<MainActivity>? = null
+    private var mainScenario: MainActivity? = null
 
-    @Test fun temporaryBookSharesRequireOriginalSelectionWithoutCopying() {
-        val fixtures = listOf(
-            File(directory, "Temporary.epub").also(::writeEpub),
-            File(directory, "Temporary.pdf").also(::writePdf),
-            File(directory, "Temporary.mp3").also(::writeMp3),
-            File(directory, "Large Temporary.pdf").also(::writeLargePdf),
-        )
+    @Test fun opensOriginalFilesAndReopensWithoutCopiesOrDuplicates() {
         try {
-            fixtures.forEachIndexed { index, file ->
-                if (mainScenario == null) mainScenario = ActivityScenario.launch(intent(file, false))
-                else context.startActivity(intent(file, index % 2 == 0))
-                val scenario = requireNotNull(mainScenario)
-                scenario.onActivity { it.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
-                await("original-file recovery") {
-                    evaluate(scenario, "document.body.textContent.includes('Choose the original file')") == "true"
+            epubAndPdfOpenAfterColdImportAndWarmShareWithoutDuplicates()
+            audioOpensAfterReviewAndReopensWithoutReview()
+            largePdfShowsOpeningFeedbackUntilTheReaderOpens()
+            invalidFileStaysInImportWithAnError()
+            verifiesNumericBridgeArgumentsAndMissingOriginals()
+            pickerErrorKeepsItsMessageAndActionReadable()
+            assertNoContentCopies()
+        } finally { onMain { mainScenario?.finish() } }
+    }
+
+    private fun withMainActivity(file: File, block: (MainActivity) -> Unit) {
+        // Keep one bridge/SQLite connection for the flow, just as a real app session does.
+        val existing = mainScenario
+        if (existing == null) {
+            // MainActivity consumes its launch intent before Capacitor loads, so
+            // ActivityScenario's intent matching cannot track a cold Open With.
+            val monitor = instrumentation.addMonitor(MainActivity::class.java.name, null, false)
+            try {
+                context.startActivity(intent(file, false))
+                mainScenario = instrumentation.waitForMonitorWithTimeout(monitor, 30_000) as? MainActivity
+                    ?: throw AssertionError("Open With did not launch Wovenleaf")
+            } finally { instrumentation.removeMonitor(monitor) }
+        } else context.startActivity(intent(file, false))
+        onMain { requireNotNull(mainScenario).window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+        block(requireNotNull(mainScenario))
+    }
+
+    private fun epubAndPdfOpenAfterColdImportAndWarmShareWithoutDuplicates() {
+        for (format in listOf("epub", "pdf")) {
+            val file = File(directory, "Open With Verification.$format")
+            if (format == "epub") writeEpub(file) else writePdf(file)
+            val readerClass = if (format == "epub") WovenleafReaderActivity::class.java else WovenleafPDFActivity::class.java
+            var monitor = instrumentation.addMonitor(readerClass.name, null, false)
+            try {
+                withMainActivity(file) { scenario ->
+                    var reader = instrumentation.waitForMonitorWithTimeout(monitor, 30_000)
+                        ?: throw AssertionError("$format did not open automatically after import")
+                    await("$format reader content") { onMain { views(reader.window.decorView).filterIsInstance<TextView>().any { it.text.toString().contains("Open With") } } }
+                    saveScreenshot("open-with-$format.png")
+                    val count = importCount("epub_imports")
+                    closeReader(reader)
+                    // A renamed copy simulates a second delivery from a different provider URI.
+                    val shared = File(directory, "Reopened.$format")
+                    file.copyTo(shared, overwrite = true)
+                    monitor = instrumentation.addMonitor(readerClass.name, null, false)
+                    context.startActivity(intent(shared, true))
+                    reader = instrumentation.waitForMonitorWithTimeout(monitor, 30_000)
+                        ?: throw AssertionError("$format did not open automatically after repeat share")
+                    assertEquals("Reopening must not import another book", count, importCount("epub_imports"))
+                    closeReader(reader)
+                    monitor = instrumentation.addMonitor(readerClass.name, null, false)
+                    context.startActivity(intent(file, false))
+                    reader = instrumentation.waitForMonitorWithTimeout(monitor, 30_000)
+                        ?: throw AssertionError("$format could not be reopened immediately using the same URI")
+                    assertEquals(count, importCount("epub_imports"))
+                    closeReader(reader)
+                    await("return to library") { evaluate(scenario, "document.querySelector('h1')?.textContent === 'My Books'") == "true" }
                 }
-                val epubCount = importCount("epub_imports")
-                val audioCount = importCount("audiobook_imports")
-                assertEquals("Temporary handoffs must not enter the import or player", "false",
-                    evaluate(scenario, "Boolean(document.querySelector('.audio-import-commit, .audiobook-player, .incoming-file-opening'))"))
-                assertTrue("Do not materialize the shared content in app storage",
-                    context.filesDir.walkTopDown().none { it.isFile && it.length() == file.length() && it.readBytes().contentEquals(file.readBytes()) })
-                evaluate(scenario, "document.querySelector('[aria-label=\"Close\"]')?.click()")
-                await("recovery dismissed") { evaluate(scenario, "!document.body.textContent.includes('Choose the original file')") == "true" }
-                assertEquals(epubCount, importCount("epub_imports"))
-                assertEquals(audioCount, importCount("audiobook_imports"))
-                assertTrue("The sender's original stays intact", file.exists())
+            } finally { instrumentation.removeMonitor(monitor) }
+        }
+    }
+
+    private fun audioOpensAfterReviewAndReopensWithoutReview() {
+        val file = File(directory, "Open With Audio.mp3")
+        writeMp3(file)
+        withMainActivity(file) { scenario ->
+            await("audiobook review or existing player") {
+                val error = evaluate(scenario, "document.querySelector('.audiobook-import-state.is-error')?.textContent ?? ''")
+                if (error != "\"\"") throw AssertionError("Audiobook handoff failed: $error")
+                evaluate(scenario, "Boolean(document.querySelector('.audio-import-commit, .audiobook-player'))") == "true"
             }
-        } finally { mainScenario?.close() }
+            evaluate(scenario, "document.querySelector('.audio-import-commit')?.click()")
+            await("audiobook player after import") { evaluate(scenario, "Boolean(document.querySelector('.audiobook-player__play'))") == "true" }
+            evaluate(scenario, "document.querySelector('.audiobook-player__play[aria-label=Play]')?.click()")
+            await("audio plays or replays from a completed checkpoint") {
+                evaluate(scenario, "(() => { const position = document.querySelector('[aria-label=\"Audiobook position\"]'); return Boolean(document.querySelector('.audiobook-player__play[aria-label=Pause]')) && Number(position.value) < Number(position.max); })()") == "true"
+            }
+            await("audio completes") {
+                evaluate(scenario, "Boolean(document.querySelector('.audiobook-player__play[aria-label=Play]')) && document.body.textContent.includes('100% complete')") == "true"
+            }
+            saveScreenshot("open-with-audio.png")
+            val count = importCount("audiobook_imports")
+            evaluate(scenario, "document.querySelector('[aria-label=\"Close\"]')?.click()")
+            await("player dismissed") { evaluate(scenario, "!document.querySelector('.audiobook-player')") == "true" }
+            val shared = File(directory, "Reopened Audio.mp3")
+            file.copyTo(shared, overwrite = true)
+            context.startActivity(intent(shared, true))
+            await("existing audio opens without review") {
+                evaluate(scenario, "Boolean(document.querySelector('.audiobook-player__play')) && !document.querySelector('.audio-import-commit')") == "true"
+            }
+            assertEquals(count, importCount("audiobook_imports"))
+            assertEquals("Completed progress survives a fresh handoff", "true", evaluate(scenario, "document.body.textContent.includes('100% complete')"))
+        }
+    }
+
+    private fun invalidFileStaysInImportWithAnError() {
+        val file = File(directory, "Invalid.epub").apply { writeText("This is not an EPUB") }
+        val monitor = instrumentation.addMonitor(WovenleafReaderActivity::class.java.name, null, false)
+        try {
+            withMainActivity(file) { scenario ->
+                await("import error") { evaluate(scenario, "Boolean(document.querySelector('.audiobook-import-state.is-error, .epub-import-state.is-error'))") == "true" }
+                assertEquals(0, monitor.hits)
+                assertEquals("false", evaluate(scenario, "Boolean(document.querySelector('.audiobook-player'))"))
+                assertEquals("false", evaluate(scenario, "Boolean(document.querySelector('.incoming-file-opening'))"))
+            }
+        } finally { instrumentation.removeMonitor(monitor) }
+    }
+
+    private fun largePdfShowsOpeningFeedbackUntilTheReaderOpens() {
+        val scenario = requireNotNull(mainScenario)
+        val file = File(directory, "Large Illustrated Book.pdf")
+        writeLargePdf(file)
+        assertTrue("Exercise an actual file larger than 10 MB", file.length() > 10_000_000)
+        evaluate(scenario, """
+            window.openingPhases = [];
+            window.openingObserver = new MutationObserver(() => {
+                const dialog = document.querySelector('.incoming-file-opening[open]');
+                if (dialog && !window.openingPhases.includes(dialog.dataset.phase)) window.openingPhases.push(dialog.dataset.phase);
+            });
+            window.openingObserver.observe(document.body, { subtree: true, childList: true, attributes: true });
+        """.trimIndent())
+        // Both Android Open With and the share sheet must show feedback, including
+        // when an already imported large file is opened again.
+        for (share in listOf(false, true)) {
+            // Hold the provider's first read to check the previously silent gap
+            // before any bytes or import-service progress have arrived.
+            evaluate(scenario, """
+                window.openingPhases = [];
+                window.releaseOpeningRead = null;
+                window.originalOpeningNativePromise = window.Capacitor.nativePromise;
+                window.Capacitor.nativePromise = function(plugin, method, options, ...rest) {
+                    if (plugin === 'WovenleafFiles' && method === 'read') {
+                        window.Capacitor.nativePromise = window.originalOpeningNativePromise;
+                        return new Promise((resolve, reject) => {
+                            window.releaseOpeningRead = () => window.originalOpeningNativePromise.call(this, plugin, method, options, ...rest).then(resolve, reject);
+                        });
+                    }
+                    return window.originalOpeningNativePromise.call(this, plugin, method, options, ...rest);
+                };
+            """.trimIndent())
+            val monitor = instrumentation.addMonitor(WovenleafPDFActivity::class.java.name, null, false)
+            try {
+                context.startActivity(intent(file, share))
+                await("visible large-file opening feedback") {
+                    evaluate(scenario, "Boolean(window.releaseOpeningRead && document.querySelector('.incoming-file-opening[open][data-phase=reading]'))") == "true"
+                }
+                instrumentation.uiAutomation.takeScreenshot()?.let { screenshot ->
+                    File(directory, "opening-feedback.png").outputStream().use { screenshot.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                    screenshot.recycle()
+                }
+                evaluate(scenario, "window.releaseOpeningRead()")
+                val reader = instrumentation.waitForMonitorWithTimeout(monitor, 60_000)
+                    ?: throw AssertionError("Large PDF did not open automatically")
+                closeReader(reader)
+                await("opening feedback dismissed") {
+                    evaluate(scenario, "!document.querySelector('.incoming-file-opening')") == "true"
+                }
+                assertEquals("[\"reading\",\"preparing\",\"opening\"]", evaluate(scenario, "window.openingPhases"))
+            } finally {
+                evaluate(scenario, "window.Capacitor.nativePromise = window.originalOpeningNativePromise")
+                instrumentation.removeMonitor(monitor)
+            }
+        }
+        evaluate(scenario, "window.openingObserver.disconnect()")
+    }
+
+    private fun verifiesNumericBridgeArgumentsAndMissingOriginals() {
+        val file = File(directory, "Bridge verification.pdf").also(::writePdf)
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        val selected = OriginalFiles.register(context, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        val id = selected.getString("id")
+        val scenario = requireNotNull(mainScenario)
+        evaluate(scenario, """
+            window.originalBridgeResult = null;
+            (async () => {
+                const first = await window.Capacitor.nativePromise('WovenleafFiles', 'read', { id: '$id', offset: 0, length: 4 });
+                const second = await window.Capacitor.nativePromise('WovenleafFiles', 'read', { id: '$id', offset: 4, length: 4 });
+                let sizeError;
+                try { await window.Capacitor.nativePromise('WovenleafFiles', 'stat', { id: '$id', byteSize: 1 }); }
+                catch (error) { sizeError = error.code; }
+                window.originalBridgeResult = { first: atob(first.data), second: atob(second.data), sizeError };
+            })().catch(error => { window.originalBridgeResult = { error: error.message }; });
+        """.trimIndent())
+        await("native integer offsets and size validation") { evaluate(scenario, "Boolean(window.originalBridgeResult)") == "true" }
+        assertEquals("\"%PDF\"", evaluate(scenario, "window.originalBridgeResult.first"))
+        assertEquals(org.json.JSONObject.quote(String(file.readBytes().copyOfRange(4, 8))), evaluate(scenario, "window.originalBridgeResult.second"))
+        assertEquals("\"FILE_CHANGED\"", evaluate(scenario, "window.originalBridgeResult.sizeError"))
+        assertTrue(file.delete())
+        try { OriginalFiles.verify(context, "wovenleaf-file://$id"); fail("Missing originals must not open") }
+        catch (error: OriginalFileException) { assertEquals("FILE_MISSING", error.code) }
+    }
+
+    private fun pickerErrorKeepsItsMessageAndActionReadable() {
+        val scenario = requireNotNull(mainScenario)
+        evaluate(scenario, "Array.from(document.querySelectorAll('button')).find(button => button.textContent.includes('Settings'))?.click()")
+        await("settings picker") { evaluate(scenario, "Boolean(document.querySelector('.epub-picker input'))") == "true" }
+        evaluate(scenario, """
+            window.pickerNativePromise = window.Capacitor.nativePromise;
+            window.Capacitor.nativePromise = function(plugin, method, options, ...rest) {
+                if (plugin === 'WovenleafFiles' && method === 'pick') return Promise.reject({ code: 'FILE_PERMISSION' });
+                return window.pickerNativePromise.call(this, plugin, method, options, ...rest);
+            };
+            document.querySelector('.epub-picker input').click();
+        """.trimIndent())
+        try {
+            await("picker error") { evaluate(scenario, "Boolean(document.querySelector('.epub-picker [role=alert]'))") == "true" }
+            assertEquals("true", evaluate(scenario, """
+                (() => {
+                    const picker = document.querySelector('.epub-picker');
+                    picker.scrollIntoView({block: 'center'});
+                    const error = picker.querySelector('[role=alert]');
+                    const title = picker.querySelector('strong');
+                    const errorBox = error.getBoundingClientRect();
+                    const box = picker.getBoundingClientRect();
+                    return getComputedStyle(error).textAlign === 'center'
+                        && errorBox.width >= box.width - 4
+                        && title.clientWidth >= title.scrollWidth
+                        && errorBox.top >= title.getBoundingClientRect().bottom;
+                })()
+            """.trimIndent()))
+            saveScreenshot("picker-error.png")
+        } finally { evaluate(scenario, "window.Capacitor.nativePromise = window.pickerNativePromise") }
+    }
+
+    private fun assertNoContentCopies() {
+        val originals = directory.listFiles().orEmpty().filter { it.extension in setOf("epub", "pdf", "mp3") }
+        for (file in originals) {
+            val hash = java.security.MessageDigest.getInstance("SHA-256").digest(file.readBytes())
+            assertTrue("No private content copy of ${file.name}", context.filesDir.walkTopDown().none {
+                it.isFile && it.length() == file.length() && java.security.MessageDigest.getInstance("SHA-256").digest(it.readBytes()).contentEquals(hash)
+            })
+        }
+    }
+
+    private fun saveScreenshot(name: String) {
+        instrumentation.waitForIdleSync()
+        // Native activity transitions and smooth WebView scrolling finish after layout.
+        instrumentation.uiAutomation.waitForIdle(400, 5_000)
+        instrumentation.uiAutomation.takeScreenshot()?.let { screenshot ->
+            File(directory, name).outputStream().use { screenshot.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            screenshot.recycle()
+        }
     }
 
     private fun intent(file: File, share: Boolean): Intent {
@@ -69,18 +285,29 @@ class OpenWithTest {
         }
     }
 
+    private fun closeReader(reader: Activity) {
+        onMain { views(reader.window.decorView).first { it.contentDescription == "Library" || (it is TextView && it.text == "Library") }.performClick() }
+        await("reader dismissal") { reader.isDestroyed }
+    }
+
     private fun importCount(table: String): Int = SQLiteDatabase.openDatabase(context.getDatabasePath("wovenleafSQLite.db").path, null, SQLiteDatabase.OPEN_READONLY).use { db ->
         db.rawQuery("SELECT COUNT(*) FROM $table", null).use { it.moveToFirst(); it.getInt(0) }
     }
 
-    private fun evaluate(scenario: ActivityScenario<MainActivity>, script: String): String {
+    private fun evaluate(scenario: MainActivity, script: String): String {
         val latch = CountDownLatch(1)
         var result = ""
-        scenario.onActivity { activity ->
-            views(activity.window.decorView).filterIsInstance<WebView>().first().evaluateJavascript(script) { result = it; latch.countDown() }
+        onMain {
+            views(scenario.window.decorView).filterIsInstance<WebView>().first().evaluateJavascript(script) { result = it; latch.countDown() }
         }
         assertTrue("JavaScript timed out", latch.await(10, TimeUnit.SECONDS))
         return result
+    }
+
+    private fun <T> onMain(block: () -> T): T {
+        var result: T? = null
+        instrumentation.runOnMainSync { result = block() }
+        @Suppress("UNCHECKED_CAST") return result as T
     }
 
     private fun await(description: String, ready: () -> Boolean) {

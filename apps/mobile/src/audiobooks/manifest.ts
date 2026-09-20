@@ -82,11 +82,12 @@ export const playbackManifestSchema = z.object({
       })
     }
   })
-  if (manifest.initialAbsolutePositionMs >= expectedStart && expectedStart > 0) {
+  // Completion is a valid saved position when reopening or relinking an original.
+  if (manifest.initialAbsolutePositionMs > expectedStart && expectedStart > 0) {
     context.addIssue({
       code: 'custom',
       path: ['initialAbsolutePositionMs'],
-      message: 'Initial position must remain inside the audiobook timeline',
+      message: 'Initial position cannot exceed the audiobook timeline',
     })
   }
 })

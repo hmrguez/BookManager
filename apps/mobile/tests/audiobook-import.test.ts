@@ -28,6 +28,7 @@ import { PortableArchiveService } from '../src/storage/portable-archive'
 import { BunSqliteDatabase } from './storage-test-database'
 import { AudiobookTestFilesystem } from './fixtures/audiobook-filesystem'
 import { AudiobookPlaybackRepository } from '../src/playback/repository'
+import { AudiobookProgressRepository } from '../src/playback/progress'
 
 describe('audiobook inspection and normalization', () => {
   test('uses track evidence to make one deterministic absolute MP3 timeline', async () => {
@@ -615,6 +616,32 @@ test('free limit rolls back audiobook bytes and catalog, while attachments remai
 
 
 describe('original audiobook files', () => {
+  test('reopens a completed audiobook after relinking without losing its end position', async () => {
+    const database = new BunSqliteDatabase()
+    await migrateStorage(database)
+    const originals = new MemoryOriginalFiles()
+    const service = new AudiobookImportService(database, { managedStore: new MemoryManagedAudiobookStore(), originalFiles: originals })
+    const source = originals.link(mp3Source('completed.mp3', { frames: 200 }))
+    const draft = await service.prepare([source])
+    const result = await service.import([source], defaultAudiobookReview(draft))
+    const segment = result.manifest.segments.at(-1)!
+    const duration = segment.absoluteEndMs
+    await new AudiobookProgressRepository(database).ingestJournal([{
+      bridgeVersion: 1, id: 'playback-event:completed-original', sequence: 1, engineEpoch: 'engine:completed-original',
+      queueId: result.manifest.queueId, playbackSessionId: 'session:completed-original', revision: 1, kind: 'end',
+      observedAt: new Date().toISOString(), activeDurationMs: duration, beforePositionMs: 0, afterPositionMs: duration,
+      rate: 1, reason: 'end-of-queue', confidence: 1, segmentId: segment.id, chapterId: null, error: null,
+    }])
+    originals.files.delete(source.reference.id)
+    const replacement = originals.link(source, 'restored-completed-file')
+    await service.relinkImported(result, [replacement], await service.prepare([replacement]))
+    const queue = await new AudiobookPlaybackRepository(database, { originalFiles: originals }).queueForBook(result.bookId)
+    expect(queue?.manifest.initialAbsolutePositionMs).toBe(duration)
+    expect(queue?.sources[0]?.uri).toContain('restored-completed-file')
+    expect(queue?.manifest.queueId).toBe(result.manifest.queueId)
+    await database.close()
+  })
+
   test('links every track, preserves capabilities when reselected, and reports a missing track', async () => {
     const database = new BunSqliteDatabase()
     await migrateStorage(database)

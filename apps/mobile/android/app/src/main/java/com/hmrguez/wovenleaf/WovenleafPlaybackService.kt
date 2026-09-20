@@ -105,11 +105,16 @@ class WovenleafPlaybackService : MediaLibraryService() {
                     handler.postDelayed(this, 500)
                     return
                 }
-                revision += 1
-                updateTransportState()
-                refreshMetadata()
-                checkpoint(force = false)
-                emitSnapshot()
+                // Idle queues have no new position to publish. Advancing their
+                // revision made a fresh Open With reload race a 500 ms timer,
+                // even after completion or a recoverable file-access error.
+                if (player.isPlaying || transportState == "buffering" || sleepTimer != null) {
+                    revision += 1
+                    updateTransportState()
+                    refreshMetadata()
+                    checkpoint(force = false)
+                    emitSnapshot()
+                }
             }
             handler.postDelayed(this, 500)
         }
@@ -435,6 +440,9 @@ class WovenleafPlaybackService : MediaLibraryService() {
         playbackError = null
         player.playbackParameters = PlaybackParameters(rate, 1f)
         pendingTransportChange = true
+        if (player.playbackState == Player.STATE_ENDED || absolutePositionMs() >= durationMs()) {
+            player.seekTo(0, 0)
+        }
         player.play()
         handler.post { pendingTransportChange = false }
         transportState = if (player.playbackState == Player.STATE_BUFFERING) "buffering" else "playing"

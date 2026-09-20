@@ -23,19 +23,21 @@ import java.security.MessageDigest
 
 class OriginalFileException(val code: String, message: String = "Choose the original file again. Your progress is safe.") : Exception(message)
 
-/** Persistent SAF grants are owned here, independently of the WebView/player process lifecycle. */
+/** Original provider URIs; persist access when offered, otherwise use the live Open With grant. */
 object OriginalFiles {
     private fun preferences(context: Context) = context.getSharedPreferences("wovenleaf.original-files.v1", Context.MODE_PRIVATE)
 
     fun register(context: Context, uri: Uri, flags: Int, scope: Uri = uri, relative: String? = null): JSObject {
         if (uri.scheme != "content") throw OriginalFileException("RESELECT_FILE")
         val resolver = context.contentResolver
-        if (resolver.persistedUriPermissions.none { it.uri == scope && it.isReadPermission }) {
-            if (flags and Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION == 0) throw OriginalFileException("RESELECT_FILE")
+        if (resolver.persistedUriPermissions.none { it.uri == scope && it.isReadPermission } &&
+            flags and Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION != 0) {
             try { resolver.takePersistableUriPermission(scope, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-            catch (_: SecurityException) { throw OriginalFileException("FILE_PERMISSION") }
+            catch (_: SecurityException) { /* A readable temporary grant can still open this file now. */ }
         }
         val metadata = metadata(context, uri)
+        // Query access is not necessarily read access. Never register an unreadable original.
+        openDescriptor(context, uri).use { }
         val id = digest(uri.toString().toByteArray())
         preferences(context).edit().putString(id, JSONObject().apply {
             put("uri", uri.toString()); put("scope", scope.toString())
@@ -49,10 +51,8 @@ object OriginalFiles {
         if (input.scheme == "wovenleaf-file") {
             val saved = preferences(context).getString(input.host ?: "", null)?.let(::JSONObject)
                 ?: throw OriginalFileException("FILE_PERMISSION")
-            val scope = Uri.parse(saved.getString("scope"))
-            if (context.contentResolver.persistedUriPermissions.none { it.uri == scope && it.isReadPermission }) {
-                throw OriginalFileException("FILE_PERMISSION")
-            }
+            // The provider is authoritative. A missing persisted grant does not mean a
+            // live ACTION_VIEW/ACTION_SEND read grant has expired.
             return Uri.parse(saved.getString("uri"))
         }
         val file = if (input.scheme == "file") input.path?.let(::File)?.canonicalFile
@@ -64,7 +64,10 @@ object OriginalFiles {
     }
 
     fun descriptor(context: Context, raw: String): ParcelFileDescriptor {
-        val uri = resolve(context, raw)
+        return openDescriptor(context, resolve(context, raw))
+    }
+
+    private fun openDescriptor(context: Context, uri: Uri): ParcelFileDescriptor {
         return try {
             if (uri.scheme == "file") ParcelFileDescriptor.open(File(requireNotNull(uri.path)), ParcelFileDescriptor.MODE_READ_ONLY)
             else context.contentResolver.openFileDescriptor(uri, "r") ?: throw OriginalFileException("FILE_MISSING")
@@ -215,10 +218,10 @@ class WovenleafFilesPlugin : Plugin() {
         OriginalFiles.verify(context, raw).put("id", Uri.parse(raw).host)
     }
     @PluginMethod fun stat(call: PluginCall) = work(call) {
-        OriginalFiles.verify(context, "wovenleaf-file://" + call.getString("id"), call.getString("fingerprint"), call.getLong("byteSize"), call.getBoolean("hash", false) == true)
+        OriginalFiles.verify(context, "wovenleaf-file://" + call.getString("id"), call.getString("fingerprint"), integerArgument(call, "byteSize"), call.getBoolean("hash", false) == true)
     }
     @PluginMethod fun read(call: PluginCall) = work(call) {
-        val offset = call.getLong("offset") ?: -1
+        val offset = integerArgument(call, "offset") ?: -1
         val length = call.getInt("length") ?: 0
         if (offset < 0 || length !in 1..1024 * 1024) throw OriginalFileException("FILE_UNSUPPORTED")
         OriginalFiles.stream(context, "wovenleaf-file://" + call.getString("id")).use { input ->
@@ -249,6 +252,17 @@ class WovenleafFilesPlugin : Plugin() {
     }
 
     companion object {
+        // Capacitor getLong only accepts boxed Long; JSON uses Integer for values
+        // below 2 GiB, including offset zero and most book sizes.
+        internal fun integerArgument(call: PluginCall, key: String): Long? {
+            if (!call.data.has(key)) return null
+            return when (val value = call.data.opt(key)) {
+                is Int -> value.toLong()
+                is Long -> value
+                else -> throw OriginalFileException("FILE_UNSUPPORTED", "Invalid file offset or size.")
+            }
+        }
+
         private var current: WovenleafFilesPlugin? = null
         private val pending = mutableListOf<JSObject>()
 

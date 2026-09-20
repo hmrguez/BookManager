@@ -1751,8 +1751,11 @@ function App() {
       })()}
       {originalRecovery && <Sheet title="Choose the original file" onClose={() => setOriginalRecovery(undefined)}>
         <div className={tw('reader-recovery')}>
-          <h3>{originalRecovery.name}</h3>
-          <p>This app shared a temporary file. Choose the original in Files so Wovenleaf can read it where it is.</p>
+          <span className={tw('reader-recovery__mark')} aria-hidden="true"><AlertTriangle /></span>
+          <div className={tw('reader-recovery__copy')}>
+            <h3>{originalRecovery.name}</h3>
+            <p>Wovenleaf could not access this file. Choose it below to allow access and open it.</p>
+          </div>
           <button type="button" className={tw('primary-button')} onClick={() => {
             const kind = originalRecovery.kind
             setOriginalRecovery(undefined)
