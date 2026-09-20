@@ -36,7 +36,16 @@
       keys.add(key); return true;
     });
   };
-  globalThis.WovenleafLibby = Object.freeze({ api, valid, coverURL,
+  const visible = el => !!el && (typeof el.checkVisibility !== 'function' || el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden' && getComputedStyle(el).display !== 'none' && getComputedStyle(el).opacity !== '0';
+  const percentLabel = text => {
+    const match = /^(\d{1,3}(?:[.,]\d+)?)\s*%$/.exec(text?.trim() ?? '');
+    const value = match ? Number(match[1].replace(',', '.')) : NaN;
+    return Number.isFinite(value) && value >= 0 && value <= 100 ? value : null;
+  };
+  const playerOrigin = value => {
+    try { const u = new URL(value); return u.protocol === 'https:' && !u.port && /^[a-z0-9-]+\.listen\.overdrive\.com$/.test(u.hostname); } catch { return false; }
+  };
+  globalThis.WovenleafLibby = Object.freeze({ api, valid, coverURL, visible, percentLabel, playerOrigin,
     shelf: url => { try { const u = new URL(url); return u.origin === 'https://libbyapp.com' && /^\/shelf(?:\/loans)?\/?$/.test(u.pathname); } catch { return false; } },
   });
 })();

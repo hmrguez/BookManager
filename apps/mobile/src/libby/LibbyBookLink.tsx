@@ -22,7 +22,7 @@ export function LibbyBookLink({ book, controller: c, onSettings }: {
   const selected = mapping ? (linkedItem?.status === 'pending' ? linkedItem : undefined)
     : available.find(item => `${item.key}/${item.snapshotId}` === selection)
   const needsReview = mapping && (mapping.paused || selected || book.shelf !== 'reading' || book.lastUpdatedAt !== mapping.baseline)
-  const status = !c.ready ? 'Loading connection…' : mapping ? needsReview ? 'Review to resume progress updates' : c.state.automatic ? 'Progress follows your web Shelf' : 'Automatic updates are off'
+  const status = !c.ready ? 'Loading connection…' : mapping ? needsReview ? 'Review to resume progress updates' : c.state.automatic ? 'Progress follows Libby web' : 'Automatic updates are off'
     : 'Connect this book to your web Shelf'
   return <details className="libby-book-link">
     <summary className="libby-summary"><BookOpen size={20} aria-hidden="true" /><span><strong>{mapping ? 'Linked to Libby' : 'Link to Libby'}</strong><small>{status}</small></span><ChevronDown className="libby-chevron" size={18} aria-hidden="true" /></summary>

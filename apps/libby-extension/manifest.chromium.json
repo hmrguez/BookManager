@@ -1,21 +1,22 @@
 {
   "manifest_version": 3,
-  "name": "Wovenleaf · Libby progress",
-  "version": "0.3.0",
-  "description": "Bring your visible Libby shelf progress to Wovenleaf. Private, local, and yours to review.",
+  "name": "Wovenleaf \u00b7 Libby progress",
+  "version": "0.4.0",
+  "description": "Bring your visible Libby shelf and audiobook progress to Wovenleaf. Private and local.",
   "permissions": [
     "storage"
   ],
   "host_permissions": [
     "https://libbyapp.com/*",
-    "http://127.0.0.1/*"
+    "http://127.0.0.1/*",
+    "https://*.listen.overdrive.com/*"
   ],
   "icons": {
     "192": "icon.png"
   },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Wovenleaf · Libby"
+    "default_title": "Wovenleaf \u00b7 Libby"
   },
   "background": {
     "service_worker": "background.js"
@@ -28,10 +29,22 @@
       "js": [
         "common.js",
         "extract.js",
+        "player-host.js",
         "observe.js"
       ],
       "run_at": "document_idle",
       "all_frames": false
+    },
+    {
+      "matches": [
+        "https://*.listen.overdrive.com/*"
+      ],
+      "js": [
+        "common.js",
+        "player.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true
     }
   ]
 }

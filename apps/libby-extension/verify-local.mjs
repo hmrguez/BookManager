@@ -71,6 +71,28 @@ try {
   mode = 'ok';
   await expect.poll(() => received.length, { timeout: 10000 }).toBeGreaterThanOrEqual(3);
   assert.equal(received[2].id, pendingId); assert.equal(received[2].observations[0].percent, 10);
+  // The active audio frame, rather than a Shelf mutation, now drives delivery.
+  mode = 'unavailable';
+  await context.route('https://fixture.listen.overdrive.com/**', route => route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Fixture loan</title><span class="timeline-percent-visual">15%</span>' }));
+  await page.evaluate(() => {
+    history.pushState({}, '', '/open/loan/test-card/123');
+    const host = document.createElement('div'); host.className = 'bifocal-frame is-revealed';
+    const frame = document.createElement('iframe'); frame.src = 'https://fixture.listen.overdrive.com/'; host.append(frame); document.body.append(host);
+  });
+  await expect.poll(() => received.at(-1)?.observations[0].percent).toBe(15);
+  const frame = page.frames().find(frame => frame.url().startsWith('https://fixture.listen.overdrive.com'));
+  await frame.locator('.timeline-percent-visual').evaluate(el => el.textContent = '20%');
+  await expect.poll(() => received.at(-1)?.observations[0].percent).toBe(20);
+  const pendingPlayerId = received.at(-1).id;
+  const waiting = await worker.evaluate(async () => (await chrome.storage.session.get('pendingCaptures')).pendingCaptures);
+  assert.equal(waiting.length, 1); assert.equal(waiting[0].observations[0].percent, 20);
+  await page.evaluate(() => { history.pushState({}, '', '/shelf'); document.querySelector('.bifocal-frame').classList.remove('is-revealed'); });
+  mode = 'ok';
+  await expect.poll(() => worker.evaluate(async () => (await chrome.storage.session.get('pendingCaptures')).pendingCaptures.length), { timeout: 10000 }).toBe(0);
+  assert.equal(received.at(-1).id, pendingPlayerId); assert.equal(received.at(-1).observations[0].percent, 20);
+  const playerCaptureCount = received.length;
+  await page.waitForTimeout(1200);
+  assert.equal(received.length, playerCaptureCount); // Shelf still says 10%.
   // A forged receipt, corrupt ciphertext and a full inbox never count as delivery.
   for (const failure of ['wrong-id', 'tampered', 'full']) {
     mode = failure;
@@ -82,7 +104,7 @@ try {
   await popup.getByRole('button', { name: 'Disconnect this browser' }).click();
   await expect.poll(() => worker.evaluate(() => WovenleafLocal.paired())).toBe(false);
   assert.equal((await worker.evaluate(snapshot => WovenleafLocal.deliver(snapshot), received[0])).transport, 'share');
-  console.log('PASS: installed companion pairs, persists a nonextractable key, encrypts automatic 5→10 delivery, retries with the same ID, rejects forged/full receipts, supports manual retry and erases its key on disconnect.');
+  console.log('PASS: installed companion pairs, persists a nonextractable key, encrypts Shelf 5→10 and player 15→20, coalesces waiting player updates and delivers after returning to a stale Shelf, retries with stable IDs, rejects forged/full receipts, supports manual retry and erases its key on disconnect.');
 } finally {
   await context?.close(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); await rm(profile, { recursive: true, force: true });
 }
