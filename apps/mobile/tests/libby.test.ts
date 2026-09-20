@@ -24,6 +24,58 @@ async function setup() {
 }
 
 describe('Libby local progress', () => {
+  const coverUrl = 'https://img1.od-cdn.com/ImageType-400/1234-1/{ABC-123}IMG400.JPG'
+  test('captures a public cover by URL and fills a missing linked cover without replacing chosen artwork', async () => {
+    const { repo, library, book, db } = await setup()
+    const first = snapshot(10)
+    await repo.ingest(JSON.stringify(first)); await repo.apply('ebook:12345', first.id, book.id, book.lastUpdatedAt)
+    const withCover = { ...snapshot(10, '2026-09-20T11:00:00.000Z'), observations: [{ ...first.observations[0]!, coverUrl }] }
+    const state = await repo.ingest(JSON.stringify(withCover))
+    expect((await library.list())[0]!.thumbnail).toBe(coverUrl)
+    expect(state.receipts).toHaveLength(2)
+    await repo.undo(state.receipts[1]!.id)
+    expect((await library.list())[0]!.thumbnail).toBeUndefined()
+    const chosen = { ...(await library.list())[0]!, thumbnail: 'https://example.org/my-cover.jpg', lastUpdatedAt: '2026-09-20T12:30:00.000Z' }
+    await library.save(chosen)
+    const next = { ...withCover, id: crypto.randomUUID(), capturedAt: '2026-09-20T11:30:00.000Z' }
+    await repo.ingest(JSON.stringify(next)); await repo.apply('ebook:12345', next.id, book.id, chosen.lastUpdatedAt)
+    expect((await library.list())[0]!.thumbnail).toBe(chosen.thumbnail)
+    const other = { ...withCover, id: crypto.randomUUID(), observations: [{ ...withCover.observations[0]!, titleId: '6789', title: 'A new covered loan' }] }
+    await repo.configure(true, true, true); await repo.ingest(JSON.stringify(other))
+    expect((await library.list()).find(entry => entry.title === 'A new covered loan')?.thumbnail).toBe(coverUrl)
+    for (const invalid of ['https://evil.example/cover.jpg', coverUrl + '?token=secret', 'http://img1.od-cdn.com/ImageType-400/a.jpg', 'https://img1.od-cdn.com@evil.example/ImageType-400/a.jpg', 'data:image/png;base64,abc', 'https://ic.od-cdn.com/resize?url=https://evil.example/a.jpg']) {
+      expect(() => parseLibbySnapshot(JSON.stringify({ ...first, observations: [{ ...first.observations[0]!, coverUrl: invalid }] }), Date.parse(at))).toThrow()
+    }
+    await db.close()
+  })
+  for (const shelf of ['tbr', 'reading', 'next', 'finished', 'dnf'] as const) {
+    test(`links the existing ${shelf} book once, preserving its identity and making the shelf move undoable`, async () => {
+      const { repo, library, book, db } = await setup()
+      const existing = { ...book, shelf, progress: shelf === 'finished' ? 100 : 2, currentPage: 4, thumbnail: 'https://example.org/chosen.jpg', ...(shelf === 'finished' ? { finishedAt: at } : {}) }
+      await library.save(existing); await repo.configure(true, true, true)
+      const capture = { ...snapshot(10), observations: [{ ...snapshot(10).observations[0]!, coverUrl }] }
+      const review = await repo.ingest(JSON.stringify(capture))
+      expect(review.items[0]!.status).toBe('pending')
+      expect(review.items[0]!.reason).toContain('already in your library')
+      expect(await library.list()).toHaveLength(1)
+      if (shelf !== 'reading') await expect(repo.apply('ebook:12345', capture.id, book.id, book.lastUpdatedAt)).rejects.toThrow('confirm moving')
+      const linked = await repo.apply('ebook:12345', capture.id, book.id, book.lastUpdatedAt, shelf !== 'reading')
+      expect((await library.list())[0]).toMatchObject({ id: book.id, shelf: 'reading', progress: 10, notes: 'Keep me', rating: 3, currentPage: 4, thumbnail: existing.thumbnail })
+      expect((await library.list())[0]!.finishedAt).toBeUndefined()
+      await repo.undo(linked.receipts[0]!.id)
+      expect((await library.list())[0]).toMatchObject({ shelf, progress: existing.progress, currentPage: 4 })
+      expect((await library.list())[0]!.finishedAt).toBe(existing.finishedAt)
+      // Explicit reacceptance resumes the remembered link, then progress advances automatically.
+      const next = snapshot(15, '2026-09-20T11:00:00.000Z')
+      await repo.ingest(JSON.stringify(next))
+      await repo.apply('ebook:12345', next.id, book.id, (await library.list())[0]!.lastUpdatedAt, shelf !== 'reading')
+      await repo.ingest(JSON.stringify(snapshot(25, '2026-09-20T11:30:00.000Z')))
+      expect(await library.list()).toHaveLength(1)
+      expect((await library.list())[0]!.progress).toBe(25)
+      expect((await repo.read()).mappings).toHaveLength(1)
+      await db.close()
+    })
+  }
   test('new loans automatically join Reading at nonzero progress, then advance without review or duplicates', async () => {
     const { repo, library, db } = await setup()
     await repo.configure(true, true, true)

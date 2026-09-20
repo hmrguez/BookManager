@@ -94,7 +94,7 @@ export function useLibby(reloadLibrary: () => Promise<unknown>) {
     pair: () => run(async repo => { const result = await native.beginPairing(); setPairingCode(result.code); setConnection(await native.status()); return repo.read() }),
     copyCode: () => run(async repo => { await native.copyCode(); return repo.read() }),
     resumeConnection: () => run(async repo => { await native.resume(); setConnection(await native.status()); return repo.read() }),
-    apply: (key: string, id: string, bookId: string | null, expected?: string) => run(repo => repo.apply(key, id, bookId, expected)),
+    apply: (key: string, id: string, bookId: string | null, expected?: string, moveToReading = false) => run(repo => repo.apply(key, id, bookId, expected, moveToReading)),
     dismiss: (key: string, id: string) => run(repo => repo.dismiss(key, id)),
     unlink: (key: string) => run(repo => repo.unlink(key)),
     undo: (id: string) => run(repo => repo.undo(id)),

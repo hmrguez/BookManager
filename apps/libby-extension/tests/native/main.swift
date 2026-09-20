@@ -11,3 +11,13 @@ precondition((try? LibbyInbox.validate(badNumber)) == nil)
 var duplicate = snapshot; duplicate["observations"] = [snapshot["observations"] as! [[String: Any]]][0] + [snapshot["observations"] as! [[String: Any]]][0]
 precondition((try? LibbyInbox.validate(duplicate)) == nil)
 print("PASS: native boundary accepts a zero-percent capture and rejects credentials, booleans and duplicate titles.")
+var covered = snapshot
+var observation = (snapshot["observations"] as! [[String: Any]])[0]
+observation["coverUrl"] = "https://img1.od-cdn.com/ImageType-400/1234-1/{ABC-123}IMG400.JPG"
+covered["observations"] = [observation]
+precondition((try? LibbyInbox.validate(covered)) != nil)
+for url in ["https://evil.example/cover.jpg", "http://img1.od-cdn.com/ImageType-400/a.jpg", "https://img1.od-cdn.com/ImageType-400/a.jpg?token=secret", "https://img1.od-cdn.com@evil.example/ImageType-400/a.jpg"] {
+    observation["coverUrl"] = url; covered["observations"] = [observation]
+    precondition((try? LibbyInbox.validate(covered)) == nil)
+}
+print("PASS: native boundary accepts public cover URLs and rejects arbitrary hosts, credentials, queries and insecure URLs.")

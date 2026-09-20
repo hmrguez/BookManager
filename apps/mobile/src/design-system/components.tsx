@@ -49,7 +49,7 @@ export function BookCover({ book, large = false }: { book: CoverData; large?: bo
       aria-hidden="true"
     >
       {book.thumbnail && failedThumbnail !== book.thumbnail ? (
-        <img src={book.thumbnail} alt="" loading="lazy" decoding="async" onError={() => setFailedThumbnail(book.thumbnail)} />
+        <img referrerPolicy="no-referrer" src={book.thumbnail} alt="" loading="lazy" decoding="async" onError={() => setFailedThumbnail(book.thumbnail)} />
       ) : (
         <>
           <span className={tw("cover-rule")} />

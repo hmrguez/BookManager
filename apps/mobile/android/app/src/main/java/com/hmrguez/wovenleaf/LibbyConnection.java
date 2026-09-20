@@ -120,6 +120,9 @@ final class LibbyConnection {
         return seal(secret, new JSONObject().put("id", snapshot.getString("id")).put("ok", true).toString(), aad(route, origin, true));
     }
     static boolean uuid(String id) { return id.matches("(?i)[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"); }
+    static boolean validCover(String value) {
+        return value.length() <= 2048 && value.matches("(?i)^https://(?:img[1-9][0-9]*\\.od-cdn\\.com|images\\.contentreserve\\.com)/ImageType-[0-9]+/[a-z0-9%_./~{}-]+\\.(?:jpe?g|png|webp)$");
+    }
     static JSONObject validate(String text) throws Exception {
         if (text.getBytes(StandardCharsets.UTF_8).length > 131072) throw new IOException();
         JSONObject value = new JSONObject(text);
@@ -131,7 +134,7 @@ final class LibbyConnection {
         Set<String> seen = new HashSet<>();
         for (int i = 0; i < observations.length(); i++) {
             JSONObject item = observations.getJSONObject(i);
-            if (item.length() != 5 || !(item.get("titleId") instanceof String) || !item.getString("titleId").matches("[0-9]{1,20}") || !Set.of("ebook", "audiobook").contains(item.getString("format")) || !(item.get("title") instanceof String) || item.getString("title").trim().isEmpty() || item.getString("title").length() > 500 || !(item.get("author") instanceof String) || item.getString("author").length() > 500 || !(item.get("percent") instanceof Number)) throw new IOException();
+            if (item.length() != (item.has("coverUrl") ? 6 : 5) || (item.has("coverUrl") && (!(item.get("coverUrl") instanceof String) || !validCover(item.getString("coverUrl")))) || !(item.get("titleId") instanceof String) || !item.getString("titleId").matches("[0-9]{1,20}") || !Set.of("ebook", "audiobook").contains(item.getString("format")) || !(item.get("title") instanceof String) || item.getString("title").trim().isEmpty() || item.getString("title").length() > 500 || !(item.get("author") instanceof String) || item.getString("author").length() > 500 || !(item.get("percent") instanceof Number)) throw new IOException();
             double percent = item.getDouble("percent");
             if (!Double.isFinite(percent) || percent < 0 || percent > 100 || !seen.add(item.getString("format") + ":" + item.getString("titleId"))) throw new IOException();
         }

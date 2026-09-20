@@ -19,7 +19,7 @@
     finally { inFlight = undefined; }
   }
   const schedule = () => { clearTimeout(timer); timer = setTimeout(() => void capture(), 500); };
-  new MutationObserver(schedule).observe(document.documentElement, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'style', 'hidden'] });
+  new MutationObserver(schedule).observe(document.documentElement, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'style', 'hidden', 'src', 'srcset', 'data-cover-id'] });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { signature = ''; schedule(); } });
   addEventListener('popstate', schedule);
   setInterval(schedule, 5000); // SPA route changes can precede any visible DOM mutation.

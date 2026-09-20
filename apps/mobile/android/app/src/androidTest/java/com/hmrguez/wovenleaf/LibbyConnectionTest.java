@@ -38,6 +38,13 @@ public class LibbyConnectionTest {
         assertFalse(LibbyConnection.extensionOrigin(origin + "/popup.html"));
     }
     @Test public void rejectsPrivateFieldsInvalidPercentagesDuplicatesAndOversize() throws Exception {
+        JSONObject covered = snapshot();
+        covered.getJSONArray("observations").getJSONObject(0).put("coverUrl", "https://img1.od-cdn.com/ImageType-400/1234-1/{ABC-123}IMG400.JPG");
+        LibbyConnection.validate(covered.toString());
+        for (String url : new String[] { "https://evil.example/cover.jpg", "http://img1.od-cdn.com/ImageType-400/a.jpg", "https://img1.od-cdn.com/ImageType-400/a.jpg?token=secret", "https://img1.od-cdn.com@evil.example/ImageType-400/a.jpg" }) {
+            covered.getJSONArray("observations").getJSONObject(0).put("coverUrl", url);
+            rejects(() -> LibbyConnection.validate(covered.toString()));
+        }
         rejects(() -> LibbyConnection.validate(snapshot().put("token", "fixture-only").toString()));
         rejects(() -> LibbyConnection.validate(snapshot().put("id", "../../outside").toString()));
         rejects(() -> LibbyConnection.validate(snapshot().put("capturedAt", Instant.now().plusSeconds(600).toString()).toString()));

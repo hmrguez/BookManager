@@ -210,7 +210,6 @@ export function SettingsPage({
       </header>
 
       <div className={tw('settings-ledger')}>
-        {libby}
         {purchaseView && !purchaseView.owned && !reviewView.active && onUpgrade && <section className={tw('settings-card')}>
           <div className={tw('settings-card__icon')}><BookOpen aria-hidden="true" /></div>
           <div className={tw('settings-card__heading')}>
@@ -405,6 +404,8 @@ export function SettingsPage({
             </div>
           )}
         </section>
+
+        {libby}
 
         <section
           className={tw(`settings-card epub-intake${epubDropActive ? ' is-dragging' : ''}`)}

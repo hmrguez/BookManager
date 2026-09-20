@@ -176,7 +176,7 @@ function CoverPreview({ book, onClose, children }: {
         </header>
         <div className={tw('cover-preview__image')}>
           {book.thumbnail && failedThumbnail !== book.thumbnail ? (
-            <img src={book.thumbnail} alt={`Cover of ${book.title}`} onError={() => setFailedThumbnail(book.thumbnail)} />
+            <img referrerPolicy="no-referrer" src={book.thumbnail} alt={`Cover of ${book.title}`} onError={() => setFailedThumbnail(book.thumbnail)} />
           ) : (
             <BookCover book={book} large />
           )}

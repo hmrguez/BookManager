@@ -1,13 +1,16 @@
 import { z } from 'zod'
+import { shelfIdSchema } from '../library-model'
 
 export const LIBBY_SHARE_PREFIX = 'Wovenleaf Libby progress\n'
 export const LIBBY_MAX_BYTES = 128 * 1024
+export const libbyCoverUrlSchema = z.string().max(2048).regex(/^https:\/\/(?:img[1-9][0-9]*\.od-cdn\.com|images\.contentreserve\.com)\/ImageType-[0-9]+\/[a-z0-9%_./~{}-]+\.(?:jpe?g|png|webp)$/i)
 export const libbyObservationSchema = z.object({
   titleId: z.string().regex(/^\d{1,20}$/),
   format: z.enum(['ebook', 'audiobook']),
   title: z.string().trim().min(1).max(500),
   author: z.string().trim().max(500),
   percent: z.number().finite().min(0).max(100),
+  coverUrl: libbyCoverUrlSchema.optional(),
 }).strict()
 export const libbySnapshotSchema = z.object({
   kind: z.literal('wovenleaf-libby'),
@@ -45,8 +48,8 @@ const itemSchema = z.object({
 })
 const receiptSchema = z.object({
   id: z.uuid(), bookId: z.string(), key: z.string(), title: z.string(), at: z.iso.datetime(),
-  before: z.object({ progress: z.number(), currentPage: z.number() }),
-  after: z.object({ progress: z.number(), currentPage: z.number(), lastUpdatedAt: z.string() }),
+  before: z.object({ progress: z.number(), currentPage: z.number(), shelf: shelfIdSchema.optional(), thumbnail: z.url().optional(), finishedAt: z.iso.datetime({ offset: true }).optional() }),
+  after: z.object({ progress: z.number(), currentPage: z.number(), lastUpdatedAt: z.string(), shelf: shelfIdSchema.optional(), thumbnail: z.url().optional() }),
   undone: z.boolean(),
 })
 export const libbyStateSchema = z.object({

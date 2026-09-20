@@ -80,6 +80,10 @@ enum LibbyInbox {
         if let value = parser.date(from: text) { return value }
         parser.formatOptions = [.withInternetDateTime]; return parser.date(from: text)
     }
+    private static func validCover(_ value: Any?) -> Bool {
+        guard let url = value as? String, url.utf16.count <= 2048 else { return false }
+        return url.range(of: #"^https://(?:img[1-9][0-9]*\.od-cdn\.com|images\.contentreserve\.com)/ImageType-[0-9]+/[a-z0-9%_./~{}-]+\.(?:jpe?g|png|webp)$"#, options: [.regularExpression, .caseInsensitive]) != nil
+    }
     static func validate(_ value: Any) throws -> Data {
         guard let object = value as? [String: Any], Set(object.keys) == Set(["kind", "version", "id", "capturedAt", "observations"]),
               object["kind"] as? String == "wovenleaf-libby", let version = object["version"] as? NSNumber,
@@ -89,7 +93,9 @@ enum LibbyInbox {
               let observations = object["observations"] as? [[String: Any]], !observations.isEmpty, observations.count <= 100 else { throw failure("Unsupported Libby capture. Capture your shelf again.") }
         var keys = Set<String>()
         for item in observations {
-            guard Set(item.keys) == Set(["titleId", "format", "title", "author", "percent"]),
+            let fields = Set(["titleId", "format", "title", "author", "percent"])
+            guard Set(item.keys) == fields || Set(item.keys) == fields.union(["coverUrl"]),
+                  item["coverUrl"] == nil || validCover(item["coverUrl"]),
                   let titleId = item["titleId"] as? String, titleId.range(of: "^[0-9]{1,20}$", options: .regularExpression) != nil,
                   let format = item["format"] as? String, ["ebook", "audiobook"].contains(format),
                   let title = item["title"] as? String, !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, title.utf16.count <= 500,

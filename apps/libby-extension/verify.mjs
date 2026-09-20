@@ -36,6 +36,19 @@ try {
   const current = await snapshot();
   const validation = await worker.evaluate(value => ({ valid: WovenleafLibby.valid(value), extra: WovenleafLibby.valid({...value, token:'must reject'}), bool: WovenleafLibby.valid({...value, observations:[{...value.observations[0],percent:true}]}), duplicates: WovenleafLibby.valid({...value, observations:[value.observations[0],value.observations[0]]}) }), current);
   assert.deepEqual(validation, {valid:true,extra:false,bool:false,duplicates:false});
+  const coverUrl = 'https://img1.od-cdn.com/ImageType-400/1234-1/%7BABC-123%7DIMG400.JPG';
+  const coverBoundary = await worker.evaluate(url => ({ direct: WovenleafLibby.coverURL(url), proxy: WovenleafLibby.coverURL('/covers/resize?width=200&url=' + encodeURIComponent(url.replace('https:', ''))), unsafe: WovenleafLibby.coverURL('https://ic.od-cdn.com/resize?url=https://evil.example/book.jpg'), query: WovenleafLibby.coverURL(url + '?token=secret') }), coverUrl);
+  assert.deepEqual(coverBoundary, { direct: coverUrl, proxy: coverUrl, unsafe: undefined, query: undefined });
+  assert.equal(await worker.evaluate(url => WovenleafLibby.coverURL('https://ic.od-cdn.com/resize?type=auto&url=' + encodeURIComponent(new URL(url).pathname)), coverUrl), coverUrl);
+  await page.locator('.data-title_111').evaluate((el, url) => {
+    const box = document.createElement('div'); box.className = 'cover-box';
+    const image = document.createElement('img'); image.dataset.coverId = '111'; image.src = '/covers/resize?width=200&url=' + encodeURIComponent(new URL(url).pathname); box.append(image); el.append(box);
+  }, coverUrl);
+  await expect.poll(async () => (await snapshot())?.observations[0].coverUrl).toBe(coverUrl);
+  await page.locator('.cover-box img').evaluate(el => el.src = 'https://evil.example/cover.jpg');
+  await expect.poll(async () => (await snapshot())?.observations[0].coverUrl).toBeUndefined();
+  // Continue export tests with the latest snapshot after cover-only mutations.
+  Object.assign(current, await snapshot());
   const popup = await context.newPage();
   await popup.goto(`chrome-extension://${new URL(worker.url()).host}/popup.html`);
   await expect(popup.locator('#titles li')).toHaveCount(2);

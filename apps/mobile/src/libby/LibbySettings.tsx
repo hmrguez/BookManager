@@ -1,7 +1,9 @@
 import { useId, useState } from 'react'
 import { Capacitor } from '@capacitor/core'
-import { ArrowUpRight, BookOpen, Check, Upload } from 'lucide-react'
+import { ArrowUpRight, BookOpen, Check, ChevronDown, Upload } from 'lucide-react'
 import type { LibraryBook } from '../library-model'
+import { shelfCopy } from '../app/config'
+import { BookCover } from '../design-system/components'
 import type { LibbyController } from './use-libby'
 import type { LibbyItem } from './model'
 import './libby.css'
@@ -21,8 +23,9 @@ export function LibbySettings({ controller: c, books }: { controller: LibbyContr
   const id = useId()
   const pending = c.state.items.filter(item => item.status === 'pending').slice().reverse()
   const listing = storeUrl()
-  return <section className="libby-settings" aria-labelledby={`${id}-heading`}>
-    <div className="libby-masthead"><span>LIBBY · CONNECTED READING</span><BookOpen size={20} aria-hidden="true" /></div>
+  return <details className="libby-settings">
+    <summary className="libby-summary"><BookOpen size={22} aria-hidden="true" /><span><strong>Libby</strong><small role="status">{c.error ? 'Needs attention' : pending.length ? `${pending.length} ${pending.length === 1 ? 'book' : 'books'} to review` : c.state.enabled ? 'Connected reading · enabled' : 'Connect your books and reading progress'}</small></span><ChevronDown className="libby-chevron" size={18} aria-hidden="true" /></summary>
+    <div className="libby-panel" aria-labelledby={`${id}-heading`}>
     <h2 id={`${id}-heading`}>Your place, kept.</h2>
     <p className="libby-intro">Your Libby books, automatically on Reading. Your progress follows.</p>
     <p className="libby-caption">Read in Libby on the web, then visit its Shelf. The companion captures and delivers the displayed progress automatically; Wovenleaf updates when you open it.</p>
@@ -69,10 +72,11 @@ export function LibbySettings({ controller: c, books }: { controller: LibbyContr
       {pending.length > 0 && <div className="libby-review"><h3>Ready to review <span>{pending.length}</span></h3>{pending.map(item => <MatchRow key={`${item.key}:${item.snapshotId}:${books.find(book => book.id === c.state.mappings.find(mapping => mapping.key === item.key)?.bookId)?.lastUpdatedAt ?? 'unlinked'}`} item={item} books={books} controller={c} />)}</div>}
       {c.state.receipts.length > 0 && <details className="libby-details"><summary>Recent updates</summary>{c.state.receipts.slice().reverse().slice(0, 10).map(receipt => <div className="libby-history" key={receipt.id}><div><strong>{receipt.title}</strong><small>{receipt.before.progress}% → {receipt.after.progress}% · {new Date(receipt.at).toLocaleDateString()}</small></div><button disabled={c.busy || receipt.undone || books.find(book => book.id === receipt.bookId)?.lastUpdatedAt !== receipt.after.lastUpdatedAt} onClick={() => void c.undo(receipt.id)}>{receipt.undone ? 'Undone' : 'Undo'}</button></div>)}</details>}
       {c.state.mappings.length > 0 && <details className="libby-details"><summary>Linked books · {c.state.mappings.length}</summary>{c.state.mappings.map(mapping => <div className="libby-history" key={mapping.key}><span>{books.find(book => book.id === mapping.bookId)?.title ?? 'Book no longer in your library'}{mapping.paused ? ' · paused' : ''}</span><button disabled={c.busy} onClick={() => void c.unlink(mapping.key)}>Unlink</button></div>)}</details>}
-      <p className="libby-caption">Only titles, authors, formats and percentages are received. No library card, login, book text or reading history. Progress stays on this device. A 100% capture leaves finishing the book to you.</p>
+      <p className="libby-caption">Only book details, public cover links and percentages are received. No library card, login, book text or reading history. Covers load from OverDrive when online; no image file is imported. A 100% capture leaves finishing the book to you.</p>
       {disconnecting ? <div className="libby-disconnect"><p>Disconnect and erase Libby matches, captures and undo history? Your books and their current progress stay in your library. Turn off the browser companion too to erase its last capture.</p><button disabled={c.busy} onClick={() => { void c.configure(false).then(ok => { if (ok) setDisconnecting(false) }) }}>Disconnect & erase</button><button onClick={() => setDisconnecting(false)}>Keep connected</button></div> : <button className="libby-disconnect-button" disabled={c.busy} onClick={() => setDisconnecting(true)}>Disconnect Libby</button>}
     </>}
-  </section>
+    </div>
+  </details>
 }
 
 function MatchRow({ item, books, controller: c }: { item: LibbyItem; books: LibraryBook[]; controller: LibbyController }) {
@@ -81,17 +85,18 @@ function MatchRow({ item, books, controller: c }: { item: LibbyItem; books: Libr
   const [expected, setExpected] = useState(books.find(book => book.id === linked?.bookId)?.lastUpdatedAt)
   const id = useId()
   const book = books.find(entry => entry.id === selected)
-  const reading = books.filter(entry => entry.shelf === 'reading')
   const normalized = (value: string) => value.normalize('NFKC').toLocaleLowerCase().trim()
-  const sorted = [...reading].sort((a, b) => Number(normalized(b.title) === normalized(item.observation.title)) - Number(normalized(a.title) === normalized(item.observation.title)))
+  const sorted = [...books].sort((a, b) => Number(normalized(b.title) === normalized(item.observation.title)) - Number(normalized(a.title) === normalized(item.observation.title)) || a.title.localeCompare(b.title))
+  const movesShelf = !!book && book.shelf !== 'reading'
   return <article className="libby-match">
-    <div className="libby-match-heading"><div><small>{item.observation.format === 'audiobook' ? 'AUDIOBOOK' : 'EBOOK'}</small><h4>{item.observation.title}</h4><p>{item.observation.author}</p></div><span className="libby-percent">{item.observation.percent}<small>%</small></span></div>
+    <div className="libby-match-heading">{item.observation.coverUrl && <div className="libby-match-cover"><BookCover book={{ id: item.key, title: item.observation.title, authors: [item.observation.author], thumbnail: item.observation.coverUrl }} /></div>}<div className="libby-match-title"><small>{item.observation.format === 'audiobook' ? 'AUDIOBOOK' : 'EBOOK'}</small><h4>{item.observation.title}</h4><p>{item.observation.author}</p></div><span className="libby-percent">{item.observation.percent}<small>%</small></span></div>
     <p className="libby-caption">{item.reason} Captured {new Date(item.capturedAt).toLocaleString()}.</p>
     <label htmlFor={id}>Book in Wovenleaf</label>
     <select id={id} value={selected} disabled={c.busy} onChange={event => { setSelected(event.target.value); setExpected(books.find(entry => entry.id === event.target.value)?.lastUpdatedAt) }}>
-      <option value="">Choose a book on your Reading shelf</option>{sorted.map(entry => <option key={entry.id} value={entry.id}>{entry.title} · {entry.progress}%{entry.format ? ` · ${entry.format}` : ''}</option>)}<option value="__new">Add as a new book on Reading</option>
+      <option value="">Choose an existing book</option>{sorted.map(entry => <option key={entry.id} value={entry.id}>{entry.title} · {shelfCopy[entry.shelf].label} · {entry.progress}%{entry.format ? ` · ${entry.format}` : ''}</option>)}<option value="__new">Add as a new book on Reading</option>
     </select>
     {book && <p className="libby-caption">Wovenleaf {book.progress}% → Libby {item.observation.percent}%. Page markers stay unchanged.</p>}
-    <div className="libby-match-actions"><button className="libby-primary" disabled={c.busy || !selected || (!!book && book.shelf !== 'reading')} onClick={() => void c.apply(item.key, item.snapshotId, selected === '__new' ? null : selected, expected)}>{selected === '__new' ? 'Add & link book' : 'Link & apply progress'}</button><button disabled={c.busy} onClick={() => void c.dismiss(item.key, item.snapshotId)}>Dismiss</button></div>
+    {movesShelf && <p className="libby-caption">This moves your existing book from {shelfCopy[book.shelf].label} to Reading and links it to Libby. Your notes, rating and cover stay. Undo restores its previous shelf and progress.</p>}
+    <div className="libby-match-actions"><button className="libby-primary" disabled={c.busy || !selected} onClick={() => void c.apply(item.key, item.snapshotId, selected === '__new' ? null : selected, expected, movesShelf)}>{selected === '__new' ? 'Add & link book' : movesShelf ? 'Move to Reading & link' : 'Link & apply progress'}</button><button disabled={c.busy} onClick={() => void c.dismiss(item.key, item.snapshotId)}>Dismiss</button></div>
   </article>
 }

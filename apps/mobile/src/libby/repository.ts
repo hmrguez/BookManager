@@ -71,7 +71,7 @@ export class LibbyRepository {
           else if (book.lastUpdatedAt !== mapping.baseline) item.reason = 'This book changed in Wovenleaf. Review before replacing its progress.'
           else if (observation.percent < book.progress) item.reason = 'Libby shows an earlier position. Review this change.'
           else if (now.getTime() - Date.parse(snapshot.capturedAt) > 86_400_000) item.reason = 'This capture is more than a day old. Review its position.'
-          else if (observation.percent === book.progress) { item.status = 'applied'; item.reason = 'Already up to date.' }
+          else if (observation.percent === book.progress && (book.thumbnail || !observation.coverUrl)) { item.status = 'applied'; item.reason = 'Already up to date.' }
           else if (state.automatic) await this.applyProgress(db, state, item, book)
           else item.reason = 'Ready to apply. Automatic updates are off.'
         }
@@ -90,7 +90,7 @@ export class LibbyRepository {
     })
   }
 
-  async apply(key: string, snapshotId: string, bookId: string | null, expectedUpdatedAt?: string): Promise<LibbyState> {
+  async apply(key: string, snapshotId: string, bookId: string | null, expectedUpdatedAt?: string, moveToReading = false): Promise<LibbyState> {
     return this.database.transaction(async (db) => {
       const state = await this.read(db)
       if (!state.enabled) throw new Error('Libby is disconnected.')
@@ -102,10 +102,10 @@ export class LibbyRepository {
       if (!bookId) {
         book = this.newBook(item)
       }
-      if (!book || book.shelf !== 'reading') throw new Error('Choose a book on your Reading shelf.')
+      if (!book || (book.shelf !== 'reading' && !moveToReading)) throw new Error('Choose a book on your Reading shelf, or confirm moving it to Reading.')
       if (state.mappings.some((mapping) => mapping.bookId === book.id && mapping.key !== key)) throw new Error('This book is already linked to another Libby title. Unlink it first.')
       if (state.mappings.length >= 500 && !state.mappings.some((mapping) => mapping.key === key)) throw new Error('Unlink an old title before linking another.')
-      await this.applyProgress(db, state, item, book)
+      await this.applyProgress(db, state, item, book, moveToReading)
       await this.write(db, state)
       return state
     })
@@ -115,22 +115,23 @@ export class LibbyRepository {
     const at = this.clock().toISOString()
     return libraryBookSchema.parse({ id: `book:${crypto.randomUUID()}`, title: item.observation.title,
       authors: item.observation.author ? [item.observation.author] : [], format: item.observation.format === 'audiobook' ? 'AUDIOBOOK' : 'EBOOK',
-      sourceNames: ['Libby'], pageCount: 0, shelf: 'reading', progress: 0, currentPage: 0,
+      sourceNames: ['Libby'], thumbnail: item.observation.coverUrl, pageCount: 0, shelf: 'reading', progress: 0, currentPage: 0,
       rating: 0, notes: '', addedAt: at, lastUpdatedAt: at })
   }
 
-  private async applyProgress(db: SqlDatabase, state: LibbyState, item: LibbyItem, book: LibraryBook) {
+  private async applyProgress(db: SqlDatabase, state: LibbyState, item: LibbyItem, book: LibraryBook, moveToReading = false) {
     const progress = item.observation.percent
     // A shelf percentage is not a page checkpoint. Retain the existing page marker.
     const lastUpdatedAt = new Date(Math.max(this.clock().getTime(), Date.parse(book.lastUpdatedAt) + 1)).toISOString()
-    const updated = { ...book, progress, lastUpdatedAt }
+    const updated: LibraryBook = { ...book, progress, lastUpdatedAt, thumbnail: book.thumbnail ?? item.observation.coverUrl,
+      ...(moveToReading && book.shelf !== 'reading' ? { shelf: 'reading', finishedAt: undefined } : {}) }
     await writeLibraryBook(db, updated)
     state.mappings = state.mappings.filter((entry) => entry.key !== item.key)
     state.mappings.push({ key: item.key, bookId: book.id, baseline: lastUpdatedAt, paused: false, observedAt: item.capturedAt })
     state.excluded = state.excluded.filter(key => key !== item.key)
     state.receipts = [...state.receipts, { id: crypto.randomUUID(), key: item.key, bookId: book.id, title: book.title,
-      at: lastUpdatedAt, before: { progress: book.progress, currentPage: book.currentPage },
-      after: { progress, currentPage: book.currentPage, lastUpdatedAt }, undone: false }].slice(-50)
+      at: lastUpdatedAt, before: { progress: book.progress, currentPage: book.currentPage, shelf: book.shelf, thumbnail: book.thumbnail, finishedAt: book.finishedAt },
+      after: { progress, currentPage: book.currentPage, lastUpdatedAt, shelf: updated.shelf, thumbnail: updated.thumbnail }, undone: false }].slice(-50)
     item.status = 'applied'
     item.reason = 'Progress updated.'
   }
@@ -167,9 +168,10 @@ export class LibbyRepository {
       const receipt = state.receipts.find((entry) => entry.id === id && !entry.undone)
       if (!receipt) throw new Error('This update is no longer available to undo.')
       const book = (await readLibraryBooks(db)).find((entry) => entry.id === receipt.bookId)
-      if (!book || book.lastUpdatedAt !== receipt.after.lastUpdatedAt || book.progress !== receipt.after.progress || book.currentPage !== receipt.after.currentPage) throw new Error('This book changed after the Libby update. Its newer progress has been kept.')
+      if (!book || book.lastUpdatedAt !== receipt.after.lastUpdatedAt || book.progress !== receipt.after.progress || book.currentPage !== receipt.after.currentPage || (receipt.after.shelf && (book.shelf !== receipt.after.shelf || book.thumbnail !== receipt.after.thumbnail))) throw new Error('This book changed after the Libby update. Its newer progress has been kept.')
       const lastUpdatedAt = new Date(Math.max(this.clock().getTime(), Date.parse(book.lastUpdatedAt) + 1)).toISOString()
-      await writeLibraryBook(db, { ...book, ...receipt.before, lastUpdatedAt })
+      await writeLibraryBook(db, { ...book, progress: receipt.before.progress, currentPage: receipt.before.currentPage, lastUpdatedAt,
+        ...(receipt.before.shelf ? { shelf: receipt.before.shelf, thumbnail: receipt.before.thumbnail, finishedAt: receipt.before.finishedAt } : {}) })
       receipt.undone = true
       const mapping = state.mappings.find((entry) => entry.key === receipt.key)
       if (mapping) { mapping.baseline = lastUpdatedAt; mapping.paused = true }

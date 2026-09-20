@@ -26,6 +26,8 @@ The installed-browser local test checks encrypted 5→10 delivery, pairing/key p
 
 The companion also requires explicit “Capture this browser’s Libby shelf” opt-in. It observes only rendered loan tiles on `/shelf` or `/shelf/loans` at `https://libbyapp.com`. Site permission is origin-wide because Libby navigates as an SPA, but observation checks the current route and document visibility each time. It never accesses page local storage, cookies, tokens, library cards, book contents, or browsing history.
 
+Version 0.3 also captures a rendered cover's public OverDrive image URL when available. Libby's resize URLs are reduced to the underlying HTTPS asset; arbitrary hosts, credentials and query strings are rejected. Wovenleaf stores the URL and loads it without a referrer, preserving an existing chosen cover. No image file is imported. Update Wovenleaf before installing companion 0.3: older native receivers reject the new optional `coverUrl` field. Captures without covers remain supported.
+
 Only one last snapshot is cached in extension session storage, or local storage on browsers without session storage. A capture older than 24 hours is discarded on the next cache access; turning capture off erases it immediately. Each native receiver queues at most 20 unacknowledged captures and reports a full inbox rather than silently discarding them. No telemetry or remote Wovenleaf service is used.
 
 ## Releasing

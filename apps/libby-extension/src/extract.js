@@ -17,7 +17,10 @@
       if (!titleId || !format || !title || !Number.isFinite(percent) || percent > 100 || !tile.classList.contains(`data-title_${titleId}`)) continue;
       const key = `${format}:${titleId}`;
       if (found.has(key)) { ambiguous.add(key); continue; }
-      found.set(key, { titleId, format, title, author, percent });
+      const image = tile.querySelector('.cover-box img');
+      const imageId = image?.getAttribute('data-cover-id');
+      const coverUrl = image && (!imageId || imageId === titleId) ? WovenleafLibby.coverURL(image.currentSrc || image.getAttribute('src')) : undefined;
+      found.set(key, { titleId, format, title, author, percent, ...(coverUrl ? { coverUrl } : {}) });
     }
     const observations = [...found.entries()].filter(([key]) => !ambiguous.has(key)).slice(0, 100).map(([, value]) => value);
     if (!observations.length) return null;
