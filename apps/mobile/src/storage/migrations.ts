@@ -1,3 +1,4 @@
+import { LIBBY_SCHEMA_SQL } from '../libby/repository'
 import type { SqlDatabase, SqlRow } from './database'
 import { readNumber, readText } from './database'
 
@@ -482,6 +483,13 @@ export const STORAGE_MIGRATIONS: readonly StorageMigration[] = [
     kind: 'additive',
     signature: 'ALTER TABLE audiobook_files ADD COLUMN reference_id TEXT;',
     async up(database) { await database.execute('ALTER TABLE audiobook_files ADD COLUMN reference_id TEXT;') },
+  },
+  {
+    version: 19,
+    name: 'local Libby progress inbox and undo receipts',
+    kind: 'additive',
+    signature: LIBBY_SCHEMA_SQL,
+    async up(database) { await database.execute(LIBBY_SCHEMA_SQL) },
   },
 ]
 

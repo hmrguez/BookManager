@@ -1,3 +1,4 @@
+import { LibbyRepository } from '../libby/repository'
 import { reconcileOriginalFiles } from '../files/original-files'
 import { AudiobookImportService } from '../audiobooks'
 import { EpubImportService } from '../epub'
@@ -36,6 +37,7 @@ export type StorageRuntime = {
   readonly catalog: CatalogRepository
   readonly readingLedger: ReadingLedgerRepository
   readonly duplicateReviews: DuplicateReviewRepository
+  readonly libby: LibbyRepository
   readonly library: LibraryRepository
   readonly metadataSearchCache: MetadataSearchCacheRepository
   readonly organization: OrganizationRepository
@@ -103,6 +105,7 @@ async function initializeStorageRuntime(): Promise<StorageRuntime> {
     readingLedger,
     duplicateReviews: new DuplicateReviewRepository(database),
     library,
+    libby: new LibbyRepository(database),
     metadataSearchCache: new MetadataSearchCacheRepository(database),
     organization: new OrganizationRepository(database),
     smartLists: new SmartListRepository(database),
