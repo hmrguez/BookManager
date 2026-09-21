@@ -75,7 +75,7 @@ final class LibbyConnection {
         StringBuilder code = new StringBuilder(); for (byte b : bytes) code.append(String.format(Locale.ROOT, "%02x", b & 255));
         return code.toString();
     }
-    static boolean extensionOrigin(String origin) { return origin != null && origin.matches("chrome-extension://[a-p]{32}"); }
+    static boolean extensionOrigin(String origin) { return origin != null && (origin.matches("chrome-extension://[a-p]{32}") || origin.matches("moz-extension://[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")); }
     static String aad(String route, String origin, boolean response) { return "wovenleaf-libby/v1" + route + "|" + origin + (response ? "|response" : "|request"); }
     static JSONObject seal(SecretKey secret, String text, String aad) throws Exception {
         Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding"); cipher.init(Cipher.ENCRYPT_MODE, secret);

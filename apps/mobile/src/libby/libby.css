@@ -19,8 +19,8 @@
 .libby-settings :is(button,a,select,input,summary):focus-visible { outline:2px solid var(--focus-ring); outline-offset:3px; }
 .libby-settings .libby-primary { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; border:1px solid var(--border-strong); border-radius:4px; padding:12px 16px; margin:18px 0 12px; background:var(--surface-inverse); color:var(--text-on-inverse); }
 .libby-row-action { display:flex; justify-content:space-between; width:100%; border-top:1px solid var(--border-subtle)!important; margin-top:20px; }
-.libby-platforms { display:flex; gap:8px; margin:16px 0; }
-.libby-platforms button { flex:1; padding:12px; border:1px solid var(--border-subtle); border-radius:4px; }
+.libby-platforms { display:flex; flex-wrap:wrap; gap:8px; margin:16px 0; }
+.libby-platforms button { flex:1; min-width:90px; padding:12px; border:1px solid var(--border-subtle); border-radius:4px; }
 .libby-platforms button[aria-pressed=true] { background:var(--surface-sunken); border-color:var(--border-strong); }
 .libby-settings small { display:block; font-size:var(--text-xs); font-weight:400; color:var(--text-secondary); }
 .libby-guide ol { list-style:none; padding:0; counter-reset:libby-steps; }

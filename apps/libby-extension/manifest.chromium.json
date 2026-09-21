@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Wovenleaf \u00b7 Libby progress",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Bring your Libby web books and reading progress to Wovenleaf. Private and local.",
   "permissions": [
     "storage"

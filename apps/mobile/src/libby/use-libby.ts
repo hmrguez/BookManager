@@ -13,6 +13,7 @@ const native = registerPlugin<{
   beginPairing(): Promise<{ code: string }>
   resume(): Promise<void>
   copyCode(): Promise<void>
+  saveCompanion(): Promise<{ saved: boolean }>
   status(): Promise<{ running: boolean; paired: boolean; pairing?: boolean; error?: string }>
   addListener(event: 'captureReceived', listener: () => void): Promise<PluginListenerHandle>
 }>('WovenleafLibby')
@@ -25,6 +26,7 @@ export function useLibby(reloadLibrary: () => Promise<unknown>) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
   const [connection, setConnection] = useState<{ running: boolean; paired: boolean; error?: string }>()
+  const [companionSaved, setCompanionSaved] = useState(false)
   const [pairingCode, setPairingCode] = useState<string>()
   const tail = useRef(Promise.resolve())
   const jobs = useRef(0)
@@ -63,7 +65,7 @@ export function useLibby(reloadLibrary: () => Promise<unknown>) {
           await native.acknowledge({ ids: [snapshot.id] })
         }
       }
-      if (android()) { const status = await native.status(); setConnection(status); if (status.paired && !status.pairing) setPairingCode(undefined) }
+      if (android()) { const status = await native.status(); setConnection(status); if (!status.pairing) setPairingCode(undefined) }
     }
     return next
   }), [run])
@@ -90,7 +92,8 @@ export function useLibby(reloadLibrary: () => Promise<unknown>) {
     if (typeof source === 'string') await removeLibbyShareCopy(source)
     return next
   })
-  return { state, ready, busy, error, refresh, configure, receiveText, receiveFile, connection, pairingCode,
+  return { state, ready, busy, error, refresh, configure, receiveText, receiveFile, connection, pairingCode, companionSaved,
+    saveCompanion: () => run(async repo => { const result = await native.saveCompanion(); setCompanionSaved(result.saved); return repo.read() }),
     pair: () => run(async repo => { const result = await native.beginPairing(); setPairingCode(result.code); setConnection(await native.status()); return repo.read() }),
     copyCode: () => run(async repo => { await native.copyCode(); return repo.read() }),
     resumeConnection: () => run(async repo => { await native.resume(); setConnection(await native.status()); return repo.read() }),

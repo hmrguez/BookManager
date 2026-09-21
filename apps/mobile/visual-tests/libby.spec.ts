@@ -31,6 +31,7 @@ for (const shelf of ['tbr', 'reading'] as const) {
     await page.getByRole('button', { name: 'Enable Libby progress' }).click()
     const capture = (percent: number) => ({ kind: 'wovenleaf-libby', version: 1, id: crypto.randomUUID(), capturedAt: new Date().toISOString(),
       observations: [{ titleId: '123', format: 'audiobook', title: 'An existing Libby book', author: 'Test Author', percent, coverUrl }] })
+    await panel.getByText('Connection help & file fallback', { exact: true }).click()
     const importCapture = async (percent: number) => {
       await page.getByLabel('Import Libby progress file').setInputFiles({ name: 'capture.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(capture(percent))) })
     }
@@ -68,3 +69,31 @@ for (const shelf of ['tbr', 'reading'] as const) {
     await panel.screenshot({ path: testInfo.outputPath('libby-linked.png') })
   })
 }
+
+
+test('Libby offers four stages, a bundled companion and a remembered browser choice', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await page.locator('.libby-summary').click()
+  const guide = page.locator('.libby-guide')
+  await guide.getByRole('button', { name: 'Quetta' }).click()
+  await expect(guide.locator('ol > li')).toHaveCount(4)
+  const download = guide.getByRole('link', { name: 'Download companion ZIP' })
+  const response = await page.request.get(await download.getAttribute('href') ?? '')
+  expect(response.ok()).toBe(true)
+  const { default: JSZip } = await import('jszip')
+  const zip = await JSZip.loadAsync(await response.body())
+  const manifest = JSON.parse(await zip.file('manifest.json')!.async('string'))
+  expect(manifest.version).toBe('0.6.0')
+  expect(manifest.background.service_worker).toBe('background.js')
+  await guide.getByRole('button', { name: 'Firefox' }).click()
+  await expect(guide).toContainText('signed Mozilla download or store listing')
+  await expect(guide.getByRole('link', { name: /companion/ })).toHaveCount(0)
+  await page.reload()
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await page.locator('.libby-summary').click()
+  await expect(guide.getByRole('button', { name: 'Firefox' })).toHaveAttribute('aria-pressed', 'true')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await guide.screenshot({ path: testInfo.outputPath('libby-four-stages.png') })
+})

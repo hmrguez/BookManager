@@ -109,6 +109,8 @@ if (typeof importScripts === 'function') importScripts('common.js', 'local.js');
     if (message?.type === 'status') { await queued(); return { ...await api.storage.local.get('enabled'), snapshot: await latest(), paired: typeof WovenleafLocal !== 'undefined' && await WovenleafLocal.paired() }; }
     if (message?.type === 'pair' && typeof WovenleafLocal !== 'undefined') {
       await WovenleafLocal.pair(message.code);
+      // The pairing button explicitly consents to capture as well as delivery.
+      await api.storage.local.set({ enabled: true });
       if ((await queued()).length) return flush();
       const snapshot = await latest(); return snapshot ? deliver(snapshot) : { ok: true, message: 'Connected. Return to your Libby Shelf to capture automatically.' };
     }

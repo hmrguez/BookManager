@@ -37,3 +37,6 @@ play-console-instructions.txt
 /branding/final/
 /branding/*.zip
 /branding/wovenleaf-logo-concept.png
+
+# Generated companion bundled with the mobile app
+/apps/mobile/public/libby/

@@ -1,6 +1,6 @@
 # Libby setup and browser support
 
-Status: proposed · 2026-09-20 · QUI-54
+Status: in progress · 2026-09-21 · QUI-54
 
 ## Goal
 
@@ -54,3 +54,14 @@ Safari represents 25.87% of [worldwide mobile traffic](https://gs.statcounter.co
 ## Boundaries
 
 Web reading remains the MVP. Native Libby tracking, an embedded Libby WebView, desktop-to-phone delivery and guaranteed native/web synchronization are excluded. Store approval, a physical iPhone and successful pairing-handoff verification are delivery dependencies.
+
+
+## Implementation update · 2026-09-21
+
+Companion 0.6 adds a Firefox Android package (MV2 event page per Mozilla guidance), runtime-derived extension origins, and strict Firefox UUID-origin validation in the Android encrypted receiver. Safari and Chromium retain shared capture logic. Firefox declares website-content transmission to the local app using Mozilla’s built-in consent, with desktop 140 / Android 142 minimums; these are API floors, not a physical-device compatibility matrix.
+
+The app now presents four stages for each browser, remembers the browser choice, refreshes connection status on resume, clears expired pairing codes, and offers reconnect/switch-browser recovery. The Android pairing action explicitly enables capture as well as delivery. File fallback is under Connection help. Quetta’s ZIP is generated from the same sources for every app build and can be saved with Android’s document picker; no separate computer-to-phone transfer is needed. This remains developer installation, not store distribution. Safari remains bundled by Xcode. Firefox source/ZIP are built for signing; unsigned Firefox ZIPs are deliberately not offered as a normal installation path. A real AMO URL can be supplied using `VITE_LIBBY_FIREFOX_STORE_URL`.
+
+Verified: lint/typecheck, 15 Libby unit tests, six app browser flows including ZIP contents and browser-choice persistence, all four installed Chromium extension suites, Android build, and three production crypto/schema tests on Pixel 9. Mozilla’s linter reports zero errors/warnings. Firefox 156 on the Pixel accepts the temporary extension and its popup reads status successfully; Libby is unlinked in that browser, so real Firefox ebook/audio capture, reconnect, upgrade and browser-switch verification remain outstanding. The native Save companion action was verified through the app UI: Android saved the ZIP to Downloads and its SHA-256 matched the bundled build byte-for-byte. The working Quetta pairing was preserved. Brave 1.95.104 is installed, but Brave Android remains excluded while upstream extension support is unresolved.
+
+Still required: signed Firefox distribution and Chromium store approval, real Firefox loan verification, physical Safari verification, a secure code-free pairing handoff spike, and the five-user usability pass. Bundling the Android ZIP reduces file-transfer friction; it does not bypass browser consent or signing. No code-free handoff is claimed and no pairing secrets are placed in URLs.

@@ -47,9 +47,14 @@ try {
   let worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker');
   origin = `chrome-extension://${new URL(worker.url()).host}`;
   let popup = await context.newPage(); await popup.goto(`${origin}/popup.html`);
+  await popup.locator('#code').fill('invalid-code');
+  await popup.getByRole('button', { name: 'Connect & enable capture', exact: true }).click();
+  await expect(popup.locator('#status')).toContainText('Connection failed');
+  await expect(popup.locator('#enabled')).not.toBeChecked();
   await popup.locator('#code').fill(bootstrap.toString('hex'));
-  await popup.getByRole('button', { name: 'Connect automatically', exact: true }).click();
+  await popup.getByRole('button', { name: 'Connect & enable capture', exact: true }).click();
   await expect(popup.locator('#connection-status')).toContainText('Paired');
+  await expect(popup.locator('#enabled')).toBeChecked();
   assert.equal(await worker.evaluate(async () => {
     const db = await new Promise(resolve => { const r = indexedDB.open('wovenleaf-local-connection'); r.onsuccess = () => resolve(r.result); });
     const key = await new Promise(resolve => { const r = db.transaction('connection').objectStore('connection').get('key'); r.onsuccess = () => resolve(r.result); }); db.close();

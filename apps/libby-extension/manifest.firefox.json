@@ -1,0 +1,73 @@
+{
+  "manifest_version": 2,
+  "name": "Wovenleaf \u00b7 Libby progress",
+  "version": "0.6.0",
+  "description": "Bring your Libby web books and reading progress to Wovenleaf. Private and local.",
+  "permissions": [
+    "storage",
+    "https://libbyapp.com/*",
+    "http://127.0.0.1/*",
+    "https://*.listen.overdrive.com/*",
+    "https://*.listen.libbyapp.com/*",
+    "https://*.read.libbyapp.com/*",
+    "https://*.read.overdrive.com/*"
+  ],
+  "icons": {
+    "192": "icon.png"
+  },
+  "background": {
+    "scripts": [
+      "common.js",
+      "local.js",
+      "background.js"
+    ],
+    "persistent": false
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://libbyapp.com/*"
+      ],
+      "js": [
+        "common.js",
+        "extract.js",
+        "player-host.js",
+        "observe.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    },
+    {
+      "matches": [
+        "https://*.listen.overdrive.com/*",
+        "https://*.listen.libbyapp.com/*",
+        "https://*.read.libbyapp.com/*",
+        "https://*.read.overdrive.com/*"
+      ],
+      "js": [
+        "common.js",
+        "player.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "browser_action": {
+    "default_popup": "popup.html",
+    "default_title": "Wovenleaf \u00b7 Libby"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "libby@wovenleaf.app",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": [
+          "websiteContent"
+        ]
+      }
+    },
+    "gecko_android": {
+      "strict_min_version": "142.0"
+    }
+  }
+}

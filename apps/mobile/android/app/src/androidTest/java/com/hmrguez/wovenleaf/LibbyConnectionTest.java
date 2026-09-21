@@ -13,6 +13,18 @@ import javax.crypto.spec.SecretKeySpec;
 /** Exercises production boundaries without changing the user's pairing, inbox or books. */
 @RunWith(AndroidJUnit4.class)
 public class LibbyConnectionTest {
+    @Test public void acceptsFirefoxOriginsWithoutWeakeningOriginBinding() throws Exception {
+        String origin = "moz-extension://01234567-89ab-cdef-0123-456789abcdef";
+        assertTrue(LibbyConnection.extensionOrigin(origin));
+        for (String invalid : new String[] { origin + "/", origin + ":43187", origin + "@evil.example", "moz-extension://libby@wovenleaf.app", "null", "http://127.0.0.1", "moz-extension://not-a-uuid" })
+            assertFalse(LibbyConnection.extensionOrigin(invalid));
+        SecretKey key = new SecretKeySpec(new byte[32], "AES");
+        String aad = LibbyConnection.aad("/v1/capture", origin, false);
+        JSONObject sealed = LibbyConnection.seal(key, snapshot().toString(), aad);
+        LibbyConnection.validate(LibbyConnection.open(key, sealed, aad));
+        rejects(() -> LibbyConnection.open(key, sealed, LibbyConnection.aad("/v1/capture", "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", false)));
+        rejects(() -> LibbyConnection.open(key, sealed, aad.replace("01234567", "11234567")));
+    }
     private JSONObject snapshot() throws Exception {
         return new JSONObject().put("kind", "wovenleaf-libby").put("version", 1).put("id", UUID.randomUUID().toString())
             .put("capturedAt", Instant.now().toString()).put("observations", new JSONArray().put(new JSONObject()

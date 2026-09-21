@@ -1,6 +1,8 @@
 // This key can only encrypt/decrypt this phone's capture inbox. No Libby credential.
 (() => {
-  const origin = `chrome-extension://${WovenleafLibby.api.runtime.id}`;
+  // Firefox runtime.id is the add-on ID, not its installation-specific origin.
+  const url = new URL(WovenleafLibby.api.runtime.getURL('/'));
+  const origin = `${url.protocol}//${url.host}`;
   const encoder = new TextEncoder();
   const bytes = value => Uint8Array.from(atob(value), char => char.charCodeAt(0));
   const base64 = value => { let text = ''; for (const byte of new Uint8Array(value)) text += String.fromCharCode(byte); return btoa(text); };

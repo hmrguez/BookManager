@@ -4,6 +4,14 @@ Implemented under QUI-54. Companion 0.4 supports **visit the web Shelf once → 
 
 The companion observes web Shelf percentages and direct progress from an open ebook reader or audiobook player. Companion 0.5 reads the ebook’s whole-book bar, including with reader controls hidden, and filters subsequent older Shelf values. The bar uses Libby’s rounded integer percentage, which can differ by one point from its rounded-up numeric label. Page counts and navigation previews do not determine progress. It does not observe the native Libby process. Native-to-web synchronization is best effort and is not an MVP dependency. There is no embedded Libby WebView, desktop requirement, provider credential collection, private sync client or cloud relay.
 
+## Setup update · companion 0.6
+
+Settings now groups setup into **Add the companion → Connect Wovenleaf → Connect your Libby library → Start reading**. Browser choice persists; connection status refreshes on return to the app. **Reconnect or switch browser** replaces the previous browser only after successful authenticated pairing and retains book links. In the new companion, **Connect & enable capture** combines Android pairing and capture consent. Older companion versions still need the separate capture toggle.
+
+The Quetta ZIP ships inside the Android app and **Save companion to phone** opens Android’s document picker. This removes the separate file transfer, but installation still uses Quetta’s developer options until a real store listing exists. Safari remains embedded in the app. Firefox Android now has its own build and strict encrypted origin support, with normal installation gated on Mozilla signing/publication. The setup guide marks Firefox as testing and accepts a real `VITE_LIBBY_FIREFOX_STORE_URL`; it does not offer an unsigned ZIP as an installable add-on. Brave Android remains unsupported.
+
+The older detailed setup below remains useful for companion 0.5. See [the updated plan](../plans/libby-onboarding-and-browser-support.md) for 0.6 verification and remaining release gates.
+
 ## What is implemented
 
 | Layer | Implementation |

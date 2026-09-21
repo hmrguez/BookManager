@@ -43,3 +43,14 @@ One last snapshot, up to 20 pending deliveries, and up to 100 recent loan metada
 5. Declare/review Android’s `specialUse` foreground-service purpose for Google Play. Complete the physical-device checks in the guide before advertising this as a verified mobile integration.
 
 Do not ask users for a Libby password or library card in Wovenleaf. Linking stays in Libby's own UI. Wovenleaf is an independent companion, not an OverDrive/Libby product.
+
+
+## Companion 0.6: packaging and Firefox Android
+
+`node apps/libby-extension/build.mjs` now builds Chromium, Safari and Firefox plus deterministic ZIPs in `dist/`. The Chromium ZIP is also generated into the mobile app’s ignored `public/libby/` directory; `dev`, `build` and `build:dev` regenerate it automatically. Android Settings → Libby → Quetta → **Save companion to phone** exports the packaged asset using the system document picker. Installing still uses Quetta’s development ZIP flow until a store listing exists.
+
+Firefox uses Manifest V2 with a nonpersistent background page, as recommended in [Mozilla’s Android guide](https://extensionworkshop.com/documentation/develop/developing-extensions-for-firefox-for-android/). Its scripts reuse the same capture, queue and crypto code. The transport derives `moz-extension://<installation UUID>` from `runtime.getURL`, never from the add-on ID. The receiver pins that exact origin after authenticated pairing. A browser reinstall/new origin requires reconnecting; only one browser is paired at a time.
+
+Validate with `web-ext lint --source-dir apps/libby-extension/dist/firefox`. For USB development, enable Firefox’s Remote debugging via USB and run `web-ext run --source-dir apps/libby-extension/dist/firefox --target firefox-android --adb-device DEVICE --firefox-apk org.mozilla.firefox`. Run web-ext under Node (the Android runner fails under Bun 1.3.13). Production Firefox requires Mozilla signing; `dist/wovenleaf-libby-firefox.zip` is a submission artifact, not an installable signed XPI. After publication, configure `VITE_LIBBY_FIREFOX_STORE_URL` with the real `https://addons.mozilla.org/…` listing. Website-content transmission is declared because book metadata leaves the browser for the local Wovenleaf app; no external server is involved.
+
+Pairing now uses **Connect & enable capture**, an explicit combined consent action. Failed pairing does not enable capture. The independent capture checkbox remains available for pausing, and Safari retains its capture consent. Existing Chromium installations remain compatible. Firefox physical installation/popup was checked on Pixel 9 / Firefox 156; real linked-loan delivery and lifecycle coverage remain release gates.
