@@ -19,6 +19,7 @@ The older detailed setup below remains useful for companion 0.5. See [the update
 | Companion | Shared Safari/Chromium sources; separate capture consent; rendered title ID, title, author, format, percentage and optional public cover URL; bounded validation; retry and optional JSON export |
 | Safari | Bundled extension; native-message/App Group inbox; protected atomic files, locking, backup exclusion; acknowledged after app persistence |
 | Quetta / Android | One-time pairing; encrypted same-phone loopback delivery; foreground connection with Pause action; durable inbox; OS share/file import fallback |
+| Firefox / Android | Real ebook/player capture and encrypted delivery verified on Pixel / Firefox 156; temporary 0.6.1 install, signed distribution still pending |
 | Wovenleaf | New-loan auto-add, remembered links, automatic forward progress, review for existing titles/conflicts, Undo, unlink and disconnect; browser setup guides |
 | Persistence | Migration 19 transactional state plus the existing `library_books` repository; no inferred reading sessions, page positions, start dates or automatic completion |
 
@@ -82,6 +83,24 @@ Limits are 500 links, 500 excluded identities, 100 latest observations, 200 enve
 Disconnect erases integration settings, links, captures, exclusions, deduplication and receipts plus native inbox/key; books and their current progress remain. Turn capture off to erase the browser snapshot, pending delivery queue and recent loan/player cache and use **Disconnect this browser** to erase its key. Revoking site access stops collection. Libby controls its own account link. Portable library exports retain book progress but exclude operational integration state; full database recovery snapshots include that private state. Native inboxes and device keys are excluded from automatic app backup.
 
 ## Verification and release status
+
+
+### Firefox Android verification · 2026-09-21
+
+Pixel 9 / Android 17 / Firefox 156, companion 0.6.0 then 0.6.1. Linked the existing Libby library through **Recover Your Data → Display Setup Code** and native Libby’s **Copy To Another Device**. Entering a fresh code completed the transfer; codes expire quickly. No library credentials were entered into Wovenleaf. Paired Firefox through the normal Wovenleaf code UI; consent and encrypted same-phone delivery worked. Switching from Quetta kept all four original book IDs and all three Libby mappings.
+
+- Initial Firefox Shelf capture automatically updated **The Well of Ascension 30% → 31%**, matching the Shelf. City of Stairs stayed 23%, City of Blades 5%, and Mists of Avalon on Up Next at 0%.
+- The ebook reader initially opened an older 12% position despite Shelf 31%; Wovenleaf preserved 31%. Used the reader’s chapter navigation to return to Chapter 21 / page 300 of 971 / 31%. Eight ordinary swipes with controls hidden advanced to page 308 / **32%**. Opening Wovenleaf directly from the reader applied **31% → 32%**, without a Shelf visit or manual capture/import/apply action.
+- Returning to the Shelf still displayed 31%; Wovenleaf retained 32%.
+- City of Stairs’ web player opened at 23%. Its ordinary 15-second advance control moved to **24%**; opening Wovenleaf directly applied **23% → 24%**. No Shelf visit or manual delivery action.
+- Force-stopped Wovenleaf and advanced the player to **25%**. A read-only database snapshot confirmed the app remained at 24% while unavailable. Reopened Wovenleaf, returned to the player, then reopened Wovenleaf: **25%** arrived automatically. No retry/import button was used. Playback was left paused.
+- Installed temporary companion **0.6.1 over 0.6.0**, preserving pairing. Fixed a real Firefox popup issue: the old target-blank Shelf link did not navigate; the new link uses `tabs.create` and closes the popup. Verified the repaired button opens the linked Shelf. The post-upgrade Shelf’s older audio 23% stayed in review rather than overwriting 25%; reopening the player delivered 25% and cleared the pending review.
+- Explicitly disconnected Firefox in its companion, generated a new code in Wovenleaf and re-paired. The first reconnect submission failed; a confirmed fresh code succeeded. The companion again reported paired, and Firefox was left connected at the user’s request.
+- Final read-only comparison: all four book IDs and three links preserved; only progress and update timestamps changed on the two test books. Final positions are ebook 32%, City of Stairs 25%, City of Blades 5%, Mists of Avalon 0% on Up Next. Notes, covers, ratings and shelf placement are unchanged.
+
+This verifies real ebook/player delivery, hidden controls, stale-Shelf protection, receiver outage recovery, Quetta-to-Firefox switching, explicit reconnect and a temporary in-place extension upgrade. It does **not** establish signed installation, persistence across a full Firefox restart (temporary add-ons are removed), or store-update behavior. Mozilla signing and those lifecycle checks remain release gates. Firefox’s Libby library transfer persists independently of the temporary companion. The user requested leaving Firefox paired after verification; only one companion can deliver at a time.
+
+Validation: companion Shelf/popup and encrypted-loopback regressions pass, including new popup-tab navigation coverage; the app’s bundled-package/setup test passes with 0.6.1; lint/typecheck, development build, Android build/install and Mozilla manifest lint pass. The final app build includes the 0.6.1 Chromium ZIP. No release or store listing was published.
 
 Direct ebook verification on **2026-09-20** reproduced **The Well of Ascension: reader 20% (page 86/400), Shelf 1%, Wovenleaf 1%**. A bounded temporary diagnostic confirmed the actual `*.read.libbyapp.com` frame and its DOM progress control. Public OverDrive reader UI code (`bifocal-9.1.0-ha`, `place-line`) shows that this bar updates from committed book positions, independently of page-number display, seeker previews, and whether its controls are raised. Companion **0.5.0** adds that reader host and `*.read.overdrive.com` to both manifests, binds the frame's format as well as title ID/name, and reuses encrypted delivery and stale-Shelf filtering with the unchanged native snapshot schema.
 

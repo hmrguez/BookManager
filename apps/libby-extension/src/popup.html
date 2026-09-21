@@ -3,7 +3,7 @@
 <label class="setting"><input type="checkbox" id="enabled"> Capture Libby web progress</label>
 <p class="note">Only visible titles, authors, formats, public cover links and percentages. Stored on this device; no account details or book text.</p>
 <section id="connection" hidden><p id="connection-status" class="note"></p><form id="pair-form"><label for="code">Wovenleaf connection code</label><input id="code" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="From Wovenleaf Settings → Libby" maxlength="48"><button type="submit">Connect &amp; enable capture</button></form><button id="forget" hidden>Disconnect this browser</button><p class="note">Connect once. New progress captures are then delivered on this phone automatically, without a share sheet.</p></section>
-<a href="https://libbyapp.com/shelf" target="_blank" rel="noreferrer">Open Libby Shelf ↗</a>
+<a id="open-shelf" href="https://libbyapp.com/shelf" target="_blank" rel="noreferrer">Open Libby Shelf ↗</a>
 <button id="capture">Capture progress now</button><p id="status" role="status" aria-live="polite">Loading…</p><ul id="titles"></ul>
 <div id="delivery" hidden><button id="send">Send to Wovenleaf</button><button id="save">Save progress file</button></div>
 <p class="note">Safari and a connected Android browser deliver on capture. Open Wovenleaf to see new loans on Reading and updated progress. File export remains available if the connection is paused.</p>

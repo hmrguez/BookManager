@@ -24,6 +24,14 @@ async function refresh() {
   $('connection-status').textContent = result.paired ? 'Paired for automatic delivery on this phone.' : 'Open Wovenleaf → Settings → Libby to get a one-time connection code.';
   $('status').textContent = snapshot ? `Captured ${new Date(snapshot.capturedAt).toLocaleString()}` : 'No capture yet. Keep your shelf visible, then capture.';
 }
+// Android Firefox action popups do not reliably open target=_blank links.
+$('open-shelf').addEventListener('click', async event => {
+  event.preventDefault();
+  try {
+    await api.tabs.create({ url: 'https://libbyapp.com/shelf', active: true });
+    window.close();
+  } catch { $('status').textContent = 'Open libbyapp.com/shelf in this browser to continue setup.'; }
+});
 $('enabled').addEventListener('change', async () => {
   await api.runtime.sendMessage({ type: 'enable', enabled: $('enabled').checked }); await refresh();
 });

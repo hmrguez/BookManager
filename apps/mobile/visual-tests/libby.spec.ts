@@ -85,7 +85,7 @@ test('Libby offers four stages, a bundled companion and a remembered browser cho
   const { default: JSZip } = await import('jszip')
   const zip = await JSZip.loadAsync(await response.body())
   const manifest = JSON.parse(await zip.file('manifest.json')!.async('string'))
-  expect(manifest.version).toBe('0.6.0')
+  expect(manifest.version).toBe('0.6.1')
   expect(manifest.background.service_worker).toBe('background.js')
   await guide.getByRole('button', { name: 'Firefox' }).click()
   await expect(guide).toContainText('signed Mozilla download or store listing')

@@ -73,5 +73,9 @@ try {
   await expect(popup.locator('#status')).toContainText('Finish the download');
   await popup.getByRole('checkbox').uncheck();
   await expect.poll(snapshot).toBeUndefined();
+  const openedShelf = context.waitForEvent('page');
+  await popup.getByRole('link', { name: 'Open Libby Shelf' }).click();
+  const shelfTab = await openedShelf;
+  await expect(shelfTab).toHaveURL('https://libbyapp.com/shelf');
   console.log('PASS: opt-in, installed MV3 capture, zero/fractional progress, duplicates/hidden/invalid labels, SPA changes, isolated world, validation, popup export, share fallback, and erase on pause.');
 } finally { await context?.close(); await rm(profile,{recursive:true,force:true}); }
