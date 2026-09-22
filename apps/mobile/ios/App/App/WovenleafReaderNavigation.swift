@@ -105,6 +105,7 @@ final class ReaderChapterRailView: UIView {
     private var previewIndex: Int?
     private var pulseIndex: Int?
     private var showsAllMarkers = false
+    private var scrubY: CGFloat?
     private var palette = ReaderPalette(theme: .paper)
     private var hideWorkItem: DispatchWorkItem?
     private let railWidth = ReaderChapterRailView.gutterWidth
@@ -193,11 +194,16 @@ final class ReaderChapterRailView: UIView {
     override func draw(_ rect: CGRect) {
         guard !entries.isEmpty, let context = UIGraphicsGetCurrentContext() else { return }
         let visible = visibleIndices
+        let previewPosition = scrubY.map {
+            min(CGFloat(entries.count - 1), max(0, ($0 - markerBand.minY) / spacing(for: visible)))
+        } ?? (previewIndex ?? pulseIndex).map { CGFloat($0) }
         for index in visible {
             let y = markerY(for: index, visible: visible)
             let active = index == activeIndex
             let emphasized = index == previewIndex || index == pulseIndex
-            let width: CGFloat = active ? 18 : emphasized ? 15 : 9
+            let activeExtension = 9 * markerInfluence(index, focus: CGFloat(activeIndex))
+            let previewExtension = previewPosition.map { 6 * markerInfluence(index, focus: $0) } ?? 0
+            let width: CGFloat = 9 + max(activeExtension, previewExtension)
             context.setStrokeColor((active ? palette.ink : palette.secondaryInk).withAlphaComponent(active ? 0.95 : emphasized ? 0.65 : 0.32).cgColor)
             context.setLineWidth(active ? 2.2 : 1.2)
             context.setLineCap(.round)
@@ -206,6 +212,12 @@ final class ReaderChapterRailView: UIView {
             context.strokePath()
         }
         if let previewIndex { drawPreview(index: previewIndex, context: context) }
+    }
+
+    private func markerInfluence(_ index: Int, focus: CGFloat) -> CGFloat {
+        // Smoothly taper to the resting length over three neighboring chapters.
+        let proximity = max(0, 1 - abs(CGFloat(index) - focus) / 3)
+        return proximity * proximity * (3 - 2 * proximity)
     }
 
     private var markerBand: CGRect {
@@ -287,12 +299,14 @@ final class ReaderChapterRailView: UIView {
         if recognizer.state == .began || recognizer.state == .changed {
             guard point.x <= railWidth else { return }
             showsAllMarkers = true
+            scrubY = point.y
             hideWorkItem?.cancel()
             previewIndex = nearestIndex(to: point.y)
             setNeedsDisplay()
         } else if recognizer.state == .ended {
             let index = point.x <= railWidth ? nearestIndex(to: point.y) : nil
             showsAllMarkers = false
+            scrubY = nil
             guard let index else {
                 previewIndex = nil
                 setNeedsDisplay()
@@ -303,6 +317,7 @@ final class ReaderChapterRailView: UIView {
             reveal(index, duration: 1.2)
         } else if recognizer.state == .cancelled || recognizer.state == .failed {
             showsAllMarkers = false
+            scrubY = nil
             previewIndex = nil
             setNeedsDisplay()
         }

@@ -102,6 +102,7 @@ internal class ReaderChapterRailView(
     private var previewIndex: Int? = null
     private var pulseIndex: Int? = null
     private var showsAllMarkers = false
+    private var scrubY: Float? = null
     private var palette = ReaderPalette("paper")
     private val railWidth = dp(GUTTER_WIDTH_DP).toFloat()
     private val markerSpacing = dp(10).toFloat()
@@ -149,11 +150,16 @@ internal class ReaderChapterRailView(
         super.onDraw(canvas)
         if (entries.isEmpty()) return
         val visible = visibleIndices()
+        val previewPosition = scrubY?.let {
+            ((it - markerY(0, visible)) / markerSpacing(visible)).coerceIn(0f, entries.lastIndex.toFloat())
+        } ?: (previewIndex ?: pulseIndex)?.toFloat()
         visible.forEach { index ->
             val y = markerY(index, visible)
             val active = index == activeIndex
             val emphasized = index == previewIndex || index == pulseIndex
-            val width = dp(if (active) 18 else if (emphasized) 15 else 9).toFloat()
+            val activeExtension = 9f * markerInfluence(index, activeIndex.toFloat())
+            val previewExtension = previewPosition?.let { 6f * markerInfluence(index, it) } ?: 0f
+            val width = (9f + maxOf(activeExtension, previewExtension)) * resources.displayMetrics.density
             markerPaint.strokeWidth = dp(if (active) 2 else 1).toFloat()
             markerPaint.color = withAlpha(
                 if (active) palette.ink else palette.secondaryInk,
@@ -164,11 +170,18 @@ internal class ReaderChapterRailView(
         previewIndex?.let { drawPreview(canvas, it) }
     }
 
+    private fun markerInfluence(index: Int, focus: Float): Float {
+        // Smoothly taper to the resting length over three neighboring chapters.
+        val proximity = maxOf(0f, 1f - kotlin.math.abs(index - focus) / 3f)
+        return proximity * proximity * (3f - 2f * proximity)
+    }
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (event.x > railWidth && event.actionMasked == MotionEvent.ACTION_DOWN) return false
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
                 showsAllMarkers = true
+                scrubY = event.y
                 removeCallbacks(hidePreview)
                 previewIndex = nearestIndex(event.y)
                 invalidate()
@@ -177,6 +190,7 @@ internal class ReaderChapterRailView(
             MotionEvent.ACTION_UP -> {
                 val index = nearestIndex(event.y)
                 showsAllMarkers = false
+                scrubY = null
                 if (index == null) {
                     previewIndex = null
                     invalidate()
@@ -191,6 +205,7 @@ internal class ReaderChapterRailView(
             }
             MotionEvent.ACTION_CANCEL -> {
                 showsAllMarkers = false
+                scrubY = null
                 previewIndex = null
                 invalidate()
                 return true
