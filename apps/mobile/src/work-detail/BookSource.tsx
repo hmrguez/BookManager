@@ -1,5 +1,7 @@
 import { useEffect, useId, useState, type ReactNode } from 'react'
-import { BookOpen, ChevronRight, Headphones, Plus, RefreshCw } from 'lucide-react'
+import { BookOpen, Headphones, Plus, RefreshCw } from 'lucide-react'
+import { OpenLibbyLink } from '../libby/OpenLibbyLink'
+import { SourcePicker } from './SourcePicker'
 import type { LibraryBook } from '../library-model'
 import { OriginalFileInput } from '../files/OriginalFileInput'
 import { getStorageRuntime } from '../storage/runtime'
@@ -51,16 +53,11 @@ export function BookSource({ book, libby, libbyLinked = false, onRead, onAttachE
 
 
   const picker = <div className="book-source__picker">
-    <label htmlFor={id}>Attach to</label>
-    <select id={id} value={choice} disabled={busy} onChange={event => setChoice(event.target.value)}>
-      <option value="ebook">E-reader · EPUB or PDF</option>
-      <option value="audio">Audiobook · M4B or MP3</option>
-      {libby && <option value="libby">Libby</option>}
-    </select>
+    <SourcePicker value={choice} onChange={setChoice} disabled={busy} includeLibby={Boolean(libby)} />
     {choice === 'libby' ? libby : <>
       <label className="book-source__file">
         <Plus size={18} aria-hidden="true" />
-        <span>{busy ? 'Attaching…' : choice === 'audio' ? 'Choose audio files' : 'Choose book file'}</span>
+        <span>{busy ? 'Attaching…' : choice === 'audio' ? 'Attach audio' : 'Attach book'}</span>
         <OriginalFileInput key={choice} kind={choice === 'audio' ? 'audio' : 'ebook'}
           aria-label={choice === 'audio' ? 'Choose audio files' : 'Choose book file'}
           accept={choice === 'audio' ? '.m4b,.m4a,.mp4,.mp3,audio/mpeg,audio/mp4' : '.epub,.pdf,application/epub+zip,application/pdf'}
@@ -82,7 +79,7 @@ export function BookSource({ book, libby, libbyLinked = false, onRead, onAttachE
   return <section className="book-source" aria-label="Reading source" aria-busy={busy}>
     {libbyLinked ? <>
       <div className="book-source__heading"><BookOpen size={19} aria-hidden="true" /><span>Reading with Libby</span></div>
-      <a className="book-source__primary" href="https://libbyapp.com/shelf" target="_blank" rel="noreferrer">Open in Libby <ChevronRight size={17} aria-hidden="true" /></a>
+      <OpenLibbyLink />
       {libby}
     </> : error ? <div role="alert"><p>{error}</p><button type="button" onClick={() => setRetry(value => value + 1)}>Try again</button></div>
       : source === undefined ? <p className="book-source__caption" role="status">Checking attachment…</p>
@@ -98,8 +95,6 @@ export function BookSource({ book, libby, libbyLinked = false, onRead, onAttachE
           </button>
           <div id={`${id}-change`} hidden={!changing}>{changing && picker}</div>
         </> : <>
-          <h4>Make this book ready to read.</h4>
-          <p className="book-source__caption">Attach a file or connect Libby. You can also track your reading without one.</p>
           {picker}
         </>}
     {(busy || importError) && <p className="book-source__message" role={importError ? 'alert' : 'status'}>

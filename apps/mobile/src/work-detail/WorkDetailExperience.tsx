@@ -425,6 +425,39 @@ function SimpleBookDetail({
         </div>
       </section>
 
+      <section className="book-organization" aria-label="Organize book">
+        <section className={tw('simple-detail-section')} aria-labelledby="reading-status-title">
+          <h4 id="reading-status-title">Shelves</h4>
+          <div className={tw('simple-shelf-choices')}>
+            {SHELVES.map((shelf) => (
+              <button type="button" key={shelf.id} aria-pressed={shelf.id === book.shelf} onClick={() => onMove(shelf.id)}>
+                {shelf.shortLabel}{shelf.id === book.shelf && <Check aria-hidden="true" />}
+              </button>
+            ))}
+          </div>
+          {customShelves.length > 0 && (
+            <fieldset className={tw('simple-custom-shelves')}>
+              <legend>Custom shelves</legend>
+              {customShelves.map((shelf) => {
+                const checked = customShelfIds.includes(shelf.id)
+                return (
+                  <label key={shelf.id}>
+                    <input type="checkbox" checked={checked} onChange={() => onCustomShelves(checked
+                      ? customShelfIds.filter((id) => id !== shelf.id)
+                      : [...customShelfIds, shelf.id])} />
+                    <span>{shelf.name}</span>
+                  </label>
+                )
+              })}
+            </fieldset>
+          )}
+        </section>
+
+        <details className="book-disclosure"><summary>Tags <ChevronRight size={16} aria-hidden="true" /></summary>
+          <WorkTagEditor tags={tags} suggestions={tagSuggestions} onChange={onTags} />
+        </details>
+      </section>
+
       <section className={tw('simple-personal')} aria-label="Rating and notes">
         <div className={tw('work-memory__rating')}><span>Your rating</span><RatingStars value={book.rating} onChange={onRate} /></div>
         <details className="book-disclosure book-notes">
@@ -455,37 +488,6 @@ function SimpleBookDetail({
             </div>
           )}
         </section>
-      </details>
-      <details className="book-disclosure">
-        <summary>Organize book <ChevronRight size={16} aria-hidden="true" /></summary>
-        <section className={tw('simple-detail-section')} aria-labelledby="reading-status-title">
-          <h4 id="reading-status-title">Reading status</h4>
-          <div className={tw('simple-shelf-choices')}>
-            {SHELVES.map((shelf) => (
-              <button type="button" key={shelf.id} aria-pressed={shelf.id === book.shelf} onClick={() => onMove(shelf.id)}>
-                {shelf.shortLabel}{shelf.id === book.shelf && <Check aria-hidden="true" />}
-              </button>
-            ))}
-          </div>
-          {customShelves.length > 0 && (
-            <fieldset className={tw('simple-custom-shelves')}>
-              <legend>Custom shelves</legend>
-              {customShelves.map((shelf) => {
-                const checked = customShelfIds.includes(shelf.id)
-                return (
-                  <label key={shelf.id}>
-                    <input type="checkbox" checked={checked} onChange={() => onCustomShelves(checked
-                      ? customShelfIds.filter((id) => id !== shelf.id)
-                      : [...customShelfIds, shelf.id])} />
-                    <span>{shelf.name}</span>
-                  </label>
-                )
-              })}
-            </fieldset>
-          )}
-        </section>
-
-        <WorkTagEditor tags={tags} suggestions={tagSuggestions} onChange={onTags} />
       </details>
       <details className="book-disclosure">
         <summary>More options <ChevronRight size={16} aria-hidden="true" /></summary>
