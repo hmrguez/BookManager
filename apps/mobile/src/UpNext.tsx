@@ -50,6 +50,9 @@ export function UpNextSection({
   const cascadeItemCount = Math.max(displayedBooks.length, 1)
   const { isCollapsed, toggle, cascadeProps } = useShelfCascade({
     itemCount: cascadeItemCount,
+    preferenceKey: 'status:next',
+    bookCount: books.length,
+    ready: libraryHydrated,
     motionMode,
     forceOpen: isFiltering,
     expansionKey: relevantMotionSequence,

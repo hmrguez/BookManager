@@ -348,6 +348,7 @@ export function LibraryPage({
                     <SmartListSection
                       key={list.id}
                       list={list}
+                      libraryHydrated={libraryHydrated}
                       query={smartListQueries.get(list.id)!}
                       booksById={bookById}
                       motionMode={appearance.motion}
@@ -394,6 +395,7 @@ export function LibraryPage({
                   key={shelf.id}
                   shelf={shelf}
                   books={booksByCustomShelf.get(shelf.id) ?? []}
+                  libraryHydrated={libraryHydrated}
                   organization={organization}
                   isFiltering={librarySearchActive}
                   searchResults={librarySearchResultById}

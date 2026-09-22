@@ -26,6 +26,7 @@ export function CustomShelfSection({
   isFiltering,
   searchResults,
   motionMode,
+  libraryHydrated = true,
   onDetails,
   onManage,
 }: {
@@ -35,6 +36,7 @@ export function CustomShelfSection({
   isFiltering: boolean
   searchResults: ReadonlyMap<string, LocalSearchResult>
   motionMode: MotionMode
+  libraryHydrated?: boolean
   onDetails: (id: string) => void
   onManage: () => void
 }) {
@@ -43,9 +45,11 @@ export function CustomShelfSection({
   const cascadeItemCount = noteCount + Math.max(books.length, 1)
   const { isCollapsed, toggle, cascadeProps } = useShelfCascade({
     itemCount: cascadeItemCount,
+    preferenceKey: `custom:${shelf.id}`,
+    bookCount: books.length,
+    ready: libraryHydrated,
     motionMode,
     forceOpen: isFiltering,
-    expansionKey: books.length,
   })
 
   return (

@@ -20,6 +20,7 @@ export function SmartListSection({
   query,
   booksById,
   motionMode,
+  libraryHydrated = true,
   onDetails,
   onManage,
 }: {
@@ -27,6 +28,7 @@ export function SmartListSection({
   query: SmartListQueryResult
   booksById: ReadonlyMap<string, LibraryBook>
   motionMode: MotionMode
+  libraryHydrated?: boolean
   onDetails: (bookId: string) => void
   onManage: () => void
 }) {
@@ -42,6 +44,9 @@ export function SmartListSection({
   const cascadeItemCount = query.ok ? (query.items.length ? nextCascadeIndex : 2) : 1
   const { isCollapsed, toggle, cascadeProps } = useShelfCascade({
     itemCount: cascadeItemCount,
+    preferenceKey: `smart:${list.id}`,
+    bookCount: query.ok ? query.items.length : 0,
+    ready: libraryHydrated && query.ok,
     motionMode,
   })
 

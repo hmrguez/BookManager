@@ -6,6 +6,7 @@ import {
   type CSSProperties,
 } from 'react'
 import { shouldReduceMotion, type MotionMode } from '../design-system'
+import { readShelfCollapsed, saveShelfCollapsed } from './shelf-preference'
 
 const CASCADE_STAGGER_MS = 20
 const CASCADE_MAX_ORDER = 7
@@ -18,6 +19,9 @@ type UseShelfCascadeOptions = {
   readonly motionMode: MotionMode
   readonly forceOpen?: boolean
   readonly expansionKey?: number
+  readonly preferenceKey?: string
+  readonly bookCount?: number
+  readonly ready?: boolean
 }
 
 export function shelfCascadeItem(index: number, itemCount: number) {
@@ -40,14 +44,35 @@ export function useShelfCascade({
   motionMode,
   forceOpen = false,
   expansionKey,
+  preferenceKey,
+  bookCount = itemCount,
+  ready = true,
 }: UseShelfCascadeOptions) {
-  const [collapsed, setCollapsed] = useState(false)
-  const [phase, setPhase] = useState<ShelfCascadePhase>('open')
+  const canInitialize = ready && !forceOpen
+  const [initialized, setInitialized] = useState(canInitialize)
+  const [collapsed, setCollapsed] = useState(() =>
+    canInitialize && preferenceKey ? readShelfCollapsed(preferenceKey, bookCount) : false,
+  )
+  const [phase, setPhase] = useState<ShelfCascadePhase>(collapsed ? 'closed' : 'open')
   const isCollapsed = collapsed && !forceOpen
   const reduceMotion = shouldReduceMotion(motionMode)
   const [renderedCollapsed, setRenderedCollapsed] = useState(isCollapsed)
   const [renderedReduceMotion, setRenderedReduceMotion] = useState(reduceMotion)
   const [handledExpansionKey, setHandledExpansionKey] = useState(expansionKey)
+
+  // Decide once from the loaded, unfiltered collection, never from search results.
+  if (!initialized && canInitialize) {
+    const initialCollapsed = preferenceKey ? readShelfCollapsed(preferenceKey, bookCount) : false
+    setInitialized(true)
+    setCollapsed(initialCollapsed)
+    setRenderedCollapsed(initialCollapsed)
+    setPhase(initialCollapsed ? 'closed' : 'open')
+  }
+
+  // Save the first decision too, so crossing 30 books never changes an existing shelf.
+  useEffect(() => {
+    if (initialized && preferenceKey) saveShelfCollapsed(preferenceKey, collapsed)
+  }, [initialized, preferenceKey, collapsed])
 
   if (expansionKey !== undefined && expansionKey !== handledExpansionKey) {
     setHandledExpansionKey(expansionKey)
@@ -87,7 +112,9 @@ export function useShelfCascade({
 
   return {
     isCollapsed,
-    toggle: () => setCollapsed((current) => !current),
+    toggle: () => {
+      if (!forceOpen) setCollapsed((current) => !current)
+    },
     cascadeProps: {
       'data-shelf-cascade': phase,
       hidden: phase === 'closed',
