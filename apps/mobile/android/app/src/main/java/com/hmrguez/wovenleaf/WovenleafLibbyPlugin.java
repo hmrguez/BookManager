@@ -12,6 +12,21 @@ import java.io.OutputStream;
 
 @CapacitorPlugin(name = "WovenleafLibby")
 public final class WovenleafLibbyPlugin extends Plugin {
+    @PluginMethod public void openShelf(PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            try {
+                getActivity().startActivity(LibbyBrowser.quetta());
+                call.resolve();
+            } catch (android.content.ActivityNotFoundException | SecurityException unavailable) {
+                try {
+                    getActivity().startActivity(LibbyBrowser.fallback(getContext().getPackageManager()));
+                    call.resolve();
+                } catch (android.content.ActivityNotFoundException | SecurityException noBrowser) {
+                    call.reject("Install Quetta or another browser to open Libby on the web.");
+                }
+            }
+        });
+    }
     @Override public void load() { LibbyConnection.changed = () -> notifyListeners("captureReceived", new JSObject()); }
     @Override protected void handleOnDestroy() { LibbyConnection.changed = null; }
     private void start() { ContextCompat.startForegroundService(getContext(), new Intent(getContext(), LibbyConnectionService.class)); }
