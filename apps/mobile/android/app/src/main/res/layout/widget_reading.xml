@@ -1,0 +1,16 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/widget_root" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="@drawable/widget_paper">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="horizontal" android:gravity="center_vertical">
+        <ImageView android:id="@+id/widget_cover" android:layout_width="42dp" android:layout_height="64dp" android:src="@android:drawable/ic_menu_agenda" android:scaleType="centerCrop" android:importantForAccessibility="no" android:layout_marginEnd="12dp"/>
+        <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical">
+            <TextView android:id="@+id/widget_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:fontFamily="serif" android:textSize="19sp" android:textColor="@color/widget_ink" android:maxLines="2" android:ellipsize="end"/>
+            <TextView android:id="@+id/widget_author" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="12sp" android:textColor="@color/widget_secondary" android:maxLines="1" android:ellipsize="end"/>
+        </LinearLayout>
+    </LinearLayout>
+    <TextView android:id="@+id/widget_progress" android:layout_width="match_parent" android:layout_height="48dp" android:gravity="center_vertical" android:textSize="20sp" android:fontFamily="serif" android:textColor="@color/widget_ink" android:maxLines="1" android:ellipsize="end"/>
+    <ProgressBar android:id="@+id/widget_meter" style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent" android:layout_height="3dp" android:progressTint="@color/widget_ink"/>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:gravity="center_vertical">
+        <TextView android:id="@+id/widget_previous" android:layout_width="48dp" android:layout_height="48dp" android:text="‹" android:textSize="28sp" android:gravity="center" android:contentDescription="Previous book" android:textColor="@color/widget_ink"/>
+        <TextView android:id="@+id/widget_position" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:gravity="center" android:textSize="12sp" android:textColor="@color/widget_secondary"/>
+        <TextView android:id="@+id/widget_next" android:layout_width="48dp" android:layout_height="48dp" android:text="›" android:textSize="28sp" android:gravity="center" android:contentDescription="Next book" android:textColor="@color/widget_ink"/>
+    </LinearLayout>
+</LinearLayout>

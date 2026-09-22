@@ -1,3 +1,6 @@
+import { useWidgets } from './widgets/use-widgets'
+import { widgetRoute } from './widgets/snapshot'
+import { ReadingWidgetSheet } from './widgets/ReadingWidgetSheet'
 import { useLibby } from './libby/use-libby'
 import { LibbySettings } from './libby/LibbySettings'
 import { LibbyBookLink } from './libby/LibbyBookLink'
@@ -129,6 +132,8 @@ function App() {
     clearBooks,
     reload,
   } = useLibrary()
+  useWidgets(books)
+  const [widgetRequest, setWidgetRequest] = useState<ReturnType<typeof widgetRoute>>()
   const libby = useLibby(reload)
   const [revealLibby, setRevealLibby] = useState(false)
   const {
@@ -858,6 +863,13 @@ function App() {
   })
 
   const onIncomingBookFile = useEffectEvent((url: string) => {
+    const widget = widgetRoute(url)
+    if (widget) {
+      setView('library')
+      setSheet(null)
+      setWidgetRequest(widget)
+      return
+    }
     const readerBookId = readerBookIdFromUrl(url)
     if (readerBookId) {
       void openReader(readerBookId)
@@ -1624,6 +1636,7 @@ function App() {
           initialCapture={sheet.initialCapture}
         />
       )}
+      {widgetRequest && libraryHydrated && <ReadingWidgetSheet books={books} initialBookId={widgetRequest.bookId} streak={widgetRequest.streak} onClose={() => setWidgetRequest(undefined)} onSaved={reload} />}
       {sheet?.kind === 'progress' && selectedBook && (
         <ProgressSheet
           book={selectedBook}

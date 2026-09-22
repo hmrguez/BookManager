@@ -10,6 +10,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         setIntent(routeLibbyFile(getIntent()));
         if (WovenleafFilesPlugin.receive(this, getIntent())) setIntent(new Intent(this, MainActivity.class));
+        registerPlugin(WovenleafWidgetsPlugin.class);
         registerPlugin(WovenleafFilesPlugin.class);
         registerPlugin(WovenleafFeedbackPlugin.class);
         registerPlugin(WovenleafPurchasesPlugin.class);

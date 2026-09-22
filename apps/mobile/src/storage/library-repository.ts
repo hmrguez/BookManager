@@ -1,3 +1,4 @@
+import { recordReadingAdvance } from '../widgets/activity'
 import { isUntouchedStarterLibraryBook, libraryBookSchema, type LibraryBook } from '../library-model'
 import { upNextStateSchema } from '../up-next-model'
 import type { SqlDatabase } from './database'
@@ -40,8 +41,28 @@ export class LibraryRepository {
     return retired.length
   }
 
-  async save(book: LibraryBook): Promise<void> {
-    await this.#database.transaction((database) => writeLibraryBook(database, libraryBookSchema.parse(book)))
+  async save(book: LibraryBook, recordProgress: boolean | 'page' | 'percent' = false, expectedUpdatedAt?: string): Promise<void> {
+    await this.#database.transaction(async (database) => {
+      const validated = libraryBookSchema.parse(book)
+      if (recordProgress || expectedUpdatedAt !== undefined) {
+        const [row] = await database.query('SELECT payload_json FROM library_books WHERE id = ?', [book.id])
+        if (expectedUpdatedAt !== undefined && (!row || libraryBookSchema.parse(JSON.parse(readText(row, 'payload_json'))).lastUpdatedAt !== expectedUpdatedAt)) {
+          throw new Error('This book changed. Close and reopen to use its latest progress.')
+        }
+        if (row && recordProgress) {
+          const before = libraryBookSchema.parse(JSON.parse(readText(row, 'payload_json')))
+          const byPage = recordProgress === 'page' || (recordProgress === true && before.pageCount === validated.pageCount && before.currentPage !== validated.currentPage)
+          await recordReadingAdvance(database, {
+            id: `reading-activity:${crypto.randomUUID()}`, bookId: book.id,
+            occurredAt: validated.lastUpdatedAt, source: byPage ? 'manual-page' : 'manual-percent',
+            before: byPage ? before.currentPage : before.progress,
+            after: byPage ? validated.currentPage : validated.progress,
+          })
+        }
+      }
+      await writeLibraryBook(database, validated)
+    })
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('wovenleaf-library-saved'))
   }
 
   async remove(id: string): Promise<void> {

@@ -24,6 +24,20 @@ async function setup() {
 }
 
 describe('Libby local progress', () => {
+  test('only advances after the first capture establish streak activity, and undo removes it', async () => {
+    const { repo, library, book, db } = await setup()
+    const first = snapshot(10)
+    await repo.ingest(JSON.stringify(first))
+    await repo.apply('ebook:12345', first.id, book.id, book.lastUpdatedAt)
+    expect(await db.query('SELECT * FROM reading_activity_events')).toHaveLength(0)
+    const state = await repo.ingest(JSON.stringify(snapshot(11, '2026-09-20T11:00:00.000Z')))
+    expect((await library.list())[0]?.progress).toBe(11)
+    expect(await db.query('SELECT * FROM reading_activity_events')).toHaveLength(1)
+    await repo.undo(state.receipts.at(-1)!.id)
+    expect(await db.query('SELECT * FROM reading_activity_events')).toHaveLength(0)
+    await db.close()
+  })
+
   const coverUrl = 'https://img1.od-cdn.com/ImageType-400/1234-1/{ABC-123}IMG400.JPG'
   test('captures a public cover by URL and fills a missing linked cover without replacing chosen artwork', async () => {
     const { repo, library, book, db } = await setup()

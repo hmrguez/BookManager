@@ -8,6 +8,7 @@ import PDFKit
 
 final class WovenleafBridgeViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
+        bridge?.registerPluginInstance(WovenleafWidgetsPlugin())
         bridge?.registerPluginInstance(WovenleafFeedbackPlugin())
         bridge?.registerPluginInstance(WovenleafPurchasesPlugin())
         bridge?.registerPluginInstance(WovenleafReaderPlugin())
