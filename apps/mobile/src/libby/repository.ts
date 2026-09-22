@@ -1,4 +1,3 @@
-import { recordReadingAdvance } from '../widgets/activity'
 import { libraryBookSchema, type LibraryBook } from '../library-model'
 import { readText, type SqlDatabase } from '../storage/database'
 import { readLibraryBooks, writeLibraryBook } from '../storage/library-repository'
@@ -127,19 +126,10 @@ export class LibbyRepository {
     const updated: LibraryBook = { ...book, progress, lastUpdatedAt, thumbnail: book.thumbnail ?? item.observation.coverUrl,
       ...(moveToReading && book.shelf !== 'reading' ? { shelf: 'reading', finishedAt: undefined } : {}) }
     await writeLibraryBook(db, updated)
-    const receiptId = crypto.randomUUID()
-    // The first capture establishes a baseline; only later observed advances
-    // establish activity, on the capture day rather than the import day.
-    if (state.mappings.some((mapping) => mapping.key === item.key && mapping.bookId === book.id)) {
-      await recordReadingAdvance(db, {
-        id: `reading-activity:libby:${receiptId}`, bookId: book.id, occurredAt: item.capturedAt,
-        source: 'libby', before: book.progress, after: progress,
-      })
-    }
     state.mappings = state.mappings.filter((entry) => entry.key !== item.key)
     state.mappings.push({ key: item.key, bookId: book.id, baseline: lastUpdatedAt, paused: false, observedAt: item.capturedAt })
     state.excluded = state.excluded.filter(key => key !== item.key)
-    state.receipts = [...state.receipts, { id: receiptId, key: item.key, bookId: book.id, title: book.title,
+    state.receipts = [...state.receipts, { id: crypto.randomUUID(), key: item.key, bookId: book.id, title: book.title,
       at: lastUpdatedAt, before: { progress: book.progress, currentPage: book.currentPage, shelf: book.shelf, thumbnail: book.thumbnail, finishedAt: book.finishedAt },
       after: { progress, currentPage: book.currentPage, lastUpdatedAt, shelf: updated.shelf, thumbnail: updated.thumbnail }, undone: false }].slice(-50)
     item.status = 'applied'
@@ -182,7 +172,6 @@ export class LibbyRepository {
       const lastUpdatedAt = new Date(Math.max(this.clock().getTime(), Date.parse(book.lastUpdatedAt) + 1)).toISOString()
       await writeLibraryBook(db, { ...book, progress: receipt.before.progress, currentPage: receipt.before.currentPage, lastUpdatedAt,
         ...(receipt.before.shelf ? { shelf: receipt.before.shelf, thumbnail: receipt.before.thumbnail, finishedAt: receipt.before.finishedAt } : {}) })
-      await db.run('DELETE FROM reading_activity_events WHERE id = ?', [`reading-activity:libby:${receipt.id}`])
       receipt.undone = true
       const mapping = state.mappings.find((entry) => entry.key === receipt.key)
       if (mapping) { mapping.baseline = lastUpdatedAt; mapping.paused = true }

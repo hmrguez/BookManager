@@ -1,4 +1,3 @@
-import { recordReadingAdvance } from '../widgets/activity'
 import {
   assetIdSchema,
   activeReadingEvents,
@@ -215,14 +214,6 @@ export class AudiobookProgressRepository {
           clearInterval(checkpoint)
         }
 
-        if (hasListening && event.afterPositionMs !== null && event.afterPositionMs !== undefined) {
-          await recordReadingAdvance(database, {
-            id: `reading-activity:audio:${event.id}`, bookId: binding.bookId,
-            occurredAt: event.observedAt, source: 'audio-player',
-            before: checkpoint.absolutePositionMs, after: event.afterPositionMs,
-          })
-        }
-
         checkpoint.engineEpoch = event.engineEpoch
         checkpoint.lastSequence = event.sequence
         checkpoint.lastRevision = event.revision
@@ -320,14 +311,6 @@ export class AudiobookProgressRepository {
           if (!await readingEventExists(database, event.id)) canonicalEvents.push(event)
         }
         clearInterval(checkpoint)
-      }
-
-      if (hasListening && existing) {
-        await recordReadingAdvance(database, {
-          id: `reading-activity:audio:${snapshot.playbackSessionId}:${snapshot.engineEpoch}:${snapshot.revision}`,
-          bookId: binding.bookId, occurredAt: snapshot.observedAt, source: 'audio-player',
-          before: existing.absolutePositionMs, after: snapshot.absolutePositionMs,
-        })
       }
 
       checkpoint.engineEpoch = snapshot.engineEpoch

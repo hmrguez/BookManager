@@ -1,4 +1,3 @@
-import { recordReadingAdvance } from '../widgets/activity'
 import {
   assetIdSchema,
   editionIdSchema,
@@ -496,21 +495,9 @@ export class EpubReaderRepository {
     const isReadingEvent =
       event.kind === 'start' || event.kind === 'location' || event.kind === 'session'
     const locator = isReadingEvent ? event.locator : undefined
-    const progression = normalizedProgress ?? (isReadingEvent && event.reachedEnd && locator
+    const progression = isReadingEvent && event.reachedEnd && locator
       ? 1
-      : locator?.locations.totalProgression)
-    if (isReadingEvent && event.kind !== 'start' && normalizedProgress !== undefined) {
-      const [previous] = await this.#database.query<{ total_progression: number | null }>(
-        'SELECT total_progression FROM epub_reader_checkpoints WHERE asset_id = ?', [event.assetId],
-      )
-      if (typeof previous?.total_progression === 'number') {
-        await recordReadingAdvance(this.#database, {
-          id: `reading-activity:reader:${event.id}`, bookId: event.bookId,
-          occurredAt: event.emittedAt, source: 'reader',
-          before: previous.total_progression, after: normalizedProgress,
-        })
-      }
-    }
+      : locator?.locations.totalProgression
     await this.#database.run(
       `INSERT INTO epub_reader_checkpoints(
          asset_id, book_id, edition_id, asset_fingerprint, last_sequence,

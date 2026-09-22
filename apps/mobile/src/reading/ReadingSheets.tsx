@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react'
+import type { CSSProperties } from 'react'
 import { Check, Clock3, Minus, Plus } from 'lucide-react'
 import { ActionButton, BookCover, RatingStars } from '../design-system'
 import type { LibraryBook } from '../library'
@@ -30,13 +30,6 @@ export function ProgressSheet({
   onPage: (page: number) => void
   onFinish: () => void
 }) {
-  const [pageDraft, setPageDraft] = useState<string>()
-  const commitPage = () => {
-    if (pageDraft === undefined) return
-    const page = Number(pageDraft)
-    if (pageDraft.trim() && Number.isInteger(page) && page >= 0 && page <= book.pageCount) onPage(page)
-    setPageDraft(undefined)
-  }
   return (
     <Sheet title="Update progress" onClose={onClose}>
       <div className={tw('sheet-book-line')}>
@@ -76,10 +69,8 @@ export function ProgressSheet({
               inputMode="numeric"
               min="0"
               max={book.pageCount}
-              value={pageDraft ?? book.currentPage}
-              onChange={(event) => setPageDraft(event.target.value)}
-              onBlur={commitPage}
-              onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); commitPage() } }}
+              value={book.currentPage}
+              onChange={(event) => onPage(Number(event.target.value))}
             />
             <span>/ {book.pageCount} pages</span>
           </div>
@@ -88,12 +79,9 @@ export function ProgressSheet({
             type="range"
             min="0"
             max={book.pageCount}
-            value={pageDraft ?? book.currentPage}
+            value={book.currentPage}
             aria-label="Current page"
-            onChange={(event) => setPageDraft(event.target.value)}
-            onPointerUp={commitPage}
-            onKeyUp={commitPage}
-            onBlur={commitPage}
+            onChange={(event) => onPage(Number(event.target.value))}
             style={{ '--range-progress': `${(book.currentPage / book.pageCount) * 100}%` } as CSSProperties}
           />
           <div className={tw('range-labels')}><span>0</span><span>{book.pageCount}</span></div>

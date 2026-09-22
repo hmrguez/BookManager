@@ -19,14 +19,6 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
 
-        <receiver android:name=".ReadingWidgetProvider" android:label="Reading" android:exported="false">
-            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
-            <meta-data android:name="android.appwidget.provider" android:resource="@xml/reading_widget" />
-        </receiver>
-        <receiver android:name=".StreakWidgetProvider" android:label="Reading streak" android:exported="false">
-            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
-            <meta-data android:name="android.appwidget.provider" android:resource="@xml/streak_widget" />
-        </receiver>
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:name=".MainActivity"
@@ -50,7 +42,6 @@
                 <data
                     android:host="reader"
                     android:scheme="@string/custom_url_scheme" />
-                <data android:host="widgets" android:scheme="@string/custom_url_scheme" />
             </intent-filter>
 
             <intent-filter>

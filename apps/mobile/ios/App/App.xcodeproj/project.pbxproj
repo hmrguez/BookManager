@@ -32,13 +32,10 @@
 		A15000022FF5000000000002 /* WovenleafFilesPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A15000022FF5000000000001; };
 		A15000032FF5000000000002 /* WovenleafFileAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = A15000012FF5000000000001; };
 		A16000012FEC000000000001 /* SafariWebExtensionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16000022FEC000000000002 /* SafariWebExtensionHandler.swift */; };
-		A17000012FEC000000000001 /* ReadingWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A17000022FEC000000000002 /* ReadingWidgets.swift */; };
 		A16000062FEC000000000006 /* LibbyExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A16000052FEC000000000005 /* LibbyExtension.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		A17000062FEC000000000006 /* ReadingWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A17000052FEC000000000005 /* ReadingWidgets.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		32612ED2BF08AED9F8AD304F /* LibbyInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A32A7CEEBC973E60D980735; };
 		12E88B465BB217FE936DFAD6 /* WovenleafLibbyPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7736A0714CA318FEB4FA010; };
 		F859F07A3EF446B14DC19246 /* LibbyInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A32A7CEEBC973E60D980735; };
-		A17100012FEC000000000001 /* WovenleafWidgetsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A17100022FEC000000000002; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -56,13 +53,6 @@
 			remoteGlobalIDString = A16000082FEC000000000008;
 			remoteInfo = LibbyExtension;
 		};
-		A170000D2FEC00000000000D /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = A17000082FEC000000000008;
-			remoteInfo = ReadingWidgets;
-		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -74,7 +64,6 @@
 			files = (
 				A12600062FEC000000000006 /* ShareExtension.appex in Embed App Extensions */,
 				A16000062FEC000000000006 /* LibbyExtension.appex in Embed App Extensions */,
-				A17000062FEC000000000006 /* ReadingWidgets.appex in Embed App Extensions */,
 			);
 			name = "Embed App Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -110,16 +99,11 @@
 		A15000012FF5000000000001 /* WovenleafFileAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WovenleafFileAccess.swift; sourceTree = "<group>"; };
 		A15000022FF5000000000001 /* WovenleafFilesPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WovenleafFilesPlugin.swift; sourceTree = "<group>"; };
 		A16000022FEC000000000002 /* SafariWebExtensionHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafariWebExtensionHandler.swift; sourceTree = "<group>"; };
-		A17000022FEC000000000002 /* ReadingWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingWidgets.swift; sourceTree = "<group>"; };
 		A16000032FEC000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		A17000032FEC000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A16000042FEC000000000004 /* LibbyExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LibbyExtension.entitlements; sourceTree = "<group>"; };
-		A17000042FEC000000000004 /* ReadingWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ReadingWidgets.entitlements; sourceTree = "<group>"; };
 		A16000052FEC000000000005 /* LibbyExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LibbyExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		A17000052FEC000000000005 /* ReadingWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ReadingWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		5A32A7CEEBC973E60D980735 /* LibbyInbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibbyInbox.swift; sourceTree = "<group>"; };
 		B7736A0714CA318FEB4FA010 /* WovenleafLibbyPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WovenleafLibbyPlugin.swift; sourceTree = "<group>"; };
-		A17100022FEC000000000002 /* WovenleafWidgetsPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WovenleafWidgetsPlugin.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -145,13 +129,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		A170000A2FEC00000000000A /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -162,7 +139,6 @@
 				504EC3061FED79650016851F /* App */,
 				A12600072FEC000000000007 /* ShareExtension */,
 				A16000072FEC000000000007 /* LibbyExtension */,
-				A17000072FEC000000000007 /* ReadingWidgets */,
 				504EC3051FED79650016851F /* Products */,
 			);
 			sourceTree = "<group>";
@@ -173,7 +149,6 @@
 				504EC3041FED79650016851F /* App.app */,
 				A12600052FEC000000000005 /* ShareExtension.appex */,
 				A16000052FEC000000000005 /* LibbyExtension.appex */,
-				A17000052FEC000000000005 /* ReadingWidgets.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -189,7 +164,6 @@
 				5A32A7CEEBC973E60D980735 /* LibbyInbox.swift */,
 				B7736A0714CA318FEB4FA010 /* WovenleafLibbyPlugin.swift */,
 				A15000022FF5000000000001 /* WovenleafFilesPlugin.swift */,
-				A17100022FEC000000000002 /* WovenleafWidgetsPlugin.swift */,
 				A13500022FEA000000000002 /* WovenleafReaderPlugin.swift */,
 				A14300022FF3000000000002 /* WovenleafPDFViewController.swift */,
 				A13500042FEA000000000004 /* WovenleafReaderViewController.swift */,
@@ -229,16 +203,6 @@
 			path = LibbyExtension;
 			sourceTree = "<group>";
 		};
-		A17000072FEC000000000007 /* ReadingWidgets */ = {
-			isa = PBXGroup;
-			children = (
-				A17000022FEC000000000002 /* ReadingWidgets.swift */,
-				A17000032FEC000000000003 /* Info.plist */,
-				A17000042FEC000000000004 /* ReadingWidgets.entitlements */,
-			);
-			path = ReadingWidgets;
-			sourceTree = "<group>";
-		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -256,7 +220,6 @@
 			dependencies = (
 				A126000E2FEC00000000000E /* PBXTargetDependency */,
 				A160000E2FEC00000000000E /* PBXTargetDependency */,
-				A170000E2FEC00000000000E /* PBXTargetDependency */,
 			);
 			name = App;
 			packageProductDependencies = (
@@ -305,25 +268,6 @@
 			productReference = A16000052FEC000000000005 /* LibbyExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
-		A17000082FEC000000000008 /* ReadingWidgets */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = A170000F2FEC00000000000F /* Build configuration list for PBXNativeTarget "ReadingWidgets" */;
-			buildPhases = (
-				A17000092FEC000000000009 /* Sources */,
-				A170000A2FEC00000000000A /* Frameworks */,
-				A170000B2FEC00000000000B /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = ReadingWidgets;
-			packageProductDependencies = (
-			);
-			productName = ReadingWidgets;
-			productReference = A17000052FEC000000000005 /* ReadingWidgets.appex */;
-			productType = "com.apple.product-type.app-extension";
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -366,7 +310,6 @@
 				504EC3031FED79650016851F /* App */,
 				A12600082FEC000000000008 /* ShareExtension */,
 				A16000082FEC000000000008 /* LibbyExtension */,
-				A17000082FEC000000000008 /* ReadingWidgets */,
 			);
 		};
 /* End PBXProject section */
@@ -399,12 +342,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		A170000B2FEC00000000000B /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = ();
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
@@ -435,7 +372,6 @@
 				32612ED2BF08AED9F8AD304F /* LibbyInbox.swift in Sources */,
 				12E88B465BB217FE936DFAD6 /* WovenleafLibbyPlugin.swift in Sources */,
 				A15000022FF5000000000002 /* WovenleafFilesPlugin.swift in Sources */,
-				A17100012FEC000000000001 /* WovenleafWidgetsPlugin.swift in Sources */,
 				A13500012FEA000000000001 /* WovenleafReaderPlugin.swift in Sources */,
 				A14300012FF3000000000001 /* WovenleafPDFViewController.swift in Sources */,
 				A13500032FEA000000000003 /* WovenleafReaderViewController.swift in Sources */,
@@ -465,15 +401,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		A17000092FEC000000000009 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				F859F07A3EF446B14DC19246 /* LibbyInbox.swift in Sources */,
-				A17000012FEC000000000001 /* ReadingWidgets.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -486,11 +413,6 @@
 			isa = PBXTargetDependency;
 			target = A16000082FEC000000000008 /* LibbyExtension */;
 			targetProxy = A160000D2FEC00000000000D /* PBXContainerItemProxy */;
-		};
-		A170000E2FEC00000000000E /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = A17000082FEC000000000008 /* ReadingWidgets */;
-			targetProxy = A170000D2FEC00000000000D /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -742,31 +664,6 @@
 			};
 			name = Debug;
 		};
-		A17000102FEC000000000010 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = NO;
-				CODE_SIGN_ENTITLEMENTS = ReadingWidgets/ReadingWidgets.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				INFOPLIST_FILE = ReadingWidgets/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.hmrguez.wovenleaf.ReadingWidgets;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SKIP_INSTALL = YES;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
-		};
 		A16000112FEC000000000011 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -784,31 +681,6 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.hmrguez.wovenleaf.LibbyExtension;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SKIP_INSTALL = YES;
-				SWIFT_COMPILATION_MODE = wholemodule;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Release;
-		};
-		A17000112FEC000000000011 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = NO;
-				CODE_SIGN_ENTITLEMENTS = ReadingWidgets/ReadingWidgets.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				INFOPLIST_FILE = ReadingWidgets/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.hmrguez.wovenleaf.ReadingWidgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
@@ -852,15 +724,6 @@
 			buildConfigurations = (
 				A16000102FEC000000000010 /* Debug */,
 				A16000112FEC000000000011 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		A170000F2FEC00000000000F /* Build configuration list for PBXNativeTarget "ReadingWidgets" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				A17000102FEC000000000010 /* Debug */,
-				A17000112FEC000000000011 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

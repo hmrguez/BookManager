@@ -1,4 +1,3 @@
-import { READING_ACTIVITY_SCHEMA } from '../widgets/activity'
 import { LIBBY_SCHEMA_SQL } from '../libby/repository'
 import type { SqlDatabase, SqlRow } from './database'
 import { readNumber, readText } from './database'
@@ -491,13 +490,6 @@ export const STORAGE_MIGRATIONS: readonly StorageMigration[] = [
     kind: 'additive',
     signature: LIBBY_SCHEMA_SQL,
     async up(database) { await database.execute(LIBBY_SCHEMA_SQL) },
-  },
-  {
-    version: 20,
-    name: 'reading activity events for widgets and streaks',
-    kind: 'additive',
-    signature: READING_ACTIVITY_SCHEMA,
-    async up(database) { await database.execute(READING_ACTIVITY_SCHEMA) },
   },
 ]
 

@@ -70,7 +70,7 @@ export function useLibrary() {
   }, [showBooks])
 
   const saveChangedBook = useCallback(
-    (id: string, update: (book: LibraryBook) => LibraryBook, recordProgress: boolean | 'page' | 'percent' = false) => {
+    (id: string, update: (book: LibraryBook) => LibraryBook) => {
       const current = booksRef.current
       const index = current.findIndex((book) => book.id === id)
       if (index === -1) return
@@ -79,7 +79,7 @@ export function useLibrary() {
       next[index] = changed
       hasMutatedRef.current = true
       showBooks(next)
-      enqueuePersistence((repository) => repository.save(changed, recordProgress))
+      enqueuePersistence((repository) => repository.save(changed))
     },
     [enqueuePersistence, showBooks],
   )
@@ -160,7 +160,7 @@ export function useLibrary() {
           finishedAt: shelf === 'finished' ? timestamp : undefined,
           lastUpdatedAt: timestamp,
         }
-      }, shelf === 'finished')
+      })
     },
     [saveChangedBook],
   )
@@ -177,7 +177,7 @@ export function useLibrary() {
             : book.currentPage,
           lastUpdatedAt: new Date().toISOString(),
         }
-      }, 'percent')
+      })
     },
     [saveChangedBook],
   )
@@ -193,7 +193,7 @@ export function useLibrary() {
           progress: Math.min(99, Math.round((boundedPage / book.pageCount) * 100)),
           lastUpdatedAt: new Date().toISOString(),
         }
-      }, 'page')
+      })
     },
     [saveChangedBook],
   )

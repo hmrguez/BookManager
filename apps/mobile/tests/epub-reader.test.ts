@@ -44,26 +44,6 @@ const semanticLocator = readiumLocatorSchema.parse({
 })
 
 describe('native EPUB resume checkpoints', () => {
-  test('sub-percent reading advances count once without counting initial opening', async () => {
-    const database = new BunSqliteDatabase()
-    await migrateStorage(database)
-    await new CatalogRepository(database).replace(representativeCatalog)
-    const library = new LibraryRepository(database)
-    await library.save(libraryBookSchema.parse({
-      id: 'book:left-hand-reader', title: 'The Left Hand of Darkness', authors: ['Ursula K. Le Guin'],
-      pageCount: 300, currentPage: 0, progress: 0, shelf: 'reading', rating: 0, notes: '',
-      addedAt: '2026-08-20T10:00:00.000Z', lastUpdatedAt: '2026-08-20T10:00:00.000Z',
-    }))
-    const reader = new EpubReaderRepository(database)
-    await reader.ingest(readerEvent({ sequence: 1, progression: 0.10001 }))
-    expect(await database.query('SELECT * FROM reading_activity_events')).toHaveLength(0)
-    await reader.ingest(readerEvent({ sequence: 2, progression: 0.10002 }))
-    await reader.ingest(readerEvent({ sequence: 2, progression: 0.10002 }))
-    expect((await library.list())[0]?.progress).toBe(10)
-    expect(await database.query('SELECT * FROM reading_activity_events')).toHaveLength(1)
-    await database.close()
-  })
-
   test('keeps DNF progress until the book is explicitly returned to reading', async () => {
     const database = new BunSqliteDatabase()
     await migrateStorage(database)

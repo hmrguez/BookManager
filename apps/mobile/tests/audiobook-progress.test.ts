@@ -24,20 +24,6 @@ const queueId = 'queue:audiobook-progress-test'
 const bookId = 'book:audiobook-progress-test'
 
 describe('audiobook progress and listening sessions', () => {
-  test('a fraction of one percent counts once toward reading activity', async () => {
-    const database = await progressDatabase()
-    const repository = new AudiobookProgressRepository(database)
-    await repository.ingestJournal([playbackEvent('play', 1, '2026-08-29T12:00:00.000Z', 0, 0, 1)])
-    expect(await database.query('SELECT * FROM reading_activity_events')).toHaveLength(0)
-    const position = playbackSnapshot({ playbackSessionId: 'session:listening', revision: 2,
-      absolutePositionMs: 1000, activeDurationMs: 1000, observedAt: '2026-08-29T12:00:01.000Z' })
-    await repository.checkpointSnapshot(position, true)
-    await repository.checkpointSnapshot(position, true)
-    expect((await new LibraryRepository(database).list())[0]?.progress).toBe(0)
-    expect(await database.query('SELECT * FROM reading_activity_events')).toHaveLength(1)
-    await database.close()
-  })
-
   test('opening and configuring an unplayed audiobook keeps it on its original shelf', async () => {
     const database = await progressDatabase()
     const repository = new AudiobookProgressRepository(database)
