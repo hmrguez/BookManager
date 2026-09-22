@@ -52,6 +52,14 @@ Only one browser companion is paired at a time. **Connect a different companion*
 
 ## Android transport and lifecycle
 
+### Progress stops after a Firefox restart
+
+A Firefox companion installed with `web-ext run` is temporary. Restarting Firefox removes it, even though Wovenleaf retains its pairing and continues running the local receiver. A saved connection in Wovenleaf therefore does not establish that the browser companion is still installed. Check Firefox's Extensions menu first when no new captures arrive.
+
+On 2026-09-23, the connected Pixel reproduced this condition: City of Stairs remained at 25% in Wovenleaf, the last received capture was September 21, the native receiver was running, and Firefox's Extensions menu contained only recommended extensions. Quetta still had its companion installed. The reported player position was 29%; no playback position or library record was changed during diagnosis.
+
+For durable Android use before Mozilla signing is available, use the Quetta installation and reconnect it through Wovenleaf's existing browser-switch flow. Reinstalling the temporary Firefox companion is only a development recovery and remains subject to removal on restart. After reconnecting, visit the web Shelf to identify loans, open the actual reader/player, and return to Wovenleaf to verify delivery. Do not manually overwrite saved progress to mask a missing companion.
+
 The foreground service binds **127.0.0.1:43187 only**, never a Wi-Fi interface. The Chromium host permission is `http://127.0.0.1/*` because match patterns cannot restrict ports; code uses only the fixed port and two routes. No Libby cookie, card, account credential or browser history is read.
 
 Pairing uses a random 128-bit bootstrap code, a five-minute monotonic expiry and at most five attempts. An AES-GCM encrypted challenge establishes a random 256-bit key. Android keeps it in Android Keystore; the companion persists a **nonextractable WebCrypto CryptoKey in its own IndexedDB**. No key goes in a URL, ordinary extension storage, library database, logs or exports. User-requested code copying is marked sensitive and cleared after five minutes when Android permits it and the clipboard still contains that code.
