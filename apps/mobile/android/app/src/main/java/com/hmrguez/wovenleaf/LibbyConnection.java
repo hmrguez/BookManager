@@ -37,6 +37,9 @@ final class LibbyConnection {
     private static KeyStore vault() throws Exception { KeyStore store = KeyStore.getInstance("AndroidKeyStore"); store.load(null); return store; }
     private static SecretKey key() throws Exception { return (SecretKey) vault().getKey(ALIAS, null); }
     static synchronized boolean paired() { try { return key() != null; } catch (Exception e) { return false; } }
+    static synchronized String pairedOrigin(Context c) {
+        return enabled(c) && paired() ? prefs(c).getString("origin", null) : null;
+    }
     static synchronized boolean pairing() {
         if (android.os.SystemClock.elapsedRealtime() >= pairingUntil) pairingKey = null;
         return pairingKey != null;

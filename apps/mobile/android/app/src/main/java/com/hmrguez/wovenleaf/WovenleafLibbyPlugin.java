@@ -15,14 +15,14 @@ public final class WovenleafLibbyPlugin extends Plugin {
     @PluginMethod public void openShelf(PluginCall call) {
         getActivity().runOnUiThread(() -> {
             try {
-                getActivity().startActivity(LibbyBrowser.quetta());
+                getActivity().startActivity(LibbyBrowser.preferred(LibbyConnection.pairedOrigin(getContext())));
                 call.resolve();
             } catch (android.content.ActivityNotFoundException | SecurityException unavailable) {
                 try {
                     getActivity().startActivity(LibbyBrowser.fallback(getContext().getPackageManager()));
                     call.resolve();
                 } catch (android.content.ActivityNotFoundException | SecurityException noBrowser) {
-                    call.reject("Install Quetta or another browser to open Libby on the web.");
+                    call.reject("Install Firefox, Quetta or another browser to open Libby on the web.");
                 }
             }
         });

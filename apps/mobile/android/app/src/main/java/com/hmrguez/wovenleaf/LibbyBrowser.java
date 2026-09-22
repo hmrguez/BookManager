@@ -10,15 +10,22 @@ import java.util.ArrayList;
 
 /** Keep the Shelf in a browser where the progress companion can run. */
 final class LibbyBrowser {
-    private static final Uri SHELF = Uri.parse("https://libbyapp.com/shelf");
+    private static final String SHELF = "https://libbyapp.com/shelf";
 
-    static Intent quetta() {
-        return new Intent(Intent.ACTION_VIEW, SHELF)
-            .addCategory(Intent.CATEGORY_BROWSABLE).setPackage("net.quetta.browser");
+    static String preferredPackage(String origin) {
+        if (!LibbyConnection.extensionOrigin(origin)) return null;
+        return origin.startsWith("moz-extension://") ? "org.mozilla.firefox" : "net.quetta.browser";
+    }
+
+    static Intent preferred(String origin) {
+        String browser = preferredPackage(origin);
+        if (browser == null) throw new ActivityNotFoundException("No paired browser");
+        return new Intent(Intent.ACTION_VIEW, Uri.parse(SHELF))
+            .addCategory(Intent.CATEGORY_BROWSABLE).setPackage(browser);
     }
 
     static Intent fallback(PackageManager packages) {
-        Intent view = new Intent(Intent.ACTION_VIEW, SHELF).addCategory(Intent.CATEGORY_BROWSABLE);
+        Intent view = new Intent(Intent.ACTION_VIEW, Uri.parse(SHELF)).addCategory(Intent.CATEGORY_BROWSABLE);
         ArrayList<Intent> browsers = new ArrayList<>();
         for (ResolveInfo handler : packages.queryIntentActivities(view, PackageManager.MATCH_ALL | PackageManager.GET_RESOLVED_FILTER)) {
             // Domain-specific handlers (including Libby) must never enter the chooser.
