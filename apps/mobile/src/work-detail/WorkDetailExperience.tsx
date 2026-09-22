@@ -1,4 +1,5 @@
-import { OriginalFileInput } from '../files/OriginalFileInput'
+import { BookSource } from './BookSource'
+import './book-detail.css'
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import {
@@ -64,12 +65,13 @@ export type AudiobookAttachmentState = {
 type WorkDetailExperienceProps = {
   readonly book: LibraryBook
   readonly libby?: ReactNode
+  readonly libbyLinked?: boolean
   readonly customShelves: readonly CustomShelf[]
   readonly customShelfIds: readonly string[]
   readonly tags: readonly string[]
   readonly tagSuggestions: readonly string[]
   readonly onMove: (shelf: ShelfId) => void
-  readonly onRead: () => void
+  readonly onRead: (source?: 'ebook' | 'audio') => void
   readonly onProgress: () => void
   readonly onFinish: () => void
   readonly onRate: (rating: number) => void
@@ -116,6 +118,7 @@ const editionIcons: Record<WorkEditionDetail['kind'], ReactNode> = {
 export function WorkDetailExperience({
   book,
   libby,
+  libbyLinked,
   customShelves,
   customShelfIds,
   tags,
@@ -155,6 +158,7 @@ export function WorkDetailExperience({
       <SimpleBookDetail
         book={book}
         libby={libby}
+        libbyLinked={libbyLinked}
         customShelves={customShelves}
         customShelfIds={customShelfIds}
         tags={tags}
@@ -356,6 +360,7 @@ export function WorkDetailExperience({
 function SimpleBookDetail({
   book,
   libby,
+  libbyLinked,
   customShelves,
   customShelfIds,
   tags,
@@ -383,10 +388,6 @@ function SimpleBookDetail({
   const [author, setAuthor] = useState(book.authors.join(', '))
   const [pageCount, setPageCount] = useState(book.pageCount ? String(book.pageCount) : '')
   const [confirmRemove, setConfirmRemove] = useState(false)
-  const [overwriteCover, setOverwriteCover] = useState(false)
-  const hasReadableFile = ['EPUB', 'PDF', 'AUDIOBOOK'].includes(book.format?.toLocaleUpperCase() ?? '')
-  const epubResult = epubImport.result?.bookId === book.id ? epubImport.result : undefined
-  const audiobookResult = audiobookImport.result?.bookId === book.id ? audiobookImport.result : undefined
 
   const saveDetails = (event: FormEvent) => {
     event.preventDefault()
@@ -408,161 +409,96 @@ function SimpleBookDetail({
           <span className={tw('simple-book-detail__status')}>{SHELVES.find(({ id }) => id === book.shelf)?.label}</span>
           <h3>{book.title}</h3>
           <p>{book.authors.join(', ') || 'Unknown author'}</p>
-          <div className={tw('work-detail__work-state')}>
-            <strong>{book.startedAt || book.progress > 0 ? `${book.progress}% complete` : book.format ?? 'No file attached'}</strong>
-          </div>
         </div>
       </header>
 
-      <section className={tw('simple-attachments')} aria-labelledby="attach-file-title">
-        <header>
-          <div><span>Read or listen</span><h4 id="attach-file-title">Attach a file</h4></div>
-          <small>It stays private on this device.</small>
-        </header>
-        <div className={tw('simple-attachments__actions')}>
-          <label className={tw(epubBusy ? 'is-busy' : '')}>
-            <FileText aria-hidden="true" />
-            <span><strong>{epubBusy ? 'Attaching book…' : 'Attach book'}</strong><small>Choose an EPUB or PDF</small></span>
-            <ChevronRight aria-hidden="true" />
-            <OriginalFileInput
-              kind="ebook"
-              accept=".epub,.pdf,application/epub+zip,application/pdf"
-              disabled={epubBusy}
-              onFiles={(files) => onAttachEpub(files, overwriteCover)}
-            />
-          </label>
-          <label className={tw(audiobookBusy ? 'is-busy' : '')}>
-            <Headphones aria-hidden="true" />
-            <span><strong>{audiobookBusy ? 'Attaching audio…' : 'Attach audiobook'}</strong><small>M4B or ordered MP3 files</small></span>
-            <ChevronRight aria-hidden="true" />
-            <OriginalFileInput
-              kind="audio"
-              accept=".m4b,.m4a,.mp4,.mp3,audio/mpeg,audio/mp4"
-              multiple
-              disabled={audiobookBusy}
-              onFiles={(files) => onAttachAudiobook(files, overwriteCover)}
-            />
-          </label>
+      <BookSource book={book} libby={libby} libbyLinked={libbyLinked}
+        onRead={onRead} onAttachEpub={onAttachEpub} onAttachAudiobook={onAttachAudiobook}
+        epubBusy={epubBusy} epubImport={epubImport} audiobookBusy={audiobookBusy} audiobookImport={audiobookImport} />
+
+      <section className="book-progress" aria-label="Reading progress">
+        <div className="book-progress__label"><span>{book.shelf === 'finished' ? 'Finished' : 'Your progress'}</span><strong>{book.progress}%</strong></div>
+        <progress max={100} value={book.progress} aria-label="Book progress" />
+        <div className="book-progress__actions">
+          <button type="button" onClick={onProgress}>Update progress</button>
+          {book.shelf !== 'finished' && <button type="button" onClick={onFinish}><BookCheck size={16} aria-hidden="true" /> Mark finished</button>}
         </div>
-        <label className="flex min-h-11 items-center gap-2 text-sm">
-          <input type="checkbox" checked={overwriteCover} disabled={epubBusy || audiobookBusy}
-            onChange={(event) => setOverwriteCover(event.target.checked)} />
-          <span>Overwrite existing cover</span>
-        </label>
-        <p className="text-xs text-[var(--text-secondary)]">Use the file’s cover when available. Missing covers are filled automatically.</p>
-        {(epubBusy || epubResult || epubImport.error) && (
-          <AttachmentMessage
-            busy={epubBusy}
-            error={epubImport.error}
-            complete={Boolean(epubResult)}
-            detail={epubImport.error ?? epubImport.progress?.detail ?? (epubResult ? 'Book attached and ready to read.' : '')}
-          />
-        )}
-        {(audiobookBusy || audiobookResult || audiobookImport.error) && (
-          <AttachmentMessage
-            busy={audiobookBusy}
-            error={audiobookImport.error}
-            complete={Boolean(audiobookResult)}
-            detail={audiobookImport.error ?? audiobookImport.progress?.detail ?? (audiobookResult ? 'Audiobook attached and ready to listen.' : '')}
-          />
-        )}
       </section>
 
-      <section className={tw('simple-reading-actions')} aria-label="Reading actions">
-        {hasReadableFile && (
-          <button type="button" className={tw('is-primary')} onClick={onRead}>
-            {book.format?.toLocaleUpperCase() === 'AUDIOBOOK' ? <Headphones aria-hidden="true" /> : <BookOpen aria-hidden="true" />}
-            {book.startedAt || book.progress > 0 ? 'Continue' : 'Start'}
-          </button>
-        )}
-        <button type="button" onClick={onProgress}><Clock3 aria-hidden="true" /> Update progress</button>
-        {book.shelf !== 'finished' && <button type="button" onClick={onFinish}><BookCheck aria-hidden="true" /> Mark finished</button>}
+      <section className={tw('simple-personal')} aria-label="Rating and notes">
+        <div className={tw('work-memory__rating')}><span>Your rating</span><RatingStars value={book.rating} onChange={onRate} /></div>
+        <details className="book-disclosure book-notes">
+          <summary><StickyNote size={17} aria-hidden="true" /> Your notes <ChevronRight size={16} aria-hidden="true" /></summary>
+          <label><span className="sr-only">Private note</span><textarea value={book.notes} onChange={(event) => onNotes(event.target.value)} rows={3} placeholder="What do you want to remember?" /></label>
+        </details>
       </section>
 
-      {libby}
-
-      <section className={tw('simple-detail-section')} aria-labelledby="book-information-title">
-        <header><div><span>Book information</span><h4 id="book-information-title">The essentials</h4></div></header>
-        {editing ? (
-          <form className={tw('simple-details-form')} onSubmit={saveDetails}>
-            <label><span>Title</span><input required value={title} onChange={(event) => setTitle(event.target.value)} /></label>
-            <label><span>Author</span><input value={author} onChange={(event) => setAuthor(event.target.value)} /></label>
-            <label><span>Pages</span><input type="number" min="0" value={pageCount} onChange={(event) => setPageCount(event.target.value)} /></label>
-            <div><button type="button" onClick={() => setEditing(false)}>Cancel</button><button type="submit">Save</button></div>
-          </form>
-        ) : (
-          <div className={tw('simple-facts')}>
-            <dl>
-              <div><dt>Format</dt><dd>{book.format ?? 'Not set'}</dd></div>
-              <div><dt>Length</dt><dd>{book.pageCount ? `${book.pageCount} pages` : 'Not set'}</dd></div>
-              <div><dt>ISBN</dt><dd>{book.identifiers?.[0] ?? 'Not set'}</dd></div>
-            </dl>
-            <button type="button" onClick={() => setEditing(true)}><Pencil aria-hidden="true" /> Edit details</button>
+      <details className="book-disclosure">
+        <summary>Book information <ChevronRight size={16} aria-hidden="true" /></summary>
+        <section className={tw('simple-detail-section')} aria-labelledby="book-information-title">
+          <h4 id="book-information-title" className="sr-only">Book information</h4>
+          {editing ? (
+            <form className={tw('simple-details-form')} onSubmit={saveDetails}>
+              <label><span>Title</span><input required value={title} onChange={(event) => setTitle(event.target.value)} /></label>
+              <label><span>Author</span><input value={author} onChange={(event) => setAuthor(event.target.value)} /></label>
+              <label><span>Pages</span><input type="number" min="0" value={pageCount} onChange={(event) => setPageCount(event.target.value)} /></label>
+              <div><button type="button" onClick={() => setEditing(false)}>Cancel</button><button type="submit">Save</button></div>
+            </form>
+          ) : (
+            <div className={tw('simple-facts')}>
+              <dl>
+                <div><dt>Format</dt><dd>{book.format ?? 'Not set'}</dd></div>
+                {book.format?.toUpperCase() !== 'AUDIOBOOK' && <div><dt>Length</dt><dd>{book.pageCount ? `${book.pageCount} pages` : 'Not set'}</dd></div>}
+                <div><dt>ISBN</dt><dd>{book.identifiers?.[0] ?? 'Not set'}</dd></div>
+              </dl>
+              <button type="button" onClick={() => setEditing(true)}><Pencil aria-hidden="true" /> Edit details</button>
+            </div>
+          )}
+        </section>
+      </details>
+      <details className="book-disclosure">
+        <summary>Organize book <ChevronRight size={16} aria-hidden="true" /></summary>
+        <section className={tw('simple-detail-section')} aria-labelledby="reading-status-title">
+          <h4 id="reading-status-title">Reading status</h4>
+          <div className={tw('simple-shelf-choices')}>
+            {SHELVES.map((shelf) => (
+              <button type="button" key={shelf.id} aria-pressed={shelf.id === book.shelf} onClick={() => onMove(shelf.id)}>
+                {shelf.shortLabel}{shelf.id === book.shelf && <Check aria-hidden="true" />}
+              </button>
+            ))}
           </div>
-        )}
-      </section>
+          {customShelves.length > 0 && (
+            <fieldset className={tw('simple-custom-shelves')}>
+              <legend>Custom shelves</legend>
+              {customShelves.map((shelf) => {
+                const checked = customShelfIds.includes(shelf.id)
+                return (
+                  <label key={shelf.id}>
+                    <input type="checkbox" checked={checked} onChange={() => onCustomShelves(checked
+                      ? customShelfIds.filter((id) => id !== shelf.id)
+                      : [...customShelfIds, shelf.id])} />
+                    <span>{shelf.name}</span>
+                  </label>
+                )
+              })}
+            </fieldset>
+          )}
+        </section>
 
-      <section className={tw('simple-detail-section')} aria-labelledby="reading-status-title">
-        <header><div><span>Reading status</span><h4 id="reading-status-title">Where it belongs</h4></div></header>
-        <div className={tw('simple-shelf-choices')}>
-          {SHELVES.map((shelf) => (
-            <button type="button" key={shelf.id} aria-pressed={shelf.id === book.shelf} onClick={() => onMove(shelf.id)}>
-              {shelf.shortLabel}{shelf.id === book.shelf && <Check aria-hidden="true" />}
-            </button>
-          ))}
-        </div>
-        {customShelves.length > 0 && (
-          <fieldset className={tw('simple-custom-shelves')}>
-            <legend>Custom shelves</legend>
-            {customShelves.map((shelf) => {
-              const checked = customShelfIds.includes(shelf.id)
-              return (
-                <label key={shelf.id}>
-                  <input type="checkbox" checked={checked} onChange={() => onCustomShelves(checked
-                    ? customShelfIds.filter((id) => id !== shelf.id)
-                    : [...customShelfIds, shelf.id])} />
-                  <span>{shelf.name}</span>
-                </label>
-              )
-            })}
-          </fieldset>
-        )}
-      </section>
-
-      <section className={tw('simple-detail-section simple-personal')} aria-labelledby="personal-title">
-        <header><div><span>For you</span><h4 id="personal-title">Rating and notes</h4></div></header>
-        <div className={tw('work-memory__rating')}><span>Rating</span><RatingStars value={book.rating} onChange={onRate} /></div>
-        <label><span>Private note</span><textarea value={book.notes} onChange={(event) => onNotes(event.target.value)} rows={3} placeholder="What do you want to remember?" /></label>
         <WorkTagEditor tags={tags} suggestions={tagSuggestions} onChange={onTags} />
-      </section>
-
-      <section className={tw('remove-work')} aria-label="Remove from library">
-        <button type="button" onClick={() => (confirmRemove ? onRemove() : setConfirmRemove(true))}>
-          <Trash2 aria-hidden="true" />
-          <span><strong>{confirmRemove ? 'Tap again to remove' : 'Remove from library'}</strong><small>Your attached files and library entry will be removed.</small></span>
-          <ChevronRight aria-hidden="true" />
-        </button>
-      </section>
+      </details>
+      <details className="book-disclosure">
+        <summary>More options <ChevronRight size={16} aria-hidden="true" /></summary>
+        <section className={tw('remove-work')} aria-label="Remove from library">
+          <button type="button" onClick={() => (confirmRemove ? onRemove() : setConfirmRemove(true))}>
+            <Trash2 aria-hidden="true" />
+            <span><strong>{confirmRemove ? 'Tap again to remove' : 'Remove from library'}</strong><small>Your attached files and library entry will be removed.</small></span>
+            <ChevronRight aria-hidden="true" />
+          </button>
+          {confirmRemove && <button type="button" onClick={() => setConfirmRemove(false)}>Cancel</button>}
+        </section>
+      </details>
     </div>
-  )
-}
-
-function AttachmentMessage({
-  busy,
-  error,
-  complete,
-  detail,
-}: {
-  readonly busy: boolean
-  readonly error?: string
-  readonly complete: boolean
-  readonly detail: string
-}) {
-  return (
-    <p className={tw(`simple-attachment-message${error ? ' is-error' : complete ? ' is-complete' : ''}`)} role={error ? 'alert' : 'status'}>
-      {complete ? <Check aria-hidden="true" /> : busy ? <RefreshCw aria-hidden="true" /> : <X aria-hidden="true" />}
-      <span>{detail}</span>
-    </p>
   )
 }
 
@@ -775,7 +711,7 @@ function ReadingPanel({
   readonly model: WorkDetailModel
   readonly selectedEdition: WorkEditionDetail
   readonly book: LibraryBook
-  readonly onRead: () => void
+  readonly onRead: (source?: 'ebook' | 'audio') => void
   readonly onProgress: () => void
   readonly onFinish: () => void
 }) {
@@ -795,10 +731,10 @@ function ReadingPanel({
         </div>
         <div className={tw("reading-overview__actions")}>
           {['EPUB', 'PDF'].includes(book.format?.toLocaleUpperCase() ?? '') && (
-            <button type="button" onClick={onRead}><BookOpen aria-hidden="true" />{book.startedAt || book.progress > 0 ? 'Continue reading' : 'Start reading'}</button>
+            <button type="button" onClick={() => onRead()}><BookOpen aria-hidden="true" />{book.startedAt || book.progress > 0 ? 'Continue reading' : 'Start reading'}</button>
           )}
           {book.format?.toLocaleUpperCase() === 'AUDIOBOOK' && (
-            <button type="button" onClick={onRead}><Headphones aria-hidden="true" />{book.startedAt || book.progress > 0 ? 'Continue listening' : 'Start listening'}</button>
+            <button type="button" onClick={() => onRead()}><Headphones aria-hidden="true" />{book.startedAt || book.progress > 0 ? 'Continue listening' : 'Start listening'}</button>
           )}
           <button type="button" onClick={onProgress} disabled={book.shelf === 'finished'}>Update progress</button>
           {book.shelf !== 'finished' && <button type="button" onClick={onFinish}><BookCheck aria-hidden="true" /> Mark finished</button>}

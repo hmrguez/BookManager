@@ -1639,6 +1639,7 @@ function App() {
       {sheet?.kind === 'detail' && selectedBook && (
         <DetailSheet
           book={selectedBook}
+          libbyLinked={libby.state.mappings.some(({ bookId }) => bookId === selectedBook.id)}
           libby={<LibbyBookLink key={selectedBook.id} book={selectedBook} controller={libby} onSettings={() => { showSettings(); setRevealLibby(true) }} />}
           customShelves={activeCustomShelves}
           customShelfIds={organization.entries
@@ -1657,7 +1658,8 @@ function App() {
             }
           }}
           onProgress={() => openSheet({ kind: 'progress', bookId: selectedBook.id })}
-          onRead={() => openBookMedia(selectedBook)}
+          onRead={(source) => source === 'audio' ? openSheet({ kind: 'audiobook-player', bookId: selectedBook.id })
+            : source === 'ebook' ? void openReader(selectedBook.id) : openBookMedia(selectedBook)}
           onFinish={() => handleFinish(selectedBook.id)}
           onRate={(rating) => updateBook(selectedBook.id, { rating })}
           onNotes={(notes) => updateBook(selectedBook.id, { notes })}

@@ -44,8 +44,16 @@ export function Sheet({
   const containFocus = (event: React.KeyboardEvent<HTMLElement>) => {
     if (event.key !== 'Tab') return
     const focusable = [...(dialogRef.current?.querySelectorAll<HTMLElement>(
-      'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex="-1"])',
-    ) ?? [])].filter((element) => !element.hidden)
+      'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), a[href], summary, [tabindex]:not([tabindex="-1"])',
+    ) ?? [])].filter((element) => {
+      if (element.hidden || element.getClientRects().length === 0) return false
+      // Closed <details> descendants can retain layout boxes while being unfocusable.
+      for (let parent = element.parentElement; parent && parent !== dialogRef.current; parent = parent.parentElement) {
+        if (parent instanceof HTMLDetailsElement && !parent.open
+          && !parent.querySelector(':scope > summary')?.contains(element)) return false
+      }
+      return true
+    })
     if (!focusable.length) return
 
     const first = focusable[0]

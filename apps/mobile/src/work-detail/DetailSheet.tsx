@@ -11,6 +11,7 @@ import {
 export function DetailSheet({
   book,
   libby,
+  libbyLinked,
   customShelves,
   customShelfIds,
   tags,
@@ -37,13 +38,14 @@ export function DetailSheet({
 }: {
   book: LibraryBook
   libby?: ReactNode
+  libbyLinked?: boolean
   customShelves: readonly CustomShelf[]
   customShelfIds: readonly string[]
   tags: readonly string[]
   tagSuggestions: readonly string[]
   onClose: () => void
   onMove: (shelf: ShelfId) => void
-  onRead: () => void
+  onRead: (source?: 'ebook' | 'audio') => void
   onProgress: () => void
   onFinish: () => void
   onRate: (rating: number) => void
@@ -67,6 +69,7 @@ export function DetailSheet({
         key={book.id}
         book={book}
         libby={libby}
+        libbyLinked={libbyLinked}
         customShelves={customShelves}
         customShelfIds={customShelfIds}
         tags={tags}

@@ -30,6 +30,7 @@ for (const shelf of ['tbr', 'reading'] as const) {
   test(`link a captured loan from the existing ${shelf} book's details`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 390, height: 844 })
     await seedBook(page, shelf)
+    await page.getByLabel('Attach to').selectOption('libby')
     const card = page.locator('.libby-book-link')
     await expect(card).not.toHaveAttribute('open')
     await card.locator('summary').focus()
@@ -47,6 +48,7 @@ for (const shelf of ['tbr', 'reading'] as const) {
     expect((await stored(page)).books).toHaveLength(1)
     await card.screenshot({ path: testInfo.outputPath('book-libby-linked.png') })
     // The shared repository's Undo remains reachable from this entry point.
+    await card.locator('summary').click()
     await card.getByRole('button', { name: 'Libby settings', exact: true }).click()
     await expect(page.getByRole('dialog', { name: 'Book details', exact: true })).toHaveCount(0)
     const settings = page.locator('details.libby-settings')
@@ -60,6 +62,8 @@ for (const shelf of ['tbr', 'reading'] as const) {
     await card.locator('summary').click()
     await expect(card).toContainText('Review to resume progress updates')
     await card.getByRole('button', { name: 'Unlink from Libby' }).click()
+    await page.getByLabel('Attach to').selectOption('libby')
+    await card.locator('summary').click()
     await expect(card.locator('summary')).toContainText('Link to Libby')
     expect((await stored(page)).libby.mappings).toHaveLength(0)
     expect((await stored(page)).books).toHaveLength(1)
@@ -71,6 +75,7 @@ for (const shelf of ['tbr', 'reading'] as const) {
 test('book details directs an unconfigured reader to the expanded Libby setup panel', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await seedBook(page, 'tbr', false)
+  await page.getByLabel('Attach to').selectOption('libby')
   const card = page.locator('.libby-book-link')
   await card.locator('summary').click()
   await card.getByRole('button', { name: 'Set up Libby' }).click()
