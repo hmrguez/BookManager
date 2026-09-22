@@ -62,12 +62,6 @@
 .source-picker__trigger { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 10px; border: 1px solid var(--border-subtle); border-radius: 4px; background: var(--surface-raised); text-align: left; font: 500 var(--text-xs)/1.4 var(--font-interface); }
 .source-picker__trigger > span { flex: 1; }
 .source-picker__trigger > svg { flex-shrink: 0; }
-.source-picker__menu { position: absolute; z-index: 5; top: calc(100% + 6px); left: 0; width: min(280px, 78vw); padding: 5px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface-raised); box-shadow: 0 8px 24px #0002; }
-.source-picker__menu > button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 58px; padding: 10px; border-radius: 3px; background: transparent; text-align: left; }
-.source-picker__menu > button:hover, .source-picker__menu > button:focus-visible { background: var(--surface-sunken); }
-.source-picker__menu > button > span { flex: 1; display: grid; gap: 3px; }
-.source-picker__menu strong { font: 550 var(--text-sm)/1.3 var(--font-interface); }
-.source-picker__menu small { color: var(--text-secondary); font: 400 var(--text-xs)/1.4 var(--font-interface); }
 .book-organization { border-top: 1px solid var(--border-subtle); }
 .simple-book-detail .book-organization .simple-detail-section { margin: 0; padding: 16px 0 10px; border: 0; }
 .simple-book-detail .book-organization h4 { margin: 0 0 12px; font: 550 var(--text-sm)/1.4 var(--font-interface); }

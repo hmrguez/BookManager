@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { AnchoredMenu } from '../design-system/AnchoredMenu'
 import { BookMinus, Check } from 'lucide-react'
 import { tw } from '../tailwind/styles'
 
@@ -13,11 +13,10 @@ export function FinishBookAction({ onFinish, onDnf }: {
   const [open, setOpen] = useState(false)
   const menuId = useId()
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
   const holdRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const originRef = useRef<{ x: number; y: number } | undefined>(undefined)
   const suppressClickRef = useRef(false)
-  const firstItemRef = useRef(0)
+  const [firstItem, setFirstItem] = useState(0)
 
   const clearHold = useCallback(() => {
     clearTimeout(holdRef.current)
@@ -28,7 +27,7 @@ export function FinishBookAction({ onFinish, onDnf }: {
   const showMenu = (firstItem = 0) => {
     clearHold()
     suppressClickRef.current = true
-    firstItemRef.current = firstItem
+    setFirstItem(firstItem)
     setOpen(true)
   }
 
@@ -39,46 +38,6 @@ export function FinishBookAction({ onFinish, onDnf }: {
 
   useEffect(() => clearHold, [clearHold])
 
-  useLayoutEffect(() => {
-    const trigger = triggerRef.current
-    const menu = menuRef.current
-    if (!open || !trigger || !menu) return
-
-    const anchor = trigger.getBoundingClientRect()
-    const bounds = menu.getBoundingClientRect()
-    const inset = 12
-    const below = anchor.bottom + 6
-    const top = below + bounds.height <= window.innerHeight - inset
-      ? below
-      : anchor.top - bounds.height - 6
-    menu.style.top = `${Math.max(inset, top)}px`
-    menu.style.left = `${Math.max(inset, Math.min(anchor.right - bounds.width, window.innerWidth - bounds.width - inset))}px`
-    menu.style.visibility = 'visible'
-    menu.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')[firstItemRef.current]?.focus({ preventScroll: true })
-  }, [open])
-
-  useEffect(() => {
-    if (!open) return
-    const outside = (event: Event) => {
-      if (event.target instanceof Node
-        && !menuRef.current?.contains(event.target)
-        && !triggerRef.current?.contains(event.target)) closeMenu(false)
-    }
-    const dismiss = () => closeMenu()
-    const blur = () => closeMenu(false)
-    document.addEventListener('pointerdown', outside)
-    document.addEventListener('focusin', outside)
-    document.addEventListener('scroll', dismiss, true)
-    window.addEventListener('resize', dismiss)
-    window.addEventListener('blur', blur)
-    return () => {
-      document.removeEventListener('pointerdown', outside)
-      document.removeEventListener('focusin', outside)
-      document.removeEventListener('scroll', dismiss, true)
-      window.removeEventListener('resize', dismiss)
-      window.removeEventListener('blur', blur)
-    }
-  }, [closeMenu, open])
 
   return <>
     <button
@@ -136,45 +95,15 @@ export function FinishBookAction({ onFinish, onDnf }: {
     >
       Finish <Check aria-hidden="true" />
     </button>
-    {open && createPortal(
-      <div
-        ref={menuRef}
-        id={menuId}
-        role="menu"
-        aria-label="Reading status"
-        className={tw('finish-book-menu')}
-        style={{ visibility: 'hidden' }}
-        onContextMenu={(event) => event.preventDefault()}
-        onKeyDown={(event) => {
-          const items = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'))
-          const index = items.indexOf(document.activeElement as HTMLButtonElement)
-          let next: number | undefined
-          if (event.key === 'ArrowDown') next = (index + 1) % items.length
-          if (event.key === 'ArrowUp') next = (index + items.length - 1) % items.length
-          if (event.key === 'Home' || event.key.toLowerCase() === 'f') next = 0
-          if (event.key === 'End' || event.key.toLowerCase() === 'd') next = items.length - 1
-          if (next !== undefined) {
-            event.preventDefault()
-            items[next]?.focus()
-          } else if (event.key === 'Escape') {
-            event.preventDefault()
-            event.stopPropagation()
-            closeMenu()
-          } else if (event.key === 'Tab') {
-            closeMenu()
-          }
-        }}
-      >
-        <button type="button" role="menuitem" tabIndex={-1} onClick={() => { closeMenu(); onFinish() }}>
-          <Check aria-hidden="true" />
-          <span><strong>Finish</strong><small>Mark as completed</small></span>
-        </button>
-        <button type="button" role="menuitem" tabIndex={-1} onClick={() => { closeMenu(); onDnf() }}>
-          <BookMinus aria-hidden="true" />
-          <span><strong>DNF</strong><small>Did not finish</small></span>
-        </button>
-      </div>,
-      document.body,
-    )}
+    {open && <AnchoredMenu id={menuId} label="Reading status" triggerRef={triggerRef} initialFocus={firstItem} onClose={closeMenu}>
+      <button type="button" role="menuitem" tabIndex={-1} onClick={() => { closeMenu(); onFinish() }}>
+        <Check aria-hidden="true" />
+        <span><strong>Finish</strong><small>Mark as completed</small></span>
+      </button>
+      <button type="button" role="menuitem" tabIndex={-1} onClick={() => { closeMenu(); onDnf() }}>
+        <BookMinus aria-hidden="true" />
+        <span><strong>DNF</strong><small>Did not finish</small></span>
+      </button>
+    </AnchoredMenu>}
   </>
 }

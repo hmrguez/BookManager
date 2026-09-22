@@ -1,5 +1,6 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useId, useRef, useState } from 'react'
 import { BookOpen, Check, ChevronDown, Headphones, Library } from 'lucide-react'
+import { AnchoredMenu } from '../design-system/AnchoredMenu'
 
 const sources = [
   { value: 'ebook', label: 'E-reader', detail: 'EPUB or PDF', icon: BookOpen },
@@ -14,57 +15,36 @@ export function SourcePicker({ value, onChange, disabled, includeLibby }: {
   readonly includeLibby: boolean
 }) {
   const id = useId()
-  const root = useRef<HTMLDivElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
   const [open, setOpen] = useState(false)
+  const [initialFocus, setInitialFocus] = useState(0)
   const options = sources.filter(source => includeLibby || source.value !== 'libby')
   const selected = options.find(source => source.value === value) ?? sources[0]!
   const Icon = selected.icon
-  const focusOption = (index: number) => root.current?.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]')[index]?.focus()
+  const close = useCallback((restoreFocus = true) => {
+    setOpen(false)
+    if (restoreFocus) trigger.current?.focus({ preventScroll: true })
+  }, [])
+  const show = (index: number) => { setInitialFocus(index); setOpen(true) }
 
-  useEffect(() => {
-    if (!open) return
-    const dismiss = (event: PointerEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false)
-    }
-    document.addEventListener('pointerdown', dismiss)
-    return () => document.removeEventListener('pointerdown', dismiss)
-  }, [open])
-
-  return <div className="source-picker" ref={root} onBlur={event => {
-    if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false)
-  }} onKeyDown={event => {
-    if (event.key === 'Escape' && open) {
-      event.preventDefault()
-      event.stopPropagation()
-      setOpen(false)
-      trigger.current?.focus()
-    }
-  }}>
+  return <div className="source-picker">
     <button ref={trigger} type="button" className="source-picker__trigger" aria-label={`Attach to: ${selected.label}`}
-      aria-haspopup="menu" aria-expanded={open} aria-controls={id} disabled={disabled}
-      onClick={() => {
-        setOpen(current => !current)
-        if (!open) requestAnimationFrame(() => focusOption(Math.max(0, options.findIndex(option => option.value === value))))
-      }} onKeyDown={event => {
+      aria-haspopup="menu" aria-expanded={open} aria-controls={open ? id : undefined} disabled={disabled}
+      onClick={() => open ? close() : show(Math.max(0, options.findIndex(option => option.value === value)))}
+      onKeyDown={event => {
         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
           event.preventDefault()
-          setOpen(true)
-          requestAnimationFrame(() => focusOption(event.key === 'ArrowUp' ? options.length - 1 : 0))
+          show(event.key === 'ArrowUp' ? options.length - 1 : 0)
         }
       }}>
       <Icon size={18} aria-hidden="true" /><span>{selected.label}</span><ChevronDown size={15} aria-hidden="true" />
     </button>
-    {open && <div id={id} className="source-picker__menu" role="menu" aria-label="Reading source" onKeyDown={event => {
-      const index = Array.from(event.currentTarget.querySelectorAll('button')).indexOf(document.activeElement as HTMLButtonElement)
-      const next = event.key === 'ArrowDown' ? (index + 1) % options.length : event.key === 'ArrowUp' ? (index - 1 + options.length) % options.length : event.key === 'Home' ? 0 : event.key === 'End' ? options.length - 1 : undefined
-      if (next !== undefined) { event.preventDefault(); focusOption(next) }
-    }}>
-      {options.map(({ value: key, label, detail, icon: OptionIcon }) => <button key={key} type="button" role="menuitemradio"
-        aria-checked={value === key} onClick={() => { onChange(key); setOpen(false); trigger.current?.focus() }}>
-        <OptionIcon size={18} aria-hidden="true" /><span><strong>{label}</strong><small>{detail}</small></span>
-        {value === key && <Check size={16} aria-hidden="true" />}
+    {open && <AnchoredMenu id={id} label="Reading source" triggerRef={trigger} initialFocus={initialFocus} followScroll onClose={close}>
+      {options.map(({ value: key, label, detail, icon: OptionIcon }) => <button key={key} type="button" role="menuitemradio" tabIndex={-1}
+        aria-checked={value === key} onClick={() => { close(); onChange(key) }}>
+        <OptionIcon aria-hidden="true" /><span className="flex-1"><strong>{label}</strong><small>{detail}</small></span>
+        {value === key && <Check aria-hidden="true" />}
       </button>)}
-    </div>}
+    </AnchoredMenu>}
   </div>
 }
