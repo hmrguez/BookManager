@@ -153,3 +153,15 @@ Build packages using [the companion guide](../../apps/libby-extension/README.md)
 - [Apple: native messaging](https://developer.apple.com/documentation/safariservices/messaging-between-the-app-and-javascript-in-a-safari-web-extension)
 - [Quetta: installing mobile browser extensions](https://www.quetta.net/blog/how-to-use-browser-extensions-on-android-phone)
 - [Chrome: cross-origin extension requests](https://developer.chrome.com/docs/extensions/develop/concepts/network-requests)
+
+## Quetta paired but no captures (2026-09-23)
+
+Physical diagnosis on Pixel 9 / Quetta 2.0.5 / companion 0.6.1 with Wovenleaf Dev:
+
+- The receiver service was running and app import, automatic progress and automatic loan creation were enabled, but the app had no Libby receipts or mappings.
+- The companion reported paired and capture enabled, while its popup said “No capture yet.” Its session cache contained zero loans and zero pending captures. A Libby reader was already open.
+- Selecting **Open Libby Shelf** in the companion populated three loan metadata entries and delivered a snapshot with no pending captures. Bringing Wovenleaf Dev to the foreground applied all three observations and created their Reading entries automatically.
+
+This isolates the immediate blocker to missing Shelf metadata, not a broken pairing or transport. Pairing persists independently of the session loan cache. The cache is lost on browser restart and entries expire after 24 hours; this investigation did not establish which event emptied this installation's cache. An already-open reader cannot identify its loan until a fresh Shelf observation repopulates that cache. Existing open Shelf tabs alone are not evidence that observation has run.
+
+Recovery: open the companion's **Open Libby Shelf** link, allow the Shelf to load visibly, then open Wovenleaf. No reconnect, reinstall, manual capture or manual import was needed. Direct reader updates after recovery were not separately exercised, and no reading position was advanced during this check.
