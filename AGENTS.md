@@ -7,3 +7,20 @@ The purpose of this app's design is to create an Apple-style product: clean, min
 - If the task is related to a Linear issue, prefix the commit message with `QUI-X `, replacing `X` with the issue number (for example, `QUI-123 Fix book import`).
 - Use a concise commit message that describes the completed work. If a commit cannot be created, explain why in the final response.
 - After developing any feature, run `bun run lint` and `bun run typecheck`, then iterate on any existing or newly introduced errors until both commands pass.
+
+## Agent skills
+
+### Issue tracker
+
+Use Linear's Quibu team (`QUI-`) for issues, specs, and implementation
+tickets. Before tracker operations, read `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Use the five default triage labels. Before triaging or labeling issues,
+read `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Use one shared domain context. Before exploring the codebase or proposing
+domain changes, read `docs/agents/domain.md`.
