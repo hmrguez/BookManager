@@ -18,6 +18,11 @@ android {
         }
     }
     buildTypes {
+        debug {
+            // Keep local installs and their data separate from the Play Store app.
+            applicationIdSuffix ".dev"
+            versionNameSuffix "-dev"
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'

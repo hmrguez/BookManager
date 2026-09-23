@@ -121,6 +121,23 @@ Wovenleaf uses the same production identifier on iOS and Android:
 stable after a store release: changing either native application ID makes the operating system
 treat the result as a different app with a separate data container.
 
+Android debug builds install alongside the Play Store app as **Wovenleaf Dev**
+(`com.hmrguez.wovenleaf.dev`), with a `-dev` version suffix and the standard debug
+signing key. This applies automatically to `make android-run`, `make android-device`,
+`make android-live`, `make android-install`, the Bun Android run scripts, and Android
+Studio's `debug` build variant. Each app has its own library and settings, so local
+installs no longer replace the store app or interfere with its updates.
+
+Signed release APKs and AABs still use **Wovenleaf** (`com.hmrguez.wovenleaf`)
+and the existing release/upload signing workflow. Use the `release` variant when
+generating a signed bundle for Google Play; test Play purchases with that store build.
+Both apps handle `wovenleaf://` links and supported file imports, so Android may ask
+which app to open when both are installed.
+
+If an older debug build is currently installed under the production ID, export any
+library data you want to keep before uninstalling it and installing Wovenleaf from
+Google Play. This is a one-time transition; the new Dev app starts with separate data.
+
 The internal Capacitor WebView schemes remain at their defaults. On first launch, Wovenleaf
 defensively migrates `bookmanager.library.v1` or `wovenleaf.library.v1` into canonical SQLite
 records. It checkpoints an exact recovery copy, verifies the committed records through the domain
