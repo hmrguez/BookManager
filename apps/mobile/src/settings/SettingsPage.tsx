@@ -1,3 +1,4 @@
+import './settings.css'
 import { useWideLayout } from '../responsive/useWideLayout'
 import { OriginalFileInput } from '../files/OriginalFileInput'
 import { useState, useSyncExternalStore, type ReactNode, type DragEvent } from 'react'
@@ -167,7 +168,7 @@ export function SettingsPage({
 }) {
   const wideLayout = useWideLayout()
   const [category, setCategory] = useState<string>(initialCategory)
-  const categories = [['appearance', 'Appearance'], ['feedback', 'Touch & sound'], ['books', 'Books & imports'], ['privacy', 'Data & privacy'], ['advanced', 'Advanced']]
+  const categories = [['appearance', 'Appearance'], ['books', 'Books & imports'], ['feedback', 'Touch & sound'], ['privacy', 'Data & privacy'], ['advanced', 'Advanced']]
   const categoryProps = (value: string) => ({ 'data-category': value, 'data-active': category === value || undefined })
   const [includeExportAnnotations, setIncludeExportAnnotations] = useState(true)
   const [includeExportEpubFiles, setIncludeExportEpubFiles] = useState(false)
@@ -209,7 +210,7 @@ export function SettingsPage({
     <main className={tw('settings-page', motionStyles.navigate)} data-motion-event="navigate">
       <header className={tw('settings-header')}>
         <div className={tw('title-row')}>
-          <h1 tabIndex={-1}>Settings</h1>
+          <div><h1 tabIndex={-1}>Settings</h1><p>Make yourself at home.</p></div>
           <button className={tw('header-search')} type="button" onClick={onBack} aria-label="Back to my books">
             <Library aria-hidden="true" />
           </button>
@@ -221,28 +222,14 @@ export function SettingsPage({
         {categories.map(([id, label]) => <button key={id} type="button" aria-current={category === id ? 'page' : undefined} onClick={() => setCategory(id)}>{label}</button>)}
       </nav>
       <div className={tw('settings-ledger')}>
-        {purchaseView && !purchaseView.owned && !reviewView.active && onUpgrade && <section {...categoryProps('appearance')} className={tw('settings-card')}>
-          <div className={tw('settings-card__icon')}><BookOpen aria-hidden="true" /></div>
-          <div className={tw('settings-card__heading')}>
-            <h2>Wovenleaf Unlimited</h2>
-            <p>{books.length} of 20 free books · upgrade once for unlimited books</p>
-          </div>
-          <button className={tw('settings-action')} type="button" onClick={onUpgrade}>
-            <BookOpen aria-hidden="true" />
-            <span><strong>Upgrade or restore purchase</strong></span>
-            <ChevronRight aria-hidden="true" />
-          </button>
-        </section>}
-
         <section {...categoryProps('appearance')} className={tw('settings-card settings-card--appearance')}>
           <div className={tw('settings-card__icon')}><Palette aria-hidden="true" /></div>
           <div className={tw('settings-card__heading')}>
-            <span>Reading room</span><h2>Paper, contrast, and type</h2>
-            <p>Choose the atmosphere without changing the hierarchy or hiding state.</p>
+            <h2>Appearance</h2><p>A comfortable space for your reading.</p>
           </div>
 
           <fieldset className={tw('appearance-field appearance-field--paper')}>
-            <legend>Paper stock</legend>
+            <legend>Paper</legend>
             <div className={tw('appearance-options')}>
               {PAPER_MODES.map((mode) => (
                 <button
@@ -277,27 +264,7 @@ export function SettingsPage({
           </fieldset>
 
           <fieldset className={tw('appearance-field')}>
-            <legend>Motion</legend>
-            <div className={tw('appearance-options appearance-options--motion')}>
-              {MOTION_MODES.map((motion) => (
-                <button
-                  className={tw('appearance-option')}
-                  type="button"
-                  key={motion}
-                  aria-pressed={appearance.motion === motion}
-                  onClick={() => onAppearanceChange({ ...appearance, motion })}
-                >
-                  {appearanceLabels.motion[motion]}
-                </button>
-              ))}
-            </div>
-            <small className={tw('appearance-field__hint')}>
-              Reduced turns off shelf and other optional animations while keeping status, focus, and feedback intact.
-            </small>
-          </fieldset>
-
-          <fieldset className={tw('appearance-field')}>
-            <legend>Type scale</legend>
+            <legend>Text size</legend>
             <div className={tw('appearance-options appearance-options--compact')}>
               {TYPE_SCALES.map((typeScale) => (
                 <button
@@ -313,75 +280,151 @@ export function SettingsPage({
             </div>
           </fieldset>
 
-          <button
-            className={tw('texture-toggle')}
-            type="button"
-            aria-pressed={appearance.texture === 'quiet'}
-            onClick={() => onAppearanceChange({
-              ...appearance,
-              texture: appearance.texture === 'quiet' ? 'off' : 'quiet',
-            })}
-          >
-            <span>
-              <strong>Paper fiber</strong>
-              <small>One static procedural layer; automatically removed for contrast and transparency preferences.</small>
-            </span>
-            <i aria-hidden="true" />
-          </button>
+          <details className="settings-disclosure">
+            <summary>More appearance options<ChevronDown aria-hidden="true" /></summary>
+            <div className="settings-disclosure__body">
+              <fieldset className={tw('appearance-field')}>
+                <legend>Motion</legend>
+                <div className={tw('appearance-options appearance-options--motion')}>
+                  {MOTION_MODES.map((motion) => (
+                    <button
+                      className={tw('appearance-option')}
+                      type="button"
+                      key={motion}
+                      aria-pressed={appearance.motion === motion}
+                      onClick={() => onAppearanceChange({ ...appearance, motion })}
+                    >
+                      {appearanceLabels.motion[motion]}
+                    </button>
+                  ))}
+                </div>
+                <small className={tw('appearance-field__hint')}>
+                  Reduce optional animations for a calmer experience.
+                </small>
+              </fieldset>
+
+              <button
+                className={tw('texture-toggle')}
+                type="button"
+                aria-pressed={appearance.texture === 'quiet'}
+                onClick={() => onAppearanceChange({
+                  ...appearance,
+                  texture: appearance.texture === 'quiet' ? 'off' : 'quiet',
+                })}
+              >
+                <span>
+                  <strong>Paper fiber</strong>
+                  <small>A subtle paper texture. Respects your accessibility preferences.</small>
+                </span>
+                <i aria-hidden="true" />
+              </button>
+            </div>
+          </details>
         </section>
 
-        <section {...categoryProps('feedback')} className={tw('settings-card')}>
-          <div className={tw('settings-card__icon')}><Vibrate aria-hidden="true" /></div>
+        {purchaseView && !purchaseView.owned && !reviewView.active && onUpgrade && <section {...categoryProps('appearance')} className={tw('settings-card')}>
+          <div className={tw('settings-card__icon')}><BookOpen aria-hidden="true" /></div>
           <div className={tw('settings-card__heading')}>
-            <span>Touch & sound</span><h2>Let the paper answer.</h2>
-            <p>Brief native taps reinforce meaning. Optional graphite, eraser, and page sounds remain deliberately quiet.</p>
+            <h2>Wovenleaf Unlimited</h2>
+            <p>{books.length} of 20 free books · upgrade once for unlimited books</p>
           </div>
-          <button
-            className={tw('texture-toggle')}
-            type="button"
-            aria-pressed={feedbackPreferences.haptics === 'system'}
-            onClick={() => onFeedbackPreferencesChange({
-              ...feedbackPreferences,
-              haptics: feedbackPreferences.haptics === 'system' ? 'off' : 'system',
-            })}
-          >
-            <span>
-              <strong>System haptics</strong>
-              <small>Uses the device’s native touch language and follows its feedback settings.</small>
-            </span>
-            <i aria-hidden="true" />
+          <button className={tw('settings-action')} type="button" onClick={onUpgrade}>
+            <BookOpen aria-hidden="true" />
+            <span><strong>Upgrade or restore purchase</strong></span>
+            <ChevronRight aria-hidden="true" />
           </button>
-          <button
-            className={tw('texture-toggle')}
-            type="button"
-            aria-pressed={feedbackPreferences.sound === 'quiet'}
-            onClick={() => onFeedbackPreferencesChange({
-              ...feedbackPreferences,
-              sound: feedbackPreferences.sound === 'quiet' ? 'off' : 'quiet',
-            })}
-          >
+        </section>}
+
+        <section {...categoryProps('books')}
+          className={tw(`settings-card epub-intake${epubDropActive ? ' is-dragging' : ''}`)}
+          onDragEnter={(event) => {
+            event.preventDefault()
+            if (!epubBusy) setEpubDropActive(true)
+          }}
+          onDragOver={(event) => event.preventDefault()}
+          onDragLeave={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setEpubDropActive(false)
+          }}
+          onDrop={handleEpubDrop}
+        >
+          <div className={tw('settings-card__icon')}><BookOpen aria-hidden="true" /></div>
+          <div className={tw('settings-card__heading')}>
+            <h2>Books & imports</h2>
+            <p>Read your EPUB and PDF files here. Keep the originals on your device for offline reading.</p>
+          </div>
+          <label className={tw(`settings-action import-file-picker epub-picker${epubBusy ? ' is-busy' : ''}`)}>
+            <FileUp aria-hidden="true" />
             <span>
-              <strong>Paper sounds</strong>
-              <small>Off by default · uses device volume · stays silent around audiobooks and assistive reading.</small>
+              <strong>{epubBusy ? 'Checking the book…' : 'Choose book files'}</strong>
+              <small>EPUB and PDF · up to 256 MB each</small>
             </span>
-            <i aria-hidden="true" />
-          </button>
+            <ChevronRight aria-hidden="true" />
+            <OriginalFileInput
+              kind="ebook"
+              accept=".epub,.pdf,application/epub+zip,application/pdf"
+              multiple
+              disabled={epubBusy}
+              onFiles={(files) => offerEpubFiles(files)}
+            />
+          </label>
+          <details className="settings-disclosure">
+            <summary>Import a folder<ChevronDown aria-hidden="true" /></summary>
+            <div className="settings-disclosure__body">
+              <label className={tw(`settings-action import-file-picker epub-folder-picker${epubBusy ? ' is-busy' : ''}`)}>
+                <FolderOpen aria-hidden="true" />
+                <span><strong>Choose a folder</strong><small>Imports EPUB and PDF files inside · where supported</small></span>
+                <ChevronRight aria-hidden="true" />
+                <OriginalFileInput
+                  kind="ebook" folder
+                  accept=".epub,.pdf,application/epub+zip,application/pdf"
+                  multiple
+                  disabled={epubBusy}
+                  onFiles={(files) => offerEpubFiles(files)}
+                />
+              </label>
+            </div>
+          </details>
+          {(epubImport.progress || epubImport.result || epubImport.error) && (
+            <div
+              className={tw(`epub-import-state${epubImport.error ? ' is-error' : epubImport.result ? ' is-complete' : ''}`)}
+              role={epubImport.error ? 'alert' : 'status'}
+              aria-live="polite"
+            >
+              {epubImport.error ? <X aria-hidden="true" /> : epubImport.result ? <CheckCircle2 aria-hidden="true" /> : <BookOpen aria-hidden="true" />}
+              <span>
+                <strong>{epubImport.result?.title ?? epubImport.progress?.fileName ?? 'EPUB import'}</strong>
+                <small>
+                  {epubImport.error
+                    ?? (epubImport.result?.outcome === 'duplicate'
+                      ? 'Already in your library · original file linked'
+                      : epubImport.result?.outcome === 'revision'
+                        ? 'Revised package linked to the existing edition'
+                        : epubImport.result
+                          ? 'Validated, fingerprinted, and stored with provenance'
+                          : epubImport.progress?.detail)}
+                </small>
+              </span>
+              {epubBusy && <button type="button" onClick={onCancelEpubImport}>Cancel</button>}
+            </div>
+          )}
         </section>
 
-        <section {...categoryProps('books')} className={tw('settings-card goodreads-migration')}>
-          <div className={tw('settings-card__icon goodreads-migration__mark')}>
-            <img src="/favicon.svg" alt="" />
-          </div>
-          <div className={tw('settings-card__heading')}>
-            <span>Move from Goodreads</span><h2>Your old library, without the spreadsheet work.</h2>
-            <p>Ask Goodreads for your library, then open or share the downloaded file with Wovenleaf. The migration stays on this device; cover art fills in afterward from Open Library.</p>
-          </div>
+        <div {...categoryProps('books')}>{libby}</div>
+
+        <details {...categoryProps('books')} className="settings-service goodreads-migration" open={importBusy || !!importError || undefined}>
+          <summary className="settings-service__entry">
+            <span className="settings-service__mark settings-service__mark--goodreads"><img src="/services/goodreads.svg" alt="" width="24" height="24" /></span>
+            <span><strong>Goodreads</strong><small>Import your books, shelves, and ratings</small></span>
+            <ChevronRight aria-hidden="true" />
+          </summary>
+          <div className="settings-service__body">
+            <p>Export your library from Goodreads, then choose the downloaded file here. You’ll review everything before importing.</p>
           <ol className={tw('goodreads-migration__route')} aria-label="Goodreads migration steps">
             <li><strong>1</strong><span>Open Goodreads<small>Sign in on their official page</small></span></li>
             <li><strong>2</strong><span>Export your library<small>Goodreads downloads one file</small></span></li>
             <li><strong>3</strong><span>Open in Wovenleaf<small>Review once, then import</small></span></li>
           </ol>
-          <button className={tw('settings-action goodreads-migration__open')} type="button" onClick={onOpenGoodreadsExport}>
+          <button className={tw('settings-action')} type="button" onClick={onOpenGoodreadsExport}>
             <ExternalLink aria-hidden="true" />
             <span><strong>Open Goodreads export</strong><small>Continues in your browser · no embedded login</small></span>
             <ChevronRight aria-hidden="true" />
@@ -414,89 +457,10 @@ export function SettingsPage({
               ))}
             </div>
           )}
-        </section>
-
-        <div {...categoryProps('books')}>{libby}</div>
-
-        <section {...categoryProps('books')}
-          className={tw(`settings-card epub-intake${epubDropActive ? ' is-dragging' : ''}`)}
-          onDragEnter={(event) => {
-            event.preventDefault()
-            if (!epubBusy) setEpubDropActive(true)
-          }}
-          onDragOver={(event) => event.preventDefault()}
-          onDragLeave={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setEpubDropActive(false)
-          }}
-          onDrop={handleEpubDrop}
-        >
-          <div className={tw('settings-card__icon')}><BookOpen aria-hidden="true" /></div>
-          <div className={tw('settings-card__heading')}>
-            <span>Books on this device</span><h2>Bring in an EPUB or PDF.</h2>
-            <p>Add an unprotected book from your device. Wovenleaf reads the original file where it is. Keep it on your device to read offline.</p>
           </div>
-          <label className={tw(`settings-action import-file-picker epub-picker${epubBusy ? ' is-busy' : ''}`)}>
-            <FileUp aria-hidden="true" />
-            <span>
-              <strong>{epubBusy ? 'Checking the book…' : 'Choose book files'}</strong>
-              <small>EPUB and PDF · up to 256 MB each</small>
-            </span>
-            <ChevronRight aria-hidden="true" />
-            <OriginalFileInput
-              kind="ebook"
-              accept=".epub,.pdf,application/epub+zip,application/pdf"
-              multiple
-              disabled={epubBusy}
-              onFiles={(files) => offerEpubFiles(files)}
-            />
-          </label>
-          <label className={tw(`settings-action import-file-picker epub-folder-picker${epubBusy ? ' is-busy' : ''}`)}>
-            <FolderOpen aria-hidden="true" />
-            <span><strong>Choose a folder</strong><small>Imports EPUB and PDF files inside · where supported</small></span>
-            <ChevronRight aria-hidden="true" />
-            <OriginalFileInput
-              kind="ebook" folder
-              accept=".epub,.pdf,application/epub+zip,application/pdf"
-              multiple
-              disabled={epubBusy}
-              onFiles={(files) => offerEpubFiles(files)}
-            />
-          </label>
-          <div className={tw('epub-drop-note')} aria-hidden="true">
-            <span>On the web, you can also drop EPUB and PDF files here.</span>
-          </div>
-          {(epubImport.progress || epubImport.result || epubImport.error) && (
-            <div
-              className={tw(`epub-import-state${epubImport.error ? ' is-error' : epubImport.result ? ' is-complete' : ''}`)}
-              role={epubImport.error ? 'alert' : 'status'}
-              aria-live="polite"
-            >
-              {epubImport.error ? <X aria-hidden="true" /> : epubImport.result ? <CheckCircle2 aria-hidden="true" /> : <BookOpen aria-hidden="true" />}
-              <span>
-                <strong>{epubImport.result?.title ?? epubImport.progress?.fileName ?? 'EPUB import'}</strong>
-                <small>
-                  {epubImport.error
-                    ?? (epubImport.result?.outcome === 'duplicate'
-                      ? 'Already in your library · original file linked'
-                      : epubImport.result?.outcome === 'revision'
-                        ? 'Revised package linked to the existing edition'
-                        : epubImport.result
-                          ? 'Validated, fingerprinted, and stored with provenance'
-                          : epubImport.progress?.detail)}
-                </small>
-              </span>
-              {epubBusy && <button type="button" onClick={onCancelEpubImport}>Cancel</button>}
-            </div>
-          )}
-        </section>
+        </details>
 
-        <div {...categoryProps('books')}><EpubStorageCard
-          state={epubStorage}
-          onRefresh={onRefreshEpubStorage}
-          onPreviewCleanup={onPreviewEpubCleanup}
-          onConfirmCleanup={onConfirmEpubCleanup}
-          onCancelReview={onCancelEpubReview}
-        /></div>
+
 
         {(FEATURES.advancedFileManagement || audiobookImport.draft || audiobookImport.progress || audiobookImport.result || audiobookImport.error) && (
           <>
@@ -514,7 +478,7 @@ export function SettingsPage({
         >
           <div className={tw('settings-card__icon')}><Headphones aria-hidden="true" /></div>
           <div className={tw('settings-card__heading')}>
-            <span>Listening library</span><h2>Make one audiobook from its files.</h2>
+            <h2>Audiobooks</h2>
             <p>Listen directly to your original M4B or MP3 files in one timeline. Covers, CUE sheets, tags, and revisions stay attached to the same edition.</p>
           </div>
           <label className={tw(`settings-action import-file-picker audiobook-picker${audiobookBusy ? ' is-busy' : ''}`)}>
@@ -582,10 +546,47 @@ export function SettingsPage({
           </>
         )}
 
+        <section {...categoryProps('feedback')} className={tw('settings-card')}>
+          <div className={tw('settings-card__icon')}><Vibrate aria-hidden="true" /></div>
+          <div className={tw('settings-card__heading')}>
+            <h2>Touch & sound</h2><p>Small responses as you move through your library.</p>
+          </div>
+          <button
+            className={tw('texture-toggle')}
+            type="button"
+            aria-pressed={feedbackPreferences.haptics === 'system'}
+            onClick={() => onFeedbackPreferencesChange({
+              ...feedbackPreferences,
+              haptics: feedbackPreferences.haptics === 'system' ? 'off' : 'system',
+            })}
+          >
+            <span>
+              <strong>System haptics</strong>
+              <small>Gentle taps that follow your device settings.</small>
+            </span>
+            <i aria-hidden="true" />
+          </button>
+          <button
+            className={tw('texture-toggle')}
+            type="button"
+            aria-pressed={feedbackPreferences.sound === 'quiet'}
+            onClick={() => onFeedbackPreferencesChange({
+              ...feedbackPreferences,
+              sound: feedbackPreferences.sound === 'quiet' ? 'off' : 'quiet',
+            })}
+          >
+            <span>
+              <strong>Paper sounds</strong>
+              <small>Quiet page sounds. Paused during audiobooks and read-aloud.</small>
+            </span>
+            <i aria-hidden="true" />
+          </button>
+        </section>
+
         <section {...categoryProps('privacy')} className={tw('settings-card')}>
           <div className={tw('settings-card__icon')}><ShieldCheck aria-hidden="true" /></div>
           <div className={tw('settings-card__heading')}>
-            <span>Data & privacy</span><h2>Your reading life stays here.</h2>
+            <h2>Data & privacy</h2>
             <p>There is no account, analytics layer, community profile, or cloud sync.</p>
           </div>
           <dl className={tw('library-tally')}>
@@ -641,7 +642,7 @@ export function SettingsPage({
             <span className={tw('settings-advanced__icon')}><SlidersHorizontal aria-hidden="true" /></span>
             <span>
               <strong>Advanced</strong>
-              <small>Export, restore, and CSV tools</small>
+              <small>Storage, export, restore, and CSV tools</small>
             </span>
             {advancedOpen
               ? <ChevronDown className="settings-advanced__chevron" aria-hidden="true" />
@@ -649,10 +650,17 @@ export function SettingsPage({
           </summary>
 
           <div className={tw('settings-advanced__content')}>
+        <div><EpubStorageCard
+          state={epubStorage}
+          onRefresh={onRefreshEpubStorage}
+          onPreviewCleanup={onPreviewEpubCleanup}
+          onConfirmCleanup={onConfirmEpubCleanup}
+          onCancelReview={onCancelEpubReview}
+        /></div>
             <section className={tw('settings-card settings-card--export')}>
           <div className={tw('settings-card__icon')}><Archive aria-hidden="true" /></div>
           <div className={tw('settings-card__heading')}>
-            <span>Portable export · Contract v1</span><h2>Your library, with a way home.</h2>
+            <h2>Export your library</h2>
             <p>Built entirely on this device. Review the manifest below before saving or sharing anything.</p>
           </div>
 
@@ -729,8 +737,8 @@ export function SettingsPage({
             <section className={tw('settings-card settings-card--recovery')}>
           <div className={tw('settings-card__icon')}><RotateCcw aria-hidden="true" /></div>
           <div className={tw('settings-card__heading')}>
-            <span>Backup & restore · Three-point rotation</span><h2>A quiet return point.</h2>
-            <p>Wovenleaf checks the whole backup in a separate staging area, keeps the current library as rollback, and only then swaps the catalog. Local recovery points keep history and notes, but never book files.</p>
+            <h2>Backup & restore</h2>
+            <p>Preview a backup before restoring it. Recovery points keep your library, history, and notes, but don’t include book files.</p>
           </div>
 
           {recovery.snapshots.length > 0 && (
@@ -811,7 +819,7 @@ export function SettingsPage({
             <section className={tw('settings-card settings-card--import')}>
           <div className={tw('settings-card__icon')}><FileUp aria-hidden="true" /></div>
           <div className={tw('settings-card__heading')}>
-            <span>Wovenleaf CSV</span><h2>Preview every row before it lands.</h2>
+            <h2>Import a Wovenleaf CSV</h2>
             <p>For manually prepared Wovenleaf tables. Matching, validation errors, and field changes remain visible until you commit.</p>
           </div>
           <label className={tw(`settings-action import-file-picker${importBusy ? ' is-busy' : ''}`)}>

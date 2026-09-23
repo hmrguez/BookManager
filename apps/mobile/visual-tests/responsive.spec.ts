@@ -90,7 +90,7 @@ test('settings categories adapt without losing advanced form state', async ({ pa
   await page.setViewportSize({ width: 1180, height: 820 })
   await page.goto('/')
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Paper, contrast, and type' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Appearance', exact: true })).toBeVisible()
   await expect(page.locator('.goodreads-migration')).toBeHidden()
   await page.getByRole('button', { name: 'Advanced', exact: true }).click()
   await expect(page.locator('.settings-advanced')).toHaveAttribute('open')

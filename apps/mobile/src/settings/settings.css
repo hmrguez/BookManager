@@ -1,0 +1,72 @@
+/* Color identifies groups; every group also has an icon and a text label. */
+.settings-page { --settings-accent: #61765d; max-width: 1120px; margin-inline: auto; }
+.settings-page .settings-header { padding-block: 12px 28px; }
+.settings-page .settings-header .title-row p { font: 400 .85rem/1.5 var(--font-interface); margin-top: 8px; }
+.settings-page .settings-ledger { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.settings-page .settings-card { grid-template-columns: 40px minmax(0, 1fr); gap: 16px; padding: 22px; border-radius: 16px; box-shadow: none; min-width: 0; }
+.settings-page [data-category='books'] { --settings-accent: #a07843; }
+.settings-page [data-category='feedback'] { --settings-accent: #817193; }
+.settings-page [data-category='privacy'] { --settings-accent: #5a7e8c; }
+.settings-page [data-category='advanced'] { --settings-accent: #7d7770; }
+.settings-page :is(.settings-card__icon, .settings-advanced__icon) { width: 40px; height: 40px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--settings-accent) 30%, var(--border-subtle)); background: color-mix(in srgb, var(--settings-accent) 12%, var(--surface-card)); color: var(--text-primary); }
+.settings-page :is(.settings-card__icon, .settings-advanced__icon) svg { width: 20px; height: 20px; stroke-width: 1.5; }
+.settings-page .settings-card__heading { align-content: center; gap: 6px; min-width: 0; }
+.settings-page .settings-card__heading h2 { font: 550 1.05rem/1.35 var(--font-interface); letter-spacing: -.015em; }
+.settings-page .settings-card__heading p { font: 400 .8rem/1.55 var(--font-interface); max-width: 58ch; }
+.settings-page .settings-card__heading > span { font-size: .65rem; }
+.settings-page .appearance-field { grid-column: 1 / -1; padding-top: 6px; }
+.settings-page .appearance-field--paper { grid-row: auto; grid-column: 1 / -1; }
+.settings-page .appearance-field legend { font: 500 .8rem/1.4 var(--font-interface); letter-spacing: 0; text-transform: none; color: var(--text-primary); margin-bottom: 10px; }
+.settings-page .appearance-options { gap: 8px; }
+.settings-page .appearance-option { min-height: 44px; font: 500 .8rem/1.3 var(--font-interface); border-radius: 8px; }
+.settings-page .appearance-option--paper { min-height: 74px; }
+.settings-page .appearance-field__hint { font: 400 .75rem/1.5 var(--font-interface); }
+.settings-page :is(.settings-action, .texture-toggle) { grid-column: 1 / -1; min-height: 60px; padding-block: 13px; gap: 14px; }
+.settings-page :is(.settings-action, .texture-toggle) strong { font: 500 .85rem/1.4 var(--font-interface); white-space: normal; }
+.settings-page :is(.settings-action, .texture-toggle) small { font: 400 .75rem/1.5 var(--font-interface); }
+.settings-page .settings-action > svg:first-child { width: 19px; height: 19px; }
+.settings-page .settings-action:disabled { opacity: .5; }
+.settings-page .texture-toggle > i { width: 36px; height: 22px; }
+.settings-page .texture-toggle > i::after { width: 16px; height: 16px; }
+.settings-page .texture-toggle[aria-pressed='true'] > i::after { transform: translateX(14px); }
+.settings-page .settings-disclosure { grid-column: 1 / -1; border-top: 1px solid var(--border-subtle); }
+.settings-page .settings-disclosure > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; cursor: pointer; list-style: none; font: 500 .8rem/1.4 var(--font-interface); color: var(--text-secondary); }
+.settings-page .settings-disclosure > summary svg { width: 16px; height: 16px; }
+.settings-page .settings-disclosure[open] > summary svg { transform: rotate(180deg); }
+.settings-disclosure__body { display: grid; gap: 16px; padding-top: 8px; }
+.settings-page .settings-service { grid-column: 1 / -1; border: 1px solid var(--border-subtle); border-radius: 16px; background: var(--surface-card); overflow: hidden; }
+.settings-page .settings-service__entry { display: grid; grid-template-columns: 40px minmax(0, 1fr) 18px; align-items: center; gap: 16px; padding: 20px 22px !important; width: 100%; min-height: 88px; text-align: left; list-style: none; cursor: pointer; color: var(--text-primary); background: transparent; }
+.settings-page .settings-service__entry strong { display: block; font: 550 1.05rem/1.35 var(--font-interface); letter-spacing: -.015em; }
+.settings-page .settings-service__entry small { display: block; font: 400 .8rem/1.5 var(--font-interface); color: var(--text-secondary); margin-top: 4px; }
+.settings-page .settings-service__entry > svg { width: 18px; height: 18px; color: var(--text-secondary); }
+.settings-page .settings-service[open] > summary > svg { transform: rotate(90deg); }
+.settings-page .settings-service__mark { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; overflow: hidden; }
+.settings-service__mark img { display: block; width: 40px; height: 40px; object-fit: contain; }
+.settings-page .settings-service__mark--goodreads { background: #f4eddf; }
+.settings-service__mark--goodreads img { width: 24px; height: 24px; }
+.settings-service__body { display: grid; gap: 12px; padding: 0 22px 16px; }
+.settings-service__body > p { margin: 0; font: 400 .8rem/1.55 var(--font-interface); color: var(--text-secondary); }
+.settings-page .goodreads-migration__route { grid-column: 1 / -1; grid-template-columns: 1fr; margin: 0; }
+.settings-page .goodreads-migration__route li { padding: 12px 0; border: 0; }
+.settings-page .goodreads-migration__route li > span { font-size: .8rem; }
+.settings-page .goodreads-migration__route li small { font-size: .72rem; }
+.settings-page .goodreads-migration__route li > strong { width: 24px; height: 24px; font-size: .7rem; }
+.settings-page .settings-hint { grid-column: 1 / -1; font-size: .75rem; }
+.settings-page .settings-advanced { border: 0; margin-top: 8px; }
+.settings-page .settings-advanced__summary { padding: 14px 4px; gap: 16px; }
+.settings-page .settings-advanced__summary strong { font: 550 .95rem/1.4 var(--font-interface); }
+.settings-page .settings-advanced__summary small { font: 400 .75rem/1.5 var(--font-interface); }
+.settings-page .settings-advanced__content { grid-template-columns: minmax(0, 1fr); gap: 16px; padding-top: 12px; }
+.settings-page .settings-category-nav button { font: 500 .85rem/1.4 var(--font-interface); min-height: 48px; }
+.settings-page :is(button, summary, a):focus-visible,
+.settings-page .import-file-picker:focus-within { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
+.settings-page summary::-webkit-details-marker { display: none; }
+@media (hover: hover) {
+  .settings-page :is(.settings-service__entry, .settings-action):hover { background: var(--surface-sunken); }
+}
+@media (max-width: 560px) {
+  .settings-page .settings-card { padding: 18px; gap: 14px; }
+  .settings-page .settings-service__entry { padding: 18px !important; gap: 14px; }
+  .settings-service__body { padding-inline: 18px; }
+  .settings-page .settings-header { padding-block: 8px 22px; }
+}

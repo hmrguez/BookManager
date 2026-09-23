@@ -40,7 +40,7 @@ export function EpubStorageCard({
     <section className={tw('settings-card epub-storage-card')}>
       <div className={tw('settings-card__icon')}><HardDrive aria-hidden="true" /></div>
       <div className={tw('settings-card__heading')}>
-        <span>Book storage</span><h2>Files can leave. Your reading stays.</h2>
+        <h2>Book storage</h2>
         <p>Original files stay where you keep them. Cleanup only removes private copies; your originals, progress, bookmarks, and notes stay safe.</p>
       </div>
 
