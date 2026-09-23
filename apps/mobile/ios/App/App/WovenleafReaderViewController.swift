@@ -80,7 +80,7 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
             initialLocation: initialLocator,
             config: .init(
                 preferences: preferences.readiumPreferences(
-                    compactWidth: UIScreen.main.bounds.width < 700,
+                    compactWidth: true,
                     highContrast: UIAccessibility.isDarkerSystemColorsEnabled
                 ),
                 editingActions: EditingAction.defaultActions + [
@@ -212,6 +212,25 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
             UIKeyCommand(input: "[", modifierFlags: .command, action: #selector(goBackInBook)),
             UIKeyCommand(input: UIKeyCommand.inputEscape, modifierFlags: [], action: #selector(handleEscape)),
         ]
+    }
+
+    // Window bounds, reader typography, and Dynamic Type determine whether each
+    // page has room. Size classes alone stay regular in some narrow iPad windows.
+    private var usesCompactReadingWidth: Bool {
+        let textScale = max(1, effectivePreferences.fontSize)
+        let interfaceScale = max(1, Double(UIFontMetrics.default.scaledValue(for: 17) / 17))
+        return Double(view.bounds.inset(by: view.safeAreaInsets).width) < 960 * textScale * interfaceScale
+    }
+
+    private var lastCompactReadingWidth: Bool?
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        let compact = usesCompactReadingWidth
+        if lastCompactReadingWidth != compact {
+            lastCompactReadingWidth = compact
+            applyPreferences()
+        }
     }
 
     override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
@@ -474,7 +493,7 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         let settings = ReaderSettingsViewController(
             globalPreferences: globalPreferences,
             bookPreferences: bookPreferences,
-            compactWidth: traitCollection.horizontalSizeClass == .compact
+            compactWidth: usesCompactReadingWidth
         )
         settings.onSave = { [weak self] scope, preferences in
             self?.savePreferences(scope: scope, preferences: preferences)
@@ -1084,7 +1103,7 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         let renderingPreferences = context.compatibility?.renderingPreferences(effectivePreferences)
             ?? effectivePreferences
         navigator.submitPreferences(renderingPreferences.readiumPreferences(
-            compactWidth: traitCollection.horizontalSizeClass == .compact,
+            compactWidth: usesCompactReadingWidth,
             highContrast: UIAccessibility.isDarkerSystemColorsEnabled
         ))
         applyReaderPalette()

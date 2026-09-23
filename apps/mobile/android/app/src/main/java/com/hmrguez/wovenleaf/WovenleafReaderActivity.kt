@@ -320,10 +320,14 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         }
     }
 
+    private fun usesCompactReadingWidth(): Boolean =
+        resources.configuration.screenWidthDp < 960 * maxOf(1.0, effectivePreferences().fontSize) *
+            maxOf(1f, resources.configuration.fontScale)
+
     private fun readerPreferences() = (
         readerContext.compatibility?.renderingPreferences(effectivePreferences()) ?: effectivePreferences()
     ).toReadium(
-        compactWidth = resources.configuration.screenWidthDp < 700,
+        compactWidth = usesCompactReadingWidth(),
         highContrast = isHighContrast(this),
     )
 
@@ -481,7 +485,7 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
             activity = this,
             globalPreferences = readerContext.globalPreferences,
             bookPreferences = readerContext.bookPreferences,
-            compactWidth = resources.configuration.screenWidthDp < 700,
+            compactWidth = usesCompactReadingWidth(),
         ) { scope, preferences -> savePreferences(scope, preferences) }.show()
     }
 

@@ -93,6 +93,7 @@ test('imported editions open with their own metadata, shelf, rating, and notes a
     await expect(details.locator('.simple-facts')).toContainText(book.format)
     await expect(details.locator('.simple-shelf-choices').getByRole('button', { name: book.shelf, exact: true })).toHaveAttribute('aria-pressed', 'true')
     await expect(details.locator(`[aria-label="${book.rating} out of 5 stars"]`)).toHaveCount(1)
+    await details.locator('.book-notes summary').click()
     await expect(details.getByRole('textbox', { name: 'Private note', exact: true })).toHaveValue(book.note)
     await details.getByRole('button', { name: 'Close', exact: true }).click()
   }

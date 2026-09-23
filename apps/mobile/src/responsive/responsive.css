@@ -1,0 +1,38 @@
+/* Wide surfaces retain the same component instances and reading-room tokens. */
+.library-app[data-wide] { width: min(1440px, 100%); }
+.library-app[data-wide] .bottom-nav { width: min(1440px, 100%); }
+.library-app[data-detail-open] { padding-right: calc(clamp(360px, 38vw, 540px) + 32px); }
+.sheet-layer[data-wide] { align-items: center; padding: 32px; }
+.sheet-layer[data-wide] .bottom-sheet { border-radius: 18px; max-height: calc(100dvh - 64px); }
+.sheet-layer[data-wide] .sheet-handle { display: none; }
+.sheet-layer[data-wide][data-wide-sheet] .bottom-sheet { width: min(1120px, 100%); }
+.sheet-layer[data-docked] { left: auto; width: clamp(360px, 38vw, 540px); padding: 0; background: transparent; z-index: 30; }
+.sheet-layer[data-docked] .bottom-sheet { width: 100%; height: 100dvh; max-height: 100dvh; border-radius: 0; border-width: 0 0 0 1px; box-shadow: none; padding-top: max(20px, env(safe-area-inset-top)); animation: none; }
+.sheet-layer[data-docked] .sheet-content { overscroll-behavior: contain; padding-bottom: max(24px, env(safe-area-inset-bottom)); }
+.library-app[data-detail-open] .bottom-nav { right: clamp(360px, 38vw, 540px); width: auto; }
+.settings-category-nav { display: none; }
+.settings-ledger > div[data-category] { display: contents; }
+.settings-layout[data-wide] { display: grid; grid-template-columns: minmax(180px, 0.65fr) minmax(0, 2fr); gap: 40px; }
+.settings-layout[data-wide] .settings-category-nav { display: flex; flex-direction: column; align-self: start; position: sticky; top: 32px; gap: 6px; }
+.settings-category-nav button { text-align: left; padding: 14px 16px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--text-secondary); font: inherit; }
+.settings-category-nav button[aria-current] { color: var(--text-primary); background: var(--surface-raised); border-color: var(--border-subtle); }
+.settings-layout[data-wide] .settings-ledger { min-width: 0; align-self: start; }
+.settings-layout[data-wide] .settings-ledger > [data-category]:not([data-active]) { display: none; }
+.import-review[data-wide] .import-book-list { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 28px; align-items: start; }
+.import-review[data-wide] .import-book-row { display: contents; }
+.import-review[data-wide] .import-book-line { grid-column: 1; border-bottom: 1px solid var(--border-subtle); }
+.import-review[data-wide] .import-book-details { position: sticky; grid-column: 2; top: 24px; min-width: 0; max-height: min(70dvh, 850px); overflow: auto; border: 1px solid var(--border-subtle); border-radius: 10px; background: var(--surface-raised); }
+.import-review[data-wide] .import-book-row.is-expanded .import-book-line { background: var(--surface-sunken); }
+.search-inspect, .search-selection { display: none; }
+.sheet-layer[data-wide] .search-inspect { display: inline-flex; border: 0; background: transparent; color: var(--text-accent); padding: 8px 0; font: 600 .7rem/1.4 var(--font-interface); }
+.sheet-layer[data-wide] .search-browser { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+.sheet-layer[data-wide] .search-selection { display: block; position: sticky; top: 0; padding: 24px; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--surface-card); }
+.search-selection h3 { font-family: var(--font-reading); font-size: 1.6rem; }
+.search-selection p { line-height: 1.6; overflow-wrap: anywhere; }
+.search-selection .book-cover { max-width: 140px; }
+:focus-visible { outline: 2px solid var(--text-accent); outline-offset: 3px; }
+.detail-save-dialog { max-width: min(420px, calc(100vw - 32px)); border: 1px solid var(--border-strong); border-radius: 16px; background: var(--surface-raised); color: var(--text-primary); padding: 24px; box-shadow: var(--depth-modal); }
+.detail-save-dialog::backdrop { background: var(--surface-scrim); }
+.detail-save-dialog h3 { font-family: var(--font-reading); }
+.detail-save-dialog > div { display: flex; gap: 12px; justify-content: flex-end; }
+.detail-save-dialog button { padding: 10px 14px; border: 1px solid var(--border-subtle); border-radius: 6px; background: var(--surface-card); color: inherit; }

@@ -1,3 +1,4 @@
+import { useWideLayout } from '../responsive/useWideLayout'
 import { useMemo, useState } from 'react'
 import { ArrowLeft, Check, ChevronDown, ChevronLeft, ChevronRight, LoaderCircle, TriangleAlert } from 'lucide-react'
 import type { LibraryBook } from '../library-model'
@@ -23,6 +24,7 @@ export function ImportReviewPage({ preview, books, busy, progress, error, onBack
   onBack: () => void
   onCommit: (decisions: readonly ImportReviewDecision[]) => Promise<void>
 }) {
+  const wideLayout = useWideLayout()
   const [overrides, setOverrides] = useState<Record<string, ImportReviewDecision>>({})
   const [filter, setFilter] = useState<Filter>('all')
   const [page, setPage] = useState(0)
@@ -61,7 +63,7 @@ export function ImportReviewPage({ preview, books, busy, progress, error, onBack
   }
 
   return (
-    <main className="import-review import-compact" aria-busy={busy}>
+    <main data-wide={wideLayout || undefined} className="import-review import-compact" aria-busy={busy}>
       <header className="import-heading">
         <button type="button" className="import-back" onClick={onBack} disabled={busy} aria-label={complete ? 'View library' : 'Back to settings'}><ArrowLeft /></button>
         <div>
@@ -88,7 +90,7 @@ export function ImportReviewPage({ preview, books, busy, progress, error, onBack
       </nav>
 
       <div className="import-book-list" aria-label="Import rows">
-        {rows.map((proposal) => {
+        {rows.map((proposal, index) => {
           const decision = decisionFor(proposal)
           const expanded = expandedId === proposal.id
           const imported = complete && decision.included && !proposal.duplicateOfBatchId
@@ -96,7 +98,7 @@ export function ImportReviewPage({ preview, books, busy, progress, error, onBack
           const immutable = busy || complete || proposal.kind === 'error' || Boolean(proposal.duplicateOfBatchId)
           return (
             <article className={`import-book-row${expanded ? ' is-expanded' : ''}${imported ? ' is-imported' : ''}`} key={proposal.id}>
-              <div className="import-book-line">
+              <div className="import-book-line" style={wideLayout ? { gridRow: index + 1 } : undefined}>
                 <label className="import-select">
                   <input type="checkbox" checked={decision.included} disabled={immutable} onChange={(event) => changeDecision(proposal, { included: event.target.checked })} aria-label={`Include ${proposal.record?.title ?? `row ${proposal.rowNumber}`}`} />
                   <span aria-hidden="true">{imported ? <Check className="import-arrived" /> : active ? <LoaderCircle className="import-spin" /> : proposal.kind === 'error' ? <TriangleAlert /> : decision.included ? <Check /> : null}</span>
@@ -107,7 +109,7 @@ export function ImportReviewPage({ preview, books, busy, progress, error, onBack
                   <ChevronRight className="import-chevron" />
                 </button>
               </div>
-              {expanded && <div id={`details-${proposal.id}`} className="import-book-details">
+              {expanded && <div id={`details-${proposal.id}`} className="import-book-details" style={wideLayout ? { gridRow: `1 / span ${Math.max(1, rows.length)}` } : undefined}>
                 <fieldset disabled={busy || complete}>
                   <ProposalDetails proposal={proposal} books={books} sourceKey={preview.source.key} timestamp={preview.createdAt} decision={decision} onChange={(patch) => changeDecision(proposal, patch)} />
                 </fieldset>

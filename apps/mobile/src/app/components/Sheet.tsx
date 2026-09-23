@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, type ReactNode } from 'react'
+import { useWideLayout } from '../../responsive/useWideLayout'
 import { X } from 'lucide-react'
 import { tw } from '../../tailwind/styles'
 import { motionStyles } from '../../tailwind/motion'
@@ -8,12 +9,18 @@ export function Sheet({
   onClose,
   children,
   tall = false,
+  adaptiveDetail = false,
+  wide = false,
 }: {
   title: string
   onClose: () => void
   children: ReactNode
   tall?: boolean
+  adaptiveDetail?: boolean
+  wide?: boolean
 }) {
+  const wideLayout = useWideLayout()
+  const docked = adaptiveDetail && wideLayout
   const dialogRef = useRef<HTMLElement>(null)
   const onCloseRef = useRef(onClose)
 
@@ -23,26 +30,26 @@ export function Sheet({
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    if (!docked) document.body.style.overflow = 'hidden'
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !document.querySelector('dialog[open]')) onCloseRef.current()
+      if (event.key === 'Escape' && !event.defaultPrevented && !document.querySelector('dialog[open]')) onCloseRef.current()
     }
     window.addEventListener('keydown', closeOnEscape)
     return () => {
-      document.body.style.overflow = previousOverflow
+      if (!docked) document.body.style.overflow = previousOverflow
       window.removeEventListener('keydown', closeOnEscape)
     }
-  }, [])
+  }, [docked])
 
   useLayoutEffect(() => {
     const dialog = dialogRef.current
     if (!dialog || dialog.contains(document.activeElement)) return
     const target = dialog.querySelector<HTMLElement>('[autofocus], button, input, textarea, select')
     target?.focus({ preventScroll: true })
-  }, [])
+  }, [docked])
 
   const containFocus = (event: React.KeyboardEvent<HTMLElement>) => {
-    if (event.key !== 'Tab') return
+    if (docked || event.key !== 'Tab') return
     const focusable = [...(dialogRef.current?.querySelectorAll<HTMLElement>(
       'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), a[href], summary, [tabindex]:not([tabindex="-1"])',
     ) ?? [])].filter((element) => {
@@ -68,13 +75,13 @@ export function Sheet({
   }
 
   return (
-    <div className={tw('sheet-layer', motionStyles.sheetVeil)} data-motion-event="reveal" role="presentation" onMouseDown={onClose}>
+    <div className={tw('sheet-layer', motionStyles.sheetVeil)} data-wide={wideLayout || undefined} data-docked={docked || undefined} data-wide-sheet={wide || undefined} data-motion-event="reveal" role="presentation" onMouseDown={docked ? undefined : onClose}>
       <section
         ref={dialogRef}
         className={tw(`bottom-sheet${tall ? ' bottom-sheet--tall' : ''}`, motionStyles.sheetReveal)}
         data-motion-event="reveal"
         role="dialog"
-        aria-modal="true"
+        aria-modal={docked ? undefined : true}
         aria-label={title}
         onMouseDown={(event) => event.stopPropagation()}
         onKeyDown={containFocus}

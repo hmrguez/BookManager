@@ -1,3 +1,4 @@
+import { useDetailDraft } from './DetailDraft'
 import { BookSource } from './BookSource'
 import './book-detail.css'
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
@@ -389,17 +390,22 @@ function SimpleBookDetail({
   const [pageCount, setPageCount] = useState(book.pageCount ? String(book.pageCount) : '')
   const [confirmRemove, setConfirmRemove] = useState(false)
 
-  const saveDetails = (event: FormEvent) => {
-    event.preventDefault()
+  const metadataForm = useRef<HTMLFormElement>(null)
+  const saveDetails = (event?: FormEvent) => {
+    event?.preventDefault()
+    if (!metadataForm.current?.reportValidity()) return false
     const cleanTitle = title.trim()
-    if (!cleanTitle) return
+    if (!cleanTitle) return false
     onMetadata({
       title: cleanTitle,
       authors: author.split(/[;,]/).map((value) => value.trim()).filter(Boolean),
       pageCount: Number.parseInt(pageCount, 10) || 0,
     })
     setEditing(false)
+    return true
   }
+
+  useDetailDraft(editing && (title !== book.title || author !== book.authors.join(', ') || pageCount !== (book.pageCount ? String(book.pageCount) : '')), () => saveDetails())
 
   return (
     <div className={tw('work-detail simple-book-detail')}>
@@ -471,7 +477,7 @@ function SimpleBookDetail({
         <section className={tw('simple-detail-section')} aria-labelledby="book-information-title">
           <h4 id="book-information-title" className="sr-only">Book information</h4>
           {editing ? (
-            <form className={tw('simple-details-form')} onSubmit={saveDetails}>
+            <form ref={metadataForm} className={tw('simple-details-form')} onSubmit={saveDetails}>
               <label><span>Title</span><input required value={title} onChange={(event) => setTitle(event.target.value)} /></label>
               <label><span>Author</span><input value={author} onChange={(event) => setAuthor(event.target.value)} /></label>
               <label><span>Pages</span><input type="number" min="0" value={pageCount} onChange={(event) => setPageCount(event.target.value)} /></label>
@@ -634,13 +640,15 @@ function CaptureMetadataPanel({
   const [issue, setIssue] = useState<string>()
   const [enriching, setEnriching] = useState(false)
 
-  const save = (event: FormEvent) => {
-    event.preventDefault()
-    if (!title.trim()) return
+  const metadataForm = useRef<HTMLFormElement>(null)
+  const save = (event?: FormEvent) => {
+    event?.preventDefault()
+    if (!metadataForm.current?.reportValidity()) return false
+    if (!title.trim()) return false
     const inspection = inspectIsbnInput(isbn)
     if (isbn.trim() && inspection.state !== 'valid') {
       setIssue(inspection.state === 'invalid' ? inspection.message : 'Enter a valid ISBN.')
-      return
+      return false
     }
     onMetadata(applyManualBookEdits(book, {
       title,
@@ -650,7 +658,10 @@ function CaptureMetadataPanel({
     }))
     setIssue(undefined)
     setEditing(false)
+    return true
   }
+
+  useDetailDraft(editing && (title !== book.title || author !== book.authors.join(', ') || pageCount !== (book.pageCount ? String(book.pageCount) : '') || isbn !== (book.identifiers?.[0] ?? '')), () => save())
 
   const enrich = async () => {
     if (enriching) return
@@ -671,7 +682,7 @@ function CaptureMetadataPanel({
         <small>{capture.enrichedAt ? 'Enriched' : 'Awaiting enrichment'}</small>
       </header>
       {editing ? (
-        <form className={tw('capture-metadata__form')} onSubmit={save}>
+        <form ref={metadataForm} className={tw('capture-metadata__form')} onSubmit={save}>
           <label><span>Title</span><input required value={title} onChange={(event) => setTitle(event.target.value)} /></label>
           <label><span>Author</span><input value={author} onChange={(event) => setAuthor(event.target.value)} placeholder="Unknown author" /></label>
           <label><span>ISBN</span><input value={isbn} onChange={(event) => setIsbn(event.target.value)} placeholder="978-…" inputMode="numeric" /></label>

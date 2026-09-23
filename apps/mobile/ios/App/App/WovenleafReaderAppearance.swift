@@ -141,7 +141,7 @@ struct WovenleafReaderPreferences: Codable, Equatable {
         let columns: ColumnCount = {
             guard layout == .paginated else { return .one }
             switch columnCount {
-            case .auto: return .auto
+            case .auto: return compactWidth ? .one : .two
             case .one: return .one
             case .two: return compactWidth ? .one : .two
             }

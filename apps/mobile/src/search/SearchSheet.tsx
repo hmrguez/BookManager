@@ -70,10 +70,12 @@ export function SearchSheet({
   initialManual?: boolean
   initialCapture?: InitialCapture
 }) {
+  const [selectedResultId, setSelectedResultId] = useState<string>()
   const [query, setQuery] = useState('')
   const [adding, setAdding] = useState(false)
   const addingRef = useRef(false)
   const [results, setResults] = useState<readonly BookSearchResult[]>([])
+  const selectedResult = results.find(({ id }) => id === selectedResultId)
   const [providerStates, setProviderStates] = useState<readonly ProviderSearchState[]>([])
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
   const [manualMode, setManualMode] = useState(initialManual)
@@ -316,7 +318,7 @@ export function SearchSheet({
   }
 
   return (
-    <Sheet title={manualMode ? 'Add a book manually' : `Add to ${shelfCopy[shelf].label}`} onClose={onClose} tall>
+    <Sheet title={manualMode ? 'Add a book manually' : `Add to ${shelfCopy[shelf].label}`} onClose={onClose} tall wide={!manualMode}>
       {manualMode ? (
         <form className={tw('manual-book-form')} onSubmit={addManualBook}>
           <div className={tw('manual-notice')}>
@@ -484,6 +486,7 @@ export function SearchSheet({
             <ChevronRight aria-hidden="true" />
           </button>
 
+          <div className="search-browser">
           <div className={tw('search-results')}>
             {results.map((result) => {
               const existing = findLibraryBookForSearchResult(books, result)
@@ -497,6 +500,7 @@ export function SearchSheet({
                   <BookCover book={result} />
                   <div className={tw('search-result__copy')}>
                     <h3>{result.title}</h3>
+                    <button className="search-inspect" type="button" aria-pressed={selectedResultId === result.id} onClick={() => setSelectedResultId(result.id)}>Inspect book</button>
                     <p>{authorLine(result.authors)}</p>
                     <div className={tw('search-result__evidence')}>
                       {selectedVariant && (
@@ -551,6 +555,17 @@ export function SearchSheet({
             })}
           </div>
 
+          <aside className="search-selection" aria-label="Selected search result">
+            {selectedResult ? <>
+              <BookCover book={selectedResult} />
+              <h3>{selectedResult.title}</h3>
+              <p>{authorLine(selectedResult.authors)}</p>
+              <p>{selectedResult.pageCount ? `${selectedResult.pageCount} pages` : 'Page count unavailable'}</p>
+              <p>{selectedResult.editionTitle || selectedResult.identifiers?.join(' · ') || 'No edition identifier available.'}</p>
+              <button className={tw('primary-button')} type="button" disabled={adding || findLibraryBookForSearchResult(books, selectedResult)?.shelf === shelf} onClick={() => { void submitAddition(selectedResult) }}>Add to {shelfCopy[shelf].label}</button>
+            </> : <p>Select a book to inspect its details.</p>}
+          </aside>
+          </div>
           <p className={tw('search-attribution')}>
             Book data from <a href="https://openlibrary.org/" target="_blank" rel="noreferrer">Open Library</a>.
           </p>

@@ -1,4 +1,7 @@
-import type { ReactNode } from 'react'
+import { useCallback, useImperativeHandle, useRef, useState, useLayoutEffect, type ReactNode, type Ref } from 'react'
+import { DetailDraftContext, type DetailDraft } from './DetailDraft'
+
+export type DetailSheetHandle = { requestLeave: (action: () => void) => void }
 import type { LibraryBook, ShelfId } from '../library'
 import type { CustomShelf } from '../organization-model'
 import { Sheet } from '../app/components/Sheet'
@@ -9,6 +12,7 @@ import {
 } from './WorkDetailExperience'
 
 export function DetailSheet({
+  ref,
   book,
   libby,
   libbyLinked,
@@ -36,6 +40,7 @@ export function DetailSheet({
   audiobookBusy,
   audiobookImport,
 }: {
+  ref?: Ref<DetailSheetHandle>
   book: LibraryBook
   libby?: ReactNode
   libbyLinked?: boolean
@@ -63,8 +68,34 @@ export function DetailSheet({
   audiobookBusy: boolean
   audiobookImport: AudiobookAttachmentState
 }) {
+  const draft = useRef<DetailDraft | null>(null)
+  const registerDraft = useCallback((value: DetailDraft) => {
+    draft.current = value
+    return () => { if (draft.current === value) draft.current = null }
+  }, [])
+  const [pending, setPending] = useState<(() => void) | null>(null)
+  const confirmation = useRef<HTMLDialogElement>(null)
+  const requestLeave = (action: () => void) => {
+    if (draft.current?.dirty) setPending(() => action)
+    else action()
+  }
+  useImperativeHandle(ref, () => ({ requestLeave }))
+  useLayoutEffect(() => {
+    if (pending) confirmation.current?.showModal()
+    else confirmation.current?.close()
+  }, [pending])
   return (
-    <Sheet title="Book details" onClose={onClose} tall>
+    <Sheet title="Book details" onClose={() => requestLeave(onClose)} tall adaptiveDetail>
+      <dialog ref={confirmation} className="detail-save-dialog" aria-labelledby="detail-save-title" onCancel={() => setPending(null)} onKeyDown={(event) => event.stopPropagation()}>
+        <h3 id="detail-save-title">Save your changes?</h3>
+        <p>Keep your edits before leaving this book.</p>
+        <div>
+          <button type="button" onClick={() => setPending(null)}>Cancel</button>
+          <button type="button" onClick={() => { draft.current = null; setPending(null); pending?.() }}>Discard</button>
+          <button type="button" onClick={() => { confirmation.current?.close(); const saved = draft.current?.save(); setPending(null); if (saved) { draft.current = null; pending?.() } }}>Save</button>
+        </div>
+      </dialog>
+      <DetailDraftContext value={registerDraft}>
       <WorkDetailExperience
         key={book.id}
         book={book}
@@ -75,7 +106,7 @@ export function DetailSheet({
         tags={tags}
         tagSuggestions={tagSuggestions}
         onMove={onMove}
-        onRead={onRead}
+        onRead={(source) => requestLeave(() => onRead(source))}
         onProgress={onProgress}
         onFinish={onFinish}
         onRate={onRate}
@@ -93,6 +124,7 @@ export function DetailSheet({
         audiobookBusy={audiobookBusy}
         audiobookImport={audiobookImport}
       />
+      </DetailDraftContext>
     </Sheet>
   )
 }

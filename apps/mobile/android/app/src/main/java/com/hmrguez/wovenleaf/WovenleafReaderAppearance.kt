@@ -91,7 +91,7 @@ internal data class WovenleafReaderPreferences(
         val columns = if (layout == "scroll") ColumnCount.ONE else when (columnCount) {
             "one" -> ColumnCount.ONE
             "two" -> if (compactWidth) ColumnCount.ONE else ColumnCount.TWO
-            else -> ColumnCount.AUTO
+            else -> if (compactWidth) ColumnCount.ONE else ColumnCount.TWO
         }
         return EpubPreferences(
             backgroundColor = ReadiumColor(palette.page),

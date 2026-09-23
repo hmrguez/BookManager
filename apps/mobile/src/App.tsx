@@ -1,3 +1,4 @@
+import { useWideLayout } from './responsive/useWideLayout'
 import { useLibby } from './libby/use-libby'
 import { LibbySettings } from './libby/LibbySettings'
 import { LibbyBookLink } from './libby/LibbyBookLink'
@@ -66,7 +67,7 @@ import {
   type RecoveryViewState,
 } from './settings/SettingsPage'
 import type { EpubStorageViewState } from './settings/EpubStorageCard'
-import { DetailSheet } from './work-detail/DetailSheet'
+import { DetailSheet, type DetailSheetHandle } from './work-detail/DetailSheet'
 import { AudiobookPlayer } from './playback/AudiobookPlayer'
 import {
   getSystemMediaPreferencesStorage,
@@ -113,6 +114,8 @@ import {
 } from './imports'
 
 function App() {
+  const wideLayout = useWideLayout()
+  const detailRef = useRef<DetailSheetHandle>(null)
   const {
     books,
     hydrated: libraryHydrated,
@@ -584,6 +587,11 @@ function App() {
   }
 
   const showSettings = () => {
+    if (detailRef.current) { detailRef.current.requestLeave(enterSettings); return }
+    enterSettings()
+  }
+
+  const enterSettings = () => {
     setSheet(null)
     setView('settings')
     void refreshImportHistory()
@@ -1182,10 +1190,12 @@ function App() {
   }
 
   const openSheet = (nextSheet: Exclude<SheetState, null>) => {
+    if (sheet?.kind === 'detail' && nextSheet.kind === 'detail' && sheet.bookId === nextSheet.bookId) return
     if (!sheet && document.activeElement instanceof HTMLElement) {
       sheetTriggerRef.current = document.activeElement
     }
-    setSheet(nextSheet)
+    if (sheet?.kind === 'detail' && detailRef.current) detailRef.current.requestLeave(() => setSheet(nextSheet))
+    else setSheet(nextSheet)
   }
 
   const closeSheet = () => {
@@ -1475,13 +1485,13 @@ function App() {
   }
 
   return (
-    <div className={tw('library-app')}>
+    <div className={tw('library-app')} data-wide={wideLayout || undefined} data-detail-open={wideLayout && sheet?.kind === 'detail' || undefined}>
       {incomingFileOpening && <IncomingFileOpening state={incomingFileOpening} />}
       <UpgradeDialog open={upgradeOpen} onClose={() => setUpgradeOpen(false)} view={purchaseView} bookCount={books.length} />
       <div
         className={tw('app-content')}
-        inert={sheet || commandMenuOpen ? true : undefined}
-        aria-hidden={sheet || commandMenuOpen ? true : undefined}
+        inert={(sheet && !(wideLayout && sheet.kind === 'detail')) || commandMenuOpen ? true : undefined}
+        aria-hidden={(sheet && !(wideLayout && sheet.kind === 'detail')) || commandMenuOpen ? true : undefined}
       >
         {(storageError || organizationError || smartListError || upNextError) && (
           <section className={tw('storage-recovery')} role="alert" aria-live="assertive">
@@ -1540,6 +1550,7 @@ function App() {
           />
         ) : (
           <SettingsPage
+            initialCategory={revealLibby ? 'books' : 'appearance'}
             libby={<LibbySettings controller={libby} books={books} reveal={revealLibby} onRevealed={() => setRevealLibby(false)} />}
             purchaseView={purchaseView}
             onUpgrade={() => { setUpgradeOpen(true); void purchases.refresh() }}
@@ -1638,6 +1649,7 @@ function App() {
       )}
       {sheet?.kind === 'detail' && selectedBook && (
         <DetailSheet
+          ref={detailRef}
           book={selectedBook}
           libbyLinked={libby.state.mappings.some(({ bookId }) => bookId === selectedBook.id)}
           libby={<LibbyBookLink key={selectedBook.id} book={selectedBook} controller={libby} onSettings={() => { showSettings(); setRevealLibby(true) }} />}

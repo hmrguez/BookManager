@@ -1,3 +1,4 @@
+import { useWideLayout } from '../responsive/useWideLayout'
 import { OriginalFileInput } from '../files/OriginalFileInput'
 import { useState, useSyncExternalStore, type ReactNode, type DragEvent } from 'react'
 import {
@@ -76,6 +77,7 @@ export type RecoveryViewState = {
 }
 
 export function SettingsPage({
+  initialCategory = 'appearance',
   libby,
   purchaseView,
   onUpgrade,
@@ -119,6 +121,7 @@ export function SettingsPage({
   onRestoreBackup,
   onClearBooks,
 }: {
+  initialCategory?: 'appearance' | 'books'
   libby?: ReactNode
   purchaseView?: PurchaseView
   onUpgrade?: () => void
@@ -162,6 +165,10 @@ export function SettingsPage({
   onRestoreBackup: () => void
   onClearBooks: () => void
 }) {
+  const wideLayout = useWideLayout()
+  const [category, setCategory] = useState<string>(initialCategory)
+  const categories = [['appearance', 'Appearance'], ['feedback', 'Touch & sound'], ['books', 'Books & imports'], ['privacy', 'Data & privacy'], ['advanced', 'Advanced']]
+  const categoryProps = (value: string) => ({ 'data-category': value, 'data-active': category === value || undefined })
   const [includeExportAnnotations, setIncludeExportAnnotations] = useState(true)
   const [includeExportEpubFiles, setIncludeExportEpubFiles] = useState(false)
   const [epubDropActive, setEpubDropActive] = useState(false)
@@ -209,8 +216,12 @@ export function SettingsPage({
         </div>
       </header>
 
+      <div className="settings-layout" data-wide={wideLayout || undefined}>
+      <nav className="settings-category-nav" aria-label="Settings categories">
+        {categories.map(([id, label]) => <button key={id} type="button" aria-current={category === id ? 'page' : undefined} onClick={() => setCategory(id)}>{label}</button>)}
+      </nav>
       <div className={tw('settings-ledger')}>
-        {purchaseView && !purchaseView.owned && !reviewView.active && onUpgrade && <section className={tw('settings-card')}>
+        {purchaseView && !purchaseView.owned && !reviewView.active && onUpgrade && <section {...categoryProps('appearance')} className={tw('settings-card')}>
           <div className={tw('settings-card__icon')}><BookOpen aria-hidden="true" /></div>
           <div className={tw('settings-card__heading')}>
             <h2>Wovenleaf Unlimited</h2>
@@ -223,7 +234,7 @@ export function SettingsPage({
           </button>
         </section>}
 
-        <section className={tw('settings-card settings-card--appearance')}>
+        <section {...categoryProps('appearance')} className={tw('settings-card settings-card--appearance')}>
           <div className={tw('settings-card__icon')}><Palette aria-hidden="true" /></div>
           <div className={tw('settings-card__heading')}>
             <span>Reading room</span><h2>Paper, contrast, and type</h2>
@@ -319,7 +330,7 @@ export function SettingsPage({
           </button>
         </section>
 
-        <section className={tw('settings-card')}>
+        <section {...categoryProps('feedback')} className={tw('settings-card')}>
           <div className={tw('settings-card__icon')}><Vibrate aria-hidden="true" /></div>
           <div className={tw('settings-card__heading')}>
             <span>Touch & sound</span><h2>Let the paper answer.</h2>
@@ -357,7 +368,7 @@ export function SettingsPage({
           </button>
         </section>
 
-        <section className={tw('settings-card goodreads-migration')}>
+        <section {...categoryProps('books')} className={tw('settings-card goodreads-migration')}>
           <div className={tw('settings-card__icon goodreads-migration__mark')}>
             <img src="/favicon.svg" alt="" />
           </div>
@@ -405,9 +416,9 @@ export function SettingsPage({
           )}
         </section>
 
-        {libby}
+        <div {...categoryProps('books')}>{libby}</div>
 
-        <section
+        <section {...categoryProps('books')}
           className={tw(`settings-card epub-intake${epubDropActive ? ' is-dragging' : ''}`)}
           onDragEnter={(event) => {
             event.preventDefault()
@@ -479,17 +490,17 @@ export function SettingsPage({
           )}
         </section>
 
-        <EpubStorageCard
+        <div {...categoryProps('books')}><EpubStorageCard
           state={epubStorage}
           onRefresh={onRefreshEpubStorage}
           onPreviewCleanup={onPreviewEpubCleanup}
           onConfirmCleanup={onConfirmEpubCleanup}
           onCancelReview={onCancelEpubReview}
-        />
+        /></div>
 
         {(FEATURES.advancedFileManagement || audiobookImport.draft || audiobookImport.progress || audiobookImport.result || audiobookImport.error) && (
           <>
-        <section
+        <section {...categoryProps('books')}
           className={tw(`settings-card audiobook-intake${audiobookDropActive ? ' is-dragging' : ''}`)}
           onDragEnter={(event) => {
             event.preventDefault()
@@ -571,7 +582,7 @@ export function SettingsPage({
           </>
         )}
 
-        <section className={tw('settings-card')}>
+        <section {...categoryProps('privacy')} className={tw('settings-card')}>
           <div className={tw('settings-card__icon')}><ShieldCheck aria-hidden="true" /></div>
           <div className={tw('settings-card__heading')}>
             <span>Data & privacy</span><h2>Your reading life stays here.</h2>
@@ -621,9 +632,10 @@ export function SettingsPage({
           </button>
         </section>
 
-        <details
+        <details {...categoryProps('advanced')}
+          open={wideLayout ? true : advancedOpen}
           className={tw('settings-advanced')}
-          onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}
+          onToggle={(event) => { if (!wideLayout) setAdvancedOpen(event.currentTarget.open) }}
         >
           <summary className={tw('settings-advanced__summary')}>
             <span className={tw('settings-advanced__icon')}><SlidersHorizontal aria-hidden="true" /></span>
@@ -847,6 +859,7 @@ export function SettingsPage({
             {purchaseView && onUpgrade && <ReviewAccessSettings view={reviewView} />}
           </div>
         </details>
+      </div>
       </div>
     </main>
   )
