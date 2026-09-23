@@ -65,3 +65,22 @@
 .libby-book-picker select { width:100%; min-height:48px; padding:10px; border:1px solid var(--border-strong); border-radius:4px; background:var(--surface-raised); color:var(--text-primary); font:inherit; }
 .libby-book-actions { display:flex; flex-wrap:wrap; justify-content:space-between; gap:4px 16px; }
 .libby-book-link .libby-error { padding:12px; border:1px solid var(--state-destructive-border); color:var(--state-destructive-text); background:var(--state-destructive-surface); }
+
+/* Setup belongs to its own reading-sized sheet; Settings keeps a quiet single row. */
+.libby-entry { display:flex; align-items:center; gap:16px; width:100%; padding:20px!important; }
+.libby-entry>span { flex:1; min-width:0; }
+.libby-entry strong { display:block; font:var(--font-heading-weight) 1.25rem var(--font-reading); }
+.libby-entry small { display:block; color:var(--text-secondary); font-size:var(--text-xs); margin-top:4px; }
+.libby-entry>svg { flex:none; color:var(--text-secondary); }
+.libby-flow { max-width:38rem; margin:0 auto; padding:8px 0 24px; border:0; background:transparent; font-size:var(--text-sm); line-height:1.65; }
+.libby-flow h2 { margin-top:12px; }
+.libby-flow h2:focus { outline:none; }
+.libby-eyebrow { font-size:var(--text-xs); letter-spacing:.12em; color:var(--text-secondary); }
+.libby-browser-choice { border:0; margin:28px 0; padding:0; }
+.libby-browser-choice legend { margin-bottom:12px; }
+.libby-browser-choice label { display:flex; align-items:center; gap:12px; min-height:52px; border-top:1px solid var(--border-subtle); cursor:pointer; }
+.libby-browser-choice input { width:18px; height:18px; accent-color:var(--text-primary); }
+.libby-notice { padding:14px 16px; border:1px solid var(--border-subtle); border-radius:6px; }
+.libby-flow .libby-back { margin-top:12px; color:var(--text-secondary); }
+.libby-flow .libby-details button { display:block; }
+.libby-flow .libby-details p { font-size:var(--text-sm); }

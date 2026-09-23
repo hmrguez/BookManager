@@ -21,7 +21,7 @@ async function refresh() {
   $('connection').hidden = safari;
   $('pair-form').hidden = !!result.paired;
   $('forget').hidden = !result.paired;
-  $('connection-status').textContent = result.paired ? 'Paired for automatic delivery on this phone.' : 'Open Wovenleaf → Settings → Libby to get a one-time connection code.';
+  $('connection-status').textContent = result.paired ? 'Paired for automatic delivery on this phone.' : 'Open Wovenleaf → Settings → Libby for connection help.';
   $('status').textContent = snapshot ? `Captured ${new Date(snapshot.capturedAt).toLocaleString()}` : 'No capture yet. Keep your shelf visible, then capture.';
 }
 // Android Firefox action popups do not reliably open target=_blank links.

@@ -33,6 +33,10 @@ enum LibbyInbox {
         }
     }
 
+    static func enabled() throws -> Bool {
+        try locked { _, defaults in defaults.bool(forKey: enabledKey) }
+    }
+
     static func receive(_ value: Any) throws {
         let data = try validate(value)
         let object = value as! [String: Any]
@@ -85,12 +89,13 @@ enum LibbyInbox {
         return url.range(of: #"^https://(?:img[1-9][0-9]*\.od-cdn\.com|images\.contentreserve\.com)/ImageType-[0-9]+/[a-z0-9%_./~{}-]+\.(?:jpe?g|png|webp)$"#, options: [.regularExpression, .caseInsensitive]) != nil
     }
     static func validate(_ value: Any) throws -> Data {
-        guard let object = value as? [String: Any], Set(object.keys) == Set(["kind", "version", "id", "capturedAt", "observations"]),
+        guard let object = value as? [String: Any], Set(object.keys) == Set(["kind", "version", "id", "capturedAt", "observations"] + (object["emptyShelf"] == nil ? [] : ["emptyShelf"])),
               object["kind"] as? String == "wovenleaf-libby", let version = object["version"] as? NSNumber,
               CFGetTypeID(version) != CFBooleanGetTypeID(), version.doubleValue == 1,
               let id = object["id"] as? String, id.range(of: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$", options: .regularExpression) != nil,
               let timestamp = object["capturedAt"] as? String, timestamp.hasSuffix("Z"), let captured = date(timestamp), captured.timeIntervalSinceNow <= 300,
-              let observations = object["observations"] as? [[String: Any]], !observations.isEmpty, observations.count <= 100 else { throw failure("Unsupported Libby capture. Capture your shelf again.") }
+              let observations = object["observations"] as? [[String: Any]], observations.count <= 100,
+              (observations.isEmpty ? (object["emptyShelf"] as? NSNumber).map { CFGetTypeID($0) == CFBooleanGetTypeID() && $0.boolValue } == true : object["emptyShelf"] == nil) else { throw failure("Unsupported Libby capture. Capture your shelf again.") }
         var keys = Set<String>()
         for item in observations {
             let fields = Set(["titleId", "format", "title", "author", "percent"])

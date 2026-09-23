@@ -13,6 +13,13 @@ import javax.crypto.spec.SecretKeySpec;
 /** Exercises production boundaries without changing the user's pairing, inbox or books. */
 @RunWith(AndroidJUnit4.class)
 public class LibbyConnectionTest {
+    @Test public void acceptsOnlyExplicitEmptyShelves() throws Exception {
+        JSONObject empty = snapshot().put("observations", new JSONArray());
+        rejects(() -> LibbyConnection.validate(empty.toString()));
+        LibbyConnection.validate(empty.put("emptyShelf", true).toString());
+        rejects(() -> LibbyConnection.validate(empty.put("emptyShelf", 1).toString()));
+        rejects(() -> LibbyConnection.validate(snapshot().put("emptyShelf", true).toString()));
+    }
     @Test public void acceptsFirefoxOriginsWithoutWeakeningOriginBinding() throws Exception {
         String origin = "moz-extension://01234567-89ab-cdef-0123-456789abcdef";
         assertTrue(LibbyConnection.extensionOrigin(origin));

@@ -36,13 +36,17 @@ export class LibbyRepository {
     })
   }
 
-  async ingest(text: string): Promise<LibbyState> {
+  async ingest(text: string, verifiedTransport = false): Promise<LibbyState> {
     const now = this.clock()
     const snapshot = parseLibbySnapshot(text, now.getTime())
     return this.database.transaction(async (db) => {
       const state = await this.read(db)
       if (!state.enabled) throw new Error('Enable Libby in Settings before receiving progress.')
-      if (state.seen.includes(snapshot.id)) return state
+      if (verifiedTransport && (!state.lastVerifiedCaptureAt || Date.parse(snapshot.capturedAt) > Date.parse(state.lastVerifiedCaptureAt))) state.lastVerifiedCaptureAt = snapshot.capturedAt
+      if (state.seen.includes(snapshot.id)) {
+        if (verifiedTransport) await this.write(db, state)
+        return state
+      }
       const books = await readLibraryBooks(db)
       for (const observation of snapshot.observations) {
         const key = libbyKey(observation)
@@ -85,6 +89,7 @@ export class LibbyRepository {
       }
       state.seen = [...state.seen, snapshot.id].slice(-200)
       state.lastReceivedAt = now.toISOString()
+      if (!state.lastCapturedAt || Date.parse(snapshot.capturedAt) > Date.parse(state.lastCapturedAt)) state.lastCapturedAt = snapshot.capturedAt
       await this.write(db, state)
       return state
     })

@@ -27,6 +27,17 @@ public final class WovenleafLibbyPlugin extends Plugin {
             }
         });
     }
+    @PluginMethod public void openBrowser(PluginCall call) {
+        String browser = call.getString("browser", "");
+        String url = call.getString("url", "https://libbyapp.com/shelf");
+        try {
+            android.net.Uri uri = android.net.Uri.parse(url);
+            if (!java.util.Set.of("quetta", "firefox").contains(browser) || !"https".equals(uri.getScheme()) || uri.getUserInfo() != null || uri.getPort() != -1 ||
+                !java.util.Set.of("libbyapp.com", "chromewebstore.google.com", "microsoftedge.microsoft.com", "addons.mozilla.org").contains(uri.getHost())) throw new Exception();
+            getActivity().startActivity(new Intent(Intent.ACTION_VIEW, uri).addCategory(Intent.CATEGORY_BROWSABLE)
+                .setPackage(browser.equals("firefox") ? "org.mozilla.firefox" : "net.quetta.browser")); call.resolve();
+        } catch (Exception e) { call.reject("Install your chosen browser, then try again."); }
+    }
     @Override public void load() { LibbyConnection.changed = () -> notifyListeners("captureReceived", new JSObject()); }
     @Override protected void handleOnDestroy() { LibbyConnection.changed = null; }
     private void start() { ContextCompat.startForegroundService(getContext(), new Intent(getContext(), LibbyConnectionService.class)); }
@@ -72,6 +83,8 @@ public final class WovenleafLibbyPlugin extends Plugin {
     }
     @PluginMethod public void status(PluginCall call) {
         JSObject value = new JSObject().put("running", LibbyConnectionService.running).put("paired", LibbyConnection.paired()).put("pairing", LibbyConnection.pairing());
+        String origin = LibbyConnection.pairedOrigin(getContext());
+        if (origin != null) value.put("browser", origin.startsWith("moz-extension://") ? "firefox" : "quetta");
         if (LibbyConnection.error != null) value.put("error", LibbyConnection.error);
         call.resolve(value);
     }

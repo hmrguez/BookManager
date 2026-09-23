@@ -129,11 +129,11 @@ final class LibbyConnection {
     static JSONObject validate(String text) throws Exception {
         if (text.getBytes(StandardCharsets.UTF_8).length > 131072) throw new IOException();
         JSONObject value = new JSONObject(text);
-        if (value.length() != 5 || !value.getString("kind").equals("wovenleaf-libby") || !(value.get("version") instanceof Number) || value.getDouble("version") != 1 || !uuid(value.getString("id"))) throw new IOException();
+        if (value.length() != (value.has("emptyShelf") ? 6 : 5) || !value.getString("kind").equals("wovenleaf-libby") || !(value.get("version") instanceof Number) || value.getDouble("version") != 1 || !uuid(value.getString("id"))) throw new IOException();
         String at = value.getString("capturedAt");
         if (!at.endsWith("Z") || Instant.parse(at).isAfter(Instant.now().plusSeconds(300))) throw new IOException();
         JSONArray observations = value.getJSONArray("observations");
-        if (observations.length() < 1 || observations.length() > 100) throw new IOException();
+        if (observations.length() > 100 || (observations.length() == 0 ? !Boolean.TRUE.equals(value.opt("emptyShelf")) : value.has("emptyShelf"))) throw new IOException();
         Set<String> seen = new HashSet<>();
         for (int i = 0; i < observations.length(); i++) {
             JSONObject item = observations.getJSONObject(i);

@@ -24,7 +24,12 @@
       found.set(key, { titleId, format, title, author, percent, ...(coverUrl ? { coverUrl } : {}) });
     }
     const observations = [...found.entries()].filter(([key]) => !ambiguous.has(key)).slice(0, 100).map(([, value]) => value);
-    if (!observations.length) return null;
+    if (!observations.length) {
+      // Absence of tiles can also mean loading, login or a changed page. Require explicit visible empty-state copy.
+      const empty = [...document.querySelectorAll('p, h1, h2, h3')].some(el => WovenleafLibby.visible(el) && /^You (?:have|have borrowed) no (?:loans|titles|books)[.!]?$/.test(el.textContent.trim()));
+      if (!empty || document.querySelector('.title-tile.data-tile-class_loan')) return null;
+      return { kind: 'wovenleaf-libby', version: 1, id: crypto.randomUUID(), capturedAt: new Date().toISOString(), observations: [], emptyShelf: true };
+    }
     return { kind: 'wovenleaf-libby', version: 1, id: crypto.randomUUID(), capturedAt: new Date().toISOString(), observations };
   };
 })();

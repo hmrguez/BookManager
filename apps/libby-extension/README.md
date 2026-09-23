@@ -57,3 +57,14 @@ Pairing now uses **Connect & enable capture**, an explicit combined consent acti
 
 
 Companion **0.6.1** fixes the Shelf link in Firefox Android’s action popup using `tabs.create`. Pixel 9 / Firefox 156 now has real ebook and audiobook delivery verification, including hidden reader controls, stale Shelf values, receiver force-stop recovery and an in-place temporary extension upgrade. See [the device evidence](../../docs/integrations/libby.md#firefox-android-verification--2026-09-21). Signed distribution and full-browser restart persistence are still unverified.
+
+### Guided setup (0.7.0)
+
+Settings now opens a dedicated, resumable setup flow with platform-specific instructions. See
+[setup decisions and release gates](../../docs/integrations/libby-setup-2026-09-24.md).
+Code-free Android pairing remains a release blocker; connection codes are recovery/development help.
+Publish the Chromium and Firefox packages and configure real listing URLs before shipping the
+ZIP-free installation path. Safari uses its bundled signed native bridge.
+
+Additional checks: `node apps/libby-extension/verify-safari.mjs` verifies initial Safari native consent;
+`sh apps/libby-extension/verify-native.sh` checks the Swift empty-Shelf boundary.

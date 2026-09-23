@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { parseLibbySnapshot, LIBBY_SHARE_PREFIX } from '../src/libby/model'
+import { hasFreshCapture, companionListing } from '../src/libby/setup'
 import { LibbyRepository } from '../src/libby/repository'
 import { LibraryRepository } from '../src/storage/library-repository'
 import { migrateStorage } from '../src/storage/migrations'
@@ -213,4 +214,33 @@ describe('Libby local progress', () => {
     await db.close()
   })
 
+})
+
+
+test('an explicit empty shelf verifies capture without deleting existing books or accepting an ambiguous empty payload', async () => {
+  const { repo, library, db } = await setup()
+  const empty = { ...snapshot(), observations: [], emptyShelf: true }
+  expect(() => parseLibbySnapshot(JSON.stringify({ ...empty, emptyShelf: undefined }))).toThrow()
+  expect(() => parseLibbySnapshot(JSON.stringify({ ...snapshot(), emptyShelf: true }))).toThrow()
+  expect(() => parseLibbySnapshot(JSON.stringify({ ...empty, emptyShelf: 'true' }))).toThrow()
+  const state = await repo.ingest(JSON.stringify(empty))
+  expect(state.lastCapturedAt).toBe(at)
+  expect(state.lastVerifiedCaptureAt).toBeUndefined()
+  const verified = await repo.ingest(JSON.stringify(empty), true)
+  expect(verified.lastVerifiedCaptureAt).toBe(at)
+  expect(state.items).toHaveLength(0)
+  expect(await library.list()).toHaveLength(1)
+  expect(hasFreshCapture(state.lastCapturedAt, '2026-09-20T11:00:00.000Z')).toBe(false)
+  expect(hasFreshCapture(state.lastCapturedAt, at)).toBe(true)
+  const older = await repo.ingest(JSON.stringify({ ...empty, id: crypto.randomUUID(), capturedAt: '2026-09-19T10:00:00.000Z' }))
+  expect(older.lastCapturedAt).toBe(at)
+  db.close()
+})
+
+test('setup only opens the selected browser’s trusted marketplace', () => {
+  expect(companionListing('quetta', 'https://chromewebstore.google.com/detail/test')).toBe('https://chromewebstore.google.com/detail/test')
+  expect(companionListing('firefox', undefined, 'https://addons.mozilla.org/android/addon/test/')).toBe('https://addons.mozilla.org/android/addon/test/')
+  for (const url of ['javascript:alert(1)', 'https://chromewebstore.google.com.evil.example/', 'https://secret@chromewebstore.google.com/', 'https://chromewebstore.google.com:8443/']) expect(companionListing('quetta', url)).toBeUndefined()
+  expect(companionListing('firefox', 'https://chromewebstore.google.com/detail/test')).toBeUndefined()
+  expect(hasFreshCapture(undefined, at)).toBe(false)
 })

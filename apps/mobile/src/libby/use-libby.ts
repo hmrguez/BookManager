@@ -10,11 +10,12 @@ const native = registerPlugin<{
   configure(options: { enabled: boolean }): Promise<void>
   pending(): Promise<{ snapshots: { id: string; text: string }[] }>
   acknowledge(options: { ids: string[] }): Promise<void>
+  openBrowser(options: { browser: 'quetta' | 'firefox'; url?: string }): Promise<void>
   beginPairing(): Promise<{ code: string }>
   resume(): Promise<void>
   copyCode(): Promise<void>
   saveCompanion(): Promise<{ saved: boolean }>
-  status(): Promise<{ running: boolean; paired: boolean; pairing?: boolean; error?: string }>
+  status(): Promise<{ running: boolean; paired: boolean; browser?: 'quetta' | 'firefox'; pairing?: boolean; error?: string }>
   addListener(event: 'captureReceived', listener: () => void): Promise<PluginListenerHandle>
 }>('WovenleafLibby')
 const nativeAvailable = () => Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('WovenleafLibby')
@@ -25,7 +26,7 @@ export function useLibby(reloadLibrary: () => Promise<unknown>) {
   const [ready, setReady] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
-  const [connection, setConnection] = useState<{ running: boolean; paired: boolean; error?: string }>()
+  const [connection, setConnection] = useState<{ running: boolean; paired: boolean; browser?: 'quetta' | 'firefox'; error?: string }>()
   const [companionSaved, setCompanionSaved] = useState(false)
   const [pairingCode, setPairingCode] = useState<string>()
   const tail = useRef(Promise.resolve())
@@ -60,7 +61,7 @@ export function useLibby(reloadLibrary: () => Promise<unknown>) {
       if (next.enabled) {
         const { snapshots } = await native.pending()
         for (const snapshot of snapshots) {
-          next = await repo.ingest(snapshot.text)
+          next = await repo.ingest(snapshot.text, true)
           // Acknowledge only after the database has committed; retries are idempotent.
           await native.acknowledge({ ids: [snapshot.id] })
         }
@@ -93,6 +94,11 @@ export function useLibby(reloadLibrary: () => Promise<unknown>) {
     return next
   })
   return { state, ready, busy, error, refresh, configure, receiveText, receiveFile, connection, pairingCode, companionSaved,
+    openBrowser: (browser: 'safari' | 'quetta' | 'firefox', url = 'https://libbyapp.com/shelf') => {
+      // Keep the browser opening inside the click gesture; a queued database job loses popup activation.
+      if (!android() || browser === 'safari') { window.open(url, '_blank', 'noopener,noreferrer'); return Promise.resolve(true) }
+      return run(async repo => { await native.openBrowser({ browser, url }); return repo.read() })
+    },
     saveCompanion: () => run(async repo => { const result = await native.saveCompanion(); setCompanionSaved(result.saved); return repo.read() }),
     pair: () => run(async repo => { const result = await native.beginPairing(); setPairingCode(result.code); setConnection(await native.status()); return repo.read() }),
     copyCode: () => run(async repo => { await native.copyCode(); return repo.read() }),

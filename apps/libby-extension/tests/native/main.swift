@@ -21,3 +21,13 @@ for url in ["https://evil.example/cover.jpg", "http://img1.od-cdn.com/ImageType-
     precondition((try? LibbyInbox.validate(covered)) == nil)
 }
 print("PASS: native boundary accepts public cover URLs and rejects arbitrary hosts, credentials, queries and insecure URLs.")
+
+var empty = snapshot; empty["observations"] = [[String: Any]]()
+precondition((try? LibbyInbox.validate(empty)) == nil)
+empty["emptyShelf"] = true
+precondition((try? LibbyInbox.validate(empty)) != nil)
+empty["emptyShelf"] = 1
+precondition((try? LibbyInbox.validate(empty)) == nil)
+var ambiguous = snapshot; ambiguous["emptyShelf"] = true
+precondition((try? LibbyInbox.validate(ambiguous)) == nil)
+print("PASS: only an explicitly empty shelf is accepted; numeric flags and mixed loan/empty states are rejected.")

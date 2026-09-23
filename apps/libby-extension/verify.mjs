@@ -73,6 +73,14 @@ try {
   await expect(popup.locator('#status')).toContainText('Finish the download');
   await popup.getByRole('checkbox').uncheck();
   await expect.poll(snapshot).toBeUndefined();
+  // Loading is not an empty shelf. Require explicit visible empty-state evidence.
+  await page.bringToFront();
+  await page.evaluate(() => { history.replaceState({}, '', '/shelf'); document.body.innerHTML = '<h2>Loading your loans…</h2>'; });
+  await worker.evaluate(() => chrome.storage.local.set({ enabled: true }));
+  assert.equal(await snapshot(), undefined);
+  await page.evaluate(() => { document.body.innerHTML = '<h2>You have no loans</h2>'; });
+  await expect.poll(snapshot).toMatchObject({ observations: [], emptyShelf: true });
+  await popup.bringToFront();
   const openedShelf = context.waitForEvent('page');
   await popup.getByRole('link', { name: 'Open Libby Shelf' }).click();
   const shelfTab = await openedShelf;

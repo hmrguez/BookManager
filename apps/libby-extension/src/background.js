@@ -68,7 +68,7 @@ if (typeof importScripts === 'function') importScripts('common.js', 'local.js');
   async function enqueue(snapshot) {
     const identities = new Set(snapshot.observations.map(key));
     // Keep the newest position for a book while disconnected, without losing other loans.
-    const superseded = old => old.id === snapshot.id || old.observations.every(observation => identities.has(key(observation)));
+    const superseded = old => old.id === snapshot.id || (old.observations.length > 0 && old.observations.every(observation => identities.has(key(observation))));
     let pending = (await queued()).filter(old => !superseded(old));
     if (pending.length >= 20) {
       await flush();
@@ -91,14 +91,21 @@ if (typeof importScripts === 'function') importScripts('common.js', 'local.js');
       let origin; try { origin = new URL(sender.url).origin; } catch { return { ok: false }; }
       // sender.url can retain the original SPA route; origin and observed route are checked separately.
       if (sender.id !== api.runtime.id || sender.frameId !== 0 || origin !== 'https://libbyapp.com') return { ok: false };
-      const { enabled } = await api.storage.local.get('enabled');
+      let { enabled } = await api.storage.local.get('enabled');
+      if (enabled === undefined && api.runtime.getManifest().permissions.includes('nativeMessaging')) {
+        try {
+          const status = await api.runtime.sendNativeMessage('com.hmrguez.wovenleaf.LibbyExtension', { type: 'connection-status' });
+          enabled = status?.enabled === true;
+          if (enabled) await api.storage.local.set({ enabled: true });
+        } catch { /* Leave setup pending until Safari can reach the app. */ }
+      }
       if (!enabled) return { ok: false, message: 'Enable capture in the Wovenleaf companion first.' };
       let snapshot;
       if (message.type === 'capture') {
         if (!/^\/shelf(?:\/loans)?\/?$/.test(message.path ?? '') || !valid(message.snapshot)) return { ok: false };
         snapshot = await rememberShelf(message.snapshot);
         // Retry a waiting player capture even after leaving it for a stale Shelf.
-        if (!snapshot.observations.length) return flush();
+        if (!snapshot.observations.length && !snapshot.emptyShelf) return flush();
       } else {
         snapshot = await playerSnapshot(message.position);
         if (!snapshot) return { ok: false, message: 'Visit your Libby Shelf once so the companion can identify this loan.' };

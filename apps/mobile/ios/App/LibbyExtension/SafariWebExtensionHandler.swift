@@ -6,6 +6,10 @@ final class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
         let message = item?.userInfo?[SFExtensionMessageKey] as? [String: Any]
         let response = NSExtensionItem()
         do {
+            if message?["type"] as? String == "connection-status" {
+                response.userInfo = [SFExtensionMessageKey: ["enabled": try LibbyInbox.enabled()]]
+                context.completeRequest(returningItems: [response]); return
+            }
             guard let snapshot = message?["snapshot"] else { throw NSError(domain: "WovenleafLibby", code: 1, userInfo: [NSLocalizedDescriptionKey: "No shelf capture was received."]) }
             try LibbyInbox.receive(snapshot)
             response.userInfo = [SFExtensionMessageKey: ["ok": true]]

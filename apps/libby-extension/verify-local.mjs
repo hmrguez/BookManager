@@ -47,6 +47,7 @@ try {
   let worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker');
   origin = `chrome-extension://${new URL(worker.url()).host}`;
   let popup = await context.newPage(); await popup.goto(`${origin}/popup.html`);
+  await popup.getByText('Connection help', { exact: true }).click();
   await popup.locator('#code').fill('invalid-code');
   await popup.getByRole('button', { name: 'Connect & enable capture', exact: true }).click();
   await expect(popup.locator('#status')).toContainText('Connection failed');

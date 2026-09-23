@@ -22,8 +22,8 @@
     if (!value || new TextEncoder().encode(JSON.stringify(value)).byteLength > 131072 || value.kind !== 'wovenleaf-libby' || value.version !== 1 ||
         !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.id ?? '') ||
         !Number.isFinite(Date.parse(value.capturedAt)) || Date.parse(value.capturedAt) > Date.now() + 300000 ||
-        !Array.isArray(value.observations) || !value.observations.length || value.observations.length > 100 ||
-        Object.keys(value).some(k => !['kind', 'version', 'id', 'capturedAt', 'observations'].includes(k))) return false;
+        !Array.isArray(value.observations) || value.observations.length > 100 || (value.observations.length ? value.emptyShelf !== undefined : value.emptyShelf !== true) ||
+        Object.keys(value).some(k => !['kind', 'version', 'id', 'capturedAt', 'observations', 'emptyShelf'].includes(k))) return false;
     const keys = new Set();
     return value.observations.every(o => {
       if (!o || typeof o.titleId !== 'string' || !/^\d{1,20}$/.test(o.titleId) || !['ebook', 'audiobook'].includes(o.format) ||

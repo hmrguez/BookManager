@@ -17,8 +17,9 @@ export const libbySnapshotSchema = z.object({
   version: z.literal(1),
   id: z.uuid(),
   capturedAt: z.iso.datetime(),
-  observations: z.array(libbyObservationSchema).min(1).max(100),
-}).strict()
+  observations: z.array(libbyObservationSchema).max(100),
+  emptyShelf: z.literal(true).optional(),
+}).strict().refine(value => value.observations.length > 0 ? value.emptyShelf === undefined : value.emptyShelf === true)
 export type LibbyObservation = z.infer<typeof libbyObservationSchema>
 export type LibbySnapshot = z.infer<typeof libbySnapshotSchema>
 export const libbyKey = (observation: Pick<LibbyObservation, 'format' | 'titleId'>) =>
@@ -53,7 +54,7 @@ const receiptSchema = z.object({
   undone: z.boolean(),
 })
 export const libbyStateSchema = z.object({
-  enabled: z.boolean(), automatic: z.boolean(), lastReceivedAt: z.iso.datetime().optional(),
+  enabled: z.boolean(), automatic: z.boolean(), lastReceivedAt: z.iso.datetime().optional(), lastCapturedAt: z.iso.datetime().optional(), lastVerifiedCaptureAt: z.iso.datetime().optional(),
   autoAdd: z.boolean().default(false),
   excluded: z.array(z.string()).max(500).default([]),
   mappings: z.array(mappingSchema).max(500), items: z.array(itemSchema).max(100),
