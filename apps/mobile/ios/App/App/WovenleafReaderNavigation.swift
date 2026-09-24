@@ -194,16 +194,14 @@ final class ReaderChapterRailView: UIView {
     override func draw(_ rect: CGRect) {
         guard !entries.isEmpty, let context = UIGraphicsGetCurrentContext() else { return }
         let visible = visibleIndices
-        let previewPosition = scrubY.map {
+        let focusPosition = scrubY.map {
             min(CGFloat(entries.count - 1), max(0, ($0 - markerBand.minY) / spacing(for: visible)))
-        } ?? (previewIndex ?? pulseIndex).map { CGFloat($0) }
+        } ?? CGFloat(previewIndex ?? activeIndex)
         for index in visible {
             let y = markerY(for: index, visible: visible)
             let active = index == activeIndex
             let emphasized = index == previewIndex || index == pulseIndex
-            let activeExtension = 9 * markerInfluence(index, focus: CGFloat(activeIndex))
-            let previewExtension = previewPosition.map { 6 * markerInfluence(index, focus: $0) } ?? 0
-            let width: CGFloat = 9 + max(activeExtension, previewExtension)
+            let width: CGFloat = 9 + 9 * markerInfluence(index, focus: focusPosition)
             context.setStrokeColor((active ? palette.ink : palette.secondaryInk).withAlphaComponent(active ? 0.95 : emphasized ? 0.65 : 0.32).cgColor)
             context.setLineWidth(active ? 2.2 : 1.2)
             context.setLineCap(.round)

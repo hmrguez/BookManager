@@ -150,16 +150,14 @@ internal class ReaderChapterRailView(
         super.onDraw(canvas)
         if (entries.isEmpty()) return
         val visible = visibleIndices()
-        val previewPosition = scrubY?.let {
+        val focusPosition = scrubY?.let {
             ((it - markerY(0, visible)) / markerSpacing(visible)).coerceIn(0f, entries.lastIndex.toFloat())
-        } ?: (previewIndex ?: pulseIndex)?.toFloat()
+        } ?: (previewIndex ?: activeIndex).toFloat()
         visible.forEach { index ->
             val y = markerY(index, visible)
             val active = index == activeIndex
             val emphasized = index == previewIndex || index == pulseIndex
-            val activeExtension = 9f * markerInfluence(index, activeIndex.toFloat())
-            val previewExtension = previewPosition?.let { 6f * markerInfluence(index, it) } ?: 0f
-            val width = (9f + maxOf(activeExtension, previewExtension)) * resources.displayMetrics.density
+            val width = (9f + 9f * markerInfluence(index, focusPosition)) * resources.displayMetrics.density
             markerPaint.strokeWidth = dp(if (active) 2 else 1).toFloat()
             markerPaint.color = withAlpha(
                 if (active) palette.ink else palette.secondaryInk,
