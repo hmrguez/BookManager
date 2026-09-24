@@ -4,6 +4,14 @@ Shared language for the reader's library and reading experience.
 
 ## Language
 
+**Quarterly review**:
+A reflection on a completed calendar quarter, celebrating supported reading achievements and an optional quarterly reading identity.
+_Avoid_: Live reading dashboard, reader ranking
+
+**Review keepsake**:
+The saved version of a quarterly review, retaining its achievements and optional identity for later revisiting or sharing. Reading-history corrections change it only through an explicit review update.
+_Avoid_: Reading ledger, automatically refreshed statistics
+
 **Personal tag**:
 A reader-defined label used to organize books. A personal tag does not necessarily describe a book's genre.
 _Avoid_: Genre (when referring to arbitrary organizational labels)
