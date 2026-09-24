@@ -11,3 +11,11 @@ _Avoid_: Genre (when referring to arbitrary organizational labels)
 **Quarterly reading identity**:
 A playful title and visual theme representing a reader's quarter. When genre evidence is insufficient, the reader may choose this identity during the review; that choice is not a classification of individual books or evidence for a genre count.
 _Avoid_: Verified most-read genre (for a reader-selected identity), permanent reader type
+
+**Review badge**:
+A collectible achievement recognizing supported reading activity during a quarter. A review may feature several badges, combining milestone development with personal-best recognition.
+_Avoid_: Quarterly reading identity (for an activity achievement), overall reader rank
+
+**Pathway reveal**:
+The closing discovery of the quarter's reading identity after its achievement badges have been revealed.
+_Avoid_: Reading plan, prescribed next reads
