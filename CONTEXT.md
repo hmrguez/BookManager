@@ -19,3 +19,7 @@ _Avoid_: Quarterly reading identity (for an activity achievement), overall reade
 **Pathway reveal**:
 The closing discovery of the quarter's reading identity after its achievement badges have been revealed.
 _Avoid_: Reading plan, prescribed next reads
+
+**Reading visit**:
+A period of engagement with one work and activity type that may span brief interruptions. Its length counts supported active time, excluding pauses.
+_Avoid_: Session event (for the reader's visit), elapsed app-open time
