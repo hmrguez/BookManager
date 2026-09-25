@@ -24,6 +24,16 @@ export const providerBookVariantSchema = z.object({
   externalKey: z.string().min(1),
   workKey: z.string().min(1).optional(),
   editionKey: z.string().min(1).optional(),
+  /** Only identifiers reported on this edition, never the work's ISBN union. */
+  verifiedEditionIdentifiers: z.array(editionIdentifierSchema).optional(),
+  medium: z.enum(['ebook', 'audiobook', 'print']).optional(),
+  editionPageCount: z.number().int().positive().optional(),
+  editionThumbnail: z.url().optional(),
+  subjects: z.array(z.object({
+    scope: z.enum(['work', 'edition']),
+    sourceKey: z.string().min(1),
+    values: z.array(z.string().min(1)).max(1000),
+  })).optional(),
   title: z.string().min(1),
   workTitle: z.string().min(1),
   authors: z.array(z.string().min(1)).min(1),

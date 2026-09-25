@@ -167,3 +167,64 @@ This isolates the immediate blocker to missing Shelf metadata, not a broken pair
 Recovery: open the companion's **Open Libby Shelf** link, allow the Shelf to load visibly, then open Wovenleaf. No reconnect, reinstall, manual capture or manual import was needed. Direct reader updates after recovery were not separately exercised, and no reading position was advanced during this check.
 
 A subsequent [clean installation replay](libby-clean-install-2026-09-23.md) reproduced pairing and returning to an existing Shelf tab without receiving any capture. Reloading that same preinstallation tab restored automatic delivery. This narrows the earlier diagnosis and records the exact reset, installation, pairing and verification steps.
+
+## Open Library enrichment (QUI-102)
+
+After capture commits, the foreground app checks new links and existing Libby books through the
+shared Open Library service and persistent cache. The local `libby_state` payload holds resumable
+jobs; older payloads default to an empty queue. A batch claims at most three books per minute.
+Provider requests retain the shared one-second spacing, use a 20-second timeout, and resume failed
+jobs after one hour, then one day, with at most three attempts before an explicit retry. No-match
+results are saved, with a seven-day retry delay. Progress events do not restart completed jobs.
+An empty scan does not consume the batch cooldown. Disconnect clears jobs; unlink dismisses pending
+work. Reopening resumes outstanding work without holding up progress ingestion.
+
+Queries contain only a verified local edition ISBN or title/author bibliographic terms and locale.
+The Libby title ID is never an ISBN, even if its digits pass an ISBN checksum. No credentials,
+progress, tags, notes, account or loan data are sent. The existing public metadata provider needs no
+new credential, remote write scope, relay or account. Queue/cache failures are contained locally;
+no raw provider error or private payload is logged. Parsed provider results and bounded candidate
+lists are the only inputs accepted at persistence. This extends the existing local integration
+under [ADR 0004](../architecture/decisions/0004-private-data-and-integration-credentials.md).
+
+The shared metadata model retains raw subject strings, canonical provider keys, Work/Edition scope,
+observation time and confidence. `bookSubjectEvidence` exposes peer claims separately and honors an
+explicit book-level `subjectOverride`, including null. Personal tags never become provider subjects.
+Genre classification and disagreement resolution remain with QUI-110. Open Library's
+[Search API contract](https://openlibrary.org/dev/docs/api/search) distinguishes work results from
+matching editions; a result's work-wide ISBN list, median pages or work cover cannot verify the
+selected edition. Canonical OLID suffixes also prevent an edition returned under a work-shaped URL
+from being classified as a Work.
+
+Only one unambiguous matching edition with its own verified ISBN and compatible reported medium can
+attach automatically. Missing/unknown format fails closed. Title/author matches always await reader
+confirmation in Libby settings or book details, with no preselected candidate, source subjects and
+a link to inspect the work. Such confirmation attaches Work subjects only; it does not identify a
+particular edition. Reader dismissal keeps current details. Exact edition matches can fill missing
+edition pages and covers; audiobook pages, work medians and arbitrary search-edition covers never
+populate reading metrics. The stable local book ID, title, authors, tags, link, status, position and
+selected cover remain. Explicit empty metadata edits retain field locks.
+
+Enrichment writes metadata, job completion and guard adjustments in one transaction. It advances a
+Libby baseline or Undo revision only when that revision still equals the book's before revision.
+A previous manual edit continues to require review. Undo restores progress while retaining any
+separately enriched cover and metadata; it still pauses automatic sync. A stale candidate whose book
+identity changed cannot apply. Failed writes leave the book, baseline and receipt intact.
+
+### Verification
+
+- `tests/libby-enrichment.test.ts`: auto-add and manual link, bounded/reopened backfill, shared cache,
+  no/ambiguous matches, failed/capped retries, replay, invalid identity/format, explicit overrides,
+  private-query exclusion, later progress, Undo, unlink/disconnect and transactional rollback.
+- `visual-tests/libby-enrichment.spec.ts`: actual foreground queue and review controls at 390px and
+  320px with enlarged text, keyboard confirmation, retained metadata after Undo/reload, no duplicate
+  book and no browser errors. Uses isolated SQLite fixtures and mocked provider responses.
+- Relevant Libby, metadata, library-repository and recovery suites plus `bun run lint` and
+  `bun run typecheck` pass. Commands run from `apps/mobile`.
+- A broader suite run had three unrelated timing failures: Goodreads 1,820-book import, 10,000-work
+  fuzzy search and 10,000-book smart-list query. All three also fail on untouched HEAD `8353776` in
+  the same environment. Their existing budgets were not changed. This does not introduce the
+  withdrawn quarterly-review device-performance gate.
+
+This completes metadata enrichment only. QUI-107's two integrated human walkthroughs and all
+individual production-art approvals remain required in their owning implementation issues.

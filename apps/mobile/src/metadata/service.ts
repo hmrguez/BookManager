@@ -74,6 +74,14 @@ export class MetadataSearchService {
     }
   }
 
+  /** Separate versioned cache avoids treating old cover-only entries as subject lookups. */
+  async searchEnrichment(input: MetadataSearchQuery, signal?: AbortSignal): Promise<MetadataSearchResponse<BookSearchResult>> {
+    const query = metadataSearchQuerySchema.parse(input)
+    const outcome = await this.#searchProvider(this.#provider, query,
+      metadataQueryKey(`subjects-v1 ${query.query}`, query.locale, query.limit), { signal })
+    return { results: combineProviderResults(outcome.variants, query.query, outcome.freshness ?? 'live'), providers: [outcome.status] }
+  }
+
   async searchIsbns(
     inputIsbns: readonly string[],
     locale: string,

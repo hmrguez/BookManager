@@ -1,3 +1,5 @@
+import { attachMissingMetadata, enrichmentFingerprint, exactEditionMatch, matchingCandidates, type EnrichmentJob } from './enrichment-model'
+import type { ProviderBookVariant } from '../metadata/model'
 import { libraryBookSchema, type LibraryBook } from '../library-model'
 import { readText, type SqlDatabase } from '../storage/database'
 import { readLibraryBooks, writeLibraryBook } from '../storage/library-repository'
@@ -141,6 +143,110 @@ export class LibbyRepository {
     item.reason = 'Progress updated.'
   }
 
+  /** Discover work only after local capture has committed; lease at most three lookups per minute. */
+  async prepareEnrichment(): Promise<{ job: EnrichmentJob; book: LibraryBook }[]> {
+    return this.database.transaction(async db => {
+      const state = await this.read(db)
+      const now = this.clock()
+      if (!state.enabled || Date.parse(state.enrichmentResumeAt ?? '') > now.getTime()) return []
+      const books = await readLibraryBooks(db)
+      const eligible = books.filter(book => state.mappings.some(mapping => mapping.bookId === book.id)
+        || (book.sourceNames?.includes('Libby') && !state.enrichment.some(job => job.bookId === book.id && job.status === 'dismissed')))
+      state.enrichment = state.enrichment.filter(job => books.some(book => book.id === job.bookId))
+      for (const book of eligible) {
+        const previous = state.enrichment.find(job => job.bookId === book.id)
+        const fingerprint = enrichmentFingerprint(book)
+        if (previous?.fingerprint === fingerprint) continue
+        if (!previous && state.enrichment.length >= 500) break
+        state.enrichment = state.enrichment.filter(job => job.bookId !== book.id)
+        state.enrichment.push({ id: crypto.randomUUID(), bookId: book.id, fingerprint, status: 'pending',
+          attempts: 0, nextAttemptAt: now.toISOString(), candidates: [] })
+      }
+      const selected = state.enrichment.filter(job => ['pending', 'retry'].includes(job.status)
+        && job.attempts < 3 && Date.parse(job.nextAttemptAt) <= now.getTime()).slice(0, 3)
+      for (const job of selected) {
+        job.attempts++
+        job.status = 'retry'
+        // A crash leaves a resumable lease, not an endlessly stuck running job.
+        job.nextAttemptAt = new Date(now.getTime() + (job.attempts === 1 ? 3_600_000 : 86_400_000)).toISOString()
+      }
+      if (selected.length) state.enrichmentResumeAt = new Date(now.getTime() + 60_000).toISOString()
+      await this.write(db, state)
+      return selected.flatMap(job => { const book = books.find(book => book.id === job.bookId); return book ? [{ job, book }] : [] })
+    })
+  }
+
+  async finishEnrichment(id: string, variants: readonly ProviderBookVariant[], available: boolean): Promise<LibbyState> {
+    return this.database.transaction(async db => {
+      const state = await this.read(db)
+      const job = state.enrichment.find(job => job.id === id && job.status === 'retry')
+      const book = job && (await readLibraryBooks(db)).find(book => book.id === job.bookId)
+      if (!state.enabled || !job || !book || job.fingerprint !== enrichmentFingerprint(book)) return state
+      if (available) {
+        job.candidates = matchingCandidates(book, variants)
+        const exact = job.candidates.filter(variant => exactEditionMatch(book, variant))
+        if (exact.length === 1 && job.candidates.length === 1) await this.applyEnrichment(db, state, job, book, exact[0])
+        else {
+          job.status = job.candidates.length ? 'review' : 'no-match'
+          if (job.status === 'no-match') job.nextAttemptAt = new Date(this.clock().getTime() + 7 * 86_400_000).toISOString()
+        }
+      }
+      await this.write(db, state)
+      return state
+    })
+  }
+
+  async retryEnrichment(id: string): Promise<LibbyState> {
+    return this.database.transaction(async db => {
+      const state = await this.read(db)
+      const job = state.enrichment.find(job => job.id === id)
+      if (!state.enabled || !job || !['retry', 'no-match'].includes(job.status)) return state
+      if (Date.parse(job.nextAttemptAt) > this.clock().getTime()) throw new Error('Book details can be checked again later.')
+      job.attempts = 0
+      job.status = 'pending'
+      await this.write(db, state)
+      return state
+    })
+  }
+
+  async chooseEnrichment(id: string, candidateId: string | null): Promise<LibbyState> {
+    return this.database.transaction(async db => {
+      const state = await this.read(db)
+      const job = state.enrichment.find(job => job.id === id && job.status === 'review')
+      const book = job && (await readLibraryBooks(db)).find(book => book.id === job.bookId)
+      if (!state.enabled || !job || !book || job.fingerprint !== enrichmentFingerprint(book)) throw new Error('Book details changed. Review the latest match.')
+      if (candidateId === null) job.status = 'dismissed'
+      else {
+        const candidate = job.candidates.find(candidate => candidate.id === candidateId)
+        if (!candidate) throw new Error('Choose one of the current book matches.')
+        await this.applyEnrichment(db, state, job, book, candidate)
+      }
+      await this.write(db, state)
+      return state
+    })
+  }
+
+  private async applyEnrichment(db: SqlDatabase, state: LibbyState, job: EnrichmentJob, book: LibraryBook, candidate: ProviderBookVariant) {
+    const updated = attachMissingMetadata(book, candidate)
+    updated.lastUpdatedAt = new Date(Math.max(this.clock().getTime(), Date.parse(book.lastUpdatedAt) + 1)).toISOString()
+    await writeLibraryBook(db, updated)
+    // Rebase only guards still owned by Libby. A prior manual edit stays a conflict.
+    for (const mapping of state.mappings) {
+      if (mapping.bookId === book.id && mapping.baseline === book.lastUpdatedAt) mapping.baseline = updated.lastUpdatedAt
+    }
+    for (const receipt of state.receipts) {
+      if (receipt.bookId !== book.id || receipt.undone || receipt.after.lastUpdatedAt !== book.lastUpdatedAt) continue
+      receipt.after.lastUpdatedAt = updated.lastUpdatedAt
+      if (updated.thumbnail !== book.thumbnail) {
+        // Enrichment owns this field, so progress Undo must retain it.
+        receipt.before.thumbnail = updated.thumbnail
+        receipt.after.thumbnail = updated.thumbnail
+      }
+    }
+    job.status = 'applied'
+    job.candidates = []
+  }
+
   async dismiss(key: string, snapshotId: string): Promise<LibbyState> {
     return this.database.transaction(async (db) => {
       const state = await this.read(db)
@@ -154,6 +260,8 @@ export class LibbyRepository {
   async unlink(key: string): Promise<LibbyState> {
     return this.database.transaction(async (db) => {
       const state = await this.read(db)
+      const bookId = state.mappings.find(entry => entry.key === key)?.bookId
+      for (const job of state.enrichment) if (job.bookId === bookId) { job.status = 'dismissed'; job.candidates = [] }
       state.mappings = state.mappings.filter((entry) => entry.key !== key)
       this.exclude(state, key)
       await this.write(db, state)

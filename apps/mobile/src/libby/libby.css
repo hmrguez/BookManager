@@ -84,3 +84,8 @@
 .libby-flow .libby-back { margin-top:12px; color:var(--text-secondary); }
 .libby-flow .libby-details button { display:block; }
 .libby-flow .libby-details p { font-size:var(--text-sm); }
+
+.libby-metadata { display:grid; gap:12px; padding-block:18px; border-top:1px solid var(--border-subtle); }
+.libby-metadata h4, .libby-metadata p { margin:0; }
+.libby-metadata label { font-size:var(--text-sm); color:var(--text-secondary); }
+.libby-metadata select { width:100%; min-width:0; min-height:44px; padding:10px; font:inherit; color:var(--text-primary); background:var(--surface-raised); border:1px solid var(--border-subtle); border-radius:6px; }

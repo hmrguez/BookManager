@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { enrichmentJobSchema } from './enrichment-model'
 import { shelfIdSchema } from '../library-model'
 
 export const LIBBY_SHARE_PREFIX = 'Wovenleaf Libby progress\n'
@@ -56,10 +57,12 @@ const receiptSchema = z.object({
 export const libbyStateSchema = z.object({
   enabled: z.boolean(), automatic: z.boolean(), lastReceivedAt: z.iso.datetime().optional(), lastCapturedAt: z.iso.datetime().optional(), lastVerifiedCaptureAt: z.iso.datetime().optional(),
   autoAdd: z.boolean().default(false),
+  enrichment: z.array(enrichmentJobSchema).max(500).default([]),
+  enrichmentResumeAt: z.iso.datetime().optional(),
   excluded: z.array(z.string()).max(500).default([]),
   mappings: z.array(mappingSchema).max(500), items: z.array(itemSchema).max(100),
   receipts: z.array(receiptSchema).max(50), seen: z.array(z.uuid()).max(200),
 })
 export type LibbyState = z.infer<typeof libbyStateSchema>
 export type LibbyItem = LibbyState['items'][number]
-export const emptyLibbyState = (): LibbyState => ({ enabled: false, automatic: true, autoAdd: true, excluded: [], mappings: [], items: [], receipts: [], seen: [] })
+export const emptyLibbyState = (): LibbyState => ({ enabled: false, automatic: true, autoAdd: true, enrichment: [], excluded: [], mappings: [], items: [], receipts: [], seen: [] })

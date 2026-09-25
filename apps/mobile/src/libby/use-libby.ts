@@ -4,6 +4,7 @@ import { App } from '@capacitor/app'
 import { getStorageRuntime } from '../storage/runtime'
 import type { LibbyRepository } from './repository'
 import { emptyLibbyState, type LibbyState } from './model'
+import { getLibbyEnrichment } from './enrichment-runtime'
 import { readLibbyFile, removeLibbyShareCopy } from './intake'
 
 const native = registerPlugin<{
@@ -78,6 +79,21 @@ export function useLibby(reloadLibrary: () => Promise<unknown>) {
     return () => { void listener.then(handle => handle.remove()); void captures?.then(handle => handle.remove()) }
   }, [refresh])
 
+  useEffect(() => {
+    if (!ready || !state.enabled) return
+    let active = true
+    const enrich = async () => {
+      try {
+        const worker = await getLibbyEnrichment()
+        await worker.run(navigator.language || 'en', reloadLibrary)
+        if (active) { setState(await (await getStorageRuntime()).libby.read()); await reloadLibrary() }
+      } catch { /* Metadata availability never interrupts reading or capture. */ }
+    }
+    void enrich()
+    const timer = setInterval(() => { if (document.visibilityState === 'visible') void enrich() }, 60_000)
+    return () => { active = false; clearInterval(timer) }
+  }, [ready, state.enabled, state.lastReceivedAt, state.mappings.length, reloadLibrary])
+
   useEffect(() => { if (!pairingCode) return; const timer = setTimeout(() => setPairingCode(undefined), 300_000); return () => clearTimeout(timer) }, [pairingCode])
 
   const configure = (enabled: boolean, automatic = state.automatic, autoAdd = state.autoAdd) => run(async (repo) => {
@@ -106,6 +122,8 @@ export function useLibby(reloadLibrary: () => Promise<unknown>) {
     apply: (key: string, id: string, bookId: string | null, expected?: string, moveToReading = false) => run(repo => repo.apply(key, id, bookId, expected, moveToReading)),
     dismiss: (key: string, id: string) => run(repo => repo.dismiss(key, id)),
     unlink: (key: string) => run(repo => repo.unlink(key)),
+    retryMetadata: (id: string) => run(repo => repo.retryEnrichment(id)),
+    chooseMetadata: (id: string, candidateId: string | null) => run(repo => repo.chooseEnrichment(id, candidateId)),
     undo: (id: string) => run(repo => repo.undo(id)),
   }
 }

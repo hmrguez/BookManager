@@ -3,6 +3,7 @@ import { BookOpen, ChevronDown } from 'lucide-react'
 import type { LibraryBook } from '../library-model'
 import { shelfCopy } from '../app/config'
 import type { LibbyController } from './use-libby'
+import { LibbyMetadata } from './LibbyMetadata'
 import './libby.css'
 
 /** The book is fixed here; the reader chooses its captured Libby edition. */
@@ -45,6 +46,7 @@ export function LibbyBookLink({ book, controller: c, onSettings }: {
             <p className="libby-caption">Undo is available in Settings → Libby → Recent updates.</p>
           </div>}
           {mapping && needsReview && !selected && <p className="libby-caption">Visit your Libby web Shelf to receive a fresh capture, then review it here.</p>}
+          <LibbyMetadata book={book} controller={c} />
           <div className="libby-book-actions">{mapping && <button type="button" disabled={c.busy} onClick={() => void c.unlink(mapping.key)}>Unlink from Libby</button>}<button type="button" onClick={onSettings}>Libby settings</button></div>
         </>}
     </div>

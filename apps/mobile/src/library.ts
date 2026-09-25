@@ -89,6 +89,7 @@ export function useLibrary() {
       saveChangedBook(id, (book) => ({
         ...book,
         ...changes,
+        metadataLocks: [...new Set([...(book.metadataLocks ?? []), ...(['title', 'authors', 'identifiers', 'thumbnail', 'pageCount'] as const).filter(field => Object.hasOwn(changes, field))])],
         lastUpdatedAt: new Date().toISOString(),
       }))
     },

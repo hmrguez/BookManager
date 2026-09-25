@@ -29,6 +29,10 @@ export const libraryBookSchema = z.object({
   sourceNames: z.array(z.string().min(1)).optional(),
   capture: bookCaptureSchema.optional(),
   metadataSelection: metadataSelectionSchema.optional(),
+  /** Explicit empty edits must remain empty when background metadata arrives. */
+  metadataLocks: z.array(z.enum(['title', 'authors', 'identifiers', 'thumbnail', 'pageCount'])).optional(),
+  /** Exact book-level correction; null deliberately removes subject classification. */
+  subjectOverride: z.array(z.string().min(1)).nullable().optional(),
   editionTitle: z.string().min(1).optional(),
   format: z.string().min(1).optional(),
   loan: libraryLoanSchema.optional(),

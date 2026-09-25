@@ -17,6 +17,8 @@ import { ProviderTransport } from './transport'
 
 const openLibraryEditionSchema = z.object({
   key: z.string().min(1),
+  subject: z.array(z.string()).optional(),
+  physical_format: z.union([z.string(), z.array(z.string())]).optional(),
   title: z.string().min(1).optional(),
   isbn: z.array(z.string()).optional(),
   language: z.array(z.string()).optional(),
@@ -28,6 +30,8 @@ const openLibraryEditionSchema = z.object({
 
 const openLibraryDocumentSchema = z.object({
   key: z.string().min(1),
+  subject: z.array(z.string()).optional(),
+  physical_format: z.union([z.string(), z.array(z.string())]).optional(),
   title: z.string().min(1),
   author_name: z.array(z.string()).optional(),
   cover_i: z.number().int().positive().optional().catch(undefined),
@@ -79,7 +83,11 @@ const OPEN_LIBRARY_FIELDS = [
   'isbn',
   'number_of_pages_median',
   'language',
+  'subject',
+  'physical_format',
   'editions',
+  'editions.subject',
+  'editions.physical_format',
   'editions.key',
   'editions.title',
   'editions.isbn',
@@ -265,14 +273,27 @@ export class OpenLibraryProvider implements MetadataProvider {
       const authors = observedAuthors?.length ? observedAuthors : ['Unknown author']
       const externalKey = trimOpenLibraryKey(edition?.key ?? document.key)
       const confidence = confidenceFor(document, edition, identifiers, query, exactIsbns)
+      // Canonical OLID suffixes take precedence over a misleading search URL path.
+      const workKey = /OL\d+W$/.test(document.key) ? trimOpenLibraryKey(document.key) : undefined
+      const editionKey = /OL\d+M$/.test(edition?.key ?? document.key) ? trimOpenLibraryKey(edition?.key ?? document.key) : undefined
+      const editionRecord = edition ?? (!workKey && editionKey ? document : undefined)
+      const subjects = [
+        ...(document.subject?.length ? [{ scope: workKey ? 'work' : 'edition', sourceKey: workKey ?? editionKey, values: document.subject.filter(value => value.trim()).slice(0, 1000) }] : []),
+        ...(edition?.subject?.length ? [{ scope: 'edition', sourceKey: editionKey, values: edition.subject.filter(value => value.trim()).slice(0, 1000) }] : []),
+      ].filter(claim => claim.sourceKey)
 
       return providerBookVariantSchema.parse({
         id: providerVariantKey(this.id, externalKey),
         provider: this.id,
         providerName: this.name,
         externalKey,
-        workKey: trimOpenLibraryKey(document.key),
-        editionKey: edition ? trimOpenLibraryKey(edition.key) : undefined,
+        workKey,
+        editionKey,
+        verifiedEditionIdentifiers: editionKey ? editionIdentifiers(editionRecord?.isbn) : [],
+        medium: editionMedium(editionRecord?.physical_format),
+        editionPageCount: edition?.number_of_pages,
+        editionThumbnail: edition?.cover_i ? `https://covers.openlibrary.org/b/id/${edition.cover_i}-M.jpg?default=false` : undefined,
+        subjects,
         title: edition?.title ?? document.title,
         workTitle: document.title,
         authors,
@@ -350,4 +371,16 @@ function confidenceFor(
   if (identifiers.length) confidence += 0.04
   if (edition?.cover_i ?? document.cover_i) confidence += 0.03
   return Math.min(0.95, confidence)
+}
+
+function editionMedium(format: string | string[] | undefined): 'ebook' | 'audiobook' | 'print' | undefined {
+  if (Array.isArray(format)) {
+    const media = [...new Set(format.map(value => editionMedium(value)))]
+    return media.length === 1 ? media[0] : undefined
+  }
+  const value = format?.trim().toLowerCase()
+  if (['ebook', 'e-book', 'epub'].includes(value ?? '')) return 'ebook'
+  if (['audiobook', 'audio cd', 'audio cassette', 'mp3 cd', 'digital audio'].includes(value ?? '')) return 'audiobook'
+  if (['paperback', 'hardcover', 'hardback', 'mass market paperback'].includes(value ?? '')) return 'print'
+  return undefined
 }

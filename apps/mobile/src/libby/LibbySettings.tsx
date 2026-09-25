@@ -9,6 +9,7 @@ import { BookCover } from '../design-system/components'
 import type { LibbyController } from './use-libby'
 import type { LibbyItem } from './model'
 import { companionListing, hasFreshCapture, readSetup, saveSetup, type SetupStep } from './setup'
+import { LibbyMetadata } from './LibbyMetadata'
 import './libby.css'
 
 export function LibbySettings({ controller: c, books, reveal = false, onRevealed }: { controller: LibbyController; books: LibraryBook[]; reveal?: boolean; onRevealed?: () => void }) {
@@ -97,6 +98,7 @@ export function LibbySettings({ controller: c, books, reveal = false, onRevealed
         </>}
         {pending.length > 0 && <div className="libby-review"><h3>Books to review <span>{pending.length}</span></h3>{pending.map(item => <MatchRow key={`${item.key}:${item.snapshotId}:${books.find(book => book.id === c.state.mappings.find(mapping => mapping.key === item.key)?.bookId)?.lastUpdatedAt ?? 'unlinked'}`} item={item} books={books} controller={c} />)}</div>}
         {c.state.enabled && <>
+          {c.state.enrichment.some(job => job.status === 'review') && <details className="libby-details"><summary>Book details to review</summary>{c.state.enrichment.filter(job => job.status === 'review').map(job => { const book = books.find(book => book.id === job.bookId); return book ? <div key={job.id}><h3>{book.title}</h3><LibbyMetadata book={book} controller={c} /></div> : null })}</details>}
           <details className="libby-details"><summary>More options</summary>
             {android && <><button disabled={c.busy} onClick={() => void c.pair()}>Use a connection code instead</button>{c.pairingCode && <><output className="libby-code">{c.pairingCode.match(/.{1,4}/g)?.join(' ')}</output><button disabled={c.busy} onClick={() => void c.copyCode()}>Copy code</button><p className="libby-caption">In the companion, open Connection help and paste this code. It expires after five minutes.</p></>}</>}
             <div className="libby-import"><label><Upload size={16} aria-hidden="true" /> Import progress file<input type="file" accept=".json,application/json" disabled={c.busy} onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; if (file) void c.receiveFile(file) }} /></label></div>
