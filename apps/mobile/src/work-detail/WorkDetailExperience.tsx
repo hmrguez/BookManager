@@ -1,3 +1,4 @@
+import { ReadingHistoryControls } from './ReadingHistoryControls'
 import { useDetailDraft } from './DetailDraft'
 import { BookSource } from './BookSource'
 import './book-detail.css'
@@ -75,6 +76,7 @@ type WorkDetailExperienceProps = {
   readonly onRead: (source?: 'ebook' | 'audio') => void
   readonly onProgress: () => void
   readonly onFinish: () => void
+  readonly onReread?: () => void
   readonly onRate: (rating: number) => void
   readonly onNotes: (notes: string) => void
   readonly onMetadata: (changes: Partial<LibraryBook>) => void
@@ -128,6 +130,7 @@ export function WorkDetailExperience({
   onRead,
   onProgress,
   onFinish,
+  onReread,
   onRate,
   onNotes,
   onMetadata,
@@ -168,6 +171,7 @@ export function WorkDetailExperience({
         onRead={onRead}
         onProgress={onProgress}
         onFinish={onFinish}
+        onReread={onReread}
         onRate={onRate}
         onNotes={onNotes}
         onMetadata={onMetadata}
@@ -370,6 +374,7 @@ function SimpleBookDetail({
   onRead,
   onProgress,
   onFinish,
+  onReread,
   onRate,
   onNotes,
   onMetadata,
@@ -430,6 +435,8 @@ function SimpleBookDetail({
           {book.shelf !== 'finished' && <button type="button" onClick={onFinish}><BookCheck size={16} aria-hidden="true" /> Mark finished</button>}
         </div>
       </section>
+
+      <ReadingHistoryControls book={book} onMetadata={onMetadata} onReread={onReread} />
 
       <section className="book-organization" aria-label="Organize book">
         <section className={tw('simple-detail-section')} aria-labelledby="reading-status-title">

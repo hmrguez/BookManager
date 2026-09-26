@@ -823,6 +823,49 @@ export function deriveReadingState(
     }
   }
 
+  // A manual date correction belongs to the same completion, even when its date moves
+  // before an automatically captured start. It must not reopen that reading period.
+  // Facts retain their corrected effectiveAt for historical/quarterly evidence queries.
+  const byId = new Map(candidates.map((event) => [event.id, event]))
+  const completionAnchor = (event: ReadingEvent): ReadingEvent => {
+    if (event.kind !== 'correction' || event.source.kind !== 'local' || event.source.method !== 'manual'
+      || event.action.kind !== 'replace' || event.action.replacement.kind !== 'finish') return event
+    const targets = event.targetEventIds.flatMap((id) => byId.get(id) ?? [])
+    const original = targets.find((target) => target.kind === 'finish')
+    return original ?? (targets[0] ? completionAnchor(targets[0]) : event)
+  }
+  const lifecycle = activeEvents.filter((event) => {
+    const payload = event.kind === 'correction' && event.action.kind === 'replace' ? event.action.replacement : event
+    return ['start', 'resume', 'pause', 'finish', 'did-not-finish'].includes(payload.kind)
+  }).sort((a, b) => compareReadingEvents(completionAnchor(a), completionAnchor(b)))
+  const lastLifecycle = lifecycle.at(-1)
+  if (lastLifecycle?.kind === 'correction' && lastLifecycle.source.kind === 'local'
+    && lastLifecycle.source.method === 'manual' && lastLifecycle.action.kind === 'replace'
+    && lastLifecycle.action.replacement.kind === 'finish') {
+    state.status = 'finished'
+    state.finishedAt = lastLifecycle.effectiveAt
+    state.pausedAt = undefined
+    state.didNotFinishAt = undefined
+    if (state.startedAt && timestamp(state.startedAt) > timestamp(state.finishedAt)) state.startedAt = undefined
+  } else if (lastLifecycle && activeEvents.some((event) => completionAnchor(event) !== event)) {
+    // A later reread/pause/DNF still wins if an older finish was corrected to a later date.
+    if (lastLifecycle.kind === 'start' || lastLifecycle.kind === 'resume') {
+      state.status = 'reading'
+      if (lastLifecycle.kind === 'start') state.startedAt = lastLifecycle.effectiveAt
+      state.finishedAt = undefined
+      state.pausedAt = undefined
+      state.didNotFinishAt = undefined
+    } else if (lastLifecycle.kind === 'pause') {
+      state.status = 'paused'
+      state.pausedAt = lastLifecycle.effectiveAt
+      state.finishedAt = undefined
+    } else if (lastLifecycle.kind === 'did-not-finish') {
+      state.status = 'did-not-finish'
+      state.didNotFinishAt = lastLifecycle.effectiveAt
+      state.finishedAt = undefined
+    }
+  }
+
   state.sessions.sort((left, right) =>
     compareInstants(left.startedAt, right.startedAt) || left.id.localeCompare(right.id),
   )

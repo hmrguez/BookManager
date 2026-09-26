@@ -126,6 +126,7 @@ function App() {
     updateBook,
     setThumbnailIfMissing,
     moveBook,
+    rereadBook,
     setProgress,
     setCurrentPage,
     removeBook,
@@ -1224,7 +1225,7 @@ function App() {
     const book = books.find((item) => item.id === id)
     if (!book || book.shelf === shelf) return false
     const motion = beginShelfMotion(id, book.shelf, shelf)
-    moveBook(id, shelf)
+    const undo = moveBook(id, shelf)
     if (shelf === 'next') addQueueBook(id)
     else removeQueueBook(id)
     void feedback.emit(feedbackEvent, {
@@ -1234,26 +1235,20 @@ function App() {
         ? 'shelf-transfer'
         : 'semantic',
     })
-    return true
+    return undo
   }
 
-  const moveWithUndo = (id: string, shelf: ShelfId, message: string) => {
+  const moveWithUndo = (id: string, shelf: ShelfId, message: string, feedbackEvent: 'successful-move' | 'completion' = 'successful-move') => {
     const book = books.find((item) => item.id === id)
     if (!book || book.shelf === shelf) return
 
     const previousShelf = book.shelf
-    moveToShelf(id, shelf)
+    const undo = moveToShelf(id, shelf, feedbackEvent)
     setToast({
       message,
       undo: () => {
         beginShelfMotion(id, shelf, previousShelf)
-        updateBook(id, {
-          shelf: previousShelf,
-          progress: book.progress,
-          currentPage: book.currentPage,
-          startedAt: book.startedAt,
-          finishedAt: book.finishedAt,
-        })
+        if (undo) undo()
         if (previousShelf === 'next') addQueueBook(id)
         else removeQueueBook(id)
         if (shelf === 'finished') closeSheet()
@@ -1370,7 +1365,7 @@ function App() {
   }
 
   const handleFinish = (id: string) => {
-    moveToShelf(id, 'finished', 'completion')
+    moveWithUndo(id, 'finished', 'Marked finished', 'completion')
     openSheet({ kind: 'finished', bookId: id })
   }
 
@@ -1673,11 +1668,12 @@ function App() {
           onRead={(source) => source === 'audio' ? openSheet({ kind: 'audiobook-player', bookId: selectedBook.id })
             : source === 'ebook' ? void openReader(selectedBook.id) : openBookMedia(selectedBook)}
           onFinish={() => handleFinish(selectedBook.id)}
+          onReread={() => rereadBook(selectedBook.id)}
           onRate={(rating) => updateBook(selectedBook.id, { rating })}
           onNotes={(notes) => updateBook(selectedBook.id, { notes })}
           onMetadata={(changes) => {
             updateBook(selectedBook.id, changes)
-            setToast({ message: 'Local book details saved as your preferred values' })
+            setToast({ message: Object.hasOwn(changes, 'finishedAt') ? 'Finish date updated' : 'Local book details saved as your preferred values' })
           }}
           onCover={(thumbnail) => {
             const resolvedPendingCover = !selectedBook.thumbnail

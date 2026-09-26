@@ -415,6 +415,7 @@ export async function createPortableArchive(
     includeSourcePayloads,
   })
   const books = libraryBookSchema.array().parse(libraryInput)
+  validateReadingEditionLinks(catalog, books)
   const organization = libraryOrganizationSchema.parse(organizationInput)
   const upNext = upNextStateSchema.parse(upNextInput)
   const smartLists = savedSmartListSchema.array().parse(smartListsInput)
@@ -707,6 +708,7 @@ export async function inspectPortableArchive(
     annotations.library,
     archive.manifest.redactions.privateAnnotations,
   )
+  validateReadingEditionLinks(catalog, books)
   const assetContents = validateRestoredAssets(
     catalog,
     archive.manifest,
@@ -1201,4 +1203,11 @@ export function createLibraryMarkdown(
 
 function escapeMarkdown(value: string): string {
   return value.replace(/[\\`*_{}[\]<>()#+.!|>-]/g, '\\$&')
+}
+
+function validateReadingEditionLinks(catalog: Catalog, books: readonly LibraryBook[]): void {
+  const editions = new Set(catalog.editions.map(({ id }) => id))
+  if (books.some((book) => book.readingEditionId && !editions.has(book.readingEditionId))) {
+    throw new PortableArchiveIntegrityError('data/library.json', 'reading edition reference is missing from the catalog')
+  }
 }

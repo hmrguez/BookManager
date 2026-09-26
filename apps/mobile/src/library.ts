@@ -1,3 +1,4 @@
+import { readingChanged, type ManualReadingOperation } from './storage/manual-reading'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   findLibraryBookForSearchResult,
@@ -70,16 +71,29 @@ export function useLibrary() {
   }, [showBooks])
 
   const saveChangedBook = useCallback(
-    (id: string, update: (book: LibraryBook) => LibraryBook) => {
+    (id: string, update: (book: LibraryBook) => LibraryBook, intent: Omit<ManualReadingOperation, 'id'> = {}) => {
       const current = booksRef.current
       const index = current.findIndex((book) => book.id === id)
       if (index === -1) return
-      const changed = update(current[index])
+      const before = current[index]
+      const operation = { id: crypto.randomUUID(), ...intent }
+      const changed = update(before)
       const next = [...current]
       next[index] = changed
       hasMutatedRef.current = true
       showBooks(next)
-      enqueuePersistence((repository) => repository.save(changed))
+      enqueuePersistence(async (repository) => {
+        try {
+          if (readingChanged(before, changed) || intent.reread || intent.undoOf || intent.confirmFinish) await repository.saveManual(before, changed, operation)
+          else {
+            await repository.saveEdits(before, changed)
+          }
+        } catch (error) {
+          showBooks(await repository.list())
+          throw error
+        }
+      })
+      return operation.id
     },
     [enqueuePersistence, showBooks],
   )
@@ -90,8 +104,8 @@ export function useLibrary() {
         ...book,
         ...changes,
         metadataLocks: [...new Set([...(book.metadataLocks ?? []), ...(['title', 'authors', 'identifiers', 'thumbnail', 'pageCount'] as const).filter(field => Object.hasOwn(changes, field))])],
-        lastUpdatedAt: new Date().toISOString(),
-      }))
+        lastUpdatedAt: nextTimestamp(book),
+      }), { confirmFinish: Object.hasOwn(changes, 'finishedAt') })
     },
     [saveChangedBook],
   )
@@ -113,12 +127,7 @@ export function useLibrary() {
         const current = booksRef.current
         const existing = findLibraryBookForSearchResult(current, result)
         if (existing) {
-          saveChangedBook(existing.id, (book) => ({
-            ...book,
-            shelf,
-            startedAt: shelf === 'reading' ? book.startedAt ?? new Date().toISOString() : book.startedAt,
-            lastUpdatedAt: new Date().toISOString(),
-          }))
+          saveChangedBook(existing.id, (book) => movedBook(book, shelf))
           return { bookId: existing.id, existed: true }
         }
 
@@ -137,7 +146,7 @@ export function useLibrary() {
           lastUpdatedAt: timestamp,
         }
         // Persist first: a denied purchase gate must never leave a phantom book in the UI.
-        await (await getStorageRuntime()).library.save(added)
+        await (await getStorageRuntime()).library.saveManual(undefined, added, { id: crypto.randomUUID() })
         hasMutatedRef.current = true
         showBooks([...booksRef.current, added])
         return { bookId: added.id, existed: false }
@@ -150,21 +159,25 @@ export function useLibrary() {
 
   const moveBook = useCallback(
     (id: string, shelf: ShelfId) => {
-      saveChangedBook(id, (book) => {
-        const timestamp = new Date().toISOString()
-        return {
-          ...book,
-          shelf,
-          progress: shelf === 'finished' ? 100 : book.progress,
-          currentPage: shelf === 'finished' && book.pageCount ? book.pageCount : book.currentPage,
-          startedAt: shelf === 'reading' ? book.startedAt ?? timestamp : book.startedAt,
-          finishedAt: shelf === 'finished' ? timestamp : undefined,
-          lastUpdatedAt: timestamp,
-        }
-      })
+      const before = booksRef.current.find((book) => book.id === id)
+      if (!before || before.shelf === shelf) return
+      const operationId = saveChangedBook(id, (book) => movedBook(book, shelf))
+      return () => saveChangedBook(id, (book) => ({ ...book,
+        shelf: before.shelf, progress: before.progress, currentPage: before.currentPage,
+        startedAt: before.startedAt, finishedAt: before.finishedAt, lastUpdatedAt: nextTimestamp(book),
+      }), { undoOf: operationId, undoProgress: {
+        progress: shelf === 'finished' ? 100 : before.progress,
+        currentPage: shelf === 'finished' && before.pageCount ? before.pageCount : before.currentPage,
+      } })
     },
     [saveChangedBook],
   )
+
+  const rereadBook = useCallback((id: string) => {
+    saveChangedBook(id, (book) => ({ ...book, shelf: 'reading', progress: 0, currentPage: 0,
+      startedAt: nextTimestamp(book), finishedAt: undefined, lastUpdatedAt: nextTimestamp(book),
+    }), { reread: true })
+  }, [saveChangedBook])
 
   const setProgress = useCallback(
     (id: string, progress: number) => {
@@ -262,6 +275,7 @@ export function useLibrary() {
     updateBook,
     setThumbnailIfMissing,
     moveBook,
+    rereadBook,
     setProgress,
     setCurrentPage,
     finishBook,
@@ -276,4 +290,20 @@ function createLibraryBookId(): string {
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(36).slice(2)}`
   return `book:${unique}`
+}
+
+function nextTimestamp(book: LibraryBook): string {
+  return new Date(Math.max(Date.now(), Date.parse(book.lastUpdatedAt) + 1)).toISOString()
+}
+
+function movedBook(book: LibraryBook, shelf: ShelfId): LibraryBook {
+  if (book.shelf === shelf) return book
+  const timestamp = nextTimestamp(book)
+  return { ...book, shelf,
+    progress: shelf === 'finished' ? 100 : book.progress,
+    currentPage: shelf === 'finished' && book.pageCount ? book.pageCount : book.currentPage,
+    startedAt: shelf === 'reading' ? book.startedAt ?? timestamp : book.startedAt,
+    finishedAt: shelf === 'finished' ? timestamp : undefined,
+    lastUpdatedAt: timestamp,
+  }
 }

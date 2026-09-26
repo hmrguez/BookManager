@@ -1,3 +1,4 @@
+import { saveManualReadingChange, type ManualReadingOperation } from './manual-reading'
 import { isUntouchedStarterLibraryBook, libraryBookSchema, type LibraryBook } from '../library-model'
 import { upNextStateSchema } from '../up-next-model'
 import type { SqlDatabase } from './database'
@@ -42,6 +43,22 @@ export class LibraryRepository {
 
   async save(book: LibraryBook): Promise<void> {
     await this.#database.transaction((database) => writeLibraryBook(database, libraryBookSchema.parse(book)))
+  }
+
+  async saveEdits(before: LibraryBook, after: LibraryBook): Promise<void> {
+    await this.#database.transaction(async (database) => {
+      const [row] = await database.query('SELECT payload_json FROM library_books WHERE id = ?', [before.id])
+      if (!row) throw new Error('This book is no longer in the library.')
+      const current = libraryBookSchema.parse(JSON.parse(readText(row, 'payload_json')))
+      const changes = Object.fromEntries(Object.keys(after).filter((key) =>
+        JSON.stringify(before[key as keyof LibraryBook]) !== JSON.stringify(after[key as keyof LibraryBook]),
+      ).map((key) => [key, after[key as keyof LibraryBook]]))
+      await writeLibraryBook(database, libraryBookSchema.parse({ ...current, ...changes }))
+    })
+  }
+
+  async saveManual(before: LibraryBook | undefined, after: LibraryBook, operation: ManualReadingOperation): Promise<void> {
+    await this.#database.transaction((database) => saveManualReadingChange(database, before, libraryBookSchema.parse(after), operation))
   }
 
   async remove(id: string): Promise<void> {

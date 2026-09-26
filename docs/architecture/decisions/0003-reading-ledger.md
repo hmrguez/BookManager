@@ -230,3 +230,37 @@ native locators. Normalized progress is a confidence-bearing projection.
 - Statistics must expose uncertainty instead of treating low-confidence normalized positions or
   timestamps as exact.
 - Reread rituals may add a higher-level read-cycle projection without changing this ledger.
+
+## Manual lifecycle capture (2026-09-26)
+
+Explicit app finish, unfinish, date confirmation/correction, reread, and shelf undo now append
+manual-source events in the same transaction as the library and progress projections. Commands
+have stable retry IDs. Undo checks the latest reading revision and expected progress before
+restoring the previous lifecycle fields; unrelated metadata edits survive. Ordinary metadata,
+page/progress updates, imported timestamps and loan changes never enter this manual-finish path.
+
+A book retains its canonical `readingEditionId` in the compatibility projection. Capture reuses
+native/import associations, migration identity or an unambiguous exact edition ISBN before creating
+a local identity. It never merges Works by title. Optional links survive private backup/restore;
+archives validate their edition references. Existing snapshot metadata used to establish a local
+identity remains migration evidence, not a new exact-field user correction.
+
+“Read again” appends a new start while retaining earlier completions. Moving out of Finished
+retracts the current completion. Date corrections replace the effective finish without discarding
+its original evidence; successive replacements suppress the full correction ancestry. Undoing a
+replacement restores its predecessor. A manual correction remains attached to the original
+completion for current lifecycle status even if its corrected date precedes an automatically
+captured start. In that case the current projection omits the incompatible start date; it does not
+invent a replacement. Effective-date evidence queries still use the corrected date. Later genuine
+starts continue to open a new read. This refines correction projection without changing event
+storage, provenance, or quarterly eligibility.
+
+A reported finish retains the last native locator when available, without claiming it was the
+reader's end position. Historical uncertain/imported finishes retain their original confidence
+until the reader explicitly confirms a date. Missing legacy periods are never reconstructed.
+
+Verification: `manual-reading.test.ts` covers corrections, rereads, retries, atomic rollback,
+shared Work identity across editions, native locators, imported uncertainty, backup/restore and
+stale undo. `manual-reading.spec.ts` exercises the app controls and persisted projections; the
+existing DNF browser suite protects its resume/undo behavior. Broader ritual design remains with
+[Design finish, DNF, reread, and edition-switch rituals](https://linear.app/hrcoding/issue/QUI-74/design-finish-dnf-reread-and-edition-switch-rituals).

@@ -25,6 +25,7 @@ export function DetailSheet({
   onRead,
   onProgress,
   onFinish,
+  onReread,
   onRate,
   onNotes,
   onMetadata,
@@ -53,6 +54,7 @@ export function DetailSheet({
   onRead: (source?: 'ebook' | 'audio') => void
   onProgress: () => void
   onFinish: () => void
+  onReread?: () => void
   onRate: (rating: number) => void
   onNotes: (notes: string) => void
   onMetadata: (changes: Partial<LibraryBook>) => void
@@ -109,6 +111,7 @@ export function DetailSheet({
         onRead={(source) => requestLeave(() => onRead(source))}
         onProgress={onProgress}
         onFinish={onFinish}
+        onReread={onReread}
         onRate={onRate}
         onNotes={onNotes}
         onMetadata={onMetadata}

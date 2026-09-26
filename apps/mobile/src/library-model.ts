@@ -1,3 +1,4 @@
+import { editionIdSchema } from './domain/catalog/ids'
 import { z } from 'zod'
 import {
   canonicalEditionIsbn,
@@ -17,6 +18,8 @@ export const libraryLoanSchema = z.object({
 
 export const libraryBookSchema = z.object({
   id: z.string().min(1),
+  readingEditionId: editionIdSchema.optional(),
+  manualReadingRevision: z.string().optional(),
   title: z.string().min(1),
   authors: z.array(z.string().min(1)),
   alternateTitles: z.array(z.string().min(1)).optional(),
