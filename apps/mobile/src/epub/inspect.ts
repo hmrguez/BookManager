@@ -237,6 +237,7 @@ async function inspectArchive(archive: EpubArchive, centralEntries: CentralEntry
     packageIdentifier,
     title,
     creators: elements(packageDocument, 'creator').map(textContent).filter(Boolean),
+    subjects: [...new Set(Array.from(packageDocument.getElementsByTagNameNS('http://purl.org/dc/elements/1.1/', 'subject')).map(textContent).filter(Boolean))],
     language,
     ...(optionalMetadataText(packageDocument, 'publisher') ? { publisher: optionalMetadataText(packageDocument, 'publisher') } : {}),
     ...(publicationDate && publicationDate.length >= 4 ? { publicationDate } : {}),

@@ -277,6 +277,8 @@ export class EpubImportRepository {
         importedAt,
         provenance: {
           source: 'local-file',
+          ...(input.inspection.packageVersion !== 'pdf' && input.inspection.subjects?.length
+            ? { subjects: [...input.inspection.subjects] } : {}),
           packagePath: input.inspection.packagePath,
           entryCount: input.inspection.entryCount,
           scriptedContentDiscovered: input.inspection.containsScriptedContent,

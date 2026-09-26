@@ -25,6 +25,7 @@ export type EpubInspection = {
   readonly packageIdentifier: string
   readonly title: string
   readonly creators: readonly string[]
+  readonly subjects?: readonly string[]
   readonly language: string
   readonly publisher?: string
   readonly publicationDate?: string

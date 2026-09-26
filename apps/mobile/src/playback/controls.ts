@@ -280,6 +280,10 @@ export class AudiobookControlsRepository {
     return rows.map(annotationFromRow)
   }
 
+  async allAnnotations(): Promise<AudiobookAnnotation[]> {
+    return (await this.#database.query<AnnotationRow>(`${annotationSelect} ORDER BY id`)).map(annotationFromRow)
+  }
+
   async updateAnnotationNote(id: string, note: string): Promise<AudiobookAnnotation | undefined> {
     const updatedAt = this.#now().toISOString()
     await this.#database.run(
