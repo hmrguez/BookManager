@@ -14,6 +14,9 @@ const DOMAIN_TABLES = [
   'reading_events',
   'progress_snapshots',
   'library_books',
+  'review_keepsakes',
+  'review_quarters',
+  'review_invitation_suppressions',
 ] as const
 
 export type StorageInspection = {

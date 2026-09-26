@@ -1,4 +1,6 @@
 import { LibbyRepository } from '../libby/repository'
+import { Directory, Filesystem } from '@capacitor/filesystem'
+import { ReviewKeepsakeRepository } from '../reviews/keepsake-repository'
 import { reconcileOriginalFiles } from '../files/original-files'
 import { AudiobookImportService } from '../audiobooks'
 import { EpubImportService } from '../epub'
@@ -38,6 +40,7 @@ export type StorageRuntime = {
   readonly readingLedger: ReadingLedgerRepository
   readonly duplicateReviews: DuplicateReviewRepository
   readonly libby: LibbyRepository
+  readonly reviewKeepsakes: ReviewKeepsakeRepository
   readonly library: LibraryRepository
   readonly metadataSearchCache: MetadataSearchCacheRepository
   readonly organization: OrganizationRepository
@@ -71,6 +74,13 @@ async function initializeStorageRuntime(): Promise<StorageRuntime> {
   const recovery = new RecoveryService(database, { epubAssetStore })
   const recoveryLaunch = await recovery.beginPendingLaunch()
   await migrateStorage(database, { backupStore: createMigrationBackupStore() })
+  const reviewKeepsakes = new ReviewKeepsakeRepository(database, {
+    voiceExists: async path => {
+      if (!/^annotations\/audiobooks\/[\w.:-]+$/.test(path) || path.includes('..')) return false
+      return Filesystem.stat({ path, directory: Directory.LibraryNoCloud }).then(file => file.type === 'file', () => false)
+    },
+  })
+  await reviewKeepsakes.settings()
   const library = new LibraryRepository(database)
   const legacyStorage = getLegacyLibraryStorage()
   const legacyMigration = legacyStorage
@@ -106,6 +116,7 @@ async function initializeStorageRuntime(): Promise<StorageRuntime> {
     duplicateReviews: new DuplicateReviewRepository(database),
     library,
     libby: new LibbyRepository(database),
+    reviewKeepsakes,
     metadataSearchCache: new MetadataSearchCacheRepository(database),
     organization: new OrganizationRepository(database),
     smartLists: new SmartListRepository(database),

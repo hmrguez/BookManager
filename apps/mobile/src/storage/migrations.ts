@@ -323,6 +323,25 @@ CREATE INDEX idx_library_books_position
   ON library_books(position, id);
 `
 
+const REVIEW_KEEPSAKES_SQL = `
+CREATE TABLE review_settings (
+  id INTEGER PRIMARY KEY NOT NULL CHECK (id = 1),
+  payload_json TEXT NOT NULL CHECK (json_valid(payload_json))
+);
+CREATE TABLE review_quarters (
+  id TEXT PRIMARY KEY NOT NULL,
+  payload_json TEXT NOT NULL CHECK (json_valid(payload_json))
+);
+CREATE TABLE review_keepsakes (
+  id TEXT PRIMARY KEY NOT NULL REFERENCES review_quarters(id),
+  payload_json TEXT NOT NULL CHECK (json_valid(payload_json))
+);
+CREATE TABLE review_invitation_suppressions (
+  quarter_id TEXT PRIMARY KEY NOT NULL,
+  suppressed_at TEXT NOT NULL
+);
+`
+
 export const STORAGE_MIGRATIONS: readonly StorageMigration[] = [
   {
     version: 1,
@@ -490,6 +509,13 @@ export const STORAGE_MIGRATIONS: readonly StorageMigration[] = [
     kind: 'additive',
     signature: LIBBY_SCHEMA_SQL,
     async up(database) { await database.execute(LIBBY_SCHEMA_SQL) },
+  },
+  {
+    version: 20,
+    name: 'stable quarterly review keepsakes and viewing progress',
+    kind: 'additive',
+    signature: REVIEW_KEEPSAKES_SQL,
+    async up(database) { await database.execute(REVIEW_KEEPSAKES_SQL) },
   },
 ]
 
