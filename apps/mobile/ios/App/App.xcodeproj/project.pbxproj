@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A10900012FEA000000000001 /* ReaderActiveClock.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10900022FEA000000000002 /* ReaderActiveClock.swift */; };
 		A14300012FF3000000000001 /* WovenleafPDFViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A14300022FF3000000000002 /* WovenleafPDFViewController.swift */; };
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
 		4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */ = {isa = PBXBuildFile; productRef = 4D22ABE82AF431CB00220026 /* CapApp-SPM */; };
@@ -71,6 +72,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A10900022FEA000000000002 /* ReaderActiveClock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderActiveClock.swift; sourceTree = "<group>"; };
 		A14300022FF3000000000002 /* WovenleafPDFViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WovenleafPDFViewController.swift; sourceTree = "<group>"; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
 		50379B222058CBB4000EE86E /* capacitor.config.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = capacitor.config.json; sourceTree = "<group>"; };
@@ -167,6 +169,7 @@
 				A13500022FEA000000000002 /* WovenleafReaderPlugin.swift */,
 				A14300022FF3000000000002 /* WovenleafPDFViewController.swift */,
 				A13500042FEA000000000004 /* WovenleafReaderViewController.swift */,
+				A10900022FEA000000000002 /* ReaderActiveClock.swift */,
 				A13600022FEF000000000002 /* WovenleafReaderAppearance.swift */,
 				A13800022FF1000000000002 /* WovenleafReaderNavigation.swift */,
 				A13900022FF2000000000002 /* WovenleafReaderAnnotations.swift */,
@@ -375,6 +378,7 @@
 				A13500012FEA000000000001 /* WovenleafReaderPlugin.swift in Sources */,
 				A14300012FF3000000000001 /* WovenleafPDFViewController.swift in Sources */,
 				A13500032FEA000000000003 /* WovenleafReaderViewController.swift in Sources */,
+				A10900012FEA000000000001 /* ReaderActiveClock.swift in Sources */,
 				A13600012FEF000000000001 /* WovenleafReaderAppearance.swift in Sources */,
 				A13800012FF1000000000001 /* WovenleafReaderNavigation.swift in Sources */,
 				A13900012FF2000000000001 /* WovenleafReaderAnnotations.swift in Sources */,

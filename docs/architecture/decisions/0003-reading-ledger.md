@@ -264,3 +264,38 @@ shared Work identity across editions, native locators, imported uncertainty, bac
 stale undo. `manual-reading.spec.ts` exercises the app controls and persisted projections; the
 existing DNF browser suite protects its resume/undo behavior. Broader ritual design remains with
 [Design finish, DNF, reread, and edition-switch rituals](https://linear.app/hrcoding/issue/QUI-74/design-finish-dnf-reread-and-edition-switch-rituals).
+
+## Foreground EPUB capture (2026-09-26)
+
+New native EPUB sessions carry optional `activeCapture` evidence with kind `epub-foreground`,
+version 1, a reader-instance `captureId`, interval index, and start/end boundary reasons. Each
+session is a completed, continuous foreground slice with exact start/end timestamps and duration.
+The hosts checkpoint every ten seconds and flush on loss of foreground activity, disappearance,
+and close. Android also pauses on loss of window focus. Duplicate pause/resume/close callbacks
+cannot reopen or recount an interval. Readium/toolkit version remains separate from capture version.
+
+The capture clock measures duration monotonically and anchors timestamps to the wall clock. A
+wall/monotonic discrepancy over 250 ms or a callback gap over 30 seconds discards that slice and
+marks the next slice as discontinuous. The uncertain gap is never distributed across quarters.
+A process kill retains completed outbox slices only; it never reconstructs the unfinished tail
+from the next launch time. Normal checkpoint cadence limits that tail to roughly ten seconds;
+stalls can lose more, deliberately. This measures foreground reader time, not proof of attention.
+
+The existing durable outbox and acknowledgement path feeds these slices into session events.
+Late reliable slices are retained even after a newer location or asset replacement; they cannot
+regress the current checkpoint or snapshot. Event IDs make retries idempotent, including a crash
+between ledger append and checkpoint persistence. Session projection and private archives retain
+capture evidence. Portable schema 9 prevents older readers from silently discarding this evidence;
+older archives remain readable without upgrading their historical sessions' reliability.
+
+Quarterly consumers must require supported capture evidence before using EPUB duration. Absence
+of `activeCapture` is historical/unknown quality, never implicit version 1. The interval endpoints
+support exact calendar-boundary splitting and overlap detection. A checkpoint continues a slice;
+a pause/resume gap contributes no time. A discontinuity, missing interval index, or an unfinished
+capture followed by a new instance cannot prove visit continuity. Apply the approved same-work,
+same-activity interruption threshold of **at most five minutes** only when the complete intervening
+activity evidence supports it; work switches and longer breaks end the visit. Work-level visits,
+overlap reconciliation, quarterly totals and badge selection belong to the quarterly calculation
+layer, not the native session identity. Native slices are not themselves reading visits.
+
+Verification and reproduction are recorded in [the active EPUB capture guide](../../guides/epub-active-time.md).

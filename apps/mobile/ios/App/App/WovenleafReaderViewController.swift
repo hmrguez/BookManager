@@ -15,8 +15,10 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
     private var globalPreferences: WovenleafReaderPreferences
     private var bookPreferences: WovenleafReaderPreferences?
     private let sessionId = "reading-session:reader:\(UUID().uuidString.lowercased())"
-    private let sessionStartedAt = Date()
-    private let sessionStartedUptime = ProcessInfo.processInfo.systemUptime
+    private var activeClock = ReaderActiveClock()
+    private var activeTimer: Timer?
+    private var readerVisible = false
+    private var sessionClosed = false
     private var checkpointTimer: Timer?
     private var preferenceTimer: Timer?
     private var pendingPreference: (ReaderPreferenceScope, WovenleafReaderPreferences?)?
@@ -165,8 +167,12 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(flushForLifecycle),
-            name: UIApplication.didEnterBackgroundNotification,
+            name: UIApplication.willResignActiveNotification,
             object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(resumeActiveReading),
+            name: UIApplication.didBecomeActiveNotification, object: nil
         )
         applyReaderPalette()
         updateBookmarkButton()
@@ -180,12 +186,54 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        readerVisible = true
+        resumeActiveReading()
         if !presentedCompatibilityNotice, context.compatibility?.notices.isEmpty == false {
             presentedCompatibilityNotice = true
             showCompatibilityNotice()
         } else {
             UIAccessibility.post(notification: .screenChanged, argument: navigator.view)
         }
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        readerVisible = false
+        flushActiveReading(reason: "pause")
+        super.viewWillDisappear(animated)
+    }
+
+    @objc private func resumeActiveReading() {
+        guard readerVisible, !sessionClosed, UIApplication.shared.applicationState == .active else { return }
+        activeClock.resume(wallMs: Int64(Date().timeIntervalSince1970 * 1_000),
+                           monotonicMs: Int64(ProcessInfo.processInfo.systemUptime * 1_000))
+        guard activeTimer == nil else { return }
+        let timer = Timer(timeInterval: ReaderActiveClock.checkpointSeconds, repeats: true) { [weak self] _ in
+            self?.flushActiveReading(reason: "checkpoint")
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        activeTimer = timer
+    }
+
+    private func flushActiveReading(reason: String) {
+        if reason != "checkpoint" {
+            activeTimer?.invalidate()
+            activeTimer = nil
+        }
+        guard let interval = activeClock.flush(
+            wallMs: Int64(Date().timeIntervalSince1970 * 1_000),
+            monotonicMs: Int64(ProcessInfo.processInfo.systemUptime * 1_000), reason: reason
+        ) else { return }
+        ReaderOutbox.enqueue(
+            kind: "session", context: context,
+            sessionId: "\(sessionId):\(interval.index)", locator: lastLocator ?? navigator.currentLocation,
+            startedAt: ReaderOutbox.timestamp(Date(timeIntervalSince1970: Double(interval.startedAtMs) / 1_000)),
+            endedAt: ReaderOutbox.timestamp(Date(timeIntervalSince1970: Double(interval.endedAtMs) / 1_000)),
+            activeDurationMs: Int(interval.endedAtMs - interval.startedAtMs),
+            extra: ["reachedEnd": isAtEnd, "activeCapture": [
+                "version": 1, "kind": "epub-foreground", "captureId": sessionId,
+                "intervalIndex": interval.index, "startReason": interval.startReason, "endReason": interval.endReason,
+            ]]
+        )
     }
 
     override var preferredStatusBarStyle: UIStatusBarStyle {
@@ -242,6 +290,7 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
 
     deinit {
         NotificationCenter.default.removeObserver(self)
+        activeTimer?.invalidate()
         checkpointTimer?.invalidate()
         preferenceTimer?.invalidate()
         publication.close()
@@ -509,6 +558,7 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
     }
 
     @objc private func flushForLifecycle() {
+        flushActiveReading(reason: "pause")
         flushPreference()
         flushLocation()
     }
@@ -522,6 +572,9 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
     }
 
     private func finishReading(animated: Bool, completion: (() -> Void)? = nil) {
+        guard !sessionClosed else { completion?(); return }
+        sessionClosed = true
+        flushActiveReading(reason: "close")
         checkpointTimer?.invalidate()
         for token in inputObserverTokens {
             navigator.removeObserver(token)
@@ -530,17 +583,6 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         speechSynthesizer.stopSpeaking(at: .immediate)
         flushPreference()
         flushLocation()
-        let endedAt = Date()
-        ReaderOutbox.enqueue(
-            kind: "session",
-            context: context,
-            sessionId: sessionId,
-            locator: lastLocator ?? navigator.currentLocation,
-            startedAt: ReaderOutbox.timestamp(sessionStartedAt),
-            endedAt: ReaderOutbox.timestamp(endedAt),
-            activeDurationMs: max(0, Int((ProcessInfo.processInfo.systemUptime - sessionStartedUptime) * 1_000)),
-            extra: ["reachedEnd": isAtEnd]
-        )
         navigationController?.dismiss(animated: animated, completion: completion)
     }
 

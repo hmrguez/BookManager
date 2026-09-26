@@ -100,8 +100,9 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
     private var restoringHistory = false
     private var scrubbing = false
     private val sessionId = "reading-session:reader:${UUID.randomUUID().toString().lowercase()}"
-    private val sessionStartedAt = ReaderOutbox.timestamp()
-    private val sessionStartedUptime = SystemClock.elapsedRealtime()
+    private val activeClock = ReaderActiveClock()
+    private var activeJob: Job? = null
+    private var readerResumed = false
     private var sessionClosed = false
     private var textToSpeech: TextToSpeech? = null
     private var speechReady = false
@@ -143,7 +144,20 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         openPublication()
     }
 
+    override fun onResume() {
+        super.onResume()
+        readerResumed = true
+        resumeActiveReading()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) resumeActiveReading() else flushActiveReading("pause")
+    }
+
     override fun onPause() {
+        readerResumed = false
+        flushActiveReading("pause")
         flushPreference()
         flushLocation()
         super.onPause()
@@ -156,6 +170,7 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
     }
 
     override fun onDestroy() {
+        flushActiveReading("close")
         checkpointJob?.cancel()
         preferenceJob?.cancel()
         locationJob?.cancel()
@@ -305,6 +320,7 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
             sessionId,
             initialLocator?.toJSON(),
         )
+        resumeActiveReading()
         locationJob = lifecycleScope.launch {
             fragment.currentLocator.collectLatest { locator ->
                 // Reflowable locations arrive with the rendered page bounds in
@@ -1230,22 +1246,43 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         )
     }
 
+    private fun resumeActiveReading() {
+        if (!readerResumed || sessionClosed || navigator == null || !hasWindowFocus()) return
+        activeClock.resume(System.currentTimeMillis(), SystemClock.elapsedRealtime())
+        if (activeJob != null) return
+        activeJob = lifecycleScope.launch {
+            while (true) {
+                delay(ReaderActiveClock.CHECKPOINT_MS)
+                flushActiveReading("checkpoint")
+            }
+        }
+    }
+
+    private fun flushActiveReading(reason: String) {
+        if (reason != "checkpoint") {
+            activeJob?.cancel()
+            activeJob = null
+        }
+        val interval = activeClock.flush(System.currentTimeMillis(), SystemClock.elapsedRealtime(), reason) ?: return
+        ReaderOutbox.enqueue(
+            this, "session", readerContext, "$sessionId:${interval.index}",
+            (lastLocator ?: navigator?.currentLocator?.value)?.toJSON(),
+            startedAt = java.time.Instant.ofEpochMilli(interval.startedAtMs).toString(),
+            endedAt = java.time.Instant.ofEpochMilli(interval.endedAtMs).toString(),
+            activeDurationMs = interval.endedAtMs - interval.startedAtMs,
+            extra = JSONObject().put("reachedEnd", pageBounds.atEnd).put("activeCapture", JSONObject()
+                .put("version", 1).put("kind", "epub-foreground").put("captureId", sessionId)
+                .put("intervalIndex", interval.index).put("startReason", interval.startReason)
+                .put("endReason", interval.endReason)),
+        )
+    }
+
     private fun closeReader() {
         flushPreference()
         flushLocation()
         if (!sessionClosed) {
             sessionClosed = true
-            ReaderOutbox.enqueue(
-                this,
-                "session",
-                readerContext,
-                sessionId,
-                (lastLocator ?: navigator?.currentLocator?.value)?.toJSON(),
-                startedAt = sessionStartedAt,
-                endedAt = ReaderOutbox.timestamp(),
-                activeDurationMs = (SystemClock.elapsedRealtime() - sessionStartedUptime).coerceAtLeast(0L),
-                extra = JSONObject().put("reachedEnd", pageBounds.atEnd),
-            )
+            flushActiveReading("close")
         }
         finish()
     }

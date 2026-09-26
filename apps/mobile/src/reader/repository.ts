@@ -319,12 +319,18 @@ export class EpubReaderRepository {
        LIMIT 1`,
       [event.bookId],
     )
-    if (activeImport && readText(activeImport, 'content_asset_id') !== event.assetId) return 'stale'
+    const isActiveInterval = event.kind === 'session' && event.activeCapture !== undefined
+    const isReplacedAsset = activeImport && readText(activeImport, 'content_asset_id') !== event.assetId
+    if (isReplacedAsset && !isActiveInterval) return 'stale'
     const [checkpoint] = await this.#database.query<{ readonly last_sequence: number }>(
       'SELECT last_sequence FROM epub_reader_checkpoints WHERE asset_id = ?',
       [event.assetId],
     )
-    if (checkpoint && readNumber(checkpoint, 'last_sequence') >= event.sequence) return 'stale'
+    const isOldSequence = checkpoint && readNumber(checkpoint, 'last_sequence') >= event.sequence
+    // Late outbox slices still carry independent time evidence. Only their progress
+    // projection is stale; dropping them here would lose crash-recovered activity.
+    if (isOldSequence && !isActiveInterval) return 'stale'
+    const historicalOnly = isActiveInterval && (isOldSequence || isReplacedAsset)
 
     if (event.kind === 'preference') {
       await this.savePreferences(
@@ -354,7 +360,7 @@ export class EpubReaderRepository {
     const readingEvent = toReadingEvent(event, eventId)
     const position = event.locator ? toReadingPosition(event) : undefined
     if (!existing) {
-      const snapshot = position
+      const snapshot = position && !historicalOnly
         ? {
             id: progressSnapshotIdSchema.parse(`progress:reader:${event.assetId}`),
             editionId: readingEvent.editionId,
@@ -371,7 +377,7 @@ export class EpubReaderRepository {
         ...(snapshot ? { snapshots: [snapshot] } : {}),
       })
     }
-    await this.#saveCheckpoint(event, position?.normalizedProgress)
+    if (!historicalOnly) await this.#saveCheckpoint(event, position?.normalizedProgress)
     return existing ? 'duplicate' : 'applied'
   }
 
@@ -601,6 +607,7 @@ function toReadingEvent(
       startedAt: event.startedAt ?? event.emittedAt,
       endedAt: event.endedAt ?? event.emittedAt,
       activeDurationMs: event.activeDurationMs ?? 0,
+      ...(event.activeCapture ? { activeCapture: event.activeCapture } : {}),
       ...(position ? { endPosition: position } : {}),
     }
   }

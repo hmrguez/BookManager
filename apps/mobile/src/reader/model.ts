@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { activeReadingCaptureSchema, isExactActiveInterval } from '../domain/catalog/active-capture'
 import type { EpubCompatibilityProfile } from '../epub/compatibility'
 
 const fractionSchema = z.number().min(0).max(1)
@@ -123,8 +124,11 @@ export const nativeReaderEventSchema = z.discriminatedUnion('kind', [
     startedAt: z.string().datetime({ offset: true }).optional(),
     endedAt: z.string().datetime({ offset: true }).optional(),
     activeDurationMs: z.number().int().nonnegative().optional(),
+    activeCapture: activeReadingCaptureSchema.optional(),
     locator: readiumLocatorSchema.optional(),
     reachedEnd: z.boolean().optional(),
+  }).refine((event) => !event.activeCapture || isExactActiveInterval(event), {
+    message: 'Foreground capture requires an exact, bounded active interval', path: ['activeCapture'],
   }),
   nativeReaderEventBaseSchema.extend({
     kind: z.literal('preference'),

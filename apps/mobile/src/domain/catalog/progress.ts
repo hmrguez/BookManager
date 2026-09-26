@@ -1,3 +1,4 @@
+import { activeReadingCaptureSchema, isExactActiveInterval, type ActiveReadingCapture } from './active-capture'
 import { z } from 'zod'
 import {
   assetIdSchema,
@@ -239,6 +240,7 @@ const sessionPayloadSchema = z.object({
   startedAt: isoDateTimeSchema,
   endedAt: isoDateTimeSchema,
   activeDurationMs: z.number().int().nonnegative(),
+  activeCapture: activeReadingCaptureSchema.optional(),
   startPosition: readingPositionSchema.optional(),
   endPosition: readingPositionSchema.optional(),
 })
@@ -365,6 +367,10 @@ export const readingEventSchema = z
         path: ['endedAt'],
         message: 'A reading session cannot end before it starts',
       })
+    }
+    if (statePayload.kind === 'session' && statePayload.activeCapture && !isExactActiveInterval(statePayload)) {
+      context.addIssue({ code: 'custom', path: ['activeCapture'],
+        message: 'Foreground capture requires an exact, bounded active interval' })
     }
     if (
       statePayload.kind === 'finish' &&
@@ -649,6 +655,7 @@ export type ProjectedReadingSession = {
   readonly startedAt: IsoDateTime
   readonly endedAt: IsoDateTime
   readonly activeDurationMs: number
+  readonly activeCapture?: ActiveReadingCapture
   readonly startPosition?: ReadingPosition
   readonly endPosition?: ReadingPosition
 }
@@ -782,6 +789,7 @@ export function deriveReadingState(
           startedAt: payload.startedAt,
           endedAt: payload.endedAt,
           activeDurationMs: payload.activeDurationMs,
+          ...(payload.activeCapture ? { activeCapture: payload.activeCapture } : {}),
           ...(payload.startPosition ? { startPosition: payload.startPosition } : {}),
           ...(payload.endPosition ? { endPosition: payload.endPosition } : {}),
         })
