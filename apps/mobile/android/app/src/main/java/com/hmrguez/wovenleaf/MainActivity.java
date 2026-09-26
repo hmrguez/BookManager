@@ -12,6 +12,7 @@ public class MainActivity extends BridgeActivity {
         if (WovenleafFilesPlugin.receive(this, getIntent())) setIntent(new Intent(this, MainActivity.class));
         registerPlugin(WovenleafFilesPlugin.class);
         registerPlugin(WovenleafFeedbackPlugin.class);
+        registerPlugin(WovenleafReviewAccessibilityPlugin.class);
         registerPlugin(WovenleafPurchasesPlugin.class);
         registerPlugin(WovenleafReaderPlugin.class);
         registerPlugin(WovenleafPlaybackPlugin.class);

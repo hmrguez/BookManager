@@ -1,3 +1,4 @@
+import { QuarterlyReviews, ReviewLibraryEntry } from './reviews/QuarterlyReviews'
 import { useWideLayout } from './responsive/useWideLayout'
 import { useLibby } from './libby/use-libby'
 import { LibbySettings } from './libby/LibbySettings'
@@ -1505,6 +1506,7 @@ function App() {
 
         {view === 'library' ? (
           <LibraryPage
+            reviewEntry={<ReviewLibraryEntry ready={libraryHydrated} refresh={sheet} onOpen={period => openSheet({ kind: 'quarterly-reviews', period })} />}
             books={books}
             libraryHydrated={libraryHydrated}
             organization={organization}
@@ -1719,6 +1721,7 @@ function App() {
           audiobookImport={audiobookImport}
         />
       )}
+      {sheet?.kind === 'quarterly-reviews' && <QuarterlyReviews period={sheet.period} reduced={shouldReduceMotion(appearance.motion)} onClose={closeSheet} />}
       {sheet?.kind === 'audiobook-player' && selectedBook && (
         <Sheet title="Audiobook player" onClose={closeSheet} tall>
           <AudiobookPlayer key={selectedBook.id} book={selectedBook} onChooseFile={Capacitor.isNativePlatform() ? () => {

@@ -14,6 +14,7 @@ export type SheetState =
   | { kind: 'audiobook-player'; bookId: string }
   | { kind: 'custom-shelf'; shelfId?: string }
   | { kind: 'smart-list'; smartListId?: string }
+  | { kind: 'quarterly-reviews'; period?: import('../reviews/keepsake-model').ReviewPeriod }
   | { kind: 'up-next' }
   | { kind: 'recommendation'; bookId: string }
   | null

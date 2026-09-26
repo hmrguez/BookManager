@@ -1,5 +1,5 @@
 import { revealShelfBook } from './reveal-book'
-import { useEffect } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import {
   Archive,
   ChevronRight,
@@ -40,6 +40,7 @@ export type CoverEnrichmentStatus = {
 }
 
 export function LibraryPage({
+  reviewEntry,
   books,
   libraryHydrated,
   organization,
@@ -67,6 +68,7 @@ export function LibraryPage({
   onRate,
   onMoveQueueBook,
 }: {
+  reviewEntry?: ReactNode
   books: LibraryBook[]
   libraryHydrated: boolean
   organization: LibraryOrganization
@@ -267,6 +269,7 @@ export function LibraryPage({
         )}
         {books.length > 0 && <LibraryViewHint />}
       </header>
+      {reviewEntry}
 
       <main className={tw('shelf-stack')}>
         {coverEnrichmentStatus && (
