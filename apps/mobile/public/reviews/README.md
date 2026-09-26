@@ -1,16 +1,21 @@
-# Quarterly review checkpoint artwork
+# Quarterly review artwork
 
-Temporary assets for the first real-evidence walkthrough, not release-approved production artwork.
+`concepts/` retains byte-for-byte copies of the accepted cropped originals. No
+artwork was regenerated for the static design revision.
 
-- `concepts/`: byte-for-byte copies of the accepted cropped concept PNGs in
-  `docs/design/quarterly-review-concepts/cropped/`.
-- `fantasy-preview-v1/`: the 32 lossless WebP frames and independent finished PNG
-  extracted without modification from the approved controls prototype at commit `0de5804`,
-  `docs/design/quarterly-review-playback-prototype/index.html`. These retain the approved
-  221×221 preview resolution; they have not been upscaled or represented as final artwork.
-- All other pathways intentionally use their accepted static concept during development.
-- Generic achievement symbols are temporary Lucide line seals with tier marks. Final engraved
-  seals and all eight 512×512 animation collections still belong to the production-art ticket.
+`ink-v1/` contains transparent black-ink PNGs derived at the original dimensions
+by `python3 apps/mobile/scripts/prepare-review-ink.py` (Python + Pillow). The alpha
+channel is `round(max(0, 240 - luminance) * 255 / 240)`: near-white paper texture
+becomes transparent while shading/antialiasing remain continuous. Composition,
+line placement and the small medallions are preserved. Source files remain intact.
 
-Keep versioned paths stable: existing keepsakes refer to them. Production artwork should use new
-versioned paths rather than replacing these bytes. Facts and navigation survive missing assets.
+The UI uses these PNGs as CSS alpha masks filled with the theme's text/ink colour.
+Images remain decodable with intrinsic dimensions and error handling; missing or
+corrupt artwork preserves identity text and navigation. Known concept-v1 keepsakes
+resolve to their corresponding ink asset without changing their stored manifest or
+facts; new keepsakes record `original-ink-v1`. Unknown versions retain their own
+still. No pathway animation is played or requested.
+
+`fantasy-preview-v1/` remains solely for old version references and historical
+compatibility. It is no longer used by the UI. Production-art review still owns
+individual final visual approval and replacing temporary Lucide achievement seals.

@@ -1,4 +1,4 @@
-import { BookCheck, BookOpen, Library, Plus, Settings } from 'lucide-react'
+import { Notebook, BookOpen, Library, Plus, Settings } from 'lucide-react'
 import type { ShelfId } from '../../library'
 import { tw } from '../../tailwind/styles'
 import type { AppView } from '../model'
@@ -9,12 +9,16 @@ export function BottomNavigation({
   onShelf,
   onAdd,
   onSettings,
+  onReviews,
+  hasNewReview,
 }: {
   view: AppView
   onLibrary: () => void
   onShelf: (shelf: ShelfId) => void
   onAdd: () => void
   onSettings: () => void
+  onReviews: () => void
+  hasNewReview: boolean
 }) {
   return (
     <nav className={tw('bottom-nav')} aria-label="App shortcuts">
@@ -32,8 +36,9 @@ export function BottomNavigation({
       <button className={tw('bottom-nav__add')} type="button" onClick={onAdd}>
         <Plus aria-hidden="true" /><span>Add Book</span>
       </button>
-      <button type="button" onClick={() => onShelf('finished')}>
-        <BookCheck aria-hidden="true" /><span>Finished</span>
+      <button type="button" onClick={onReviews} aria-label="Reviews" className={tw(view === 'reviews' ? 'is-active' : '')} aria-current={view === 'reviews' ? 'page' : undefined} aria-describedby={hasNewReview ? 'new-review-notice' : undefined}>
+        <span className="review-nav-icon"><Notebook aria-hidden="true" />{hasNewReview && <span className="review-nav-dot" aria-hidden="true" />}</span><span>Reviews</span>
+        {hasNewReview && <span id="new-review-notice" className="review-sr-only">New quarterly review available</span>}
       </button>
       <button
         className={tw(view === 'settings' ? 'is-active' : '')}

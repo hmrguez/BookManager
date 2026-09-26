@@ -14,9 +14,9 @@ export const pathways: Record<ReviewGenre, { title: string; label: string; file:
 export const reviewArtwork: ReviewArtworkManifest = {
   achievementVersion: 'temporary-engraved-seals-v1',
   pathways: Object.fromEntries(REVIEW_GENRES.map(genre => [genre, {
-    version: 'approved-concept-preview-v1',
-    finishedStill: `/reviews/concepts/${pathways[genre].file}-artwork.png`,
-    animation: genre === 'fantasy' ? '/reviews/fantasy-preview-v1' : null,
+    version: 'original-ink-v1',
+    finishedStill: `/reviews/ink-v1/${pathways[genre].file}-artwork.png`,
+    animation: null,
   }])) as ReviewArtworkManifest['pathways'],
 }
 export function quarterLabel(period: ReviewPeriod) {

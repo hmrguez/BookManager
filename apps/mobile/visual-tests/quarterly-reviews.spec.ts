@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 
 async function seed(page: Page) {
   await page.goto('/')
-  await page.getByRole('button', { name: 'Quarterly reviews' }).waitFor()
+  await page.getByRole('button', { name: 'Reviews', exact: true }).waitFor()
   await page.evaluate(async () => {
     const { getStorageRuntime } = await import('/src/storage/runtime.ts')
     const runtime = await getStorageRuntime()
@@ -13,10 +13,11 @@ async function seed(page: Page) {
   })
 }
 async function archive(page: Page, year = '2026', quarter = '2') {
-  await page.getByRole('button', { name: 'Quarterly reviews' }).click()
+  await page.getByRole('button', { name: 'Reviews', exact: true }).click()
+  await page.getByText('Looking for an earlier season?', { exact: true }).click()
   await page.getByLabel('Year', { exact: true }).fill(year)
   await page.getByLabel('Quarter', { exact: true }).selectOption(quarter)
-  await page.getByRole('dialog').getByRole('button', { name: 'Open review', exact: true }).click()
+  await page.getByRole('button', { name: 'Open quarter', exact: true }).click()
 }
 async function highlights(page: Page) {
   while (await page.getByRole('button', { name: 'Continue', exact: true }).count()) {
@@ -41,8 +42,8 @@ test('offline persisted evidence, interrupted playback, stable collection, ident
   const interrupted = await page.locator('.review-badge h3').innerText()
   expect(interrupted).not.toBe(first)
   await page.reload()
-  await page.getByRole('button', { name: 'Quarterly reviews' }).click()
-  await page.getByRole('button', { name: 'April–June 2026 Continue review' }).click()
+  await page.getByRole('button', { name: 'Reviews', exact: true }).click()
+  await page.getByRole('button', { name: /April–June 2026.*Continue review/ }).click()
   await expect(page.locator('.review-badge h3')).toHaveText(interrupted)
   await page.getByRole('button', { name: 'Details', exact: true }).click()
   await expect(page.locator('.review-evidence')).toContainText('The Earthsea Quartet')
@@ -53,7 +54,8 @@ test('offline persisted evidence, interrupted playback, stable collection, ident
   await expect(page.getByRole('heading', { name: 'Which pathway feels like your quarter?' })).toBeVisible()
   await expect(page.locator('.review-choices button')).toHaveCount(8)
   await page.getByRole('button', { name: 'The Worldwanderer Fantasy', exact: true }).click()
-  await page.getByRole('button', { name: 'Continue', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Done', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Continue', exact: true })).toHaveCount(0)
   await page.screenshot({ path: testInfo.outputPath('collection.png') })
   const saved = await page.evaluate(async () => (await (await import('/src/storage/runtime.ts')).getStorageRuntime()).reviewKeepsakes.get({ year: 2026, quarter: 2 }))
   expect(saved?.identity).toEqual({ status: 'chosen', genre: 'fantasy' })
@@ -62,7 +64,6 @@ test('offline persisted evidence, interrupted playback, stable collection, ident
   await highlights(page)
   await page.getByRole('button', { name: 'Discover your pathway', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'The Worldwanderer' })).toBeVisible()
-  await page.getByRole('button', { name: 'Continue', exact: true }).click()
   await page.setViewportSize({ width: 320, height: 740 })
   await page.evaluate(() => { document.documentElement.dataset.typeScale = 'x-large' })
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
@@ -79,6 +80,7 @@ test('offline persisted evidence, interrupted playback, stable collection, ident
 
 test('empty latest quarter, dismissal, optional identity and corrupt artwork preserve navigation', async ({ page }) => {
   await page.goto('/')
+  await page.getByRole('button', { name: 'Reviews', exact: true }).click()
   await page.getByRole('button', { name: 'Dismiss quarterly invitation' }).click()
   await expect(page.getByRole('button', { name: 'Dismiss quarterly invitation' })).toHaveCount(0)
   await archive(page)
@@ -87,10 +89,9 @@ test('empty latest quarter, dismissal, optional identity and corrupt artwork pre
   await expect(page.locator('.review-collection article')).toHaveCount(0)
   await page.getByText('Review options', { exact: true }).click()
   await page.getByRole('button', { name: 'Choose a pathway', exact: true }).click()
-  await page.route('**/reviews/concepts/08-horror-artwork.png', route => route.fulfill({ contentType: 'image/png', body: 'corrupt PNG bytes' }))
+  await page.route('**/reviews/ink-v1/08-horror-artwork.png', route => route.fulfill({ contentType: 'image/png', body: 'corrupt PNG bytes' }))
   await page.getByRole('button', { name: 'The Night Reader Horror', exact: true }).click()
   await expect(page.getByText('Illustration unavailable. Your pathway is saved.')).toBeVisible()
-  await page.getByRole('button', { name: 'Continue', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'The Night Reader', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Done', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Dismiss quarterly invitation' })).toHaveCount(0)
@@ -113,15 +114,14 @@ test('automatic badge pacing stops at final badge and details remain paused', as
   await page.waitForTimeout(5100)
   await expect(page.getByRole('button', { name: 'Discover your pathway', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Discover your pathway', exact: true }).click()
-  await page.route('**/reviews/fantasy-preview-v1/12.webp', route => route.fulfill({ status: 404 }))
   await page.getByRole('button', { name: 'The Worldwanderer Fantasy', exact: true }).click()
-  await expect(page.locator('.review-artwork img')).toHaveJSProperty('complete', true)
-  await expect(page.locator('.review-artwork img')).toHaveAttribute('src', '/reviews/concepts/01-fantasy-artwork.png')
-  await page.getByRole('button', { name: 'Continue', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Done', exact: true })).toBeVisible()
+  await expect(page.getByRole('dialog').locator('.review-artwork img')).toHaveJSProperty('complete', true)
+  await expect(page.getByRole('dialog').locator('.review-artwork img')).toHaveAttribute('src', '/reviews/ink-v1/01-fantasy-artwork.png')
   await expect(page.getByRole('button', { name: 'Done', exact: true })).toBeVisible()
 })
 
-test('supported suggestion plays prepared offline frames once and holds the final image', async ({ page }) => {
+test('supported suggestion goes straight to a themeable static keepsake', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   await seed(page)
   await page.evaluate(async () => {
@@ -135,13 +135,73 @@ test('supported suggestion plays prepared offline frames once and holds the fina
   await page.getByRole('button', { name: 'Discover your pathway', exact: true }).click()
   await expect(page.getByText('Inspired by your reading', { exact: true })).toBeVisible()
   await expect(page.locator('.review-choices')).toHaveCount(0)
-  const image = page.locator('.review-artwork img')
-  await expect(image).toHaveAttribute('src', '/reviews/fantasy-preview-v1/finished.png', { timeout: 8000 })
-  await expect(image).toHaveJSProperty('naturalWidth', 221)
-  await page.getByRole('button', { name: 'Replay illustration' }).click()
-  await expect(image).toHaveAttribute('src', /\.webp$/, { timeout: 2000 })
-  await page.getByRole('button', { name: 'Pause', exact: true }).click()
-  await expect(image).toHaveAttribute('src', '/reviews/concepts/01-fantasy-artwork.png')
-  await page.getByRole('button', { name: 'Continue', exact: true }).click()
+  const image = page.getByRole('dialog').locator('.review-artwork img')
+  await expect(image).toHaveAttribute('src', '/reviews/ink-v1/01-fantasy-artwork.png')
+  await expect(image).toHaveJSProperty('naturalWidth', 1024)
+  await expect(page.getByRole('button', { name: 'Replay illustration' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Continue', exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Done', exact: true })).toBeVisible()
+})
+
+
+test('five navigation items, discreet new badge, themed keepsake and archive', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await seed(page)
+  const navigation = page.getByRole('navigation', { name: 'App shortcuts' })
+  await expect(navigation.getByRole('button')).toHaveCount(5)
+  await expect(navigation.getByRole('button', { name: 'Finished', exact: true })).toHaveCount(0)
+  await expect(page.locator('.review-nav-dot')).toBeVisible()
+  await page.getByRole('button', { name: 'Reviews', exact: true }).click()
+  await expect(page.locator('.review-nav-dot')).toBeVisible()
+  await page.screenshot({ path: testInfo.outputPath('new-review.png') })
+  await archive(page)
+  await highlights(page)
+  await page.getByRole('button', { name: 'Discover your pathway' }).click()
+  await expect(page.getByRole('heading', { name: 'Which pathway feels like your quarter?' })).toBeVisible()
+  await expect.poll(() => page.locator('.review-choices img').evaluateAll(images => images.length === 8 && images.every(image => (image as HTMLImageElement).naturalWidth > 0))).toBe(true)
+  await page.screenshot({ path: testInfo.outputPath('pathways.png'), fullPage: true })
+  await page.getByRole('button', { name: 'The Worldwanderer Fantasy', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Done', exact: true })).toBeVisible()
+  for (const mode of ['warm', 'cool', 'print', 'night']) {
+    await page.evaluate(mode => { document.documentElement.dataset.paperMode = mode }, mode)
+    await expect(page.locator('.review-ink')).toHaveCSS('background-color', await page.locator('.quarterly-review').evaluate(el => getComputedStyle(el).color))
+    await page.screenshot({ path: testInfo.outputPath(`collection-${mode}.png`) })
+  }
+  await page.getByRole('button', { name: 'Done', exact: true }).click()
+  await expect(page.locator('.review-nav-dot')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /April–June 2026.*The Worldwanderer.*View keepsake/ })).toBeVisible()
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }))
+  await page.screenshot({ path: testInfo.outputPath('archive-night.png') })
+  await page.evaluate(() => { document.documentElement.dataset.paperMode = 'warm' })
+  await page.screenshot({ path: testInfo.outputPath('archive-warm.png') })
+})
+
+
+test('legacy interrupted pathway resumes in the static collection without changing saved facts', async ({ page }) => {
+  await seed(page)
+  const before = await page.evaluate(async () => {
+    const repo = (await (await import('/src/storage/runtime.ts')).getStorageRuntime()).reviewKeepsakes
+    const { reviewArtwork } = await import('/src/reviews/presentation.ts')
+    const legacy = structuredClone(reviewArtwork)
+    for (const art of Object.values(legacy.pathways)) {
+      art.version = 'approved-concept-preview-v1'
+      art.finishedStill = art.finishedStill.replace('/reviews/ink-v1/', '/reviews/concepts/')
+      art.animation = '/reviews/fantasy-preview-v1'
+    }
+    const period = { year: 2026, quarter: 2 }
+    const entry = await repo.open(period, legacy)
+    await repo.setIdentity(period, { status: 'chosen', genre: 'fantasy' })
+    return repo.saveProgress(period, entry.keepsake.steps.at(-2)!.id)
+  })
+  const frames: string[] = []
+  page.on('request', request => { if (request.url().includes('fantasy-preview')) frames.push(request.url()) })
+  await page.getByRole('button', { name: 'Reviews', exact: true }).click()
+  await page.getByRole('button', { name: /April–June 2026.*Continue review/ }).click()
+  await expect(page.getByRole('button', { name: 'Done', exact: true })).toBeVisible()
+  await expect(page.getByRole('dialog').locator('.review-artwork img')).toHaveAttribute('src', '/reviews/ink-v1/01-fantasy-artwork.png')
+  const after = await page.evaluate(async () => (await (await import('/src/storage/runtime.ts')).getStorageRuntime()).reviewKeepsakes.get({ year: 2026, quarter: 2 }))
+  expect(after?.facts).toEqual(before.facts)
+  expect(after?.artwork).toEqual(before.artwork)
+  expect(after?.completedAt).toBeTruthy()
+  expect(frames).toEqual([])
 })

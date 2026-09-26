@@ -151,6 +151,11 @@ export class ReviewKeepsakeRepository {
     })
   }
 
+  /** The latest quarter remains reachable after its notification is dismissed. */
+  async latestPeriod(): Promise<ReviewPeriod> {
+    return this.database.transaction(async database => latestCompleted(await this.readSettings(database), this.now()))
+  }
+
   async invitation(): Promise<ReviewQuarter | null> {
     return this.database.transaction(async database => {
       const settings = await this.readSettings(database)

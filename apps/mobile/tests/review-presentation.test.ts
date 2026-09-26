@@ -30,5 +30,5 @@ test('all eight original identity names have independent offline stills', async 
   for (const genre of REVIEW_GENRES) {
     expect(await Bun.file(`public${reviewArtwork.pathways[genre].finishedStill}`).exists()).toBe(true)
   }
-  for (let i = 0; i < 32; i++) expect(await Bun.file(`public/reviews/fantasy-preview-v1/${String(i).padStart(2, '0')}.webp`).exists()).toBe(true)
+  for (const genre of REVIEW_GENRES) expect(reviewArtwork.pathways[genre].animation).toBeNull()
 })

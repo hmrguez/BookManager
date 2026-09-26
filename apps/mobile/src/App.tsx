@@ -1,4 +1,5 @@
-import { QuarterlyReviews, ReviewLibraryEntry } from './reviews/QuarterlyReviews'
+import { useReviewInvitation } from './reviews/useReviewInvitation'
+import { QuarterlyReviews, ReviewsPage } from './reviews/QuarterlyReviews'
 import { useWideLayout } from './responsive/useWideLayout'
 import { useLibby } from './libby/use-libby'
 import { LibbySettings } from './libby/LibbySettings'
@@ -178,6 +179,8 @@ function App() {
   }, [])
   const [sheet, setSheet] = useState<SheetState>(null)
   const [view, setView] = useState<AppView>('library')
+  const [reviewRefresh, setReviewRefresh] = useState(0)
+  const reviewInvitation = useReviewInvitation(libraryHydrated, `${view}:${sheet?.kind ?? ''}:${reviewRefresh}`)
   const [librarySearchOpen, setLibrarySearchOpen] = useState(false)
   const [libraryQuery, setLibraryQuery] = useState('')
   const [libraryShelfFilter, setLibraryShelfFilter] = useState<ShelfId | 'all'>('all')
@@ -1506,7 +1509,6 @@ function App() {
 
         {view === 'library' ? (
           <LibraryPage
-            reviewEntry={<ReviewLibraryEntry ready={libraryHydrated} refresh={sheet} onOpen={period => openSheet({ kind: 'quarterly-reviews', period })} />}
             books={books}
             libraryHydrated={libraryHydrated}
             organization={organization}
@@ -1534,6 +1536,8 @@ function App() {
             onRate={rateBook}
             onMoveQueueBook={moveQueueBook}
           />
+        ) : view === 'reviews' ? (
+          <ReviewsPage refresh={sheet} invitation={reviewInvitation} onDismiss={() => setReviewRefresh(value => value + 1)} onOpen={period => openSheet({ kind: 'quarterly-reviews', period })} />
         ) : view === 'import' && importPreview ? (
           <ImportReviewPage
             key={importPreview.id}
@@ -1606,6 +1610,8 @@ function App() {
           onShelf={showShelf}
           onAdd={() => openSheet({ kind: 'search', shelf: 'tbr' })}
           onSettings={showSettings}
+          onReviews={() => { setView('reviews'); window.scrollTo({ top: 0 }) }}
+          hasNewReview={!!reviewInvitation}
         />
       </div>
 

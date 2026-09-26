@@ -1,14 +1,6 @@
-.review-library-entry { margin: 0 1.25rem 1rem; border-block-end: 1px solid var(--border-subtle); padding-block: .5rem; }
-.review-invitation { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; padding-block: .75rem; }
-.review-invitation > div { flex: 1 1 14rem; }
-.review-invitation p { font-family: var(--font-reading); margin: 0 0 .3rem; }
-.review-invitation small, .review-eyebrow { color: var(--text-secondary); }
-.review-library-entry button, .quarterly-review button, .quarterly-review summary { min-height: 44px; cursor: pointer; }
-.review-archive-link { width: 100%; display: flex; justify-content: space-between; align-items: center; text-align: start; }
-.quarterly-review { max-width: 38rem; margin-inline: auto; padding: 1rem .5rem max(2rem, env(safe-area-inset-bottom)); text-align: center; color: var(--text-primary); overflow-wrap: anywhere; }
-.quarterly-review h3 { font: 520 clamp(1.6rem, 6vw, 2.4rem)/1.2 var(--font-reading); margin: 1rem 0; }
+.quarterly-review button, .quarterly-review summary { min-height: 44px; cursor: pointer; }
 .quarterly-review h4 { font: 520 1.1rem/1.4 var(--font-reading); margin: .75rem 0; }
-.review-eyebrow { font-size: .75rem; letter-spacing: .09em; text-transform: uppercase; }
+.review-eyebrow { color: var(--text-secondary); font-size: .75rem; letter-spacing: .09em; text-transform: uppercase; }
 .review-fact { font-size: 1.1rem; line-height: 1.6; }
 .review-best { font-size: .875rem; font-style: italic; }
 .review-seal { width: 8rem; height: 8rem; margin: 1.5rem auto; border: 3px double currentColor; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; outline: 1px solid currentColor; outline-offset: -9px; }
@@ -24,27 +16,77 @@
 .quarterly-review button { padding: .65rem .85rem; border-radius: .3rem; }
 .quarterly-review .review-primary { display: block; width: 100%; margin: .75rem 0; background: var(--surface-inverse); color: var(--text-on-inverse); padding: .85rem 1rem; }
 .review-quiet { color: var(--text-secondary); font-size: .875rem; }
-.review-artwork img { display: block; width: 100%; max-width: 320px; height: auto; object-fit: contain; margin: 1rem auto; }
-.review-artwork { min-width: 0; }
-.review-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); gap: 1rem; }
-.review-choices button { border: 1px solid var(--border-subtle); }
 .review-choices img { width: 100%; height: 7rem; object-fit: contain; }
 .review-choices span, .review-choices small { display: block; }
-.review-choices span { font-family: var(--font-reading); }
-.review-choices small { color: var(--text-secondary); margin-block-start: .3rem; }
 .review-evidence { text-align: start; border-block: 1px solid var(--border-subtle); padding-block: 1rem; margin-block: 1rem; }
 .review-evidence ul { padding-inline-start: 1.25rem; }
-.review-collection { display: grid; gap: 1.5rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); }
-.review-collection .review-seal { width: 5rem; height: 5rem; }
-.review-collection .review-seal svg { width: 2rem; height: 2rem; }
-.review-collection .review-seal span { font-size: .65rem; }
-.review-collection article { border-block-start: 1px solid var(--border-subtle); }
 .review-secondary-menu { text-align: start; margin-block-start: 1.5rem; }
-.review-archive > button { width: 100%; text-align: start; border-block-end: 1px solid var(--border-subtle); margin-block: .5rem; }
-.review-archive small { display: block; color: var(--text-secondary); }
-.review-archive form { margin-block-start: 2rem; text-align: start; }
-.review-archive label { display: flex; flex: 1 1 9rem; flex-direction: column; text-align: start; gap: .5rem; min-width: 0; }
-.review-archive input, .review-archive select { width: 100%; min-width: 0; padding: .75rem; border: 1px solid var(--border-subtle); }
-.quarterly-review :focus-visible, .review-library-entry :focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
+.quarterly-review :focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
 .quarterly-review button:disabled { opacity: .5; cursor: wait; }
 @media (prefers-reduced-motion: reduce) { .review-seal { animation: none !important; } }
+
+/* A quiet journal: paper, ink, fine rules, and the original engraved artwork. */
+.reviews-page { max-width: 42rem; margin: 0 auto; padding: 2rem 1.5rem 7rem; color: var(--text-primary); overflow-wrap: anywhere; }
+.reviews-heading { margin-bottom: 2.25rem; }
+.reviews-heading .review-eyebrow { margin: 0 0 .65rem; }
+.reviews-heading h1 { font: 500 2.5rem/1.15 var(--font-reading); letter-spacing: -.04em; margin: 0 0 .85rem; }
+.reviews-heading > p:last-child { color: var(--text-secondary); font-size: .9rem; }
+.review-new { border-block: 1px solid var(--border-strong); padding: 1.5rem 0 1rem; margin-bottom: 2rem; }
+.review-new-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.review-new-label { border: 1px solid var(--border-subtle); border-radius: 1rem; padding: .2rem .65rem; font-size: .7rem; }
+.review-new h2 { font: 500 1.7rem/1.3 var(--font-reading); letter-spacing: -.025em; margin: 1.2rem 0 .8rem; }
+.review-new > p { color: var(--text-secondary); font: 400 .95rem/1.65 var(--font-reading); margin-bottom: 1.35rem; }
+.reviews-page button, .reviews-page summary { min-height: 44px; cursor: pointer; }
+.review-open { display: inline-flex; align-items: center; justify-content: space-between; gap: 2.5rem; padding: .65rem 1rem; background: var(--surface-inverse); color: var(--text-on-inverse); border-radius: .3rem; font-size: .85rem; }
+.review-dismiss { float: right; padding: .6rem .25rem .6rem 1rem; font-size: .8rem; color: var(--text-secondary); }
+.review-year { margin: 2rem 0; }
+.review-year > h2 { font-size: .75rem; font-weight: 500; color: var(--text-secondary); letter-spacing: .06em; border-bottom: 1px solid var(--border-subtle); padding-bottom: .8rem; }
+.review-season { display: flex; align-items: center; gap: 1rem; width: 100%; text-align: start; padding: 1.15rem 0; border-bottom: 1px solid var(--border-subtle); }
+.review-season-art { flex: 0 0 5rem; width: 5rem; }
+.review-season-art > svg { width: 2rem; height: 2rem; margin: 1.5rem; color: var(--text-secondary); }
+.review-season-copy { flex: 1; min-width: 0; display: grid; gap: .4rem; }
+.review-season-date { color: var(--text-secondary); font-size: .72rem; }
+.review-season-title { font: 500 1.05rem/1.35 var(--font-reading); }
+.review-season-copy small { font-size: .73rem; color: var(--text-secondary); }
+.review-archive-note { font: 400 .95rem/1.65 var(--font-reading); color: var(--text-secondary); margin: 2.5rem 0; max-width: 18rem; }
+.review-history { margin-top: 2rem; color: var(--text-secondary); font-size: .8rem; }
+.review-history summary { display: flex; align-items: center; justify-content: space-between; gap: 1rem; list-style: none; }
+.review-history summary::after { content: '+'; font-size: 1.25rem; }
+.review-history[open] summary::after { content: '−'; }
+.review-history summary::-webkit-details-marker { display: none; }
+.review-history-fields { display: flex; flex-wrap: wrap; gap: 1rem; margin: 1rem 0; }
+.review-history label { display: grid; flex: 1 1 8rem; min-width: 0; gap: .5rem; }
+.review-history input, .review-history select { width: 100%; min-width: 0; padding: .75rem; background: var(--surface-page); color: var(--text-primary); border: 1px solid var(--border-subtle); border-radius: .25rem; }
+.review-nav-icon { position: relative; display: block; }
+.review-nav-dot { position: absolute; width: 5px; height: 5px; border-radius: 50%; background: currentColor; right: -4px; top: -2px; }
+.review-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.review-artwork { min-width: 0; max-width: 20rem; margin: 0 auto; }
+.review-artwork > span { display: block; }
+.review-artwork img { display: block; width: 100%; max-width: none; height: auto; object-fit: contain; margin: 0; }
+.review-ink { background-color: currentColor; mask-repeat: no-repeat; mask-size: contain; mask-position: center; -webkit-mask-repeat: no-repeat; -webkit-mask-size: contain; -webkit-mask-position: center; }
+.review-ink img { opacity: 0; }
+.quarterly-review { max-width: 38rem; margin-inline: auto; padding: 1.25rem .25rem max(2rem, env(safe-area-inset-bottom)); text-align: center; color: var(--text-primary); overflow-wrap: anywhere; }
+.quarterly-review h3 { font: 520 clamp(1.6rem, 6vw, 2.4rem)/1.2 var(--font-reading); margin: 1.1rem 0; font-weight: 500; letter-spacing: -.025em; }
+.quarterly-review > .review-stamp-button { margin: 1.5rem auto 2rem; }
+.review-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); gap: .75rem; margin: 1.75rem 0; }
+.review-choices button { border: 1px solid var(--border-subtle); border-radius: .4rem; padding: .75rem .4rem 1rem; }
+.review-choices .review-artwork { height: 7.5rem; display: flex; align-items: center; justify-content: center; margin-bottom: .75rem; }
+.review-choices .review-artwork > span { width: 100%; }
+.review-choices .review-artwork img { height: 7.5rem; }
+.review-choices span { font-family: var(--font-reading); font-size: .95rem; }
+.review-choices small { color: var(--text-secondary); margin-block-start: .3rem; font-size: .7rem; }
+.review-collection { display: block; text-align: start; margin: 1.5rem 0; }
+.review-collection article { border-block-start: 1px solid var(--border-subtle); display: flex; align-items: flex-start; gap: 1rem; padding: 1.25rem 0; }
+.review-collection .review-seal { width: 3.25rem; height: 3.25rem; flex: 0 0 3.25rem; margin: .15rem 0; outline-offset: -5px; }
+.review-collection .review-seal svg { width: 1.25rem; height: 1.25rem; }
+.review-collection .review-seal span { font-size: .55rem; }
+.review-collection-copy { flex: 1; min-width: 0; }
+.review-collection h4 { margin: 0 0 .35rem; font-size: 1rem; }
+.review-collection p { font-size: .8rem; line-height: 1.6; color: var(--text-secondary); margin: 0; }
+.review-collection summary { font-size: .75rem; color: var(--text-secondary); padding: .75rem 0; }
+.review-collection .review-evidence { margin: 0; border: 0; padding: 0; }
+.review-collection .review-evidence h4 { display: none; }
+.reviews-page :focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 4px; }
+@media (max-width: 350px) { .reviews-page { padding-inline: 1rem; } .review-season { gap: .65rem; } .review-season-art { flex-basis: 4rem; width: 4rem; } }
+
+[role="dialog"][aria-label="Quarterly review"] { color: var(--text-primary); }
