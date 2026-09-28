@@ -11,7 +11,9 @@ export async function eraseNativeJournals(scope: ErasedNativeScope) {
   await disableLibbyForPrivateErasure()
   if (Capacitor.isPluginAvailable('WovenleafReader')) {
     const { nativeReader } = await import('../reader/bridge')
-    await nativeReader.closeForIncomingFile()
+    // Only iOS presents the reader over the WebView. Android has already returned
+    // to MainActivity before Settings can erase history and has no dismiss method.
+    if (Capacitor.getPlatform() === 'ios') await nativeReader.closeForIncomingFile()
     const { events } = await nativeReader.drainOutbox()
     const ids = events.filter(event => scope.all || scope.bookIds.includes(event.bookId)).map(event => event.id)
     if (ids.length) await nativeReader.acknowledge({ ids })
