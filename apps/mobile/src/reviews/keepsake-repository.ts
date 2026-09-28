@@ -1,3 +1,4 @@
+import { reviewContent, reviewFingerprint, type ReviewUpdatePreview } from './updates'
 import { readText, type SqlDatabase } from '../storage/database'
 import { assertCredentialFree } from '../security'
 import { reviewCalendar, reviewQuarter, type ReviewQuarter } from './calendar'
@@ -11,6 +12,7 @@ import {
 
 type KeepsakeOptions = { now?: () => Date; deviceTimezone?: () => string; voiceExists?: (path: string) => Promise<boolean> }
 export class ReviewKeepsakeRepository {
+  private readonly previews = new Map<string, ReviewUpdatePreview>()
   private readonly database: SqlDatabase
   private readonly options: KeepsakeOptions
   constructor(database: SqlDatabase, options: KeepsakeOptions = {}) {
@@ -106,6 +108,48 @@ export class ReviewKeepsakeRepository {
       assertCredentialFree(validated)
       await database.run('UPDATE review_keepsakes SET payload_json = ? WHERE id = ?', [JSON.stringify(validated), validated.id])
       return validated
+    })
+  }
+
+  async previewUpdate(period: ReviewPeriod): Promise<ReviewUpdatePreview | null> {
+    return this.database.transaction(async database => {
+      const saved = await this.read(database, period)
+      if (!saved) throw new Error('Saved review not found')
+      return this.buildPreview(database, saved)
+    })
+  }
+
+  private async buildPreview(database: SqlDatabase, saved: ReviewKeepsake) {
+    const coverage = saved.facts.earned.flatMap(badge => [
+      ...(badge.coverage ? [badge.coverage] : []), ...badge.comparisons.map(comparison => comparison.coverage),
+    ])
+    const after = saveableReviewFacts(await new QuarterlyReviewRepository(database, this.options)
+      .calculateInTransaction(database, { quarter: saved.facts.quarter, knownAt: this.now(), coverage }))
+    if (reviewContent(saved.facts) === reviewContent(after)) return null
+    const preview = { token: crypto.randomUUID(), before: saved.facts, after }
+    // Preview data is owned here, never trusted back from a UI or external caller.
+    this.previews.set(preview.token, structuredClone(preview))
+    if (this.previews.size > 32) this.previews.delete(this.previews.keys().next().value!)
+    return preview
+  }
+
+  async applyUpdate(period: ReviewPeriod, token: string) {
+    const preview = this.previews.get(token)
+    if (!preview || reviewId(preview.before.quarter) !== reviewId(period)) throw new Error('Refresh this review preview')
+    return this.database.transaction(async database => {
+      const saved = await this.read(database, period)
+      if (!saved) throw new Error('Saved review not found')
+      const fresh = await this.buildPreview(database, saved)
+      if (reviewFingerprint(saved.facts) !== reviewFingerprint(preview.before)
+        || !fresh || reviewFingerprint(fresh.after) !== reviewFingerprint(preview.after)) {
+        return { status: 'stale' as const, preview: fresh, entry: viewingEntry(saved) }
+      }
+      const steps = reviewSteps(saved.id, preview.after.revealIds)
+      const updated = keepsakeSchema.parse({ ...saved, facts: preview.after, steps,
+        progress: { stepId: (saved.completedAt ? steps.at(-1)! : steps[0]!).id, updatedAt: this.now() } })
+      assertCredentialFree(updated)
+      await database.run('UPDATE review_keepsakes SET payload_json = ? WHERE id = ?', [JSON.stringify(updated), saved.id])
+      return { status: 'applied' as const, entry: viewingEntry(updated) }
     })
   }
 

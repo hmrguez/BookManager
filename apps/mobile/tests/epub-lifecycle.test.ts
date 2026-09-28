@@ -1,3 +1,6 @@
+import { ReviewKeepsakeRepository } from '../src/reviews/keepsake-repository'
+import { reviewArtwork } from '../src/reviews/presentation'
+import { LibbyRepository } from '../src/libby/repository'
 import { describe, expect, test } from 'bun:test'
 import JSZip from 'jszip'
 import type { EpubImportSource } from '../src/epub'
@@ -65,6 +68,8 @@ describe('EPUB asset lifecycle', () => {
     expect(inventory.items).toHaveLength(1)
     expect(inventory.items[0]).toMatchObject({ state: 'available', active: true })
 
+    const reviews = new ReviewKeepsakeRepository(database, { now: () => new Date('2026-10-01T12:00:00Z'), deviceTimezone: () => 'UTC' })
+    const keepsake = await reviews.open({ year: 2026, quarter: 3 }, reviewArtwork)
     const preview = await lifecycle.previewCleanup([imported.assetId])
     expect(preview).toMatchObject({
       offlineBookCount: 1,
@@ -73,6 +78,8 @@ describe('EPUB asset lifecycle', () => {
     })
     expect(preview.freedBytes).toBe(source.bytes.byteLength)
     await lifecycle.cleanup(preview)
+    await new LibbyRepository(database).configure(false, false)
+    expect(await reviews.open({ year: 2026, quarter: 3 }, reviewArtwork)).toEqual(keepsake)
 
     expect((await lifecycle.inventory()).items[0]?.state).toBe('missing')
     expect((await library.list()).find(({ id }) => id === imported.bookId)?.notes).toBe('Keep this private note.')

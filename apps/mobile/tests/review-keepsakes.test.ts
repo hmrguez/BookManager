@@ -1,3 +1,8 @@
+import { PortableArchiveService } from '../src/storage/portable-archive'
+import { readReviewBackup } from '../src/reviews/backup'
+import { RecoveryService } from '../src/storage/recovery'
+import { MemoryRecoveryArtifactStore } from '../src/storage/recovery-store'
+import { PrivateErasureService } from '../src/storage/private-erasure'
 import { afterEach, expect, test } from 'bun:test'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -189,7 +194,7 @@ test('disk restart preserves offline entry and timezone', async () => {
 
 test('additive migration preserves old rows, rolls back failure, and skips successful replay', async () => {
   const database = new FaultDatabase(); databases.push(database)
-  await migrateStorage(database, { migrations: STORAGE_MIGRATIONS.slice(0, -1) })
+  await migrateStorage(database, { migrations: STORAGE_MIGRATIONS.filter(m => m.version < 20) })
   const before = await database.query('SELECT * FROM schema_migrations')
   database.fail = 'INSERT INTO schema_migrations'
   await expect(migrateStorage(database)).rejects.toThrow()
@@ -255,4 +260,239 @@ test('a deleted empty keepsake can be recreated manually after it becomes histor
   expect(recreated.facts.quarter).toEqual(original.facts.quarter)
   expect(recreated.facts.earned).toEqual([])
   expect(await database.query('SELECT * FROM review_invitation_suppressions')).toHaveLength(1)
+})
+
+
+test('updates ignore bookkeeping, preview title changes, reject stale evidence and preserve concurrent identity/completion', async () => {
+  const { repository, library } = await setup()
+  const saved = (await repository.open(period, artwork)).keepsake
+  expect(await repository.previewUpdate(period)).toBeNull()
+  let book = (await library.list())[0]!
+  await library.save({ ...book, notes: 'Different private note', lastUpdatedAt: '2026-07-02T11:00:00Z' })
+  expect(await repository.previewUpdate(period)).toBeNull()
+  await library.save({ ...book, title: 'Corrected title', metadataLocks: ['title'] })
+  const preview = (await repository.previewUpdate(period))!
+  expect(preview.after.supportingBooks[0]?.title).toBe('Corrected title')
+  expect((await repository.get(period))?.facts).toEqual(saved.facts)
+  book = (await library.list())[0]!
+  await library.save({ ...book, title: 'Even newer title', metadataLocks: ['title'] })
+  const stale = await repository.applyUpdate(period, preview.token)
+  expect(stale.status).toBe('stale')
+  expect((await repository.get(period))?.facts).toEqual(saved.facts)
+  if (stale.status !== 'stale' || !stale.preview) throw new Error('Expected refreshed preview')
+  await repository.setIdentity(period, { status: 'chosen', genre: 'romance' })
+  await repository.complete(period)
+  const applied = await repository.applyUpdate(period, stale.preview.token)
+  expect(applied.status).toBe('applied')
+  if (applied.status !== 'applied') throw new Error('Expected apply')
+  expect(applied.entry.step.kind).toBe('collection')
+  expect(applied.entry.keepsake.identity).toEqual({ status: 'chosen', genre: 'romance' })
+  expect(applied.entry.keepsake.facts).toEqual(stale.preview.after)
+})
+
+test('failed update retains last-good bytes, and removing the current badge restarts paused', async () => {
+  const { repository, library, database } = await setup()
+  const saved = (await repository.open(period, artwork)).keepsake
+  await repository.saveProgress(period, saved.steps[1]!.id)
+  const book = (await library.list())[0]!
+  await library.saveManual(book, { ...book, finishedAt: '2026-03-31T12:00:00.000Z' }, { id: 'move-finish' })
+  const preview = (await repository.previewUpdate(period))!
+  const before = await repository.get(period)
+  database.fail = 'UPDATE review_keepsakes'
+  await expect(repository.applyUpdate(period, preview.token)).rejects.toThrow('Injected storage failure')
+  expect(await repository.get(period)).toEqual(before)
+  database.fail = ''
+  const applied = await repository.applyUpdate(period, preview.token)
+  expect(applied.status).toBe('applied')
+  if (applied.status === 'applied') {
+    expect(applied.entry).toMatchObject({ paused: true, contentVisible: true, step: { kind: 'reflection' } })
+    expect(applied.entry.keepsake.facts.earned).toHaveLength(0)
+  }
+})
+
+test('full and redacted archives preserve or omit private reviews; old backup clears reviews and corruption cannot replace them', async () => {
+  const { repository, database } = await setup()
+  await repository.open(period, artwork)
+  await repository.setIdentity(period, { status: 'chosen', genre: 'fantasy' })
+  await repository.saveProgress(period, 'review:2026-Q2:pathway')
+  await repository.changeTimezone('Asia/Tokyo')
+  await repository.dismissInvitation({ year: 2026, quarter: 1 })
+  const expected = await readReviewBackup(database)
+  const service = new PortableArchiveService(database)
+  const full = await service.create()
+  await repository.delete(period)
+  await service.restore(full.archive)
+  expect(await readReviewBackup(database)).toEqual(expected)
+  const redacted = await service.create({ includeAnnotations: false })
+  expect((await service.inspect(redacted.archive)).reviews.keepsakes).toEqual([])
+  expect(redacted.manifest.exclusions).toContain('saved quarterly reviews, identities, progress and private review settings')
+  const corrupted = JSON.parse(full.archive)
+  corrupted.entries['data/reviews.json'] += ' '
+  await expect(service.restore(JSON.stringify(corrupted))).rejects.toThrow('data/reviews.json')
+  expect(await readReviewBackup(database)).toEqual(expected)
+  const future = JSON.parse(full.archive); future.manifest.schemaVersion = 999
+  await expect(service.restore(JSON.stringify(future))).rejects.toThrow('newer')
+  const old = JSON.parse(full.archive); old.manifest.schemaVersion = 9
+  delete old.entries['data/reviews.json']; old.manifest.entries = old.manifest.entries.filter((e: { path: string }) => e.path !== 'data/reviews.json')
+  await service.restore(JSON.stringify(old))
+  expect((await readReviewBackup(database)).keepsakes).toEqual([])
+})
+
+test('private erasure previews dependencies, rolls back failure and retries managed-copy failure without restoring erased history', async () => {
+  const { repository, library, database } = await setup()
+  await repository.open(period, artwork)
+  class FailingStore extends MemoryRecoveryArtifactStore {
+    failRemove = true
+    override async remove(id: string) { if (this.failRemove) throw new Error('Managed copy could not be removed'); return super.remove(id) }
+  }
+  const store = new FailingStore()
+  const recovery = new RecoveryService(database, { store, eraseOtherCopies: async () => {}, availableBytes: async () => 1e9 })
+  await recovery.createSnapshot()
+  const erasure = new PrivateErasureService(database, recovery)
+  const preview = await erasure.preview('keepsake-book')
+  expect(preview.books).toEqual(['A saved title'])
+  expect(preview.reviews).toEqual([period])
+  database.fail = 'DELETE FROM review_keepsakes'
+  await expect(erasure.erase(preview.token)).rejects.toThrow('Injected storage failure')
+  expect(await library.list()).toHaveLength(1)
+  expect(await repository.get(period)).not.toBeNull()
+  database.fail = ''
+  await expect(erasure.erase(preview.token)).rejects.toThrow('Managed copy')
+  expect(await library.list()).toHaveLength(0)
+  expect(await repository.get(period)).toBeNull()
+  expect(await repository.invitation()).toBeNull()
+  expect(await recovery.hasPendingErasure()).toBe(true)
+  expect(store.artifacts.size).toBe(1)
+  expect(await recovery.beginPendingLaunch()).toEqual({ status: 'none' })
+  await expect(recovery.restore([...store.artifacts.values()][0]!.archive)).rejects.toThrow('Retry cleanup')
+  store.failRemove = false
+  await recovery.finishPrivateErasure()
+  expect(await recovery.hasPendingErasure()).toBe(false)
+  expect(store.artifacts.size).toBe(1)
+  const clean = await new PortableArchiveService(database).inspect([...store.artifacts.values()][0]!.archive)
+  expect(clean.books).toHaveLength(0)
+  expect(clean.reviews.keepsakes).toHaveLength(0)
+  expect(await database.query('PRAGMA foreign_key_check')).toEqual([])
+})
+
+test('earlier comparison corrections produce an explicit update and erasure includes later comparison keepsakes', async () => {
+  const { repository, library, database } = await setup()
+  for (const [id, finishedAt] of [['baseline-a', '2025-11-01T12:00:00.000Z'], ['baseline-b', '2026-02-01T12:00:00.000Z'], ['second-current', '2026-05-02T12:00:00.000Z']]) {
+    const book = { id: id!, title: id!, authors: ['Someone'], pageCount: 0, rating: 0, notes: '', shelf: 'tbr' as const,
+      progress: 0, currentPage: 0, addedAt: finishedAt!, lastUpdatedAt: finishedAt! }
+    await library.save(book)
+    await library.saveManual(book, { ...book, shelf: 'finished', progress: 100, finishedAt }, { id: `finish-${id}` })
+  }
+  const coverage = [reviewQuarter(2025, 4, 'Europe/Madrid'), reviewQuarter(2026, 1, 'Europe/Madrid'), reviewQuarter(2026, 2, 'Europe/Madrid')]
+    .map(quarter => ({ quarter, metricId: '01', ruleVersion: 'quarterly-evidence-v1', captureVersion: 'manual-test-v1', complete: true, evidenceRefs: ['coverage-test'] }))
+  const saved = (await repository.open(period, artwork, coverage)).keepsake
+  expect(await repository.previewUpdate(period)).toBeNull()
+  const earlier = (await library.list()).find(b => b.id === 'baseline-a')!
+  await library.saveManual(earlier, { ...earlier, finishedAt: '2025-08-01T12:00:00.000Z' }, { id: 'earlier-correction' })
+  const preview = (await repository.previewUpdate(period))!
+  expect(preview.after.earned.find(b => b.id === '01')?.comparisons.map(c => c.value)).toEqual([0, 1])
+  expect((await repository.get(period))?.facts).toEqual(saved.facts)
+  const recovery = new RecoveryService(database, { store: new MemoryRecoveryArtifactStore(), eraseOtherCopies: async () => {}, availableBytes: async () => 1e9 })
+  const erasure = new PrivateErasureService(database, recovery)
+  const erase = await erasure.preview('baseline-a')
+  expect(erase.reviews).toEqual([period])
+  await erasure.erase(erase.token)
+  expect(await repository.get(period)).toBeNull()
+  expect((await library.list()).map(b => b.id).sort()).toEqual(['baseline-b', 'keepsake-book', 'second-current'])
+})
+
+test('whole-library erasure clears review settings; failed clean-point creation remains retryable', async () => {
+  const { repository, database, library } = await setup()
+  await repository.open(period, artwork)
+  await repository.changeTimezone('Asia/Tokyo')
+  const store = new MemoryRecoveryArtifactStore()
+  const recovery = new RecoveryService(database, { store, eraseOtherCopies: async () => {}, availableBytes: async () => 1e9 })
+  const erasure = new PrivateErasureService(database, recovery)
+  const preview = await erasure.preview()
+  store.failNextWrite = true
+  await expect(erasure.erase(preview.token)).rejects.toThrow('storage failure')
+  expect(await library.list()).toHaveLength(0)
+  expect(await readReviewBackup(database)).toEqual({ version: 1, settings: null, quarters: [], keepsakes: [], suppressions: [] })
+  expect(await recovery.hasPendingErasure()).toBe(true)
+  const restarted = new RecoveryService(database, { store, eraseOtherCopies: async () => {}, availableBytes: async () => 1e9 })
+  await restarted.finishPrivateErasure()
+  expect(await restarted.hasPendingErasure()).toBe(false)
+  expect((await new PortableArchiveService(database).inspect([...store.artifacts.values()][0]!.archive)).books).toEqual([])
+})
+
+test('staged restore launch rollback restores the previous review facts and progress with the library', async () => {
+  const { repository, database, library } = await setup()
+  await repository.open(period, artwork)
+  const archives = new PortableArchiveService(database)
+  const candidate = await archives.create()
+  await repository.setIdentity(period, { status: 'chosen', genre: 'horror' })
+  await repository.saveProgress(period, 'review:2026-Q2:pathway')
+  const lastGood = await readReviewBackup(database)
+  const lastGoodBooks = await library.list()
+  const recovery = new RecoveryService(database, { store: new MemoryRecoveryArtifactStore(), availableBytes: async () => 1e9 })
+  await recovery.restore(candidate.archive)
+  expect((await repository.get(period))?.identity).toEqual({ status: 'unselected' })
+  await recovery.beginPendingLaunch()
+  expect((await recovery.beginPendingLaunch()).status).toBe('rolled-back')
+  expect(await readReviewBackup(database)).toEqual(lastGood)
+  expect(await library.list()).toEqual(lastGoodBooks)
+})
+
+test('unsupported review payload and inconsistent quarter assignment fail after checksum verification without replacing current data', async () => {
+  const { repository, database } = await setup()
+  await repository.open(period, artwork)
+  const service = new PortableArchiveService(database)
+  const full = await service.create()
+  const expected = await readReviewBackup(database)
+  for (const damage of ['version', 'assignment']) {
+    const archive = JSON.parse(full.archive)
+    const data = JSON.parse(archive.entries['data/reviews.json'])
+    if (damage === 'version') data.keepsakes[0].schemaVersion = 2
+    else data.quarters = []
+    const text = JSON.stringify(data)
+    archive.entries['data/reviews.json'] = text
+    const descriptor = archive.manifest.entries.find((e: { path: string }) => e.path === 'data/reviews.json')
+    const bytes = new TextEncoder().encode(text)
+    descriptor.byteSize = bytes.length
+    descriptor.sha256 = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(b => b.toString(16).padStart(2, '0')).join('')
+    await expect(service.restore(JSON.stringify(archive))).rejects.toThrow('data/reviews.json')
+    expect(await readReviewBackup(database)).toEqual(expected)
+  }
+})
+
+test('rule-version changes remain explicit and UI edits to a preview cannot alter the committed result', async () => {
+  const { repository, database, library } = await setup()
+  const saved = (await repository.open(period, artwork)).keepsake
+  await database.run('UPDATE review_keepsakes SET payload_json = ?', [JSON.stringify({ ...saved, facts: { ...saved.facts, ruleVersion: 'previous-rules' } })])
+  const preview = (await repository.previewUpdate(period))!
+  const expected = structuredClone(preview.after)
+  preview.after.earned = []
+  const applied = await repository.applyUpdate(period, preview.token)
+  expect(applied.status).toBe('applied')
+  expect((await repository.get(period))?.facts).toEqual(expected)
+  const erasure = new PrivateErasureService(database, new RecoveryService(database))
+  const stale = await erasure.preview('keepsake-book')
+  const book = (await library.list())[0]!
+  await library.save({ ...book, title: 'Changed during erasure preview' })
+  await expect(erasure.erase(stale.token)).rejects.toThrow('Your library changed')
+  expect(await library.list()).toHaveLength(1)
+})
+
+test('native-copy cleanup failure survives a new coordinator and cannot be bypassed by direct portable restore', async () => {
+  const { repository, database } = await setup()
+  await repository.open(period, artwork)
+  const archives = new PortableArchiveService(database)
+  const external = await archives.create()
+  const store = new MemoryRecoveryArtifactStore()
+  const recovery = new RecoveryService(database, { store, eraseOtherCopies: async () => {},
+    eraseNative: async () => { throw new Error('Native journal unavailable') }, availableBytes: async () => 1e9 })
+  const erasure = new PrivateErasureService(database, recovery)
+  const preview = await erasure.preview('keepsake-book')
+  await expect(erasure.erase(preview.token)).rejects.toThrow('Native journal unavailable')
+  await expect(archives.restore(external.archive)).rejects.toThrow('Finish private erasure cleanup')
+  const scopes: unknown[] = []
+  const retry = new RecoveryService(database, { store, eraseOtherCopies: async () => {}, eraseNative: async scope => { scopes.push(scope) }, availableBytes: async () => 1e9 })
+  await retry.finishPrivateErasure()
+  expect(scopes).toMatchObject([{ bookIds: ['keepsake-book'], queueIds: [], all: false }])
+  expect(await retry.hasPendingErasure()).toBe(false)
 })

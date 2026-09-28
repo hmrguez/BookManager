@@ -517,6 +517,10 @@ export const STORAGE_MIGRATIONS: readonly StorageMigration[] = [
     signature: REVIEW_KEEPSAKES_SQL,
     async up(database) { await database.execute(REVIEW_KEEPSAKES_SQL) },
   },
+  { version: 21, name: 'retryable private erasure cleanup', kind: 'additive',
+    signature: 'CREATE TABLE private_erasure_pending (id INTEGER PRIMARY KEY CHECK (id = 1), payload_json TEXT NOT NULL);',
+    async up(database) { await database.execute('CREATE TABLE private_erasure_pending (id INTEGER PRIMARY KEY CHECK (id = 1), payload_json TEXT NOT NULL);') },
+  },
 ]
 
 // Preserve the historical table name so existing reader checkpoints and archives

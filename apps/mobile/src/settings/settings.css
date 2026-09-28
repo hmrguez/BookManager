@@ -70,3 +70,15 @@
   .settings-service__body { padding-inline: 18px; }
   .settings-page .settings-header { padding-block: 8px 22px; }
 }
+
+/* A deliberate privacy action, laid out as a readable page rather than an icon row. */
+.settings-card.private-erasure-card { display: block; }
+.private-erasure-card { overflow-wrap: anywhere; }
+.private-erasure-card p { font-size: .85rem; line-height: 1.6; margin-block: .75rem; color: var(--text-secondary); }
+.private-erasure-card h3 { margin-block: 1.4rem .5rem; font: 500 1.15rem/1.4 var(--font-reading); }
+.private-erasure-card label { display: grid; gap: .5rem; margin-block: 1rem; font-size: .8rem; }
+.private-erasure-card select { width: 100%; min-width: 0; min-height: 44px; padding: .65rem; background: var(--surface-page); border: 1px solid var(--border-subtle); border-radius: .3rem; color: var(--text-primary); }
+.private-erasure-card button { min-height: 44px; border: 1px solid var(--border-subtle); border-radius: .3rem; padding: .65rem .9rem; margin: .5rem .5rem 0 0; font-size: .8rem; }
+.private-erasure-card button:disabled { opacity: .5; }
+.private-erasure-card ul { margin-block: .75rem; padding-inline-start: 1.25rem; font-size: .85rem; line-height: 1.6; }
+.private-erasure-card :focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }

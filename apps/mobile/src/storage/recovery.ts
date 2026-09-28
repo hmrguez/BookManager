@@ -1,3 +1,9 @@
+import { eraseNativeJournals, type ErasedNativeScope } from './native-erasure'
+import { eraseMigrationBackups } from './migration-backup'
+import { Directory, Filesystem } from '@capacitor/filesystem'
+import { z } from 'zod'
+import { readReviewBackup } from '../reviews/backup'
+import { reviewFingerprint } from '../reviews/updates'
 import { assertCredentialFree } from '../security'
 import type { ManagedAssetStore } from '../epub/managed-store'
 import { CatalogRepository } from './catalog-repository'
@@ -91,6 +97,9 @@ export type RecoverySupportReport = {
 }
 
 export type RecoveryServiceOptions = {
+  readonly eraseNative?: (scope: ErasedNativeScope) => Promise<void>
+  readonly eraseOtherCopies?: () => Promise<void>
+  readonly eraseVoice?: (path: string) => Promise<void>
   readonly store?: RecoveryArtifactStore
   readonly epubAssetStore?: ManagedAssetStore
   readonly now?: () => Date
@@ -113,6 +122,11 @@ export class RecoveryError extends Error {
 }
 
 export class RecoveryService {
+  readonly #eraseNative: (scope: ErasedNativeScope) => Promise<void>
+  readonly #eraseOtherCopies: () => Promise<void>
+  readonly #eraseVoice: (path: string) => Promise<void>
+  #cleaning = false
+  #mutationBusy = false
   readonly #database: SqlDatabase
   readonly #portableArchives: PortableArchiveService
   readonly #store: RecoveryArtifactStore
@@ -121,6 +135,16 @@ export class RecoveryService {
   readonly #availableBytes: () => Promise<number | undefined>
 
   constructor(database: SqlDatabase, options: RecoveryServiceOptions = {}) {
+    this.#eraseNative = options.eraseNative ?? eraseNativeJournals
+    this.#eraseOtherCopies = options.eraseOtherCopies ?? (async () => {
+      await eraseMigrationBackups()
+      if (typeof localStorage !== 'undefined') for (const key of ['wovenleaf.library.v1', 'bookmanager.library.v1']) localStorage.removeItem(key)
+    })
+    this.#eraseVoice = options.eraseVoice ?? (async path => {
+      if (!/^annotations\/audiobooks\/[\w.:-]+$/.test(path) || path.includes('..')) throw new Error('Invalid private audio path')
+      try { await Filesystem.deleteFile({ path, directory: Directory.LibraryNoCloud }) }
+      catch (error) { if (!/not found|does not exist|ENOENT/i.test(String(error))) throw error }
+    })
     this.#database = database
     this.#portableArchives = new PortableArchiveService(database, {
       ...(options.epubAssetStore ? { epubAssetStore: options.epubAssetStore } : {}),
@@ -130,6 +154,47 @@ export class RecoveryService {
     this.#createId = options.createId
       ?? ((kind) => `${kind}:${crypto.randomUUID()}`)
     this.#availableBytes = options.availableBytes ?? estimateAvailableBrowserStorage
+  }
+
+  async hasPendingErasure() {
+    const exists = await this.#database.query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'private_erasure_pending'")
+    return !!exists.length && !!(await this.#database.query('SELECT id FROM private_erasure_pending')).length
+  }
+
+  private async exclusive<T>(work: () => Promise<T>): Promise<T> {
+    if (this.#mutationBusy) throw new Error('A recovery operation is already running. Please try again when it finishes.')
+    this.#mutationBusy = true
+    try { return await work() } finally { this.#mutationBusy = false }
+  }
+
+  async erasePrivateData(commit: () => Promise<void>) {
+    return this.exclusive(async () => { await this.assertNoErasure(); await commit(); await this.finishErasure() })
+  }
+
+  async finishPrivateErasure() { return this.exclusive(() => this.finishErasure()) }
+
+  private async finishErasure() {
+    if (!await this.hasPendingErasure()) return
+    if (this.#cleaning) throw new Error('Private cleanup is already running.')
+    this.#cleaning = true
+    try {
+      // Disable rollback before removing copies. The durable SQLite marker prevents launch
+      // recovery from resurrecting erased data if any step is interrupted.
+      await this.#store.writePendingRestore(undefined)
+      if (this.#store.eraseAll) await this.#store.eraseAll()
+      else for (const artifact of await this.#store.list()) await this.#store.remove(artifact.id)
+      await this.#eraseOtherCopies()
+      const [row] = await this.#database.query('SELECT payload_json FROM private_erasure_pending WHERE id = 1')
+      const pending = z.object({ version: z.literal(1), voices: z.array(z.string()), bookIds: z.array(z.string()), queueIds: z.array(z.string()), all: z.boolean() }).strict().parse(JSON.parse(readText(row!, 'payload_json')))
+      await this.#eraseNative(pending)
+      for (const path of pending.voices) await this.#eraseVoice(path)
+      await this.createSnapshotInternal('manual')
+      await this.#database.transaction(async database => { await database.run('DELETE FROM private_erasure_pending WHERE id = 1') })
+    } finally { this.#cleaning = false }
+  }
+
+  private async assertNoErasure() {
+    if (await this.hasPendingErasure()) throw new Error('Private erasure is not complete. Retry cleanup before restoring or creating recovery points.')
   }
 
   async inspectArchive(serializedArchive: string): Promise<RecoveryBackupPreview> {
@@ -176,6 +241,11 @@ export class RecoveryService {
   }
 
   async createSnapshot(kind: 'automatic' | 'manual' | 'rollback' = 'manual'): Promise<RecoveryBackupPreview> {
+    return this.exclusive(() => this.createSnapshotInternal(kind))
+  }
+
+  private async createSnapshotInternal(kind: 'automatic' | 'manual' | 'rollback'): Promise<RecoveryBackupPreview> {
+    if (!this.#cleaning) await this.assertNoErasure()
     await assertDatabaseHealthy(this.#database)
     const bundle = await this.#portableArchives.create({
       includeAnnotations: true,
@@ -210,10 +280,15 @@ export class RecoveryService {
     return this.createSnapshot('automatic')
   }
 
-  async restore(
+  async restore(serializedArchive: string, options: { readonly allowStale?: boolean } = {}): Promise<RecoveryRestoreResult> {
+    return this.exclusive(() => this.restoreInternal(serializedArchive, options))
+  }
+
+  private async restoreInternal(
     serializedArchive: string,
     options: { readonly allowStale?: boolean } = {},
   ): Promise<RecoveryRestoreResult> {
+    await this.assertNoErasure()
     const preview = await this.inspectArchive(serializedArchive)
     if (!preview.canRestore) {
       throw new RecoveryError(
@@ -289,6 +364,7 @@ export class RecoveryService {
   }
 
   async beginPendingLaunch(): Promise<RecoveryLaunchResult> {
+    if (await this.hasPendingErasure()) return { status: 'none' }
     const pending = await this.#store.readPendingRestore()
     if (!pending) return { status: 'none' }
     if (!pending.launchAttemptedAt) {
@@ -306,6 +382,7 @@ export class RecoveryService {
   }
 
   async confirmPendingLaunch(): Promise<void> {
+    if (await this.hasPendingErasure()) return
     const pending = await this.#store.readPendingRestore()
     if (!pending) return
     await this.#store.writePendingRestore(undefined)
@@ -314,6 +391,11 @@ export class RecoveryService {
   }
 
   async rollbackPendingLaunch(): Promise<void> {
+    return this.exclusive(() => this.rollbackInternal())
+  }
+
+  private async rollbackInternal(): Promise<void> {
+    await this.assertNoErasure()
     const pending = await this.#store.readPendingRestore()
     if (!pending) return
     const rollback = await this.#store.read(pending.rollbackArtifactId)
@@ -549,6 +631,7 @@ async function verifyRestoredDatabase(
     readUpNextState(database),
     readSavedSmartLists(database),
   ])
+  if (reviewFingerprint(await readReviewBackup(database)) !== reviewFingerprint(expected.reviews)) throw new RecoveryError('corrupt-database', 'Restored reviews did not pass post-swap validation.')
   assertSameIds('Works', catalog.works, expected.catalog.works)
   assertSameIds('Editions', catalog.editions, expected.catalog.editions)
   assertSameIds('Assets', catalog.assets, expected.catalog.assets)

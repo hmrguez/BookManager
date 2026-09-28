@@ -1,3 +1,4 @@
+import { PrivateErasure } from './PrivateErasure'
 import './settings.css'
 import { useWideLayout } from '../responsive/useWideLayout'
 import { OriginalFileInput } from '../files/OriginalFileInput'
@@ -687,7 +688,7 @@ export function SettingsPage({
           >
             <span>
               <strong>Private notes and ratings</strong>
-              <small>{includeExportAnnotations ? 'Included in canonical and readable files' : 'Redacted from every exported file'}</small>
+              <small>{includeExportAnnotations ? 'Included; saved reviews are kept in the private archive' : 'Redacted from every file; saved reviews and review settings are omitted'}</small>
             </span>
             <i aria-hidden="true" />
           </button>
@@ -734,6 +735,7 @@ export function SettingsPage({
           {exportError && <p className={tw('settings-hint settings-hint--error export-error')} role="alert">{exportError}</p>}
             </section>
 
+            <PrivateErasure books={books} />
             <section className={tw('settings-card settings-card--recovery')}>
           <div className={tw('settings-card__icon')}><RotateCcw aria-hidden="true" /></div>
           <div className={tw('settings-card__heading')}>

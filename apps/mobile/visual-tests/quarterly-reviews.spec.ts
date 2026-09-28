@@ -98,6 +98,7 @@ test('empty latest quarter, dismissal, optional identity and corrupt artwork pre
 })
 
 test('automatic badge pacing stops at final badge and details remain paused', async ({ page }) => {
+  test.slow() // This case deliberately waits through three real playback intervals.
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   await seed(page)
   await archive(page)
@@ -204,4 +205,78 @@ test('legacy interrupted pathway resumes in the static collection without changi
   expect(after?.artwork).toEqual(before.artwork)
   expect(after?.completedAt).toBeTruthy()
   expect(frames).toEqual([])
+})
+
+test('explicit update refreshes stale evidence, retains identity, and deletes only the review', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 320, height: 740 })
+  await seed(page)
+  await archive(page)
+  await highlights(page)
+  await page.getByRole('button', { name: 'Skip', exact: true }).click()
+  await page.getByRole('button', { name: 'Done', exact: true }).click()
+  await page.evaluate(async () => {
+    const r = await (await import('/src/storage/runtime.ts')).getStorageRuntime()
+    const book = (await r.library.list()).find(b => b.id === 'review-walkthrough')!
+    await r.library.saveManual(book, { ...book, finishedAt: '2026-03-31T12:00:00.000Z' }, { id: 'review-update-correction' })
+  })
+  await page.getByRole('button', { name: /April–June 2026.*View keepsake/ }).click()
+  await page.getByRole('button', { name: 'Update review', exact: true }).click()
+  await expect(page.getByRole('region', { name: 'Review update preview' })).toContainText('No earned badges')
+  await page.evaluate(async () => {
+    const r = await (await import('/src/storage/runtime.ts')).getStorageRuntime()
+    const book = (await r.library.list()).find(b => b.id === 'review-walkthrough')!
+    await r.library.saveManual(book, { ...book, finishedAt: '2026-05-02T12:00:00.000Z', pageCount: 200, metadataLocks: ['pageCount'] }, { id: 'review-update-second-correction' })
+    await r.reviewKeepsakes.setIdentity({ year: 2026, quarter: 2 }, { status: 'chosen', genre: 'fantasy' })
+  })
+  await page.getByRole('button', { name: 'Apply update', exact: true }).click()
+  await expect(page.getByRole('complementary', { name: 'Saved review options' }).getByRole('status')).toContainText('Review the refreshed preview')
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await page.screenshot({ path: testInfo.outputPath('update-preview-320.png'), fullPage: true })
+  await page.getByRole('button', { name: 'Apply update', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'The Worldwanderer', exact: true })).toBeVisible()
+  await page.getByText('Manage this keepsake', { exact: true }).click()
+  await page.getByRole('button', { name: 'Delete review', exact: true }).click()
+  await page.getByRole('button', { name: 'Delete saved review', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Reviews', exact: true })).toBeVisible()
+  const result = await page.evaluate(async () => {
+    const r = await (await import('/src/storage/runtime.ts')).getStorageRuntime()
+    return { books: (await r.library.list()).length, saved: await r.reviewKeepsakes.get({ year: 2026, quarter: 2 }), invitation: await r.reviewKeepsakes.invitation() }
+  })
+  expect(result).toEqual({ books: 1, saved: null, invitation: null })
+})
+
+test('private erasure preview names dependent keepsakes and leaves a clean recovery point', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await seed(page)
+  await archive(page)
+  await expect(page.locator('.review-badge')).toBeVisible()
+  await page.getByRole('button', { name: 'Close', exact: true }).click()
+  await page.reload()
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await page.locator('details.settings-advanced > summary').click()
+  const erasure = page.getByRole('region', { name: 'Erase private reading history' })
+  await erasure.getByLabel('Erase', { exact: true }).selectOption('review-walkthrough')
+  await erasure.getByRole('button', { name: 'Preview erasure', exact: true }).click()
+  await expect(erasure).toContainText('The Earthsea Quartet')
+  await expect(erasure).toContainText('2026 · Q2')
+  await expect(erasure).toContainText('outside Wovenleaf’s control')
+  await expect(erasure.getByRole('heading', { name: 'Private reading history', exact: true })).toBeVisible()
+  expect(await erasure.getByRole('region', { name: 'Private erasure preview' }).evaluate(el => el.clientWidth)).toBeGreaterThan(250)
+  await erasure.scrollIntoViewIfNeeded()
+  await page.screenshot({ path: testInfo.outputPath('private-erasure-preview.png') })
+  await erasure.getByRole('button', { name: 'Cancel', exact: true }).click()
+  const saved = await page.evaluate(async () => (await (await import('/src/storage/runtime.ts')).getStorageRuntime()).reviewKeepsakes.get({ year: 2026, quarter: 2 }))
+  expect(saved).not.toBeNull()
+  await erasure.getByRole('button', { name: 'Preview erasure', exact: true }).click()
+  await erasure.getByRole('button', { name: 'Erase this private history', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'My Books', exact: true })).toBeVisible()
+  const remaining = await page.evaluate(async () => {
+    const r = await (await import('/src/storage/runtime.ts')).getStorageRuntime()
+    return { books: await r.library.list(), keepsakes: await r.reviewKeepsakes.list(), snapshots: await r.recovery.listSnapshots(), pending: await r.recovery.hasPendingErasure() }
+  })
+  expect(remaining.books).toEqual([])
+  expect(remaining.keepsakes).toEqual([])
+  expect(remaining.pending).toBe(false)
+  expect(remaining.snapshots).toHaveLength(1)
+  expect(remaining.snapshots[0]?.bookCount).toBe(0)
 })

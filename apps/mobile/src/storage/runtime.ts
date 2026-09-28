@@ -1,3 +1,4 @@
+import { PrivateErasureService } from './private-erasure'
 import { LibbyRepository } from '../libby/repository'
 import { Directory, Filesystem } from '@capacitor/filesystem'
 import { ReviewKeepsakeRepository } from '../reviews/keepsake-repository'
@@ -35,6 +36,7 @@ import { setLibraryCapacityPolicy } from '../purchases/capacity'
 import { purchases, startPurchases } from '../purchases/runtime'
 
 export type StorageRuntime = {
+  readonly privateErasure: PrivateErasureService
   readonly database: SqlDatabase
   readonly catalog: CatalogRepository
   readonly readingLedger: ReadingLedgerRepository
@@ -83,7 +85,7 @@ async function initializeStorageRuntime(): Promise<StorageRuntime> {
   await reviewKeepsakes.settings()
   const library = new LibraryRepository(database)
   const legacyStorage = getLegacyLibraryStorage()
-  const legacyMigration = legacyStorage
+  const legacyMigration = legacyStorage && !await recovery.hasPendingErasure()
     ? await migrateLegacyLibrary(database, legacyStorage)
     : ({ status: 'not-found' } as const)
   await library.retireUntouchedStarterBooks()
@@ -111,6 +113,7 @@ async function initializeStorageRuntime(): Promise<StorageRuntime> {
   setLibraryCapacityPolicy(database, purchases.assertCapacity)
   return {
     database,
+    privateErasure: new PrivateErasureService(database, recovery),
     catalog: new CatalogRepository(database),
     readingLedger,
     duplicateReviews: new DuplicateReviewRepository(database),

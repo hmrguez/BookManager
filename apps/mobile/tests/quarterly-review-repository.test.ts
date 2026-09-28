@@ -1,3 +1,6 @@
+import { PrivateErasureService } from '../src/storage/private-erasure'
+import { RecoveryService } from '../src/storage/recovery'
+import { MemoryRecoveryArtifactStore } from '../src/storage/recovery-store'
 import { expect, test } from 'bun:test'
 import JSZip from 'jszip'
 import { inspectEpub } from '../src/epub/inspect'
@@ -94,5 +97,22 @@ test('repository applies post-quarter corrections without losing original ledger
   expect((await ctx.repository.calculate(request)).metrics['01']?.value).toBe(0)
   expect(saved.metrics['01']?.value).toBe(1)
   expect((await new CatalogRepository(ctx.database).read()).readingEvents).toHaveLength(2)
+  await ctx.database.close()
+})
+
+
+test('private erasure removes an imported EPUB dependency graph and provider claims without affecting another book', async () => {
+  const ctx = await setup()
+  const other = { ...await ctx.current(), id: 'unrelated-book', title: 'Unrelated book', readingEditionId: undefined, manualReadingRevision: undefined, shelf: 'tbr' as const, finishedAt: undefined }
+  await ctx.library.save(other)
+  const recovery = new RecoveryService(ctx.database, { store: new MemoryRecoveryArtifactStore(), eraseOtherCopies: async () => {}, availableBytes: async () => 1e9 })
+  const erasure = new PrivateErasureService(ctx.database, recovery)
+  const preview = await erasure.preview(ctx.imported.bookId)
+  expect(preview.books).toEqual(['A quarter of stories'])
+  await erasure.erase(preview.token)
+  expect((await ctx.library.list()).map(b => b.title)).toEqual(['Unrelated book'])
+  expect(await ctx.database.query('PRAGMA foreign_key_check')).toEqual([])
+  expect((await new CatalogRepository(ctx.database).read()).editions).toEqual([])
+  expect((await new CatalogRepository(ctx.database).read()).sourceRecords).toEqual([])
   await ctx.database.close()
 })

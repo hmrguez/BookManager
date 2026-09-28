@@ -28,6 +28,7 @@ export type PendingRestore = {
 }
 
 export interface RecoveryArtifactStore {
+  eraseAll?(): Promise<void>
   list(): Promise<readonly RecoveryArtifactMetadata[]>
   read(id: string): Promise<StoredRecoveryArtifact | undefined>
   write(artifact: StoredRecoveryArtifact): Promise<void>
@@ -106,6 +107,12 @@ const NATIVE_RECOVERY_DIRECTORY = 'recovery'
 const NATIVE_INDEX_PATH = `${NATIVE_RECOVERY_DIRECTORY}/index.json`
 
 class NativeRecoveryArtifactStore implements RecoveryArtifactStore {
+  async eraseAll(): Promise<void> {
+    // Include orphaned/partial writes, not only indexed artifacts.
+    try { await Filesystem.rmdir({ path: NATIVE_RECOVERY_DIRECTORY, directory: Directory.LibraryNoCloud, recursive: true }) }
+    catch (error) { if (!isMissingFileError(error)) throw error }
+  }
+
   async list(): Promise<readonly RecoveryArtifactMetadata[]> {
     return (await this.#readIndex()).artifacts
   }
@@ -159,13 +166,13 @@ class NativeRecoveryArtifactStore implements RecoveryArtifactStore {
 
   async remove(id: string): Promise<void> {
     const index = await this.#readIndex()
+    await deleteNativeFile(artifactPath(id))
     if (index.artifacts.some((artifact) => artifact.id === id)) {
       await this.#writeIndex({
         ...index,
         artifacts: index.artifacts.filter((artifact) => artifact.id !== id),
       })
     }
-    await deleteNativeFile(artifactPath(id))
   }
 
   async readPendingRestore(): Promise<PendingRestore | undefined> {
@@ -209,6 +216,14 @@ class NativeRecoveryArtifactStore implements RecoveryArtifactStore {
 }
 
 class IndexedDbRecoveryArtifactStore implements RecoveryArtifactStore {
+  async eraseAll(): Promise<void> {
+    await this.#withDatabase(async database => {
+      const transaction = database.transaction('artifacts', 'readwrite')
+      transaction.objectStore('artifacts').clear()
+      await transactionDone(transaction)
+    })
+  }
+
   async list(): Promise<readonly RecoveryArtifactMetadata[]> {
     return this.#withDatabase(async (database) => {
       const transaction = database.transaction('artifacts', 'readonly')
@@ -289,8 +304,8 @@ function isMissingFileError(error: unknown): boolean {
 async function deleteNativeFile(path: string): Promise<void> {
   try {
     await Filesystem.deleteFile({ path, directory: Directory.LibraryNoCloud })
-  } catch {
-    // Recovery cleanup is intentionally idempotent.
+  } catch (error) {
+    if (!isMissingFileError(error)) throw error
   }
 }
 

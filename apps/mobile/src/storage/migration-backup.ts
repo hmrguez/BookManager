@@ -64,3 +64,18 @@ function transactionDone(transaction: IDBTransaction): Promise<void> {
     transaction.onabort = () => reject(transaction.error ?? new Error('Migration backup was aborted'))
   })
 }
+
+/** Erasure removes every managed pre-migration copy, never merely its index. */
+export async function eraseMigrationBackups(): Promise<void> {
+  if (Capacitor.getPlatform() === 'web') {
+    const database = await openBackupDatabase()
+    try {
+      const transaction = database.transaction('snapshots', 'readwrite')
+      transaction.objectStore('snapshots').clear()
+      await transactionDone(transaction)
+    } finally { database.close() }
+  } else {
+    try { await Filesystem.rmdir({ path: 'storage-backups', directory: Directory.LibraryNoCloud, recursive: true }) }
+    catch (error) { if (!/not found|does not exist|ENOENT/i.test(String(error))) throw error }
+  }
+}

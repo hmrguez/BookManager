@@ -128,3 +128,8 @@ export function useLibby(reloadLibrary: () => Promise<unknown>) {
   }
 }
 export type LibbyController = ReturnType<typeof useLibby>
+
+/** Private erasure disables the device inbox and removes its managed captures/key. */
+export async function disableLibbyForPrivateErasure() {
+  if (nativeAvailable()) await native.configure({ enabled: false })
+}

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { emptyReviewBackup, readReviewBackup, replaceReviewBackup, reviewBackupSchema, type ReviewBackup } from '../reviews/backup'
 import {
   assetSchema,
   catalogRecordsSchema,
@@ -52,7 +53,7 @@ import { readUpNextState, replaceUpNextState } from './up-next-repository'
 
 export const PORTABLE_ARCHIVE_FORMAT = 'wovenleaf-portable-library'
 export const PORTABLE_ARCHIVE_FORMAT_VERSION = 1
-export const PORTABLE_ARCHIVE_SCHEMA_VERSION = 9
+export const PORTABLE_ARCHIVE_SCHEMA_VERSION = 10
 
 const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/)
 const archiveEntryDescriptorSchema = z.object({
@@ -146,6 +147,7 @@ export type PortableAssetContent = {
 }
 
 export type PortableArchiveOptions = {
+  readonly reviews?: ReviewBackup
   readonly includeAnnotations?: boolean
   readonly includeSourcePayloads?: boolean
   readonly assetContents?: readonly PortableAssetContent[]
@@ -163,6 +165,7 @@ export type PortableArchiveBundle = {
 }
 
 export type PortableArchiveInspection = {
+  readonly reviews: ReviewBackup
   readonly manifest: PortableArchiveManifest
   readonly catalog: Catalog
   readonly books: readonly LibraryBook[]
@@ -202,26 +205,29 @@ export class PortableArchiveService {
   }
 
   async create(options: PortableArchiveOptions = {}): Promise<PortableArchiveBundle> {
-    const [catalog, books, organization, upNext, smartLists, readerNavigation, readerAnnotations, epubImports] = await Promise.all([
-      new CatalogRepository(this.#database).read(),
-      readLibraryBooks(this.#database),
-      readLibraryOrganization(this.#database),
-      readUpNextState(this.#database),
-      readSavedSmartLists(this.#database),
-      new EpubReaderRepository(this.#database).allNavigationStates(),
-      new EpubReaderRepository(this.#database).allAnnotationStates(),
-      readPortableEpubImports(this.#database),
-    ])
-    return createPortableArchive(
-      catalog,
-      books,
-      { ...options, epubImports },
-      organization,
-      upNext,
-      smartLists,
-      readerNavigation,
-      readerAnnotations,
-    )
+    return this.#database.transaction(async database => {
+      const [catalog, books, organization, upNext, smartLists, readerNavigation, readerAnnotations, epubImports, reviews] = await Promise.all([
+        new CatalogRepository(database).read(),
+        readLibraryBooks(database),
+        readLibraryOrganization(database),
+        readUpNextState(database),
+        readSavedSmartLists(database),
+        new EpubReaderRepository(database).allNavigationStates(),
+        new EpubReaderRepository(database).allAnnotationStates(),
+        readPortableEpubImports(database),
+        readReviewBackup(database),
+      ])
+      return createPortableArchive(
+        catalog,
+        books,
+        { ...options, epubImports, reviews },
+        organization,
+        upNext,
+        smartLists,
+        readerNavigation,
+        readerAnnotations,
+      )
+    })
   }
 
   async inspect(serializedArchive: string): Promise<PortableArchiveInspection> {
@@ -236,6 +242,8 @@ export class PortableArchiveService {
     const restored = await restoreIncludedEpubAssets(inspected, this.#epubAssetStore)
     try {
       await this.#database.transaction(async (database) => {
+        const erasureTable = await database.query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'private_erasure_pending'")
+        if (erasureTable.length && (await database.query('SELECT id FROM private_erasure_pending')).length) throw new Error('Finish private erasure cleanup before restoring an archive')
         await replaceReaderNavigationStates(database, [])
         await replaceReaderAnnotationStates(database, [])
         await deleteCatalogRecords(database)
@@ -247,6 +255,7 @@ export class PortableArchiveService {
         await replaceOrganization(database, restored.inspection.organization)
         await replaceUpNextState(database, restored.inspection.upNext)
         await replaceSavedSmartLists(database, restored.inspection.smartLists)
+        await replaceReviewBackup(database, restored.inspection.reviews)
         await replaceReaderNavigationStates(database, restored.inspection.readerNavigation)
         await replaceReaderAnnotationStates(database, restored.inspection.readerAnnotations)
       })
@@ -408,6 +417,7 @@ export async function createPortableArchive(
   readerAnnotationInput: readonly ReaderAnnotationState[] = [],
 ): Promise<PortableArchiveBundle> {
   const includeAnnotations = options.includeAnnotations ?? true
+  const reviews = reviewBackupSchema.parse(includeAnnotations ? options.reviews ?? emptyReviewBackup() : emptyReviewBackup())
   const includeSourcePayloads = options.includeSourcePayloads ?? false
   const createdAt = options.createdAt ?? new Date().toISOString()
   const catalog = preparePortableCatalog(catalogInput, {
@@ -455,6 +465,7 @@ export async function createPortableArchive(
   const assetContents = validateAssetContents(catalog, options.assetContents ?? [])
 
   assertCredentialFree({
+    reviews,
     catalog: coreCatalog,
     annotations,
     library: libraryData,
@@ -468,6 +479,7 @@ export async function createPortableArchive(
 
   const entries: Record<string, string> = {}
   const descriptors: Array<z.infer<typeof archiveEntryDescriptorSchema>> = []
+  await addTextEntry(entries, descriptors, { path: 'data/reviews.json', role: 'annotations', mediaType: 'application/json', fidelity: 'canonical', contents: canonicalStringify(reviews) })
   await addTextEntry(entries, descriptors, {
     path: 'data/catalog.json',
     role: 'data',
@@ -576,6 +588,7 @@ export async function createPortableArchive(
       includedIds: assetContents.map(({ assetId }) => assetId),
     },
     exclusions: [
+      ...(!includeAnnotations ? ['saved quarterly reviews, identities, progress and private review settings'] : []),
       'credential-vault material',
       'device-local asset paths, security-scoped file bookmarks, and expired remote links',
       'SQLite and IndexedDB implementation details',
@@ -702,6 +715,9 @@ export async function inspectPortableArchive(
   const epubImports = archive.manifest.schemaVersion >= 7
     ? parseJsonEntry(archive, 'data/epub-assets.json', portableEpubImportSchema.array())
     : []
+  const reviews = archive.manifest.schemaVersion >= 10
+    ? parseJsonEntry(archive, 'data/reviews.json', reviewBackupSchema) : emptyReviewBackup()
+  if (archive.manifest.redactions.privateAnnotations === 'excluded' && canonicalStringify(reviews) !== canonicalStringify(emptyReviewBackup())) throw new PortableArchiveIntegrityError('data/reviews.json', 'Private reviews must be absent from a redacted export')
   const catalog = parseCatalogEntries(coreCatalog, annotations.readingEvents)
   const books = mergeLibraryAnnotations(
     libraryData,
@@ -715,9 +731,10 @@ export async function inspectPortableArchive(
     archive.entries,
   )
 
-  assertCredentialFree({ catalog, books, organization, upNext, smartLists, readerNavigation, readerAnnotations, epubImports })
+  assertCredentialFree({ catalog, books, organization, upNext, smartLists, readerNavigation, readerAnnotations, epubImports, reviews })
   return {
     manifest: archive.manifest,
+    reviews,
     catalog,
     books,
     organization,

@@ -1,3 +1,4 @@
+import { ReviewMaintenance } from './ReviewMaintenance'
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { App } from '@capacitor/app'
 import { AchievementSeal as Seal } from './AchievementSeal'
@@ -167,5 +168,6 @@ export function ReviewViewer({ initial, fresh, repository, reduced, onDone }: {
         <button disabled={busy} onClick={() => void restart()}>Replay highlights</button></div>
       {!genre && <details className="review-secondary-menu"><summary>Review options</summary><button onClick={() => setChooser(true)}>Choose a pathway</button></details>}
     </>}
+    <ReviewMaintenance saved={saved} repository={repository} onDeleted={onDone} onPause={() => { setPaused(true); setElapsed(BADGE_SETTLED_MS) }} onUpdated={updated => { setSaved(updated); setIndex(updated.completedAt ? updated.steps.length - 1 : 0); setPaused(true); setElapsed(BADGE_SETTLED_MS); setDetails(undefined); setChooser(false); setAll(false); setIdentityDetails(false) }} />
   </section>
 }

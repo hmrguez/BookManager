@@ -13,6 +13,7 @@ export function ReviewsPage({ refresh, invitation, onDismiss, onOpen }: {
   refresh: unknown; invitation: ReviewPeriod | null; onDismiss: () => void; onOpen: (period: ReviewPeriod) => void
 }) {
   const [archive, setArchive] = useState<ReviewKeepsake[]>([])
+  const [updates, setUpdates] = useState<string[]>([])
   const [latest, setLatest] = useState<ReviewPeriod>()
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -24,6 +25,12 @@ export function ReviewsPage({ refresh, invitation, onDismiss, onOpen }: {
       const repository = (await getStorageRuntime()).reviewKeepsakes
       const entries = await repository.list()
       const period = await repository.latestPeriod()
+      const changed: string[] = []
+      for (const entry of entries) {
+        const { year, quarter } = entry.facts.quarter
+        if (await repository.previewUpdate({ year, quarter }).catch(() => null)) changed.push(entry.id)
+      }
+      if (active) setUpdates(changed)
       if (active) { setArchive(entries); setLatest(period); setYear(String(period.year)); setQuarter(String(period.quarter)); setError('') }
     })().catch(() => { if (active) setError('Your reviews could not be loaded. Please reopen Reviews to try again.') })
       .finally(() => { if (active) setLoading(false) })
@@ -48,7 +55,7 @@ export function ReviewsPage({ refresh, invitation, onDismiss, onOpen }: {
         const genre = entry.identity.status === 'chosen' ? entry.identity.genre : null
         return <button className="review-season" key={entry.id} onClick={() => onOpen(entry.facts.quarter)}>
           <span className="review-season-art" aria-hidden="true">{genre ? <PathwayArtwork artwork={entry.artwork.pathways[genre]} /> : <BookOpen strokeWidth={1} />}</span>
-          <span className="review-season-copy"><span className="review-season-date">{quarterLabel(entry.facts.quarter)}</span><span className="review-season-title">{genre ? pathways[genre].title : 'A quarter to keep'}</span><small>{entry.completedAt ? 'View keepsake' : 'Continue review'}</small></span>
+          <span className="review-season-copy"><span className="review-season-date">{quarterLabel(entry.facts.quarter)}</span><span className="review-season-title">{genre ? pathways[genre].title : 'A quarter to keep'}</span><small>{entry.completedAt ? 'View keepsake' : 'Continue review'}{updates.includes(entry.id) ? ' · Update available' : ''}</small></span>
           <ChevronRight size={16} aria-hidden="true" />
         </button>
       })}

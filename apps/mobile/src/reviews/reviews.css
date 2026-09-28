@@ -86,3 +86,14 @@
 @media (max-width: 350px) { .reviews-page { padding-inline: 1rem; } .review-season { gap: .65rem; } .review-season-art { flex-basis: 4rem; width: 4rem; } }
 
 [role="dialog"][aria-label="Quarterly review"] { color: var(--text-primary); }
+
+.review-maintenance { text-align: left; margin-block: 1rem; font-size: .875rem; }
+.review-maintenance summary { cursor: pointer; padding-block: .6rem; }
+.review-update-preview { border-block: 1px solid var(--border-subtle); padding-block: 1.5rem; }
+.review-update-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); gap: 1.5rem; }
+.review-update-columns small { display: block; }
+.review-maintenance button { min-height: 44px; }
+
+.review-update-preview p { margin-block: .9rem; line-height: 1.6; }
+.review-update-preview h4 { border-bottom: 1px solid var(--border-subtle); padding-bottom: .6rem; }
+.review-maintenance > details { color: var(--text-secondary); margin-top: 1.5rem; }

@@ -1,7 +1,7 @@
 # Quarterly review keepsakes
 
 [Persist stable quarterly keepsakes and interrupted viewing progress](https://linear.app/hrcoding/issue/QUI-111/persist-stable-quarterly-keepsakes-and-interrupted-viewing-progress)
-adds the persistence boundary consumed by the forthcoming review UI.
+adds the persistence boundary consumed by the quarterly review UI.
 
 `StorageRuntime.reviewKeepsakes` exposes `ReviewKeepsakeRepository`. The runtime initializes the
 saved timezone once, using the device timezone. Its evidence reader checks local voice-file
@@ -79,9 +79,66 @@ presentation fallback contract. No native UI or actual animation decoding is exe
 [Build the complete offline review flow and accessible playback](https://linear.app/hrcoding/issue/QUI-112/build-the-complete-offline-review-flow-and-accessible-playback)
 consumes these APIs and owns native lifecycle/control/accessibility behavior.
 [Integrate explicit review updates with backup and private erasure](https://linear.app/hrcoding/issue/QUI-114/integrate-explicit-review-updates-with-backup-and-private-erasure)
-must include all four tables' semantics in the existing portable archive/staged recovery contract,
-validate cross-record assignments on restore, add update previews and dependency-aware erasure.
-Portable backups do **not yet include** these records; the repository is not exposed in product UI
-before that release integration. SQLite restart tests are not portable-backup verification.
-Final artwork, real missing/corrupt-asset handling, human checkpoints and integrated release
-verification remain owned by the implementation map's dedicated children.
+adds the integration below. Final native accessibility and integrated release checks remain with
+QUI-116; social snapshot production belongs to QUI-115.
+
+## Explicit updates
+
+`previewUpdate({ year, quarter })` recalculates from one consistent evidence transaction. It returns
+null when only calculation time or evidence bookkeeping changed. Titles, page counts, genre
+suggestions, earned tiers, selection, rule versions and personal-best comparisons can produce an
+update. Comparison values come from corrected ledger evidence, never another saved keepsake.
+The saved coverage certificates constrain comparison eligibility; they do not create coverage.
+
+The returned token owns a private in-memory copy of the candidate. `applyUpdate(period, token)`
+rechecks both the saved facts and a fresh calculation inside the replacement transaction. A stale
+candidate returns a refreshed preview and requires another Apply. Caller mutation cannot change
+what gets installed. Identity/completion are reread at commit; unfinished reviews restart paused,
+completed reviews land on their collection. Artwork versions remain saved. Cancellation and write
+failure preserve the old row. No candidate survives process restart; reopen the preview instead.
+
+The archive quietly labels affected keepsakes. Inside a review, Update review presents saved and
+proposed achievements, values, tiers, comparison context, highlight order, suggestion and supporting
+book details. Checking for updates never blocks viewing the saved content or changes its facts.
+
+## Portable backup and recovery
+
+Portable schema **10** adds the checksummed `data/reviews.json` entry, version 1. Full archives carry
+keepsakes, viewing progress, identity, quarter assignments, timezone settings and suppression.
+Creation reads the library and review data in one transaction. Restore validates entry membership,
+checksums, payload versions, unique identities and quarter/keepsake consistency before replacing
+both in the existing transaction. Historical evidence references may be absent after corrections;
+they are not foreign keys to mutable live evidence. Post-swap recovery verifies review content too.
+
+Schemas 1–9 initialize empty review data. Annotations-excluded archives contain an empty review
+entry and disclose the omission in both export UI and manifest. A redacted archive with nonempty
+review data is rejected. Unsupported or malformed payloads never replace current content.
+
+## Deliberate private erasure
+
+Settings → Advanced → Private reading history offers an explicit preview. This is distinct from
+ordinary library removal, download cleanup, disconnect and review-only deletion. The preview lists
+affected library books and keepsake quarters, including dependencies in personal-best comparisons.
+The selected work's editions and dependent activity/annotations are removed together; coupled
+records are included in the preview. Database changes and a durable cleanup marker commit atomically.
+A stale preview must be regenerated. Review-only deletion retains history and suppresses invitations.
+Whole-library erasure also clears review settings and progress.
+
+Erasure clears import undo/staging history and caches, local Libby state, and Up Next; these side
+effects are disclosed before confirmation. Downloaded/original book files remain separate. Native
+reader/playback journals for the erased scope and voice-note files are cleaned up; the native Libby
+inbox is disabled. Credentials for unrelated services are not queried or changed.
+
+All app-managed recovery points (including partial/orphan native files), pre-migration copies and
+legacy browser-library copies are removed, then a clean recovery point is created. Cleanup failures
+retain the durable marker and expose Retry private cleanup after restart. Restoring either through
+the recovery coordinator or directly through the portable service is blocked while cleanup is
+pending; launch recovery cannot resurrect erased data. Snapshot/restore/erasure operations share an
+exclusive coordinator guard. The marker is cleared in a persisted transaction only after cleanup
+and clean-point creation succeed.
+
+Previously exported backups and shared images remain outside app control; the preview explains
+that restoring an external backup can bring erased data back. This is application-level deletion,
+not a claim of forensic erasure from device flash or external backups.
+
+Acceptance traceability and verification limits: [QUI-114 verification](../verification/quarterly-review-updates/README.md).
