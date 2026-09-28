@@ -1,6 +1,6 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { App } from '@capacitor/app'
-import { BookOpen, Compass, Clock, Feather, Sunrise, Bookmark } from 'lucide-react'
+import { AchievementSeal as Seal } from './AchievementSeal'
 import type { ReviewKeepsake, SavedReviewFacts } from './keepsake-model'
 import type { ReviewKeepsakeRepository } from './keepsake-repository'
 import { badgeFact, metricFact, pathways, quarterLabel } from './presentation'
@@ -10,11 +10,6 @@ import { PathwayArtwork } from './PathwayArtwork'
 import { useReviewManualMode } from './accessibility'
 
 type Badge = SavedReviewFacts['earned'][number]
-const symbols = { completion: BookOpen, discovery: Compass, time: Clock, rhythm: Sunrise, reflection: Feather, progress: Bookmark }
-function Seal({ badge }: { badge: Badge }) {
-  const Symbol = symbols[badge.family]
-  return <div className="review-seal" data-tier={badge.tier} aria-hidden="true"><Symbol /><span>{'· '.repeat(badge.tier)}</span></div>
-}
 function BadgeDetails({ badge, saved }: { badge: Badge; saved: ReviewKeepsake }) {
   return <div className="review-evidence"><h4>{badge.name}</h4><p>{badgeFact(badge)}</p>
     {badge.detail && <p>{badge.detail}</p>}

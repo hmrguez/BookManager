@@ -1,3 +1,4 @@
+import { ACHIEVEMENT_ART_VERSION } from './achievement-art'
 import type { ReviewArtworkManifest, ReviewPeriod, SavedReviewFacts } from './keepsake-model'
 import { REVIEW_GENRES, type ReviewGenre } from './genres'
 
@@ -12,7 +13,7 @@ export const pathways: Record<ReviewGenre, { title: string; label: string; file:
   horror: { title: 'The Night Reader', label: 'Horror', file: '08-horror' },
 }
 export const reviewArtwork: ReviewArtworkManifest = {
-  achievementVersion: 'temporary-engraved-seals-v1',
+  achievementVersion: ACHIEVEMENT_ART_VERSION,
   pathways: Object.fromEntries(REVIEW_GENRES.map(genre => [genre, {
     version: 'original-ink-v1',
     finishedStill: `/reviews/ink-v1/${pathways[genre].file}-artwork.png`,
