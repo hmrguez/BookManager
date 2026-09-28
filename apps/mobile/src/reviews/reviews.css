@@ -97,3 +97,20 @@
 .review-update-preview p { margin-block: .9rem; line-height: 1.6; }
 .review-update-preview h4 { border-bottom: 1px solid var(--border-subtle); padding-bottom: .6rem; }
 .review-maintenance > details { color: var(--text-secondary); margin-top: 1.5rem; }
+
+.review-snapshot { text-align: start; }
+.review-snapshot > h3 { font: 500 1.8rem/1.25 var(--font-reading); letter-spacing: -.025em; }
+.review-snapshot > p { color: var(--text-secondary); line-height: 1.6; }
+.snapshot-options { border: 0; padding: 0; margin: 1.5rem 0; }
+.snapshot-options legend { margin-bottom: .8rem; font-weight: 500; }
+.snapshot-options > label { display: grid; gap: .5rem; margin-bottom: 1rem; }
+.snapshot-options select { width: 100%; min-width: 0; min-height: 44px; padding: .65rem; color: var(--text-primary); background: var(--surface-page); border: 1px solid var(--border-subtle); border-radius: .3rem; }
+.snapshot-options fieldset { border: 0; border-top: 1px solid var(--border-subtle); margin: 1.5rem 0; padding: 1rem 0 0; }
+.snapshot-options .snapshot-check { display: flex; align-items: start; gap: .75rem; min-height: 44px; padding-block: .6rem; line-height: 1.5; }
+.snapshot-check input { flex-shrink: 0; width: 1.15rem; height: 1.15rem; margin-top: .15rem; accent-color: var(--text-primary); }
+.snapshot-check small { display: block; color: var(--text-secondary); margin-top: .25rem; }
+.quarterly-review .snapshot-image { display: block; padding: 0; width: 100%; border: 1px solid var(--border-subtle); border-radius: 0; }
+.snapshot-image img { display: block; width: 100%; height: auto; }
+.snapshot-enlarged { overflow: auto; max-height: 70dvh; margin-block: 1rem; border: 1px solid var(--border-strong); }
+.snapshot-enlarged img { width: 1080px; max-width: none; }
+.snapshot-equivalent { margin-block: 1rem; }

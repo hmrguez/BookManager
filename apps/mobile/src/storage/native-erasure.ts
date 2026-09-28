@@ -5,6 +5,8 @@ export type ErasedNativeScope = { bookIds: string[]; queueIds: string[]; all: bo
 /** Clear native journals too: they are durable private copies outside SQLite. */
 export async function eraseNativeJournals(scope: ErasedNativeScope) {
   if (!Capacitor.isNativePlatform()) return
+  const { clearSnapshotCache } = await import('../reviews/snapshot-export')
+  await clearSnapshotCache()
   const { disableLibbyForPrivateErasure } = await import('../libby/use-libby')
   await disableLibbyForPrivateErasure()
   if (Capacitor.isPluginAvailable('WovenleafReader')) {

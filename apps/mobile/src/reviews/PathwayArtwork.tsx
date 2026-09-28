@@ -1,15 +1,10 @@
 import { useState } from 'react'
 import type { ReviewArtwork } from './keepsake-model'
 
-/** Known legacy keepsakes use the same illustration, now extracted as themeable ink. */
-function artworkSource(artwork: ReviewArtwork) {
-  return artwork.version === 'approved-concept-preview-v1'
-    ? artwork.finishedStill.replace('/reviews/concepts/', '/reviews/ink-v1/')
-    : artwork.finishedStill
-}
+import { pathwayArtworkSource } from './presentation'
 
 export function PathwayArtwork({ artwork }: { artwork: ReviewArtwork }) {
-  const source = artworkSource(artwork)
+  const source = pathwayArtworkSource(artwork)
   const [failedSource, setFailedSource] = useState('')
   const ink = source.startsWith('/reviews/ink-v1/')
   return <div className="review-artwork">

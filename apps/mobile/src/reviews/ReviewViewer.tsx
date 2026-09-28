@@ -1,5 +1,5 @@
 import { ReviewMaintenance } from './ReviewMaintenance'
-import { useEffect, useEffectEvent, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { App } from '@capacitor/app'
 import { AchievementSeal as Seal } from './AchievementSeal'
 import type { ReviewKeepsake, SavedReviewFacts } from './keepsake-model'
@@ -9,6 +9,8 @@ import { REVIEW_GENRES, type ReviewGenre } from './genres'
 import { BADGE_SETTLED_MS, BADGE_TOTAL_MS, badgePhase, shouldAdvanceBadge } from './playback'
 import { PathwayArtwork } from './PathwayArtwork'
 import { useReviewManualMode } from './accessibility'
+
+const ReviewSnapshot = lazy(() => import('./ReviewSnapshot').then(module => ({ default: module.ReviewSnapshot })))
 
 type Badge = SavedReviewFacts['earned'][number]
 function BadgeDetails({ badge, saved }: { badge: Badge; saved: ReviewKeepsake }) {
@@ -24,6 +26,7 @@ function BadgeDetails({ badge, saved }: { badge: Badge; saved: ReviewKeepsake })
 export function ReviewViewer({ initial, fresh, repository, reduced, onDone }: {
   initial: ReviewKeepsake; fresh: boolean; repository: ReviewKeepsakeRepository; reduced: boolean; onDone: () => void
 }) {
+  const [snapshot, setSnapshot] = useState(false)
   const [saved, setSaved] = useState(initial)
   const [index, setIndex] = useState(() => initial.completedAt ? initial.steps.length - 1 : initial.steps.findIndex(step => step.id === initial.progress.stepId))
   const [paused, setPaused] = useState(!fresh)
@@ -83,7 +86,7 @@ export function ReviewViewer({ initial, fresh, repository, reduced, onDone }: {
     void listener.then(handle => { if (disposed) void handle.remove() })
     return () => { disposed = true; document.removeEventListener('visibilitychange', visibility); void listener.then(handle => handle.remove()) }
   }, [])
-  useEffect(() => { heading.current?.focus({ preventScroll: true }) }, [index, chooser, identityDetails, all])
+  useEffect(() => { heading.current?.focus({ preventScroll: true }) }, [index, chooser, identityDetails, all, snapshot])
   const restart = () => write(async () => {
     const entry = await repository.restart(period)
     setSaved(entry.keepsake); setIndex(0); setPaused(true); setElapsed(BADGE_SETTLED_MS); setChooser(false); setIdentityDetails(false); setAll(false)
@@ -116,6 +119,7 @@ export function ReviewViewer({ initial, fresh, repository, reduced, onDone }: {
   }
   const choices = [...new Set([...saved.facts.genre.choices, ...REVIEW_GENRES])]
   const collection = step.kind === 'collection'
+  if (snapshot) return <section className="quarterly-review"><Suspense fallback={<p role="status">Preparing your image…</p>}><ReviewSnapshot initial={saved} repository={repository} onDeleted={onDone} onClose={() => { setSnapshot(false); void repository.get(period).then(current => { if (current) { setSaved(current); setIndex(current.steps.length - 1) } else onDone() }).catch(() => setError('Could not refresh this review. Please reopen it.')) }} /></Suspense></section>
   return <section className="quarterly-review" aria-busy={busy}>
     <p className="review-eyebrow">{quarterLabel(period)}</p>
     {error && <p role="alert">{error}</p>}
@@ -165,7 +169,8 @@ export function ReviewViewer({ initial, fresh, repository, reduced, onDone }: {
       </article>)}</div>
       <div className="review-actions"><button className="review-primary" onClick={onDone}>Done</button>
         {saved.facts.earned.length > 0 && <button onClick={() => setAll(!all)}>{all ? 'Featured badges' : 'All earned badges'}</button>}
-        <button disabled={busy} onClick={() => void restart()}>Replay highlights</button></div>
+        <button disabled={busy} onClick={() => void restart()}>Replay highlights</button>
+        <button onClick={() => setSnapshot(true)}>Make an image</button></div>
       {!genre && <details className="review-secondary-menu"><summary>Review options</summary><button onClick={() => setChooser(true)}>Choose a pathway</button></details>}
     </>}
     <ReviewMaintenance saved={saved} repository={repository} onDeleted={onDone} onPause={() => { setPaused(true); setElapsed(BADGE_SETTLED_MS) }} onUpdated={updated => { setSaved(updated); setIndex(updated.completedAt ? updated.steps.length - 1 : 0); setPaused(true); setElapsed(BADGE_SETTLED_MS); setDetails(undefined); setChooser(false); setAll(false); setIdentityDetails(false) }} />

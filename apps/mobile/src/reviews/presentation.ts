@@ -1,5 +1,5 @@
 import { ACHIEVEMENT_ART_VERSION } from './achievement-art'
-import type { ReviewArtworkManifest, ReviewPeriod, SavedReviewFacts } from './keepsake-model'
+import type { ReviewArtwork, ReviewArtworkManifest, ReviewPeriod, SavedReviewFacts } from './keepsake-model'
 import { REVIEW_GENRES, type ReviewGenre } from './genres'
 
 export const pathways: Record<ReviewGenre, { title: string; label: string; file: string }> = {
@@ -20,8 +20,8 @@ export const reviewArtwork: ReviewArtworkManifest = {
     animation: null,
   }])) as ReviewArtworkManifest['pathways'],
 }
-export function quarterLabel(period: ReviewPeriod) {
-  const month = (index: number) => new Intl.DateTimeFormat('en', { month: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(period.year, index, 1)))
+export function quarterLabel(period: ReviewPeriod, locale = 'en') {
+  const month = (index: number) => new Intl.DateTimeFormat(locale, { month: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(period.year, index, 1)))
   return `${month((period.quarter - 1) * 3)}–${month(period.quarter * 3 - 1)} ${period.year}`
 }
 const captions: Record<string, string> = {
@@ -42,9 +42,16 @@ const captions: Record<string, string> = {
   '26': '{n} audio text notes kept from this quarter', '27': '{n} audio voice notes kept from this quarter',
   '28': '{n} minutes of recorded reading', '29': '{n} pages consumed', '30': '{n} chapters consumed',
 }
-export function badgeFact(badge: SavedReviewFacts['earned'][number]) {
-  return metricFact(badge.id, badge.value, badge.unit)
+export function badgeFact(badge: SavedReviewFacts['earned'][number], locale = 'en') {
+  return metricFact(badge.id, badge.value, badge.unit, locale)
 }
-export function metricFact(id: string, value: number, unit = '') {
-  return (captions[id] ?? '{n} ' + unit).replace('{n}', new Intl.NumberFormat('en', { maximumFractionDigits: 2 }).format(value))
+export function metricFact(id: string, value: number, unit = '', locale = 'en') {
+  return (captions[id] ?? '{n} ' + unit).replace('{n}', new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(value))
+}
+
+/** Presentation-only migration of the accepted illustration; never rewrite saved references. */
+export function pathwayArtworkSource(artwork: ReviewArtwork) {
+  return artwork.version === 'approved-concept-preview-v1'
+    ? artwork.finishedStill.replace('/reviews/concepts/', '/reviews/ink-v1/')
+    : artwork.finishedStill
 }

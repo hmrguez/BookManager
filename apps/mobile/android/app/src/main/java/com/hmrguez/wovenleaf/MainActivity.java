@@ -13,6 +13,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(WovenleafFilesPlugin.class);
         registerPlugin(WovenleafFeedbackPlugin.class);
         registerPlugin(WovenleafReviewAccessibilityPlugin.class);
+        registerPlugin(WovenleafSnapshotPlugin.class);
         registerPlugin(WovenleafPurchasesPlugin.class);
         registerPlugin(WovenleafReaderPlugin.class);
         registerPlugin(WovenleafPlaybackPlugin.class);

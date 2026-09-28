@@ -26,6 +26,7 @@
 		A13700012FF0000000000001 /* WovenleafPlaybackPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13700022FF0000000000002 /* WovenleafPlaybackPlugin.swift */; };
 		A14000012FF3000000000001 /* WovenleafFeedbackPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A14000022FF3000000000002 /* WovenleafFeedbackPlugin.swift */; };
 		A11200012FF3000000000001 /* WovenleafReviewAccessibilityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11200022FF3000000000002 /* WovenleafReviewAccessibilityPlugin.swift */; };
+		A11500012FF3000000000001 /* WovenleafSnapshotPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11500022FF3000000000002 /* WovenleafSnapshotPlugin.swift */; };
 		A14100012FF3000000000001 /* WovenleafPurchasesPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A14100022FF3000000000002 /* WovenleafPurchasesPlugin.swift */; };
 		A14200012FF3000000000001 /* ReviewAccessVerifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = A14200022FF3000000000002 /* ReviewAccessVerifier.swift */; };
 		A12600012FEC000000000001 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12600022FEC000000000002 /* ShareViewController.swift */; };
@@ -93,6 +94,7 @@
 		A13700022FF0000000000002 /* WovenleafPlaybackPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WovenleafPlaybackPlugin.swift; sourceTree = "<group>"; };
 		A14000022FF3000000000002 /* WovenleafFeedbackPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WovenleafFeedbackPlugin.swift; sourceTree = "<group>"; };
 		A11200022FF3000000000002 /* WovenleafReviewAccessibilityPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WovenleafReviewAccessibilityPlugin.swift; sourceTree = "<group>"; };
+		A11500022FF3000000000002 /* WovenleafSnapshotPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WovenleafSnapshotPlugin.swift; sourceTree = "<group>"; };
 		A14100022FF3000000000002 /* WovenleafPurchasesPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WovenleafPurchasesPlugin.swift; sourceTree = "<group>"; };
 		A14200022FF3000000000002 /* ReviewAccessVerifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewAccessVerifier.swift; sourceTree = "<group>"; };
 		A12600022FEC000000000002 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
@@ -162,6 +164,7 @@
 			children = (
 				A14000022FF3000000000002 /* WovenleafFeedbackPlugin.swift */,
 				A11200022FF3000000000002 /* WovenleafReviewAccessibilityPlugin.swift */,
+				A11500022FF3000000000002 /* WovenleafSnapshotPlugin.swift */,
 				A14100022FF3000000000002 /* WovenleafPurchasesPlugin.swift */,
 				A14200022FF3000000000002 /* ReviewAccessVerifier.swift */,
 				A13700022FF0000000000002 /* WovenleafPlaybackPlugin.swift */,
@@ -372,6 +375,7 @@
 			files = (
 				A14000012FF3000000000001 /* WovenleafFeedbackPlugin.swift in Sources */,
 				A11200012FF3000000000001 /* WovenleafReviewAccessibilityPlugin.swift in Sources */,
+				A11500012FF3000000000001 /* WovenleafSnapshotPlugin.swift in Sources */,
 				A14100012FF3000000000001 /* WovenleafPurchasesPlugin.swift in Sources */,
 				A14200012FF3000000000001 /* ReviewAccessVerifier.swift in Sources */,
 				A13700012FF0000000000001 /* WovenleafPlaybackPlugin.swift in Sources */,
