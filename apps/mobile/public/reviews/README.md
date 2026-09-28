@@ -17,8 +17,8 @@ facts; new keepsakes record `original-ink-v1`. Unknown versions retain their own
 still. No pathway animation is played or requested.
 
 `fantasy-preview-v1/` remains solely for old version references and historical
-compatibility. It is no longer used by the UI. Production-art review still owns
-individual final visual approval.
+compatibility. It is no longer used by the UI. Final visual acceptance was recorded on 28 September 2026 in
+`docs/verification/quarterly-review-artwork/README.md`.
 
 
 ## Reproduction and review
@@ -45,5 +45,6 @@ Once approved, retain this version when introducing future art versions.
 review sheet at `docs/verification/quarterly-review-artwork/index.html` using the
 production seal component and original-derived masks. It shows all four papers,
 every supported tier, personal-best treatments and the 128/52 px display sizes.
-Individual pathway and achievement-art approval remains pending; asset preparation
-and technical verification do not imply human acceptance.
+The reader approved all eight pathways and the achievement-art set on 28 September
+2026 after reviewing the sheet. The adjacent verification README records acceptance;
+integrated release verification remains separate.
