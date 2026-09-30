@@ -1,5 +1,6 @@
 import { LocalizedError } from '../localization/LocalizedError'
-import { t, translateCopy, getLocale, useLanguage, LANGUAGES, LANGUAGE_NAMES, getLanguagePreference, setLanguagePreference } from '../localization'
+import { t, translateCopy, getLocale, useLanguage } from '../localization'
+import { LanguagePicker } from './LanguagePicker'
 import { PrivateErasure } from './PrivateErasure'
 import './settings.css'
 import { useWideLayout } from '../responsive/useWideLayout'
@@ -232,13 +233,7 @@ export function SettingsPage({
             <h2>{t("Appearance")}</h2><p>{t("A comfortable space for your reading.")}</p>
           </div>
 
-          <label className={tw('appearance-field')}>
-            <span>{t('Language')}</span>
-            <select value={getLanguagePreference()} onChange={event => setLanguagePreference(event.target.value as import('../localization').LanguagePreference)}>
-              <option value="system">{t('System')}</option>
-              {LANGUAGES.map(language => <option key={language} value={language} lang={language}>{LANGUAGE_NAMES[language]}</option>)}
-            </select>
-          </label>
+          <LanguagePicker />
 
           <fieldset className={tw('appearance-field appearance-field--paper')}>
             <legend>{t("Paper")}</legend>

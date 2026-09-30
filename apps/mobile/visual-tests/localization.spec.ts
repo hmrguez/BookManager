@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test'
 
 const languages = ['en', 'es', 'de', 'it', 'fr'] as const
 const names = { en: 'My Books', es: 'Mis libros', de: 'Meine Bücher', it: 'I miei libri', fr: 'Mes livres' }
+const languageNames = { en: 'English', es: 'Español', de: 'Deutsch', it: 'Italiano', fr: 'Français' }
 const locales = { en: 'en-US', es: 'es-ES', de: 'de-DE', it: 'it-IT', fr: 'fr-FR' }
 const titles = ['Mistborn', "Assassin’s Apprentice", 'The Tainted Cup', 'Piranesi']
 const authors = ['Brandon Sanderson', 'Robin Hobb', 'Robert Jackson Bennett', 'Susanna Clarke']
@@ -33,22 +34,48 @@ for (const language of languages) {
     await page.setViewportSize({ width: 320, height: 740 })
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     await page.locator('.bottom-nav button').last().click()
-    const choice = page.locator('.appearance-field select').first()
-    await expect(choice).toHaveValue(language)
+    const choice = page.locator('.language-picker__trigger')
+    const chooseLanguage = async (value: typeof languages[number] | 'system') => {
+      await choice.click()
+      const option = value === 'system' ? page.getByRole('menuitemradio').first() : page.getByRole('menuitemradio', { name: languageNames[value], exact: true })
+      await option.click()
+      await expect(page.getByRole('menu')).toHaveCount(0)
+      await expect(choice).toBeFocused()
+    }
+    await expect(choice).toHaveText(languageNames[language])
+    await choice.click()
+    await expect(page.getByRole('menuitemradio', { name: languageNames[language], exact: true })).toHaveAttribute('aria-checked', 'true')
+    await expect(page.getByRole('menuitemradio', { name: languageNames[language], exact: true })).toBeFocused()
+    const menuBox = await page.getByRole('menu').boundingBox()
+    expect(menuBox!.x).toBeGreaterThanOrEqual(0)
+    expect(menuBox!.y + menuBox!.height).toBeLessThanOrEqual(740)
+    await page.screenshot({ path: testInfo.outputPath(`language-menu-${language}.png`), animations: 'disabled' })
+    await page.keyboard.press('Escape')
+    await expect(choice).toBeFocused()
+    await expect(page.getByRole('menu')).toHaveCount(0)
+    await choice.press('ArrowDown')
+    await expect(page.getByRole('menuitemradio').first()).toBeFocused()
+    await page.keyboard.press('End')
+    await expect(page.getByRole('menuitemradio').last()).toBeFocused()
+    await page.keyboard.press('Home')
+    await expect(page.getByRole('menuitemradio').first()).toBeFocused()
+    await page.keyboard.press('Escape')
     const alternate = language === 'es' ? 'fr' : 'es'
-    await choice.selectOption(alternate)
+    await chooseLanguage(alternate)
     await expect(page.locator('html')).toHaveAttribute('lang', locales[alternate])
     await expect(page.locator('.bottom-nav button').last()).toHaveText(alternate === 'fr' ? 'Réglages' : 'Ajustes')
     await page.reload()
     await expect(page.locator('html')).toHaveAttribute('lang', locales[alternate])
     await page.locator('.bottom-nav button').last().click()
-    await page.locator('.appearance-field select').first().selectOption('system')
+    await chooseLanguage('system')
     await expect(page.locator('html')).toHaveAttribute('lang', 'en-US')
     await page.reload()
     await expect(page.locator('html')).toHaveAttribute('lang', 'en-US')
     await page.locator('.bottom-nav button').last().click()
-    await expect(page.locator('.appearance-field select').first()).toHaveValue('system')
-    await page.locator('.appearance-field select').first().selectOption(language)
+    await choice.click()
+    await expect(page.getByRole('menuitemradio').first()).toHaveAttribute('aria-checked', 'true')
+    await page.keyboard.press('Escape')
+    await chooseLanguage(language)
     await page.locator('.bottom-nav button').first().click()
     await page.setViewportSize({ width: 1280, height: 900 })
     await page.locator('.command-trigger').click()
