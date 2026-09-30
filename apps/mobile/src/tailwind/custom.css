@@ -77,25 +77,16 @@ input:focus {
   outline: none;
 }
 
-textarea:focus {
-  outline: none;
-}
-
 input:focus-visible {
   outline: none;
   box-shadow: none;
 }
 
 /* Keep text fields ring-free even when unlayered page styles add focus outlines. */
-input:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='color']):focus {
+input:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='color']):focus,
+textarea:focus {
   outline: none !important;
   box-shadow: none !important;
-}
-
-textarea:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 3px;
-  box-shadow: 0 0 0 1px var(--focus-halo);
 }
 
 @keyframes pulp-spin {
