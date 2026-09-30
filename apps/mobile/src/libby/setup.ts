@@ -2,6 +2,7 @@ export type LibbyBrowser = 'safari' | 'quetta' | 'firefox'
 export type SetupStep = 'welcome' | 'install' | 'connect' | 'verify'
 export interface LibbySetupProgress { browser: LibbyBrowser; step: SetupStep; checkingSince?: string }
 const key = 'wovenleaf-libby-setup-v1'
+const firefoxStoreUrl = 'https://addons.mozilla.org/en-US/firefox/addon/wovenleaf-libby-progress/'
 export function readSetup(platform: string): LibbySetupProgress {
   const fallback: LibbySetupProgress = { browser: platform === 'ios' ? 'safari' : 'quetta', step: 'welcome' }
   try {
@@ -20,7 +21,7 @@ export function hasFreshCapture(capturedAt: string | undefined, since: string | 
 export function companionListing(browser: LibbyBrowser, chromium?: string, firefox?: string): string | undefined {
   if (browser === 'safari') return
   try {
-    const url = new URL((browser === 'firefox' ? firefox : chromium) ?? '')
+    const url = new URL((browser === 'firefox' ? firefox?.trim() || firefoxStoreUrl : chromium) ?? '')
     const hosts = browser === 'firefox' ? ['addons.mozilla.org'] : ['chromewebstore.google.com', 'microsoftedge.microsoft.com']
     if (url.protocol === 'https:' && !url.username && !url.password && !url.port && hosts.includes(url.hostname)) return url.href
   } catch { /* An unpublished companion has no store destination. */ }

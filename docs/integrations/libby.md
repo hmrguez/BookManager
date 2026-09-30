@@ -8,7 +8,7 @@ The companion observes web Shelf percentages and direct progress from an open eb
 
 Settings now groups setup into **Add the companion → Connect Wovenleaf → Connect your Libby library → Start reading**. Browser choice persists; connection status refreshes on return to the app. **Reconnect or switch browser** replaces the previous browser only after successful authenticated pairing and retains book links. In the new companion, **Connect & enable capture** combines Android pairing and capture consent. Older companion versions still need the separate capture toggle.
 
-The Quetta ZIP ships inside the Android app and **Save companion to phone** opens Android’s document picker. This removes the separate file transfer, but installation still uses Quetta’s developer options until a real store listing exists. Safari remains embedded in the app. Firefox Android now has its own build and strict encrypted origin support, with normal installation gated on Mozilla signing/publication. The setup guide marks Firefox as testing and accepts a real `VITE_LIBBY_FIREFOX_STORE_URL`; it does not offer an unsigned ZIP as an installable add-on. Brave Android remains unsupported.
+The Quetta ZIP ships inside the Android app and **Save companion to phone** opens Android’s document picker. This removes the separate file transfer, but installation still uses Quetta’s developer options until a real store listing exists. Safari remains embedded in the app. Firefox Android has its own build and strict encrypted origin support. Mozilla approved [Wovenleaf Libby Progress](https://addons.mozilla.org/en-US/firefox/addon/wovenleaf-libby-progress/); the setup’s **Get companion** action now opens that listing by default. `VITE_LIBBY_FIREFOX_STORE_URL` remains an optional override; unset or blank values use the approved listing. Brave Android remains unsupported.
 
 The older detailed setup below remains useful for companion 0.5. See [the updated plan](../plans/libby-onboarding-and-browser-support.md) for 0.6 verification and remaining release gates.
 
@@ -19,7 +19,7 @@ The older detailed setup below remains useful for companion 0.5. See [the update
 | Companion | Shared Safari/Chromium sources; separate capture consent; rendered title ID, title, author, format, percentage and optional public cover URL; bounded validation; retry and optional JSON export |
 | Safari | Bundled extension; native-message/App Group inbox; protected atomic files, locking, backup exclusion; acknowledged after app persistence |
 | Quetta / Android | One-time pairing; encrypted same-phone loopback delivery; foreground connection with Pause action; durable inbox; OS share/file import fallback |
-| Firefox / Android | Real ebook/player capture and encrypted delivery verified on Pixel / Firefox 156; temporary 0.6.1 install, signed distribution still pending |
+| Firefox / Android | Real ebook/player capture and encrypted delivery verified on Pixel / Firefox 156; approved Mozilla listing available; signed-install lifecycle verification still pending |
 | Wovenleaf | New-loan auto-add, remembered links, automatic forward progress, review for existing titles/conflicts, Undo, unlink and disconnect; browser setup guides |
 | Persistence | Migration 19 transactional state plus the existing `library_books` repository; no inferred reading sessions, page positions, start dates or automatic completion |
 
