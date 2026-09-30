@@ -1,3 +1,4 @@
+import { t, useLanguage } from '../localization'
 import { Sheet } from '../app/components/Sheet'
 import type { LibraryBook } from '../library-model'
 import { AudiobookPlayer, type AudiobookPlayerPreview } from '../playback/AudiobookPlayer'
@@ -39,7 +40,8 @@ const preview: AudiobookPlayerPreview = {
 
 // Development-only, static marketing fixture. No recording or user storage is loaded.
 export function MarketingPlayer() {
-  return <Sheet title="Audiobook player" onClose={() => undefined} tall>
+  useLanguage()
+  return <Sheet title={t("Audiobook player")} onClose={() => undefined} tall>
     <AudiobookPlayer book={book} preview={preview} />
   </Sheet>
 }

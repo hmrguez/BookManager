@@ -1,3 +1,5 @@
+import { getLocale, translateCopy } from '../localization'
+import { REVIEW_BADGES } from './catalogue'
 import { ACHIEVEMENT_ART_VERSION } from './achievement-art'
 import type { ReviewArtwork, ReviewArtworkManifest, ReviewPeriod, SavedReviewFacts } from './keepsake-model'
 import { REVIEW_GENRES, type ReviewGenre } from './genres'
@@ -20,7 +22,7 @@ export const reviewArtwork: ReviewArtworkManifest = {
     animation: null,
   }])) as ReviewArtworkManifest['pathways'],
 }
-export function quarterLabel(period: ReviewPeriod, locale = 'en') {
+export function quarterLabel(period: ReviewPeriod, locale = getLocale()) {
   const month = (index: number) => new Intl.DateTimeFormat(locale, { month: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(period.year, index, 1)))
   return `${month((period.quarter - 1) * 3)}–${month(period.quarter * 3 - 1)} ${period.year}`
 }
@@ -42,11 +44,11 @@ const captions: Record<string, string> = {
   '26': '{n} audio text notes kept from this quarter', '27': '{n} audio voice notes kept from this quarter',
   '28': '{n} minutes of recorded reading', '29': '{n} pages consumed', '30': '{n} chapters consumed',
 }
-export function badgeFact(badge: SavedReviewFacts['earned'][number], locale = 'en') {
+export function badgeFact(badge: SavedReviewFacts['earned'][number], locale = getLocale()) {
   return metricFact(badge.id, badge.value, badge.unit, locale)
 }
-export function metricFact(id: string, value: number, unit = '', locale = 'en') {
-  return (captions[id] ?? '{n} ' + unit).replace('{n}', new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(value))
+export function metricFact(id: string, value: number, unit = '', locale = getLocale()) {
+  return translateCopy(captions[id] ?? '{n} ' + unit, locale, { count: value }).replace('{n}', new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(value))
 }
 
 /** Presentation-only migration of the accepted illustration; never rewrite saved references. */
@@ -54,4 +56,12 @@ export function pathwayArtworkSource(artwork: ReviewArtwork) {
   return artwork.version === 'approved-concept-preview-v1'
     ? artwork.finishedStill.replace('/reviews/concepts/', '/reviews/ink-v1/')
     : artwork.finishedStill
+}
+
+/** Resolve titles by stable identity, without changing historical facts or backups. */
+export function badgeName(id: string, locale = getLocale()) {
+  return translateCopy(REVIEW_BADGES.find(badge => badge.id === id)?.name ?? '', locale)
+}
+export function pathwayTitle(genre: ReviewGenre, locale = getLocale()) {
+  return translateCopy(pathways[genre].title, locale)
 }

@@ -72,12 +72,12 @@ class WovenleafPDFActivity : AppCompatActivity() {
             insets
         }
         val top = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(12), 0, dp(12), 0) }
-        top.addView(control("‹ Library", "Library") { finish() })
+        top.addView(control("‹ Library", WovenleafL10n.text("Library")) { finish() })
         top.addView(TextView(this).apply {
             text = readerContext.title; setTextColor(ink); textSize = 14f
             maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; gravity = Gravity.CENTER
         }, LinearLayout.LayoutParams(0, dp(56), 1f))
-        fitButton = control("Fit", "Fit page") { pageView.resetZoom() }.apply { visibility = View.INVISIBLE }
+        fitButton = control(WovenleafL10n.text("Fit"), WovenleafL10n.text("Fit page")) { pageView.resetZoom() }.apply { visibility = View.INVISIBLE }
         top.addView(fitButton)
         root.addView(top)
         pageView = PDFPageView(this,
@@ -86,9 +86,9 @@ class WovenleafPDFActivity : AppCompatActivity() {
         )
         root.addView(pageView, LinearLayout.LayoutParams(-1, 0, 1f))
         val bottom = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(12), 0, dp(12), 0) }
-        previous = control("‹", "Previous page") { showPage(requestedPage - 1) }
-        next = control("›", "Next page") { showPage(requestedPage + 1) }
-        pageLabel = control("Opening PDF…", "Page number") { goToPage() }
+        previous = control("‹", WovenleafL10n.text("Previous page")) { showPage(requestedPage - 1) }
+        next = control("›", WovenleafL10n.text("Next page")) { showPage(requestedPage + 1) }
+        pageLabel = control(WovenleafL10n.text("Opening PDF…"), WovenleafL10n.text("Page number")) { goToPage() }
         bottom.addView(previous)
         bottom.addView(pageLabel, LinearLayout.LayoutParams(0, dp(56), 1f))
         bottom.addView(next)
@@ -127,9 +127,9 @@ class WovenleafPDFActivity : AppCompatActivity() {
                     if (request != generation || isDestroyed || isFinishing) { bitmap.recycle(); return@runOnUiThread }
                     pageIndex = index
                     pageView.show(bitmap)
-                    pageLabel.text = "Page ${index + 1} of $pageCount"
-                    pageLabel.contentDescription = "Page ${index + 1} of $pageCount. Go to page"
-                    pageView.contentDescription = "PDF page ${index + 1}. Pinch to zoom, swipe to turn pages."
+                    pageLabel.text = WovenleafL10n.text("Page {{page}} of {{total}}", mapOf("page" to (index + 1).toString(), "total" to pageCount.toString()))
+                    pageLabel.contentDescription = WovenleafL10n.text("Page {{page}} of {{total}}. Go to page", mapOf("page" to (index + 1).toString(), "total" to pageCount.toString()))
+                    pageView.contentDescription = WovenleafL10n.text("PDF page {{page}}. Pinch to zoom, swipe to turn pages.", mapOf("page" to (index + 1).toString()))
                     previous.isEnabled = index > 0; previous.alpha = if (previous.isEnabled) 1f else 0.3f
                     next.isEnabled = index < pageCount - 1; next.alpha = if (next.isEnabled) 1f else 0.3f
                     ready = true
@@ -205,19 +205,19 @@ class WovenleafPDFActivity : AppCompatActivity() {
         if (pageCount == 0) return
         val input = EditText(this).apply {
             inputType = InputType.TYPE_CLASS_NUMBER; setText((pageIndex + 1).toString()); selectAll()
-            contentDescription = "Page number"
+            contentDescription = WovenleafL10n.text("Page number")
         }
-        AlertDialog.Builder(this).setTitle("Go to page").setMessage("1–$pageCount").setView(input)
-            .setNegativeButton("Cancel", null).setPositiveButton("Go") { _, _ ->
+        AlertDialog.Builder(this).setTitle(WovenleafL10n.text("Go to page")).setMessage("1–$pageCount").setView(input)
+            .setNegativeButton(WovenleafL10n.text("Cancel"), null).setPositiveButton(WovenleafL10n.text("Go")) { _, _ ->
                 input.text.toString().toIntOrNull()?.let { showPage((it - 1).coerceIn(0, pageCount - 1)) }
             }.show()
     }
 
     private fun showError(error: Exception? = null) {
         if (isDestroyed || isFinishing) return
-        AlertDialog.Builder(this).setTitle("This PDF couldn’t be opened")
-            .setMessage((error as? OriginalFileException)?.message ?: "Choose a readable, unprotected PDF. Your saved position and library are kept.")
-            .setPositiveButton("Library") { _, _ -> finish() }.setOnCancelListener { finish() }.show()
+        AlertDialog.Builder(this).setTitle(WovenleafL10n.text("This PDF couldn’t be opened"))
+            .setMessage((error as? OriginalFileException)?.message ?: WovenleafL10n.text("Choose a readable, unprotected PDF. Your saved position and library are kept."))
+            .setPositiveButton(WovenleafL10n.text("Library")) { _, _ -> finish() }.setOnCancelListener { finish() }.show()
     }
 
     private fun control(label: String, description: String, action: () -> Unit) = TextView(this).apply {

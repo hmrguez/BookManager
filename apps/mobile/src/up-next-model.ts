@@ -1,3 +1,4 @@
+import { t, formatNumber } from './localization'
 import { z } from 'zod'
 import type { LibraryBook } from './library-model'
 import { buildSeriesContext, type SeriesContext } from './recommendations/series'
@@ -62,7 +63,7 @@ const storedUpNextStateSchema = z.object({
     context.addIssue({
       code: 'custom',
       path: ['pinnedCriteria'],
-      message: 'A reason cannot be pinned and dismissed at the same time',
+      message: t("A reason cannot be pinned and dismissed at the same time"),
     })
   }
 })
@@ -118,12 +119,12 @@ export const UP_NEXT_CRITERION_COPY: Record<
   UpNextCriterion,
   { readonly label: string; readonly description: string }
 > = {
-  format: { label: 'Format', description: 'Prefer selected reading formats.' },
-  length: { label: 'Length', description: 'Prefer books within a page limit.' },
-  mood: { label: 'Mood & tags', description: 'Use your own tags as mood signals.' },
-  series: { label: 'Series', description: 'Prefer a safe start or the next unread installment.' },
-  'loan-expiry': { label: 'Loan expiry', description: 'Surface a recorded loan before it expires.' },
-  recency: { label: 'Time waiting', description: 'Prefer older or recently added books.' },
+  format: { get label() { return t("Format") }, get description() { return t("Prefer selected reading formats.") } },
+  length: { get label() { return t("Length") }, get description() { return t("Prefer books within a page limit.") } },
+  mood: { get label() { return t("Mood & tags") }, get description() { return t("Use your own tags as mood signals.") } },
+  series: { get label() { return t("Series") }, get description() { return t("Prefer a safe start or the next unread installment.") } },
+  'loan-expiry': { get label() { return t("Loan expiry") }, get description() { return t("Surface a recorded loan before it expires.") } },
+  recency: { get label() { return t("Time waiting") }, get description() { return t("Prefer older or recently added books.") } },
 }
 
 export function createDefaultUpNextState(
@@ -186,7 +187,7 @@ export function buildUpNextSuggestions(
       suggestions: [],
       eligibleCount: 0,
       certainty: 'none',
-      guidance: 'Manual mode is on. Nothing is ranked.',
+      guidance: t("Manual mode is on. Nothing is ranked."),
     }
   }
 
@@ -213,14 +214,14 @@ export function buildUpNextSuggestions(
     ? 'useful'
     : scored.length ? 'limited' : 'none'
   const guidance = certainty === 'useful'
-    ? `Compared ${candidates.length} eligible books using local reading preferences.`
+    ? t("Compared {{v0}} eligible books using local reading preferences.", { v0: candidates.length })
     : scored.length === 1
-      ? 'Only one book matches, so this is an option, not a confident best pick.'
+      ? t("Only one book matches, so this is an option, not a confident best pick.")
       : scored.length === 2
-        ? 'Only two books match. Their order is gentle guidance, not a verdict.'
+        ? t("Only two books match. Their order is gentle guidance, not a verdict.")
         : candidates.length
-          ? 'No strong matches yet. Your TBR stays in its original order.'
-          : 'No books match these preferences and series rules yet.'
+          ? t("No strong matches yet. Your TBR stays in its original order.")
+          : t("No books match these preferences and series rules yet.")
 
   return {
     suggestions: scored.slice(0, limit),
@@ -269,7 +270,7 @@ function reasonFor(
     return match ? {
       criterion,
       label: book.format!,
-      detail: 'Matches a preferred format',
+      detail: t("Matches a preferred format"),
       contribution: weight * 10,
     } : undefined
   }
@@ -280,8 +281,8 @@ function reasonFor(
     }
     return {
       criterion,
-      label: `${book.pageCount} pages`,
-      detail: `Within your ${preferences.maximumPages}-page limit`,
+      label: t("pageCount", { count: book.pageCount, value: formatNumber(book.pageCount) }),
+      detail: t("Within your {{v0}}-page limit", { v0: preferences.maximumPages }),
       contribution: weight * 10,
     }
   }
@@ -292,7 +293,7 @@ function reasonFor(
     return match ? {
       criterion,
       label: match,
-      detail: 'Shares a preferred tag',
+      detail: t("Shares a preferred tag"),
       contribution: weight * 10,
     } : undefined
   }
@@ -307,10 +308,10 @@ function reasonFor(
     const continuing = knownOrder && membership.position! > 1
     return {
       criterion,
-      label: continuing ? `Continue ${membership.name}` : knownOrder ? `Start ${membership.name}` : membership.name,
-      detail: continuing ? `Book ${membership.position}; earlier installments are finished`
-        : knownOrder ? `Book ${membership.position}; a recorded starting point`
-          : 'Matches your series preference; reading order is unknown',
+      label: continuing ? t("Continue {{v0}}", { v0: membership.name }) : knownOrder ? t("Start {{v0}}", { v0: membership.name }) : membership.name,
+      detail: continuing ? t("Book {{v0}}; earlier installments are finished", { v0: membership.position })
+        : knownOrder ? t("Book {{v0}}; a recorded starting point", { v0: membership.position })
+          : t("Matches your series preference; reading order is unknown"),
       contribution: weight * (continuing ? 20 : 10),
     }
   }
@@ -323,7 +324,7 @@ function reasonFor(
     return {
       criterion,
       label: loanLabel(book.loan.provider, days),
-      detail: 'Recorded loan availability is time-limited',
+      detail: t("Recorded loan availability is time-limited"),
       contribution: weight * urgency * 10,
     }
   }
@@ -331,13 +332,13 @@ function reasonFor(
   const ageDays = Math.max(0, Math.round((Date.parse(now.toISOString().slice(0, 10)) - Date.parse(book.addedAt.slice(0, 10))) / 86_400_000))
   const recent = preferences.recencyDirection === 'recently-added'
   const label = recent
-    ? ageDays === 0 ? 'Added today' : `Added ${ageDays} day${ageDays === 1 ? '' : 's'} ago`
-    : ageDays < 30 ? 'Recently added' : `Waiting ${Math.floor(ageDays / 30)} month${ageDays < 60 ? '' : 's'}`
+    ? ageDays === 0 ? t("Added today") : t('daysAgo', { count: ageDays, value: formatNumber(ageDays) })
+    : ageDays < 30 ? t("Recently added") : t('waitingMonths', { count: Math.floor(ageDays / 30), value: formatNumber(Math.floor(ageDays / 30)) })
   const strength = recent ? Math.max(1, 31 - Math.min(ageDays, 30)) / 30 : Math.min(3, 1 + ageDays / 180)
   return {
     criterion,
     label,
-    detail: recent ? 'You asked to see newer additions' : 'You asked to revisit books that have waited',
+    detail: recent ? t("You asked to see newer additions") : t("You asked to revisit books that have waited"),
     contribution: Math.round(weight * strength * 10),
   }
 }
@@ -370,10 +371,10 @@ function resolvedPreferences(books: readonly LibraryBook[], preferences: UpNextP
 }
 
 function loanLabel(provider: string, days: number): string {
-  if (days < 0) return `${provider} loan overdue`
-  if (days === 0) return `${provider} loan due today`
-  if (days === 1) return `${provider} loan due within 24 hours`
-  return `${provider} loan due in ${days} days`
+  if (days < 0) return t("{{v0}} loan overdue", { v0: provider })
+  if (days === 0) return t("{{v0}} loan due today", { v0: provider })
+  if (days === 1) return t("{{v0}} loan due within 24 hours", { v0: provider })
+  return t("{{v0}} loan due in {{v1}} days", { v0: provider, v1: days })
 }
 
 function daysUntil(value: string, now: Date): number {
@@ -390,6 +391,6 @@ function uniqueValues(
   context: z.RefinementCtx,
 ) {
   if (new Set(values).size !== values.length) {
-    context.addIssue({ code: 'custom', path, message: 'Values must be unique' })
+    context.addIssue({ code: 'custom', path, message: t("Values must be unique") })
   }
 }

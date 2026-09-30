@@ -1,4 +1,12 @@
 ---
+import {
+  createTranslator,
+  localeFromPath,
+  type Language,
+} from '../localization';
+const locale: Language =
+  Astro.props.locale ?? localeFromPath(Astro.url.pathname);
+const t = createTranslator(locale);
 const { compact = false } = Astro.props;
 const stores = [
   {
@@ -18,7 +26,7 @@ const stores = [
 
 <div
   class:list={['store-links', { compact }]}
-  aria-label="Coming soon on iOS and Android"
+  aria-label={t('Coming soon on iOS and Android')}
 >
   {
     stores.map((store) => (
@@ -27,7 +35,10 @@ const stores = [
         href={store.url}
         target="_blank"
         rel="noopener noreferrer"
-        aria-label={`Wovenleaf is coming soon to ${store.name} (opens store in a new tab)`}
+        aria-label={t(
+          'Wovenleaf is coming soon to {{store}} (opens store in a new tab)',
+          { store: store.name },
+        )}
       >
         <img
           class="store-logo"
@@ -39,7 +50,7 @@ const stores = [
         />
         <span class="store-link-copy">
           <>
-            <small>Coming soon to</small>
+            <small set:html={t('Coming soon to')} />
             <strong>{store.name}</strong>
           </>
         </span>

@@ -1,3 +1,4 @@
+import { t, useLanguage } from '../localization'
 import { useLayoutEffect, useRef } from 'react'
 import { BookOpen, FileText, Headphones } from 'lucide-react'
 import './incoming-file-opening.css'
@@ -9,14 +10,15 @@ export type IncomingFileOpeningState = {
 }
 
 export function IncomingFileOpening({ state }: { state: IncomingFileOpeningState }) {
+  useLanguage()
   const dialogRef = useRef<HTMLDialogElement>(null)
   const audio = state.audio ?? /\.(?:m4b|m4a|mp4|mp3)$/i.test(state.name ?? '')
   const Icon = audio ? Headphones : /\.pdf$/i.test(state.name ?? '') ? FileText : BookOpen
   const detail = state.phase === 'reading'
-    ? 'Reading the shared file…'
+    ? t("Reading the shared file…")
     : state.phase === 'preparing'
-      ? 'Preparing your file…'
-      : audio ? 'Opening the player…' : 'Opening the reader…'
+      ? t("Preparing your file…")
+      : audio ? t("Opening the player…") : t("Opening the reader…")
 
   useLayoutEffect(() => {
     const dialog = dialogRef.current
@@ -34,13 +36,13 @@ export function IncomingFileOpening({ state }: { state: IncomingFileOpeningState
       onCancel={(event) => event.preventDefault()}
     >
       <div className="incoming-file-opening__content">
-        <span className="incoming-file-opening__wordmark">Wovenleaf</span>
+        <span className="incoming-file-opening__wordmark">{t("Wovenleaf")}</span>
         <div className="incoming-file-opening__symbol" aria-hidden="true"><Icon /></div>
-        <h1 id="incoming-file-title">Opening your<br />{audio ? 'audiobook.' : 'file.'}</h1>
+        <h1 id="incoming-file-title">{t("Opening your")}<br />{audio ? 'audiobook.' : 'file.'}</h1>
         {state.name && <p className="incoming-file-opening__filename">{state.name}</p>}
         <div className="incoming-file-opening__activity" aria-hidden="true"><span /></div>
         <p id="incoming-file-detail" className="incoming-file-opening__detail" role="status" aria-live="polite" aria-atomic="true">{detail}</p>
-        <p className="incoming-file-opening__note">Larger files can take a little longer.</p>
+        <p className="incoming-file-opening__note">{t("Larger files can take a little longer.")}</p>
       </div>
     </dialog>
   )

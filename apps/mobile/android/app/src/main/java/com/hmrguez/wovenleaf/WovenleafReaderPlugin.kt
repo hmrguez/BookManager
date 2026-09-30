@@ -31,6 +31,7 @@ class WovenleafReaderPlugin : Plugin() {
 
     @PluginMethod
     fun open(call: PluginCall) {
+        call.getString("interfaceLocale")?.let { WovenleafL10n.setLocale(it) }
         val bookId = call.getString("bookId")
         val editionId = call.getString("editionId")
         val assetId = call.getString("assetId")
@@ -46,14 +47,14 @@ class WovenleafReaderPlugin : Plugin() {
             || navigationState == null
             || annotationState == null
         ) {
-            call.reject("The reader capability is invalid.", "INVALID_CAPABILITY")
+            call.reject(WovenleafL10n.text("The reader capability is invalid."), "INVALID_CAPABILITY")
             return
         }
 
         try {
             OriginalFiles.verify(context, requireNotNull(fileUri), if (fileUri.startsWith("wovenleaf-file://")) fingerprint else null)
         } catch (error: Exception) {
-            call.reject("The original book is unavailable. Choose it again.", (error as? OriginalFileException)?.code ?: "FILE_MISSING", error)
+            call.reject(WovenleafL10n.text("The original book is unavailable. Choose it again."), (error as? OriginalFileException)?.code ?: "FILE_MISSING", error)
             return
         }
 
@@ -96,7 +97,7 @@ class WovenleafReaderPlugin : Plugin() {
                 }
                 call.resolve(JSObject().put("jpeg", jpeg))
             } catch (error: Exception) {
-                call.reject("This PDF could not be rendered. Choose an unprotected, readable PDF.", (error as? OriginalFileException)?.code ?: "CORRUPT_ASSET", error)
+                call.reject(WovenleafL10n.text("This PDF could not be rendered. Choose an unprotected, readable PDF."), (error as? OriginalFileException)?.code ?: "CORRUPT_ASSET", error)
             }
         }
     }

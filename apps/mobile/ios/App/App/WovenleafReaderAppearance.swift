@@ -15,10 +15,10 @@ struct WovenleafReaderPreferences: Codable, Equatable {
 
         var label: String {
             switch self {
-            case .literary: return "Literary"
-            case .sans: return "Sans"
-            case .mono: return "Mono"
-            case .accessible: return "Accessible"
+            case .literary: return WovenleafL10n.text("Literary")
+            case .sans: return WovenleafL10n.text("Sans")
+            case .mono: return WovenleafL10n.text("Mono")
+            case .accessible: return WovenleafL10n.text("Accessible")
             }
         }
     }
@@ -215,8 +215,8 @@ final class ReaderSettingsViewController: UIViewController {
     private let compactWidth: Bool
     private let scrollView = UIScrollView()
     private let contentStack = UIStackView()
-    private let scopeControl = UISegmentedControl(items: ["All books", "This book"])
-    private let themeControl = UISegmentedControl(items: ["Paper", "White", "Graphite"])
+    private let scopeControl = UISegmentedControl(items: [WovenleafL10n.text("All books"), WovenleafL10n.text("This book")])
+    private let themeControl = UISegmentedControl(items: [WovenleafL10n.text("Paper"), WovenleafL10n.text("White"), WovenleafL10n.text("Graphite")])
     private let typefacePicker = ReaderTypefacePicker()
     private let sizeSlider = UISlider()
     private let weightSlider = UISlider()
@@ -226,10 +226,10 @@ final class ReaderSettingsViewController: UIViewController {
     private let weightValue = UILabel()
     private let lineHeightValue = UILabel()
     private let marginValue = UILabel()
-    private let alignmentControl = UISegmentedControl(items: ["Ragged", "Justified"])
+    private let alignmentControl = UISegmentedControl(items: [WovenleafL10n.text("Ragged"), WovenleafL10n.text("Justified")])
     private let hyphenationSwitch = UISwitch()
-    private let columnControl = UISegmentedControl(items: ["Auto", "One", "Two"])
-    private let layoutControl = UISegmentedControl(items: ["Pages", "Scroll"])
+    private let columnControl = UISegmentedControl(items: [WovenleafL10n.text("Auto"), WovenleafL10n.text("One"), WovenleafL10n.text("Two")])
+    private let layoutControl = UISegmentedControl(items: [WovenleafL10n.text("Pages"), WovenleafL10n.text("Scroll")])
     private let publisherSwitch = UISwitch()
     private let publisherHint = UILabel()
 
@@ -246,13 +246,13 @@ final class ReaderSettingsViewController: UIViewController {
     }
 
     @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    required init?(coder: NSCoder) { fatalError(WovenleafL10n.text("init(coder:) has not been implemented")) }
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Reading surface"
+        title = WovenleafL10n.text("Reading surface")
         navigationItem.rightBarButtonItem = UIBarButtonItem(
-            title: "Done",
+            title: WovenleafL10n.text("Done"),
             style: .done,
             target: self,
             action: #selector(close)
@@ -290,14 +290,14 @@ final class ReaderSettingsViewController: UIViewController {
         introduction.numberOfLines = 0
         introduction.font = .preferredFont(forTextStyle: .subheadline)
         introduction.adjustsFontForContentSizeCategory = true
-        introduction.text = "Tune the page without losing your place. Changes appear in the open passage and are kept for every book or only this one."
+        introduction.text = WovenleafL10n.text("Tune the page without losing your place. Changes appear in the open passage and are kept for every book or only this one.")
         contentStack.addArrangedSubview(introduction)
 
         scopeControl.addTarget(self, action: #selector(scopeChanged), for: .valueChanged)
-        contentStack.addArrangedSubview(section(title: "Apply to", views: [scopeControl]))
+        contentStack.addArrangedSubview(section(title: WovenleafL10n.text("Apply to"), views: [scopeControl]))
 
         themeControl.addTarget(self, action: #selector(themeChanged), for: .valueChanged)
-        contentStack.addArrangedSubview(section(title: "Paper", views: [themeControl]))
+        contentStack.addArrangedSubview(section(title: WovenleafL10n.text("Paper"), views: [themeControl]))
 
         typefacePicker.onSelect = { [weak self] choice in
             self?.mutate { $0.fontFamily = choice }
@@ -307,35 +307,35 @@ final class ReaderSettingsViewController: UIViewController {
         configure(slider: sizeSlider, minimum: 0.8, maximum: 2, action: #selector(sizeChanged))
         configure(slider: weightSlider, minimum: 0.75, maximum: 1.5, action: #selector(weightChanged))
         configure(slider: lineHeightSlider, minimum: 1.2, maximum: 1.9, action: #selector(lineHeightChanged))
-        contentStack.addArrangedSubview(section(title: "Type", views: [
-            sliderRow(title: "Size", valueLabel: sizeValue, slider: sizeSlider),
-            sliderRow(title: "Ink weight", valueLabel: weightValue, slider: weightSlider),
-            sliderRow(title: "Line spacing", valueLabel: lineHeightValue, slider: lineHeightSlider),
+        contentStack.addArrangedSubview(section(title: WovenleafL10n.text("Type"), views: [
+            sliderRow(title: WovenleafL10n.text("Size"), valueLabel: sizeValue, slider: sizeSlider),
+            sliderRow(title: WovenleafL10n.text("Ink weight"), valueLabel: weightValue, slider: weightSlider),
+            sliderRow(title: WovenleafL10n.text("Line spacing"), valueLabel: lineHeightValue, slider: lineHeightSlider),
         ]))
 
         configure(slider: marginSlider, minimum: 0.4, maximum: 2.5, action: #selector(marginChanged))
         alignmentControl.addTarget(self, action: #selector(alignmentChanged), for: .valueChanged)
         hyphenationSwitch.addTarget(self, action: #selector(hyphenationChanged), for: .valueChanged)
-        contentStack.addArrangedSubview(section(title: "Composition", views: [
-            sliderRow(title: "Margins", valueLabel: marginValue, slider: marginSlider),
-            labelledControl(title: "Alignment", control: alignmentControl),
-            labelledControl(title: "Hyphenation", control: hyphenationSwitch),
+        contentStack.addArrangedSubview(section(title: WovenleafL10n.text("Composition"), views: [
+            sliderRow(title: WovenleafL10n.text("Margins"), valueLabel: marginValue, slider: marginSlider),
+            labelledControl(title: WovenleafL10n.text("Alignment"), control: alignmentControl),
+            labelledControl(title: WovenleafL10n.text("Hyphenation"), control: hyphenationSwitch),
         ]))
 
         columnControl.addTarget(self, action: #selector(columnsChanged), for: .valueChanged)
         layoutControl.addTarget(self, action: #selector(layoutChanged), for: .valueChanged)
-        contentStack.addArrangedSubview(section(title: "Movement", views: [
-            labelledControl(title: "Reading mode", control: layoutControl),
-            labelledControl(title: "Columns", control: columnControl),
+        contentStack.addArrangedSubview(section(title: WovenleafL10n.text("Movement"), views: [
+            labelledControl(title: WovenleafL10n.text("Reading mode"), control: layoutControl),
+            labelledControl(title: WovenleafL10n.text("Columns"), control: columnControl),
         ]))
 
         publisherSwitch.addTarget(self, action: #selector(publisherChanged), for: .valueChanged)
         publisherHint.numberOfLines = 0
         publisherHint.font = .preferredFont(forTextStyle: .footnote)
         publisherHint.adjustsFontForContentSizeCategory = true
-        publisherHint.text = "Original styling remains available, while Wovenleaf keeps a safe text size and readable ink contrast."
-        contentStack.addArrangedSubview(section(title: "Book design", views: [
-            labelledControl(title: "Use publisher styling", control: publisherSwitch),
+        publisherHint.text = WovenleafL10n.text("Original styling remains available, while Wovenleaf keeps a safe text size and readable ink contrast.")
+        contentStack.addArrangedSubview(section(title: WovenleafL10n.text("Book design"), views: [
+            labelledControl(title: WovenleafL10n.text("Use publisher styling"), control: publisherSwitch),
             publisherHint,
         ]))
 
@@ -343,11 +343,11 @@ final class ReaderSettingsViewController: UIViewController {
         lightHint.numberOfLines = 0
         lightHint.font = .preferredFont(forTextStyle: .footnote)
         lightHint.adjustsFontForContentSizeCategory = true
-        lightHint.text = "Match the page to the room: lower device brightness until the page stops glowing. Wovenleaf leaves system brightness under your control, like a front light on an e-reader."
-        contentStack.addArrangedSubview(section(title: "Ambient light", views: [lightHint]))
+        lightHint.text = WovenleafL10n.text("Match the page to the room: lower device brightness until the page stops glowing. Wovenleaf leaves system brightness under your control, like a front light on an e-reader.")
+        contentStack.addArrangedSubview(section(title: WovenleafL10n.text("Ambient light"), views: [lightHint]))
 
         let reset = UIButton(type: .system)
-        reset.setTitle("Reset to quiet paper", for: .normal)
+        reset.setTitle(WovenleafL10n.text("Reset to quiet paper"), for: .normal)
         reset.titleLabel?.font = .preferredFont(forTextStyle: .body)
         reset.addTarget(self, action: #selector(resetPreferences), for: .touchUpInside)
         reset.contentHorizontalAlignment = .leading
@@ -437,8 +437,8 @@ final class ReaderSettingsViewController: UIViewController {
         marginSlider.value = Float(value.pageMargins)
         sizeValue.text = "\(Int((value.fontSize * 100).rounded()))%"
         weightValue.text = "\(Int((value.fontWeight * 100).rounded()))%"
-        lineHeightValue.text = String(format: "%.2f", value.lineHeight)
-        marginValue.text = String(format: "%.2f", value.pageMargins)
+        lineHeightValue.text = String(format: "%.2f", locale: Locale(identifier: WovenleafL10n.locale), value.lineHeight)
+        marginValue.text = String(format: "%.2f", locale: Locale(identifier: WovenleafL10n.locale), value.pageMargins)
         alignmentControl.selectedSegmentIndex = value.textAlign == .start ? 0 : 1
         hyphenationSwitch.isOn = value.hyphens
         columnControl.selectedSegmentIndex = [.auto, .one, .two].firstIndex(of: value.columnCount) ?? 0
@@ -578,7 +578,7 @@ private final class ReaderTypefacePicker: UIStackView {
                 button.layer.cornerRadius = 10
                 button.layer.borderWidth = 0.5
                 button.heightAnchor.constraint(greaterThanOrEqualToConstant: 48).isActive = true
-                button.accessibilityLabel = "\(choice.label) typeface"
+                button.accessibilityLabel = WovenleafL10n.text("{{name}} typeface", ["name": choice.label])
                 button.addTarget(self, action: #selector(chosen(_:)), for: .touchUpInside)
                 buttons[choice] = button
                 row.addArrangedSubview(button)
@@ -589,7 +589,7 @@ private final class ReaderTypefacePicker: UIStackView {
     }
 
     @available(*, unavailable)
-    required init(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    required init(coder: NSCoder) { fatalError(WovenleafL10n.text("init(coder:) has not been implemented")) }
 
     func select(_ choice: WovenleafReaderPreferences.FontFamilyChoice) {
         selected = choice
@@ -643,7 +643,7 @@ final class PaperTextureView: UIView {
     }
 
     @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    required init?(coder: NSCoder) { fatalError(WovenleafL10n.text("init(coder:) has not been implemented")) }
 
     override func draw(_ rect: CGRect) {
         guard !UIAccessibility.isDarkerSystemColorsEnabled, let context = UIGraphicsGetCurrentContext() else {

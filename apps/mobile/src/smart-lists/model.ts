@@ -1,3 +1,4 @@
+import { t } from '../localization'
 import { z } from 'zod'
 import { shelfIdSchema } from '../library-model'
 
@@ -170,8 +171,8 @@ export type SmartListTemplate = {
 export const SMART_LIST_TEMPLATES: readonly SmartListTemplate[] = [
   {
     id: 'expiring-soon',
-    name: 'Expiring soon',
-    description: 'Available loans due in the next seven days.',
+    get name() { return t("Expiring soon") },
+    get description() { return t("Available loans due in the next seven days.") },
     definition: definition('expiring-soon', 'all', [
       condition('expiring-soon', 'availability', 'is', 'available'),
       condition('expiring-soon-due', 'loanDueAt', 'within-next-days', 7),
@@ -179,8 +180,8 @@ export const SMART_LIST_TEMPLATES: readonly SmartListTemplate[] = [
   },
   {
     id: 'stalled',
-    name: 'Stalled',
-    description: 'In-progress books untouched for at least thirty days.',
+    get name() { return t("Stalled") },
+    get description() { return t("In-progress books untouched for at least thirty days.") },
     definition: definition('stalled', 'all', [
       condition('stalled-status', 'status', 'is', 'reading'),
       condition('stalled-progress-start', 'progress', 'greater-than', 0),
@@ -190,8 +191,8 @@ export const SMART_LIST_TEMPLATES: readonly SmartListTemplate[] = [
   },
   {
     id: 'short-audiobook',
-    name: 'Short audiobook',
-    description: 'Audiobooks eight hours or shorter.',
+    get name() { return t("Short audiobook") },
+    get description() { return t("Audiobooks eight hours or shorter.") },
     definition: definition('short-audiobook', 'all', [
       condition('short-audiobook-format', 'format', 'is', 'audiobook'),
       condition('short-audiobook-duration', 'durationMinutes', 'at-most', 480),
@@ -199,8 +200,8 @@ export const SMART_LIST_TEMPLATES: readonly SmartListTemplate[] = [
   },
   {
     id: 'unread-owned-epub',
-    name: 'Unread owned EPUB',
-    description: 'Owned EPUBs with no reading progress yet.',
+    get name() { return t("Unread owned EPUB") },
+    get description() { return t("Owned EPUBs with no reading progress yet.") },
     definition: definition('unread-owned-epub', 'all', [
       condition('unread-owned-epub-format', 'format', 'is', 'epub'),
       condition('unread-owned-epub-ownership', 'ownership', 'is', 'owned'),
@@ -209,8 +210,8 @@ export const SMART_LIST_TEMPLATES: readonly SmartListTemplate[] = [
   },
   {
     id: 'libby-returns',
-    name: 'Libby returns',
-    description: 'Libby loans due in the next fourteen days.',
+    get name() { return t("Libby returns") },
+    get description() { return t("Libby loans due in the next fourteen days.") },
     definition: definition('libby-returns', 'all', [
       condition('libby-returns-source', 'source', 'contains', 'Libby'),
       condition('libby-returns-due', 'loanDueAt', 'within-next-days', 14),
@@ -289,11 +290,11 @@ function validateRule(
   depth: number,
 ): void {
   if (seenIds.has(rule.id)) {
-    context.addIssue({ code: 'custom', path: [...path, 'id'], message: `Duplicate rule ID ${rule.id}` })
+    context.addIssue({ code: 'custom', path: [...path, 'id'], message: t("Duplicate rule ID {{v0}}", { v0: rule.id }) })
   }
   seenIds.add(rule.id)
   if (depth > 5) {
-    context.addIssue({ code: 'custom', path: [...path], message: 'Rule groups can be nested at most five levels' })
+    context.addIssue({ code: 'custom', path: [...path], message: t("Rule groups can be nested at most five levels") })
     return
   }
   if (rule.kind === 'group') {
@@ -312,7 +313,7 @@ function validateRule(
     context.addIssue({
       code: 'custom',
       path: [...path, 'operator'],
-      message: `${rule.operator} is not supported for ${rule.field}`,
+      message: t("{{v0}} is not supported for {{v1}}", { v0: rule.operator, v1: rule.field }),
     })
     return
   }

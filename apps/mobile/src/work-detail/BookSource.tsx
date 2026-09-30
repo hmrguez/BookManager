@@ -1,3 +1,5 @@
+import { LocalizedError } from '../localization/LocalizedError'
+import { t, translateCopy, useLanguage } from '../localization'
 import { useEffect, useId, useState, type ReactNode } from 'react'
 import { BookOpen, Headphones, Plus, RefreshCw } from 'lucide-react'
 import { OpenLibbyLink } from '../libby/OpenLibbyLink'
@@ -23,6 +25,7 @@ export function BookSource({ book, libby, libbyLinked = false, onRead, onAttachE
   readonly audiobookBusy: boolean
   readonly audiobookImport: AudiobookAttachmentState
 }) {
+  useLanguage()
   const id = useId()
   const [source, setSource] = useState<LocalSource | null>()
   const [error, setError] = useState<string>()
@@ -57,9 +60,9 @@ export function BookSource({ book, libby, libbyLinked = false, onRead, onAttachE
     {choice === 'libby' ? libby : <>
       <label className="book-source__file">
         <Plus size={18} aria-hidden="true" />
-        <span>{busy ? 'Attaching…' : choice === 'audio' ? 'Attach audio' : 'Attach book'}</span>
+        <span>{busy ? t("Attaching…") : choice === 'audio' ? t("Attach audio") : t("Attach book")}</span>
         <OriginalFileInput key={choice} kind={choice === 'audio' ? 'audio' : 'ebook'}
-          aria-label={choice === 'audio' ? 'Choose audio files' : 'Choose book file'}
+          aria-label={choice === 'audio' ? t("Choose audio files") : t("Choose book file")}
           accept={choice === 'audio' ? '.m4b,.m4a,.mp4,.mp3,audio/mpeg,audio/mp4' : '.epub,.pdf,application/epub+zip,application/pdf'}
           multiple={choice === 'audio'} disabled={busy}
           onFiles={files => {
@@ -69,29 +72,29 @@ export function BookSource({ book, libby, libbyLinked = false, onRead, onAttachE
           }} />
       </label>
       <details className="book-source__options">
-        <summary>Import options</summary>
-        <label><input type="checkbox" checked={overwriteCover} disabled={busy} onChange={event => setOverwriteCover(event.target.checked)} /> Use the file’s cover</label>
-        <p>Missing covers are filled automatically.</p>
+        <summary>{t("Import options")}</summary>
+        <label><input type="checkbox" checked={overwriteCover} disabled={busy} onChange={event => setOverwriteCover(event.target.checked)} /> {t(" Use the file’s cover")}</label>
+        <p>{t("Missing covers are filled automatically.")}</p>
       </details>
     </>}
   </div>
 
-  return <section className="book-source" aria-label="Reading source" aria-busy={busy}>
+  return <section className="book-source" aria-label={t("Reading source")} aria-busy={busy}>
     {libbyLinked ? <>
-      <div className="book-source__heading"><BookOpen size={19} aria-hidden="true" /><span>Reading with Libby</span></div>
+      <div className="book-source__heading"><BookOpen size={19} aria-hidden="true" /><span>{t("Reading with Libby")}</span></div>
       <OpenLibbyLink />
       {libby}
-    </> : error ? <div role="alert"><p>{error}</p><button type="button" onClick={() => setRetry(value => value + 1)}>Try again</button></div>
-      : source === undefined ? <p className="book-source__caption" role="status">Checking attachment…</p>
+    </> : error ? <div role="alert"><p>{<LocalizedError message={error} />}</p><button type="button" onClick={() => setRetry(value => value + 1)}>{t("Try again")}</button></div>
+      : source === undefined ? <p className="book-source__caption" role="status">{t("Checking attachment…")}</p>
         : source ? <>
           <div className="book-source__heading">
             {source === 'audio' ? <Headphones size={19} aria-hidden="true" /> : <BookOpen size={19} aria-hidden="true" />}
-            <span>{source === 'audio' ? 'Audiobook' : 'E-reader'}</span>
-            <button type="button" aria-expanded={changing} aria-controls={`${id}-change`} disabled={busy} onClick={() => setChanging(value => !value)}>{changing ? 'Cancel' : 'Change'}</button>
+            <span>{source === 'audio' ? t("Audiobook") : t('E-reader')}</span>
+            <button type="button" aria-expanded={changing} aria-controls={`${id}-change`} disabled={busy} onClick={() => setChanging(value => !value)}>{changing ? t("Cancel") : t("Change")}</button>
           </div>
           <button className="book-source__primary" type="button" onClick={() => onRead(source)} disabled={busy}>
             {source === 'audio' ? <Headphones size={18} aria-hidden="true" /> : <BookOpen size={18} aria-hidden="true" />}
-            {book.progress > 0 && book.shelf !== 'finished' ? 'Continue' : 'Start'} {source === 'audio' ? 'listening' : 'reading'}
+            {book.progress > 0 && book.shelf !== 'finished' ? source === 'audio' ? t('Continue listening') : t('Continue reading') : source === 'audio' ? t('Start listening') : t('Start reading')}
           </button>
           <div id={`${id}-change`} hidden={!changing}>{changing && picker}</div>
         </> : <>
@@ -99,7 +102,7 @@ export function BookSource({ book, libby, libbyLinked = false, onRead, onAttachE
         </>}
     {(busy || importError) && <p className="book-source__message" role={importError ? 'alert' : 'status'}>
       {busy && <RefreshCw size={16} aria-hidden="true" />}
-      {importError ?? (epubBusy ? epubImport.progress?.detail : audiobookImport.progress?.detail) ?? 'Attaching your file…'}
+      {importError ? <LocalizedError message={importError} /> : translateCopy((epubBusy ? epubImport.progress?.detail : audiobookImport.progress?.detail) ?? t("Attaching your file…"))}
     </p>}
   </section>
 }

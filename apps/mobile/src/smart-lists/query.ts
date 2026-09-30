@@ -1,3 +1,4 @@
+import { translateAt, translateCopy, getLocale } from '../localization'
 import { accessStateAt, type Catalog } from '../domain/catalog'
 import type { LibraryBook, ShelfId } from '../library-model'
 import type { LibraryOrganization } from '../organization-model'
@@ -105,7 +106,7 @@ export function createSmartListDocuments(
 export function querySmartList(
   rawDefinition: unknown,
   documents: readonly SmartListDocument[],
-  options: { readonly now?: string } = {},
+  options: { readonly now?: string; readonly locale?: string } = {},
 ): SmartListQueryResult {
   const startedAt = performance.now()
   const parsed = parseSmartListDefinition(rawDefinition)
@@ -118,7 +119,7 @@ export function querySmartList(
     }
   }
   const now = options.now ?? new Date().toISOString()
-  const descriptions = describeRules(parsed.definition.root)
+  const descriptions = describeRules(parsed.definition.root, options.locale ?? getLocale())
   const fixedReasons = staticReasonsForRule(parsed.definition.root, descriptions)
   const matchedItems = documents.flatMap((document): SmartListResultItem[] => {
     const root = parsed.definition!.root
@@ -130,25 +131,25 @@ export function querySmartList(
   return {
     ok: true,
     definition: parsed.definition,
-    explanation: explainSmartListDefinition(parsed.definition),
+    explanation: explainSmartListDefinition(parsed.definition, options.locale ?? getLocale()),
     items,
     groups: groupResults(items, parsed.definition.groupBy),
     durationMs: performance.now() - startedAt,
   }
 }
 
-export function explainSmartListDefinition(definition: SmartListDefinition): string {
-  return describeRule(definition.root, true)
+export function explainSmartListDefinition(definition: SmartListDefinition, locale = getLocale()): string {
+  return describeRule(definition.root, true, locale)
 }
 
-export function describeSmartListCondition(condition: SmartListCondition): string {
-  const field = FIELD_LABELS[condition.field]
-  const operator = OPERATOR_LABELS[condition.operator]
-  const value = formatRuleValue(condition.field, condition.value)
+export function describeSmartListCondition(condition: SmartListCondition, locale = getLocale()): string {
+  const field = translateCopy(FIELD_LABELS[condition.field], locale)
+  const operator = translateCopy(OPERATOR_LABELS[condition.operator], locale)
+  const value = formatRuleValue(condition.field, condition.value, locale)
   const statement = condition.operator === 'is-missing'
     ? `${field} ${operator}`
     : `${field} ${operator} ${value}`
-  return condition.negate ? `Not: ${statement}` : statement
+  return condition.negate ? translateAt("Not: {{statement}}", locale, { statement }) : statement
 }
 
 function matchesRule(rule: SmartListRule, document: SmartListDocument, now: string): boolean {
@@ -175,12 +176,12 @@ function reasonsForRule(
   return relevant.flatMap((child) => reasonsForRule(child, document, now, descriptions))
 }
 
-function describeRules(root: SmartListRule): ReadonlyMap<string, string> {
+function describeRules(root: SmartListRule, locale = getLocale()): ReadonlyMap<string, string> {
   const descriptions = new Map<string, string>()
   const visit = (rule: SmartListRule) => {
     descriptions.set(rule.id, rule.kind === 'condition'
-      ? describeSmartListCondition(rule)
-      : rule.negate ? `Not: ${describeRule(rule, false)}` : describeRule(rule, false))
+      ? describeSmartListCondition(rule, locale)
+      : rule.negate ? translateAt("Not: {{statement}}", locale, { statement: describeRule(rule, false, locale) }) : describeRule(rule, false, locale))
     if (rule.kind === 'group') rule.rules.forEach(visit)
   }
   visit(root)
@@ -331,12 +332,12 @@ function groupLabels(document: SmartListDocument, field: Exclude<SmartListGroupF
   return [titleCase(document.availability)]
 }
 
-function describeRule(rule: SmartListRule, root: boolean): string {
-  if (rule.kind === 'condition') return describeSmartListCondition(rule)
-  const joiner = rule.combinator === 'all' ? ' and ' : ' or '
-  const children = rule.rules.map((child) => describeRule(child, false)).join(joiner)
-  const grouped = root ? `${rule.combinator === 'all' ? 'All' : 'Any'} of: ${children}` : `(${children})`
-  return rule.negate ? `Not ${grouped}` : grouped
+function describeRule(rule: SmartListRule, root: boolean, locale = getLocale()): string {
+  if (rule.kind === 'condition') return describeSmartListCondition(rule, locale)
+  const joiner = rule.combinator === 'all' ? translateAt(' and ', locale) : translateAt(' or ', locale)
+  const children = rule.rules.map((child) => describeRule(child, false, locale)).join(joiner)
+  const grouped = root ? rule.combinator === 'all' ? translateAt('All of: {{rules}}', locale, { rules: children }) : translateAt('Any of: {{rules}}', locale, { rules: children }) : `(${children})`
+  return rule.negate ? translateAt("Not {{rules}}", locale, { rules: grouped }) : grouped
 }
 
 function textValues(document: SmartListDocument, field: SmartListRuleField): readonly string[] {
@@ -371,19 +372,22 @@ function isNumberField(field: SmartListRuleField): boolean {
   return ['progress', 'rating', 'durationMinutes'].includes(field)
 }
 
-function formatRuleValue(field: SmartListRuleField, value: unknown): string {
-  if (Array.isArray(value)) return value.join('–')
+function formatRuleValue(field: SmartListRuleField, value: unknown, locale = getLocale()): string {
+  const formatNumber = (number: number) => new Intl.NumberFormat(locale).format(number)
+  if (Array.isArray(value)) return value.map(item => typeof item === 'number' ? formatNumber(item) : String(item)).join('–')
   if (typeof value === 'number') {
-    if (isDateField(field)) return `${value} day${value === 1 ? '' : 's'}`
+    if (isDateField(field)) return translateAt('dayCount', locale, { count: value, value: formatNumber(value) })
     if (field === 'durationMinutes') {
       const hours = Math.floor(value / 60)
       const minutes = value % 60
       return `${hours ? `${hours}h ` : ''}${minutes ? `${minutes}m` : ''}`.trim()
     }
-    return String(value)
+    return formatNumber(value)
   }
-  if (field === 'status') return STATUS_LABELS[String(value) as ShelfId] ?? String(value)
-  return String(value).replaceAll('-', ' ')
+  if (field === 'status') return translateCopy(STATUS_LABELS[String(value) as ShelfId] ?? String(value), locale)
+  if (field === 'ownership' || field === 'availability') return translateCopy(titleCase(String(value)), locale)
+  if (isDateField(field) && typeof value === 'string' && Number.isFinite(Date.parse(value))) return new Date(value).toLocaleDateString(locale)
+  return String(value)
 }
 
 function createCatalogIndex(catalog: Catalog) {

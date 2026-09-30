@@ -1,0 +1,27 @@
+---
+import {
+  languages,
+  regionalLocale,
+  localizedPath,
+  type Language,
+} from '../localization';
+const { locale } = Astro.props as { locale: Language };
+const path = Astro.url.pathname;
+const origin = 'https://wovenleaf.app';
+---
+
+<link rel="canonical" href={`${origin}${localizedPath(locale, path)}`} />
+{
+  languages.map((language) => (
+    <link
+      rel="alternate"
+      hreflang={regionalLocale(language)}
+      href={`${origin}${localizedPath(language, path)}`}
+    />
+  ))
+}
+<link
+  rel="alternate"
+  hreflang="x-default"
+  href={`${origin}${localizedPath('en', path)}`}
+/>

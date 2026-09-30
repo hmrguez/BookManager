@@ -1,3 +1,4 @@
+import { t, useLanguage } from '../localization'
 import { useLayoutEffect, useRef, useSyncExternalStore, type KeyboardEvent } from 'react'
 import { BookOpen, Check, X } from 'lucide-react'
 import type { PurchaseView } from './service'
@@ -12,6 +13,7 @@ export function UpgradeDialog({ open, onClose, view, bookCount }: {
   view: PurchaseView
   bookCount: number
 }) {
+  useLanguage()
   const dialog = useRef<HTMLDialogElement>(null)
   const reviewView = useSyncExternalStore(reviewAccess.subscribe, reviewAccess.getSnapshot)
   const hasAccess = view.owned || reviewView.active
@@ -53,7 +55,7 @@ export function UpgradeDialog({ open, onClose, view, bookCount }: {
     if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
     else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
   }
-  const store = view.platform === 'ios' ? 'Apple Account' : 'Google account'
+  const store = view.platform === 'ios' ? t("Apple Account") : t("Google account")
   const unavailable = !view.loading && !view.available && !hasAccess
 
   return (
@@ -61,44 +63,44 @@ export function UpgradeDialog({ open, onClose, view, bookCount }: {
       onKeyDown={containFocus} onCancel={(event) => { event.preventDefault(); onClose() }}
       onClick={(event) => { if (event.target === event.currentTarget) onClose() }}>
       <div className="upgrade-content">
-        <button type="button" className="upgrade-close" aria-label="Close upgrade" onClick={onClose}><X aria-hidden="true" /></button>
+        <button type="button" className="upgrade-close" aria-label={t("Close upgrade")} onClick={onClose}><X aria-hidden="true" /></button>
         <BookOpen className="upgrade-mark" aria-hidden="true" />
-        <p className="upgrade-eyebrow">Wovenleaf · Unlimited</p>
-        <h2 id="upgrade-title">{hasAccess ? 'Room for every book.' : 'Let your library grow.'}</h2>
+        <p className="upgrade-eyebrow">{t("Wovenleaf · Unlimited")}</p>
+        <h2 id="upgrade-title">{hasAccess ? t("Room for every book.") : t("Let your library grow.")}</h2>
         <p className="upgrade-intro">{view.owned
-          ? 'Your library is unlimited. Keep collecting the books that matter to you.'
-          : reviewView.active ? 'Review access is active on this device. You can add unlimited books.'
-          : `Your first ${FREE_BOOK_LIMIT} books are free. Make room for every book after that with one simple purchase.`}</p>
+          ? t("Your library is unlimited. Keep collecting the books that matter to you.")
+          : reviewView.active ? t("Review access is active on this device. You can add unlimited books.")
+          : t("Your first {{v0}} books are free. Make room for every book after that with one simple purchase.", { v0: FREE_BOOK_LIMIT })}</p>
         <div className="upgrade-terms">
-          <span><Check aria-hidden="true" /> Unlimited books, on every shelf</span>
-          <span><Check aria-hidden="true" /> Pay once. No subscription.</span>
-          <span><Check aria-hidden="true" /> Restore on devices using the same store account</span>
+          <span><Check aria-hidden="true" /> {t(" Unlimited books, on every shelf")}</span>
+          <span><Check aria-hidden="true" /> {t(" Pay once. No subscription.")}</span>
+          <span><Check aria-hidden="true" /> {t(" Restore on devices using the same store account")}</span>
         </div>
-        {!hasAccess && <p className="upgrade-count">{bookCount} of {FREE_BOOK_LIMIT} free books in your library</p>}
-        {reviewView.active && !view.owned && <p className="upgrade-note">To test checkout, end review access in Settings → Advanced.</p>}
-        {(view.message || view.pending) && <p className="upgrade-message" role="status">{view.message || 'Your purchase is awaiting approval. We’ll unlock your library when it completes.'}</p>}
+        {!hasAccess && <p className="upgrade-count">{bookCount} {t(" of")}{FREE_BOOK_LIMIT} {t(" free books in your library")}</p>}
+        {reviewView.active && !view.owned && <p className="upgrade-note">{t("To test checkout, end review access in Settings → Advanced.")}</p>}
+        {(view.message || view.pending) && <p className="upgrade-message" role="status">{view.message || t("Your purchase is awaiting approval. We’ll unlock your library when it completes.")}</p>}
         {view.error && <p className="upgrade-message" role="alert">{view.error}</p>}
         {unavailable && <p className="upgrade-note">{view.platform === 'web'
-          ? 'Purchase and restore are available in the iPhone and Android apps.'
-          : 'The upgrade is currently unavailable from the store. Please try again shortly.'}</p>}
+          ? t("Purchase and restore are available in the iPhone and Android apps.")
+          : t("The upgrade is currently unavailable from the store. Please try again shortly.")}</p>}
         {hasAccess ? (
-          <button type="button" className="upgrade-primary" onClick={onClose}>Continue to my library</button>
+          <button type="button" className="upgrade-primary" onClick={onClose}>{t("Continue to my library")}</button>
         ) : (
           <button type="button" className="upgrade-primary" disabled={view.busy || view.loading || !view.available || view.pending}
             onClick={() => { void purchases.purchase() }}>
-            {view.busy ? 'Contacting the store…' : view.loading ? 'Checking the store…'
-              : view.pending ? 'Awaiting approval' : view.price ? `Unlock unlimited · ${view.price}` : 'Unlock unlimited'}
+            {view.busy ? t("Contacting the store…") : view.loading ? t("Checking the store…")
+              : view.pending ? t("Awaiting approval") : view.price ? t("Unlock unlimited · {{v0}}", { v0: view.price }) : t("Unlock unlimited")}
           </button>
         )}
         {view.platform !== 'web' && <>
           <div className="upgrade-actions">
-            <button type="button" disabled={view.busy || view.loading} onClick={() => { void purchases.restore() }}>Restore purchase</button>
-            {view.canRedeem !== false && <button type="button" disabled={view.busy} onClick={() => { void purchases.redeem() }}>Redeem a code</button>}
-            {unavailable && <button type="button" disabled={view.busy} onClick={() => { void purchases.refresh() }}>Try again</button>}
+            <button type="button" disabled={view.busy || view.loading} onClick={() => { void purchases.restore() }}>{t("Restore purchase")}</button>
+            {view.canRedeem !== false && <button type="button" disabled={view.busy} onClick={() => { void purchases.redeem() }}>{t("Redeem a code")}</button>}
+            {unavailable && <button type="button" disabled={view.busy} onClick={() => { void purchases.refresh() }}>{t("Try again")}</button>}
           </div>
-          <p className="upgrade-note">Linked to your {store}. Purchases stay within {view.platform === 'ios' ? 'the App Store' : 'Google Play'}.</p>
+          <p className="upgrade-note">{t("Linked to your")}{store}{t(". Purchases stay within")}{view.platform === 'ios' ? t("the App Store") : t("Google Play")}.</p>
         </>}
-        {!hasAccess && <button type="button" className="upgrade-later" onClick={onClose}>Keep my free library</button>}
+        {!hasAccess && <button type="button" className="upgrade-later" onClick={onClose}>{t("Keep my free library")}</button>}
       </div>
     </dialog>
   )

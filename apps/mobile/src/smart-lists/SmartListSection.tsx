@@ -1,3 +1,4 @@
+import { t, translateCopy, useLanguage } from '../localization'
 import { VirtualBookList } from '../library/VirtualBookList'
 import { BookTile } from '../library/LibraryPresentation'
 import { useLibraryView } from '../library/use-library-view'
@@ -32,6 +33,7 @@ export function SmartListSection({
   onDetails: (bookId: string) => void
   onManage: () => void
 }) {
+  useLanguage()
   const grid = useLibraryView() === 'grid'
   const groupStarts = new Map<string, number>()
   let nextCascadeIndex = 1
@@ -64,7 +66,7 @@ export function SmartListSection({
           <h2>{list.name} <i>·</i> {query.ok ? query.items.length : '!'}</h2>
           <ChevronDown className={tw(isCollapsed ? 'is-collapsed' : '')} aria-hidden="true" />
         </button>
-        <button type="button" className={tw("shelf-add smart-list__manage")} onClick={onManage} aria-label={`Manage ${list.name}`}>
+        <button type="button" className={tw("shelf-add smart-list__manage")} onClick={onManage} aria-label={t("Manage {{v0}}", { v0: list.name })}>
           <SlidersHorizontal aria-hidden="true" />
         </button>
       </header>
@@ -73,14 +75,14 @@ export function SmartListSection({
         {!cascadeProps.hidden && (query.ok ? (
           <>
             <div className={tw("smart-list__explanation")} {...shelfCascadeItem(0, cascadeItemCount)}>
-              <span>Live rule</span>
+              <span>{t("Live rule")}</span>
               <p>{query.explanation}</p>
               {list.description && <small>{list.description}</small>}
             </div>
             {!query.items.length ? (
               <div className={tw("smart-list__empty")} {...shelfCascadeItem(1, cascadeItemCount)}>
                 <ListFilter aria-hidden="true" />
-                <span><strong>No books match right now</strong><small>The saved rules will keep watching this library</small></span>
+                <span><strong>{t("No books match right now")}</strong><small>{t("The saved rules will keep watching this library")}</small></span>
               </div>
             ) : (
               <VirtualBookList
@@ -91,7 +93,7 @@ export function SmartListSection({
                   header: query.definition.groupBy === 'none' ? undefined : (
                     <div className={tw('smart-list-group')} style={{ width: '100%' }}>
                       <header {...shelfCascadeItem(groupStarts.get(group.key) ?? 1, cascadeItemCount)}>
-                        <span>{group.label}</span><strong>{group.items.length}</strong>
+                        <span>{['status', 'ownership', 'availability'].includes(query.definition.groupBy) ? translateCopy(group.label) : group.label}</span><strong>{group.items.length}</strong>
                       </header>
                     </div>
                   ),
@@ -115,9 +117,9 @@ export function SmartListSection({
                         </span>
                       </button>}
                       <details className={tw("smart-book-reasons")}>
-                        <summary><Info aria-hidden="true" /><span>Why</span></summary>
+                        <summary><Info aria-hidden="true" /><span>{t("Why")}</span></summary>
                         <div>
-                          <strong>Why this book is here</strong>
+                          <strong>{t("Why this book is here")}</strong>
                           <ul>{item.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
                         </div>
                       </details>
@@ -131,9 +133,9 @@ export function SmartListSection({
           <div className={tw("smart-list-invalid")} role="alert" {...shelfCascadeItem(0, cascadeItemCount)}>
             <AlertTriangle aria-hidden="true" />
             <div>
-              <strong>Rules need a newer or corrected configuration</strong>
-              <p>The saved configuration is preserved. This list will not return partial or misleading results.</p>
-              <ul>{query.issues.slice(0, 3).map((issue) => <li key={`${issue.path}:${issue.message}`}><b>{issue.path}</b> {issue.message}</li>)}</ul>
+              <strong>{t("Rules need a newer or corrected configuration")}</strong>
+              <p>{t("The saved configuration is preserved. This list will not return partial or misleading results.")}</p>
+              <ul>{query.issues.slice(0, 3).map((issue) => <li key={`${issue.path}:${translateCopy(issue.message ?? '')}`}><b>{issue.path}</b> {translateCopy(issue.message ?? '')}</li>)}</ul>
             </div>
           </div>
         ))}

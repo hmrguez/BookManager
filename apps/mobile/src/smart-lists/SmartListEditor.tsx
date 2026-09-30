@@ -1,3 +1,4 @@
+import { t, translateCopy, useLanguage, REGIONAL_LOCALES } from '../localization'
 import { useMemo, useState, type FormEvent } from 'react'
 import {
   AlertTriangle,
@@ -47,6 +48,7 @@ export function SmartListEditor({
   onArchive: (list: SavedSmartList) => void
   onDelete: (list: SavedSmartList) => void
 }) {
+  const languageRevision = useLanguage()
   const storedValidation = useMemo(() => parseSmartListDefinition(list?.definition), [list?.definition])
   const storedDefinition = storedValidation.definition
   const simpleDefinition = storedDefinition?.root.rules.every(
@@ -60,7 +62,7 @@ export function SmartListEditor({
     simpleDefinition ?? createBlankSmartListDefinition(),
   )
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const query = useMemo(() => querySmartList(definition, documents), [definition, documents])
+  const query = useMemo(() => querySmartList(definition, documents, { locale: REGIONAL_LOCALES[languageRevision] }), [definition, documents, languageRevision])
   const conditions = definition.root.rules.filter(
     (rule): rule is SmartListCondition => rule.kind === 'condition',
   )
@@ -131,20 +133,20 @@ export function SmartListEditor({
   if (!editable) {
     const issues = storedValidation.issues.length
       ? storedValidation.issues
-      : [{ path: 'definition.root', message: 'Nested rule groups require the advanced editor' }]
+      : [{ path: 'definition.root', message: t("Nested rule groups require the advanced editor") }]
     return (
       <div className={tw("smart-list-preserved")} role="alert">
         <AlertTriangle aria-hidden="true" />
         <div>
-          <span>Configuration preserved</span>
-          <h3>This smart list cannot be edited on this version</h3>
-          <p>Its saved rules are still intact. Nothing was reset or removed.</p>
+          <span>{t("Configuration preserved")}</span>
+          <h3>{t("This smart list cannot be edited on this version")}</h3>
+          <p>{t("Its saved rules are still intact. Nothing was reset or removed.")}</p>
         </div>
         <ul>
-          {issues.map((issue) => <li key={`${issue.path}:${issue.message}`}><strong>{issue.path}</strong> {issue.message}</li>)}
+          {issues.map((issue) => <li key={`${issue.path}:${translateCopy(issue.message ?? '')}`}><strong>{issue.path}</strong> {translateCopy(issue.message ?? '')}</li>)}
         </ul>
         <details>
-          <summary><Braces aria-hidden="true" /> Show saved configuration</summary>
+          <summary><Braces aria-hidden="true" /> {t(" Show saved configuration")}</summary>
           <pre>{JSON.stringify(list?.definition, null, 2)}</pre>
         </details>
         {list && <SmartListDanger list={list} confirmDelete={confirmDelete} onConfirmDelete={setConfirmDelete} onArchive={onArchive} onDelete={onDelete} />}
@@ -155,14 +157,14 @@ export function SmartListEditor({
   return (
     <form className={tw("smart-list-editor")} onSubmit={submit}>
       <div className={tw("smart-list-editor__intro")}>
-        <span><Sparkles aria-hidden="true" /> Live, local, explainable</span>
-        <p>Rules recalculate on this device. Books remain on their reading and custom shelves.</p>
+        <span><Sparkles aria-hidden="true" /> {t(" Live, local, explainable")}</span>
+        <p>{t("Rules recalculate on this device. Books remain on their reading and custom shelves.")}</p>
       </div>
 
       <section className={tw("smart-list-templates")} aria-labelledby="smart-list-template-title">
         <header>
-          <span>Start with a useful pattern</span>
-          <small>Each template remains fully editable</small>
+          <span>{t("Start with a useful pattern")}</span>
+          <small>{t("Each template remains fully editable")}</small>
         </header>
         <div>
           {SMART_LIST_TEMPLATES.map((template) => (
@@ -176,51 +178,51 @@ export function SmartListEditor({
 
       <div className={tw("smart-list-basics")}>
         <label className={tw("shelf-field")}>
-          <span>List name</span>
+          <span>{t("List name")}</span>
           <input
             autoFocus
             required
             maxLength={80}
             value={name}
             onChange={(event) => setName(event.target.value)}
-            placeholder="Quiet weekend reads"
+            placeholder={t("Quiet weekend reads")}
           />
         </label>
         <label className={tw("shelf-field")}>
-          <span>Note <i>optional</i></span>
+          <span>{t("Note")}<i>{t("optional")}</i></span>
           <textarea
             maxLength={1_000}
             rows={2}
             value={description}
             onChange={(event) => setDescription(event.target.value)}
-            placeholder="What this view is for"
+            placeholder={t("What this view is for")}
           />
         </label>
         <label className={tw("shelf-pin-field smart-list-pin-field")}>
           <input type="checkbox" checked={pinned} onChange={(event) => setPinned(event.target.checked)} />
           <Pin aria-hidden="true" />
-          <span><strong>Pin this smart list</strong><small>Keep it above your other automatic views</small></span>
+          <span><strong>{t("Pin this smart list")}</strong><small>{t("Keep it above your other automatic views")}</small></span>
         </label>
       </div>
 
       <section className={tw("smart-rule-builder")} aria-labelledby="smart-rule-title">
         <header>
           <div>
-            <span>Rules · schema v{SMART_LIST_RULE_SCHEMA_VERSION}</span>
-            <h3 id="smart-rule-title">Include books matching</h3>
+            <span>{t("Rules · schema v")}{SMART_LIST_RULE_SCHEMA_VERSION}</span>
+            <h3 id="smart-rule-title">{t("Include books matching")}</h3>
           </div>
           <label>
-            <span className={tw("sr-only")}>How rules are combined</span>
+            <span className={tw("sr-only")}>{t("How rules are combined")}</span>
             <select
               value={definition.root.combinator}
               onChange={(event) => setDefinition((current) => ({
                 ...current,
                 root: { ...current.root, combinator: event.target.value as 'all' | 'any' },
               }))}
-              aria-label="How rules are combined"
+              aria-label={t("How rules are combined")}
             >
-              <option value="all">All rules</option>
-              <option value="any">Any rule</option>
+              <option value="all">{t("All rules")}</option>
+              <option value="any">{t("Any rule")}</option>
             </select>
           </label>
         </header>
@@ -230,11 +232,11 @@ export function SmartListEditor({
             <div className={tw("smart-rule-row")} key={condition.id}>
               <span className={tw("smart-rule-row__number")}>{String(index + 1).padStart(2, '0')}</span>
               <label>
-                <span className={tw("sr-only")}>Field for rule {index + 1}</span>
+                <span className={tw("sr-only")}>{t("Field for rule")}{index + 1}</span>
                 <select
                   value={condition.field}
                   onChange={(event) => changeField(condition, event.target.value as SmartListRuleField)}
-                  aria-label={`Field for rule ${index + 1}`}
+                  aria-label={t("Field for rule {{v0}}", { v0: index + 1 })}
                 >
                   {FIELD_GROUPS.map((group) => (
                     <optgroup label={group.label} key={group.label}>
@@ -244,14 +246,14 @@ export function SmartListEditor({
                 </select>
               </label>
               <label>
-                <span className={tw("sr-only")}>Operator for rule {index + 1}</span>
+                <span className={tw("sr-only")}>{t("Operator for rule")}{index + 1}</span>
                 <select
                   value={condition.operator}
                   onChange={(event) => updateCondition(condition.id, {
                     operator: event.target.value as SmartListRuleOperator,
                     value: valueForOperator(condition.field, event.target.value as SmartListRuleOperator, condition.value),
                   })}
-                  aria-label={`Operator for rule ${index + 1}`}
+                  aria-label={t("Operator for rule {{v0}}", { v0: index + 1 })}
                 >
                   {operatorsForField(condition.field).map((operator) => (
                     <option value={operator} key={operator}>{OPERATOR_LABELS[operator]}</option>
@@ -264,7 +266,7 @@ export function SmartListEditor({
                 type="button"
                 disabled={conditions.length === 1}
                 onClick={() => removeCondition(condition.id)}
-                aria-label={`Remove rule ${index + 1}`}
+                aria-label={t("Remove rule {{v0}}", { v0: index + 1 })}
               >
                 <X aria-hidden="true" />
               </button>
@@ -272,18 +274,17 @@ export function SmartListEditor({
           ))}
         </div>
         <button className={tw("smart-rule-add")} type="button" onClick={addCondition} disabled={conditions.length >= 50}>
-          <Plus aria-hidden="true" /> Add rule
-        </button>
+          <Plus aria-hidden="true" /> {t(" Add rule")}</button>
       </section>
 
       <section className={tw("smart-list-arrangement")}>
         <header>
-          <span>Arrangement</span>
-          <small>Applied after the rules match</small>
+          <span>{t("Arrangement")}</span>
+          <small>{t("Applied after the rules match")}</small>
         </header>
         <div>
           <label>
-            <span>Sort by</span>
+            <span>{t("Sort by")}</span>
             <select
               value={definition.sort.field}
               onChange={(event) => setDefinition((current) => ({
@@ -291,11 +292,11 @@ export function SmartListEditor({
                 sort: { ...current.sort, field: event.target.value as SmartListSortField },
               }))}
             >
-              {SORT_OPTIONS.map(([value, label]) => <option value={value} key={value}>{label}</option>)}
+              {SORT_OPTIONS.map(([value, label]) => <option value={value} key={value}>{translateCopy(label)}</option>)}
             </select>
           </label>
           <label>
-            <span>Direction</span>
+            <span>{t("Direction")}</span>
             <select
               value={definition.sort.direction}
               onChange={(event) => setDefinition((current) => ({
@@ -303,12 +304,12 @@ export function SmartListEditor({
                 sort: { ...current.sort, direction: event.target.value as 'ascending' | 'descending' },
               }))}
             >
-              <option value="ascending">Ascending</option>
-              <option value="descending">Descending</option>
+              <option value="ascending">{t("Ascending")}</option>
+              <option value="descending">{t("Descending")}</option>
             </select>
           </label>
           <label>
-            <span>Group by</span>
+            <span>{t("Group by")}</span>
             <select
               value={definition.groupBy}
               onChange={(event) => setDefinition((current) => ({
@@ -316,7 +317,7 @@ export function SmartListEditor({
                 groupBy: event.target.value as SmartListGroupField,
               }))}
             >
-              {GROUP_OPTIONS.map(([value, label]) => <option value={value} key={value}>{label}</option>)}
+              {GROUP_OPTIONS.map(([value, label]) => <option value={value} key={value}>{translateCopy(label)}</option>)}
             </select>
           </label>
         </div>
@@ -325,18 +326,18 @@ export function SmartListEditor({
       <section className={tw(`smart-list-preview${query.ok ? '' : ' smart-list-preview--error'}`)} aria-live="polite">
         <div className={tw("smart-list-preview__count")}>
           {query.ok ? <ListFilter aria-hidden="true" /> : <AlertTriangle aria-hidden="true" />}
-          <span><strong>{query.ok ? query.items.length : '—'}</strong><small>{query.ok ? `of ${documents.length} books` : 'Rules need attention'}</small></span>
+          <span><strong>{query.ok ? query.items.length : '—'}</strong><small>{query.ok ? t("of {{v0}} books", { v0: documents.length }) : t("Rules need attention")}</small></span>
         </div>
         <div>
-          <span>Plain-language rule</span>
+          <span>{t("Plain-language rule")}</span>
           {query.ok
             ? <p>{query.explanation}</p>
-            : <ul>{query.issues.map((issue) => <li key={`${issue.path}:${issue.message}`}><strong>{issue.path}</strong> {issue.message}</li>)}</ul>}
+            : <ul>{query.issues.map((issue) => <li key={`${issue.path}:${translateCopy(issue.message ?? '')}`}><strong>{issue.path}</strong> {translateCopy(issue.message ?? '')}</li>)}</ul>}
         </div>
       </section>
 
       <ActionButton type="submit" disabled={!name.trim() || !query.ok}>
-        <Check aria-hidden="true" /> {list ? 'Save smart list' : 'Create smart list'}
+        <Check aria-hidden="true" /> {list ? t("Save smart list") : t("Create smart list")}
       </ActionButton>
 
       {list && <SmartListDanger list={list} confirmDelete={confirmDelete} onConfirmDelete={setConfirmDelete} onArchive={onArchive} onDelete={onDelete} />}
@@ -353,36 +354,37 @@ function RuleValueEditor({
   index: number
   onChange: (value: unknown) => void
 }) {
-  if (condition.operator === 'is-missing') return <span className={tw("smart-rule-value smart-rule-value--empty")}>No value</span>
+  useLanguage()
+  if (condition.operator === 'is-missing') return <span className={tw("smart-rule-value smart-rule-value--empty")}>{t("No value")}</span>
   if (condition.field === 'status') {
     return (
-      <select className={tw("smart-rule-value")} value={String(condition.value)} onChange={(event) => onChange(event.target.value)} aria-label={`Value for rule ${index + 1}`}>
-        <option value="tbr">To Be Read</option>
-        <option value="next">Up Next</option>
-        <option value="reading">Reading</option>
-        <option value="finished">Finished</option>
-        <option value="dnf">DNF</option>
+      <select className={tw("smart-rule-value")} value={String(condition.value)} onChange={(event) => onChange(event.target.value)} aria-label={t("Value for rule {{v0}}", { v0: index + 1 })}>
+        <option value="tbr">{t("To Be Read")}</option>
+        <option value="next">{t("Up Next")}</option>
+        <option value="reading">{t("Reading")}</option>
+        <option value="finished">{t("Finished")}</option>
+        <option value="dnf">{t("DNF")}</option>
       </select>
     )
   }
   if (condition.field === 'ownership') {
     return (
-      <select className={tw("smart-rule-value")} value={String(condition.value)} onChange={(event) => onChange(event.target.value)} aria-label={`Value for rule ${index + 1}`}>
-        <option value="owned">Owned</option>
-        <option value="borrowed">Borrowed</option>
-        <option value="subscription">Subscription</option>
-        <option value="public-domain">Public domain</option>
-        <option value="none">No access record</option>
+      <select className={tw("smart-rule-value")} value={String(condition.value)} onChange={(event) => onChange(event.target.value)} aria-label={t("Value for rule {{v0}}", { v0: index + 1 })}>
+        <option value="owned">{t("Owned")}</option>
+        <option value="borrowed">{t("Borrowed")}</option>
+        <option value="subscription">{t("Subscription")}</option>
+        <option value="public-domain">{t("Public domain")}</option>
+        <option value="none">{t("No access record")}</option>
       </select>
     )
   }
   if (condition.field === 'availability') {
     return (
-      <select className={tw("smart-rule-value")} value={String(condition.value)} onChange={(event) => onChange(event.target.value)} aria-label={`Value for rule ${index + 1}`}>
-        <option value="available">Available</option>
-        <option value="expiring-soon">Expiring soon</option>
-        <option value="expired">Expired</option>
-        <option value="unavailable">Unavailable</option>
+      <select className={tw("smart-rule-value")} value={String(condition.value)} onChange={(event) => onChange(event.target.value)} aria-label={t("Value for rule {{v0}}", { v0: index + 1 })}>
+        <option value="available">{t("Available")}</option>
+        <option value="expiring-soon">{t("Expiring soon")}</option>
+        <option value="expired">{t("Expired")}</option>
+        <option value="unavailable">{t("Unavailable")}</option>
       </select>
     )
   }
@@ -390,9 +392,9 @@ function RuleValueEditor({
     const [minimum, maximum] = Array.isArray(condition.value) ? condition.value : [0, 100]
     return (
       <span className={tw("smart-rule-value smart-rule-value--between")}>
-        <input type="number" value={Number(minimum)} onChange={(event) => onChange([Number(event.target.value), Number(maximum)])} aria-label={`Minimum for rule ${index + 1}`} />
-        <i>to</i>
-        <input type="number" value={Number(maximum)} onChange={(event) => onChange([Number(minimum), Number(event.target.value)])} aria-label={`Maximum for rule ${index + 1}`} />
+        <input type="number" value={Number(minimum)} onChange={(event) => onChange([Number(event.target.value), Number(maximum)])} aria-label={t("Minimum for rule {{v0}}", { v0: index + 1 })} />
+        <i>{t("to")}</i>
+        <input type="number" value={Number(maximum)} onChange={(event) => onChange([Number(minimum), Number(event.target.value)])} aria-label={t("Maximum for rule {{v0}}", { v0: index + 1 })} />
       </span>
     )
   }
@@ -406,7 +408,7 @@ function RuleValueEditor({
         max={condition.field === 'rating' ? 5 : condition.field === 'progress' ? 100 : undefined}
         value={Number(condition.value)}
         onChange={(event) => onChange(Number(event.target.value))}
-        aria-label={`Value for rule ${index + 1}`}
+        aria-label={t("Value for rule {{v0}}", { v0: index + 1 })}
       />
     )
   }
@@ -417,7 +419,7 @@ function RuleValueEditor({
         type="date"
         value={String(condition.value).slice(0, 10)}
         onChange={(event) => onChange(`${event.target.value}T00:00:00.000Z`)}
-        aria-label={`Value for rule ${index + 1}`}
+        aria-label={t("Value for rule {{v0}}", { v0: index + 1 })}
       />
     )
   }
@@ -428,7 +430,7 @@ function RuleValueEditor({
       onChange={(event) => onChange(event.target.value)}
       list={condition.field === 'format' ? 'smart-list-format-suggestions' : undefined}
       placeholder={VALUE_PLACEHOLDERS[condition.field]}
-      aria-label={`Value for rule ${index + 1}`}
+      aria-label={t("Value for rule {{v0}}", { v0: index + 1 })}
     />
   )
 }
@@ -446,15 +448,16 @@ function SmartListDanger({
   onArchive: (list: SavedSmartList) => void
   onDelete: (list: SavedSmartList) => void
 }) {
+  useLanguage()
   return (
     <div className={tw("custom-shelf-editor__danger smart-list-danger")}>
       <button type="button" onClick={() => onArchive(list)}>
         {list.archived ? <ArchiveRestore aria-hidden="true" /> : <Archive aria-hidden="true" />}
-        <span><strong>{list.archived ? 'Restore smart list' : 'Archive smart list'}</strong><small>{list.archived ? 'Return it to My Books' : 'Hide it without losing its rules'}</small></span>
+        <span><strong>{list.archived ? t("Restore smart list") : t("Archive smart list")}</strong><small>{list.archived ? t("Return it to My Books") : t("Hide it without losing its rules")}</small></span>
       </button>
       <button className={tw("remove-action")} type="button" onClick={() => confirmDelete ? onDelete(list) : onConfirmDelete(true)}>
         <Trash2 aria-hidden="true" />
-        <span><strong>{confirmDelete ? 'Tap again to delete list' : 'Delete smart list'}</strong><small>Deletes the saved rules only—not any books</small></span>
+        <span><strong>{confirmDelete ? t("Tap again to delete list") : t("Delete smart list")}</strong><small>{t("Deletes the saved rules only—not any books")}</small></span>
       </button>
     </div>
   )
@@ -499,25 +502,35 @@ function valueForOperator(
 }
 
 const FIELD_LABELS: Record<SmartListRuleField, string> = {
-  status: 'Reading status', format: 'Format', source: 'Source', tag: 'Tag', author: 'Author',
-  series: 'Series', dateAdded: 'Date added', dateStarted: 'Date started', dateFinished: 'Date finished',
-  dateUpdated: 'Last updated', progress: 'Progress', rating: 'Rating', ownership: 'Ownership',
-  loanDueAt: 'Loan due date', availability: 'Availability', durationMinutes: 'Audio duration',
+  get status() { return t("Reading status") }, get format() { return t("Format") }, get source() { return t("Source") }, get tag() { return t("Tag") }, get author() { return t("Author") },
+  get series() { return t("Series") }, get dateAdded() { return t("Date added") }, get dateStarted() { return t("Date started") }, get dateFinished() { return t("Date finished") },
+  get dateUpdated() { return t("Last updated") }, get progress() { return t("Progress") }, get rating() { return t("Rating") }, get ownership() { return t("Ownership") },
+  get loanDueAt() { return t("Loan due date") }, get availability() { return t("Availability") }, get durationMinutes() { return t("Audio duration") },
 }
 
 const FIELD_GROUPS: readonly { readonly label: string; readonly fields: readonly SmartListRuleField[] }[] = [
-  { label: 'Reading', fields: ['status', 'progress', 'rating'] },
-  { label: 'Book', fields: ['format', 'author', 'series', 'tag', 'source', 'durationMinutes'] },
-  { label: 'Dates', fields: ['dateAdded', 'dateStarted', 'dateFinished', 'dateUpdated'] },
-  { label: 'Access', fields: ['ownership', 'loanDueAt', 'availability'] },
+  { get label() { return t("Reading") }, fields: ['status', 'progress', 'rating'] },
+  { get label() { return t("Book") }, fields: ['format', 'author', 'series', 'tag', 'source', 'durationMinutes'] },
+  { get label() { return t("Dates") }, fields: ['dateAdded', 'dateStarted', 'dateFinished', 'dateUpdated'] },
+  { get label() { return t("Access") }, fields: ['ownership', 'loanDueAt', 'availability'] },
 ]
 
 const OPERATOR_LABELS: Record<SmartListRuleOperator, string> = {
-  is: 'is', 'is-not': 'is not', contains: 'contains', 'not-contains': 'does not contain',
-  'at-least': 'at least', 'at-most': 'at most', 'greater-than': 'greater than',
-  'less-than': 'less than', between: 'between', before: 'before', after: 'after',
-  'within-next-days': 'within next days', 'within-last-days': 'within last days',
-  'older-than-days': 'older than days', 'is-missing': 'is missing',
+  get "is"() { return t("is") },
+  get "is-not"() { return t("is not") },
+  get "contains"() { return t("contains") },
+  get "not-contains"() { return t("does not contain") },
+  get "at-least"() { return t("at least") },
+  get "at-most"() { return t("at most") },
+  get "greater-than"() { return t("greater than") },
+  get "less-than"() { return t("less than") },
+  get "between"() { return t("between") },
+  get "before"() { return t("before") },
+  get "after"() { return t("after") },
+  get "within-next-days"() { return t("within next days") },
+  get "within-last-days"() { return t("within last days") },
+  get "older-than-days"() { return t("older than days") },
+  get "is-missing"() { return t("is missing") },
 }
 
 const VALUE_PLACEHOLDERS: Partial<Record<SmartListRuleField, string>> = {
@@ -525,11 +538,11 @@ const VALUE_PLACEHOLDERS: Partial<Record<SmartListRuleField, string>> = {
 }
 
 const SORT_OPTIONS: readonly [SmartListSortField, string][] = [
-  ['title', 'Title'], ['author', 'Author'], ['date-added', 'Date added'], ['date-updated', 'Last updated'],
-  ['progress', 'Progress'], ['rating', 'Rating'], ['loan-due', 'Loan due date'], ['duration', 'Duration'],
+  ['title', 'Title'], ['author', 'Author'], ['date-added', t("Date added")], ['date-updated', t("Last updated")],
+  ['progress', 'Progress'], ['rating', 'Rating'], ['loan-due', t("Loan due date")], ['duration', 'Duration'],
 ]
 
 const GROUP_OPTIONS: readonly [SmartListGroupField, string][] = [
-  ['none', 'No grouping'], ['status', 'Reading status'], ['format', 'Format'], ['author', 'Author'],
+  ['none', t("No grouping")], ['status', t("Reading status")], ['format', 'Format'], ['author', 'Author'],
   ['series', 'Series'], ['source', 'Source'], ['ownership', 'Ownership'], ['availability', 'Availability'],
 ]

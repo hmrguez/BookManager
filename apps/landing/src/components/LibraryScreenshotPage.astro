@@ -1,0 +1,72 @@
+---
+import LanguageLinks from './LanguageLinks.astro';
+import LanguageMenu from './LanguageMenu.astro';
+import {
+  createTranslator,
+  localeFromPath,
+  localizedPath,
+  screenshotPath,
+  type Language,
+} from '../localization';
+const locale: Language =
+  Astro.props.locale ?? localeFromPath(Astro.url.pathname);
+const t = createTranslator(locale);
+import '../styles.css';
+---
+
+<!doctype html>
+<html lang={locale}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title set:html={t('Wovenleaf — Library screenshot')} />
+    <meta name="robots" content="noindex" />
+    <LanguageLinks locale={locale} />
+  </head>
+  <body>
+    <header class="screenshot-nav">
+      <a href={localizedPath(locale, '/')}>{t('← Back to Wovenleaf')}</a
+      ><LanguageMenu locale={locale} />
+    </header>
+    <main aria-label={t('Full-size library screenshot')}>
+      <img
+        class="library-screen"
+        src={screenshotPath(locale, 'library')}
+        alt={t(
+          'Wovenleaf mobile library with reading shelves, book covers, and progress.',
+        )}
+        width="390"
+        height="844"
+      />
+    </main>
+  </body>
+</html>
+
+<style>
+  main {
+    min-height: 100svh;
+    display: grid;
+    place-items: center;
+  }
+  img {
+    width: min(100%, 390px);
+    height: auto;
+  }
+</style>
+
+<style>
+  .screenshot-nav {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    width: min(100%, 390px);
+    margin: 0 auto 16px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .screenshot-nav > a {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+</style>

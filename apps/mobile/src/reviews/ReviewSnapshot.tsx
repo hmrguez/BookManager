@@ -1,3 +1,6 @@
+import { LocalizedError } from '../localization/LocalizedError'
+import { badgeName } from './presentation'
+import { t, translateCopy, useLanguage, translateAt } from '../localization'
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import type { ReviewKeepsake } from './keepsake-model'
 import type { ReviewKeepsakeRepository } from './keepsake-repository'
@@ -9,6 +12,7 @@ import { badgeFact } from './presentation'
 export function ReviewSnapshot({ initial, repository, onClose, onDeleted }: {
   initial: ReviewKeepsake; repository: ReviewKeepsakeRepository; onClose: () => void; onDeleted: () => void
 }) {
+  useLanguage()
   const [saved, setSaved] = useState(initial)
   const [selection, setSelection] = useState(() => snapshotDefaults(initial))
   const [rendered, setRendered] = useState({ key: '', image: '', error: '' })
@@ -62,7 +66,7 @@ export function ReviewSnapshot({ initial, repository, onClose, onDeleted }: {
       if (!alive.current) return
       setChanges(snapshotChanges(saved, current, selection))
       setSelection(previous => retainSnapshotSelection(previous, current)); setSaved(current); setStale(false)
-      setFailure(''); setMessage('Preview refreshed. Still-earned selections were kept. Review the image before exporting.')
+      setFailure(''); setMessage(t("Preview refreshed. Still-earned selections were kept. Review the image before exporting."))
     } catch { setFailure('Could not refresh this preview. Please try again.') }
   }
   async function send(action: 'save' | 'share') {
@@ -74,39 +78,39 @@ export function ReviewSnapshot({ initial, repository, onClose, onDeleted }: {
       if (!alive.current) return
       if (snapshotRevision(current) !== revision) { setStale(true); return }
       const result = await exportSnapshot(image, action)
-      setMessage(result.status === 'saved' ? 'Image saved.' : result.status === 'download-requested' ? 'Download requested. Check your downloads for the image.'
-        : result.status === 'cancelled' ? 'Cancelled. Your preview is still here.' : 'Returned from sharing. Nothing is posted automatically by Wovenleaf.')
+      setMessage(result.status === 'saved' ? t("Image saved.") : result.status === 'download-requested' ? t("Download requested. Check your downloads for the image.")
+        : result.status === 'cancelled' ? t("Cancelled. Your preview is still here.") : t("Returned from sharing. Nothing is posted automatically by Wovenleaf."))
     } catch { setFailure('The image could not be exported. Your selections are kept. Try again, or save the image instead.') }
     finally { lock.current = false; setBusy(false) }
   }
   const change = (update: Partial<SnapshotSelection>) => { setSelection(s => ({ ...s, ...update })); setMessage('') }
-  return <section className="review-snapshot" aria-label="Keepsake image preview" aria-busy={busy}>
-    <button className="review-quiet" disabled={busy} onClick={onClose}>Back to keepsake</button>
-    <h3 ref={heading} tabIndex={-1}>A season worth sharing</h3>
-    <p>Only your pathway and selected achievements appear. Book titles, notes and detailed activity stay private.</p>
-    <fieldset disabled={busy} className="snapshot-options"><legend>Make it yours</legend>
-      <label>Image format<select value={selection.format} onChange={e => change({ format: e.target.value === 'story' ? 'story' : 'post' })}><option value="post">Post · 1080 × 1080</option><option value="story">Story · 1080 × 1920</option></select></label>
-      <label>Image language<select value={selection.language} onChange={e => change({ language: e.target.value })}><option value="app">App language</option><option value="en">English</option></select></label>
-      {saved.identity.status === 'chosen' && <label className="snapshot-check"><input type="checkbox" checked={selection.identity} onChange={e => change({ identity: e.target.checked })} />Include chosen pathway</label>}
-      <fieldset><legend>Choose up to three badges · {selection.badgeIds.length}/3</legend>{saved.facts.earned.map(b => <label className="snapshot-check" key={b.id}>
+  return <section className="review-snapshot" aria-label={t("Keepsake image preview")} aria-busy={busy}>
+    <button className="review-quiet" disabled={busy} onClick={onClose}>{t("Back to keepsake")}</button>
+    <h3 ref={heading} tabIndex={-1}>{t("A season worth sharing")}</h3>
+    <p>{t("Only your pathway and selected achievements appear. Book titles, notes and detailed activity stay private.")}</p>
+    <fieldset disabled={busy} className="snapshot-options"><legend>{t("Make it yours")}</legend>
+      <label>{t("Image format")}<select value={selection.format} onChange={e => change({ format: e.target.value === 'story' ? 'story' : 'post' })}><option value="post">{t("Post · 1080 × 1080")}</option><option value="story">{t("Story · 1080 × 1920")}</option></select></label>
+      <label>{t("Image language")}<select value={selection.language} onChange={e => change({ language: e.target.value })}><option value="app">{t("App language")}</option><option value="en">{t("English")}</option></select></label>
+      {saved.identity.status === 'chosen' && <label className="snapshot-check"><input type="checkbox" checked={selection.identity} onChange={e => change({ identity: e.target.checked })} />{t("Include chosen pathway")}</label>}
+      <fieldset><legend>{t("Choose up to three badges · {{count}}/3", { count: selection.badgeIds.length })}</legend>{saved.facts.earned.map(b => <label className="snapshot-check" key={b.id}>
         <input type="checkbox" checked={selection.badgeIds.includes(b.id)} disabled={!selection.badgeIds.includes(b.id) && selection.badgeIds.length >= 3}
           onChange={e => change({ badgeIds: e.target.checked ? [...selection.badgeIds, b.id] : selection.badgeIds.filter(id => id !== b.id) })} />
-        <span>{b.name}<small>{badgeFact(b)}</small></span>
+        <span>{badgeName(b.id)}<small>{badgeFact(b)}</small></span>
       </label>)}</fieldset>
     </fieldset>
     {content?.notice && <p role="status">{content.notice}</p>}
-    {!content && <p role="status">Choose a badge or include your pathway to make an image.</p>}
-    {stale && <div role="alert"><p>This keepsake changed. Refresh the preview before saving or sharing.</p><button disabled={busy} onClick={() => void refresh()}>Refresh preview</button></div>}
-    {renderError && <div role="alert"><p>{renderError === 'artwork' ? 'The pathway artwork could not be rendered. Retry or choose a badge-only image.' : renderError === 'overflow' ? 'This composition needs more room. Choose Story or fewer badges; no text has been clipped.' : 'The image could not be rendered. Please retry.'}</p>
-      {renderError === 'artwork' && <button onClick={() => change({ identity: false })}>Use badge-only image</button>}
-      {renderError === 'overflow' && selection.format === 'post' && <button onClick={() => change({ format: 'story' })}>Use roomier Story</button>}
-      <button onClick={() => setAttempt(value => value + 1)}>Retry rendering</button>
+    {!content && <p role="status">{t("Choose a badge or include your pathway to make an image.")}</p>}
+    {stale && <div role="alert"><p>{t("This keepsake changed. Refresh the preview before saving or sharing.")}</p><button disabled={busy} onClick={() => void refresh()}>{t("Refresh preview")}</button></div>}
+    {renderError && <div role="alert"><p>{renderError === 'artwork' ? t("The pathway artwork could not be rendered. Retry or choose a badge-only image.") : renderError === 'overflow' ? t("This composition needs more room. Choose Story or fewer badges; no text has been clipped.") : t("The image could not be rendered. Please retry.")}</p>
+      {renderError === 'artwork' && <button onClick={() => change({ identity: false })}>{t("Use badge-only image")}</button>}
+      {renderError === 'overflow' && selection.format === 'post' && <button onClick={() => change({ format: 'story' })}>{t("Use roomier Story")}</button>}
+      <button onClick={() => setAttempt(value => value + 1)}>{t("Retry rendering")}</button>
     </div>}
-    {image && <><button className="snapshot-image" onClick={() => setEnlarged(!enlarged)} aria-expanded={enlarged} aria-label={enlarged ? 'Reduce image preview' : 'Enlarge image preview'}><img src={image} alt="Your reading quarter. Full image text follows below." /></button>
-      {enlarged && <div className="snapshot-enlarged" tabIndex={0} role="region" aria-label="Enlarged image, scroll to explore"><img src={image} alt="Enlarged reading-quarter image" /></div>}</>}
-    {content && <details className="snapshot-equivalent"><summary>Read image text</summary><div lang={content.language}><p>A season among pages · {content.period}</p><h4>{content.title}</h4>{content.badges.map(b => <p key={b.id}><strong>{b.title}</strong><br />{b.caption}{b.personalBest && <><br />Your best recorded quarter</>}</p>)}<p>Wovenleaf · {content.quarter}</p></div></details>}
-    {changes.length > 0 && <ul aria-label="Changes in this preview">{changes.map(change => <li key={change}>{change}</li>)}</ul>}
-    {failure && <p role="alert">{failure}</p>}{message && <p role="status">{message}</p>}
-    <div className="review-actions"><button className="review-primary" disabled={!image || stale || busy} onClick={() => void send('save')}>Save image</button><button disabled={!image || stale || busy} onClick={() => void send('share')}>Share image</button></div>
+    {image && <><button className="snapshot-image" onClick={() => setEnlarged(!enlarged)} aria-expanded={enlarged} aria-label={enlarged ? t("Reduce image preview") : t("Enlarge image preview")}><img src={image} alt={t("Your reading quarter. Full image text follows below.")} /></button>
+      {enlarged && <div className="snapshot-enlarged" tabIndex={0} role="region" aria-label={t("Enlarged image, scroll to explore")}><img src={image} alt={t("Enlarged reading-quarter image")} /></div>}</>}
+    {content && <details className="snapshot-equivalent"><summary>{t("Read image text")}</summary><div lang={content.language}><p>{translateAt('A season among pages · {{period}}', content.language, { period: content.period })}</p><h4>{content.title}</h4>{content.badges.map(b => <p key={b.id}><strong>{b.title}</strong><br />{b.caption}{b.personalBest && <><br />{translateAt('Your best recorded quarter', content.language)}</>}</p>)}<p>{'Wovenleaf · '}{content.quarter}</p></div></details>}
+    {changes.length > 0 && <ul aria-label={t("Changes in this preview")}>{changes.map(change => <li key={change}>{translateCopy(change)}</li>)}</ul>}
+    {failure && <p role="alert">{<LocalizedError message={failure} />}</p>}{message && <p role="status">{message}</p>}
+    <div className="review-actions"><button className="review-primary" disabled={!image || stale || busy} onClick={() => void send('save')}>{t("Save image")}</button><button disabled={!image || stale || busy} onClick={() => void send('share')}>{t("Share image")}</button></div>
   </section>
 }

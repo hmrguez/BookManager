@@ -9,6 +9,7 @@ import type {
 import type { EpubCompatibilityProfile } from '../epub/compatibility'
 
 type ReaderOpenOptions = {
+  readonly interfaceLocale: string
   readonly bookId: string
   readonly editionId: string
   readonly assetId: string

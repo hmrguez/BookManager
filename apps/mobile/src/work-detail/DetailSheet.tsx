@@ -1,3 +1,4 @@
+import { t, useLanguage } from '../localization'
 import { useCallback, useImperativeHandle, useRef, useState, useLayoutEffect, type ReactNode, type Ref } from 'react'
 import { DetailDraftContext, type DetailDraft } from './DetailDraft'
 
@@ -70,6 +71,7 @@ export function DetailSheet({
   audiobookBusy: boolean
   audiobookImport: AudiobookAttachmentState
 }) {
+  useLanguage()
   const draft = useRef<DetailDraft | null>(null)
   const registerDraft = useCallback((value: DetailDraft) => {
     draft.current = value
@@ -87,14 +89,14 @@ export function DetailSheet({
     else confirmation.current?.close()
   }, [pending])
   return (
-    <Sheet title="Book details" onClose={() => requestLeave(onClose)} tall adaptiveDetail>
+    <Sheet title={t("Book details")} onClose={() => requestLeave(onClose)} tall adaptiveDetail>
       <dialog ref={confirmation} className="detail-save-dialog" aria-labelledby="detail-save-title" onCancel={() => setPending(null)} onKeyDown={(event) => event.stopPropagation()}>
-        <h3 id="detail-save-title">Save your changes?</h3>
-        <p>Keep your edits before leaving this book.</p>
+        <h3 id="detail-save-title">{t("Save your changes?")}</h3>
+        <p>{t("Keep your edits before leaving this book.")}</p>
         <div>
-          <button type="button" onClick={() => setPending(null)}>Cancel</button>
-          <button type="button" onClick={() => { draft.current = null; setPending(null); pending?.() }}>Discard</button>
-          <button type="button" onClick={() => { confirmation.current?.close(); const saved = draft.current?.save(); setPending(null); if (saved) { draft.current = null; pending?.() } }}>Save</button>
+          <button type="button" onClick={() => setPending(null)}>{t("Cancel")}</button>
+          <button type="button" onClick={() => { draft.current = null; setPending(null); pending?.() }}>{t("Discard")}</button>
+          <button type="button" onClick={() => { confirmation.current?.close(); const saved = draft.current?.save(); setPending(null); if (saved) { draft.current = null; pending?.() } }}>{t("Save")}</button>
         </div>
       </dialog>
       <DetailDraftContext value={registerDraft}>

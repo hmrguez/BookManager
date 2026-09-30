@@ -1,3 +1,4 @@
+import { t, useLanguage } from '../localization'
 import { useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react'
 import { AlertTriangle, LoaderCircle, Star } from 'lucide-react'
 import type { LibraryBook } from '../library'
@@ -33,6 +34,7 @@ export function ActionButton({
 }
 
 export function BookCover({ book, large = false }: { book: CoverData; large?: boolean }) {
+  useLanguage()
   const [failedThumbnail, setFailedThumbnail] = useState<string>()
   const colorIndex = [...book.title].reduce((sum, character) => sum + character.charCodeAt(0), 0) % 6
   const initials = book.title
@@ -54,7 +56,7 @@ export function BookCover({ book, large = false }: { book: CoverData; large?: bo
         <>
           <span className={tw("cover-rule")} />
           <strong>{initials || 'BK'}</strong>
-          <small>{book.authors[0]?.split(' ').at(-1) ?? 'Book'}</small>
+          <small>{book.authors[0]?.split(' ').at(-1) ?? t("Book")}</small>
         </>
       )}
     </div>
@@ -116,11 +118,12 @@ export function FeedbackNotice({
 
 export function ProgressMeter({
   value,
-  label = 'Reading progress',
+  label = t("Reading progress"),
 }: {
   value: number
   label?: string
 }) {
+  useLanguage()
   const boundedValue = Math.min(100, Math.max(0, value))
 
   return (
@@ -148,15 +151,16 @@ export function RatingStars({
   compact?: boolean
   disabled?: boolean
 }) {
+  useLanguage()
   return (
-    <div className={tw(`stars${compact ? ' stars--compact' : ''}`)} aria-label={`${value} out of 5 stars`}>
+    <div className={tw(`stars${compact ? ' stars--compact' : ''}`)} aria-label={t("{{v0}} out of 5 stars", { v0: value })}>
       {[1, 2, 3, 4, 5].map((rating) =>
         onChange ? (
           <button
             type="button"
             key={rating}
             className={tw(rating <= value ? 'is-filled' : '')}
-            aria-label={`Rate ${rating} out of 5`}
+            aria-label={t("Rate {{v0}} out of 5", { v0: rating })}
             onClick={() => onChange(rating)}
             disabled={disabled}
           >

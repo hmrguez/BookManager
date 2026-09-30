@@ -1,3 +1,4 @@
+import { setLanguagePreference, type Language } from '../src/localization'
 /** Simulator-only entry point. Bundle into a copy of the app, never production. */
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem'
 import { getStorageRuntime } from '../src/storage/runtime'
@@ -21,7 +22,8 @@ async function preview() {
   })
   const runtime = await getStorageRuntime()
   const book = await runtime.epubs.import({ name: 'quiet-reading-room.epub', mediaType: 'application/epub+zip', bytes })
-  const scenario = await (await fetch('/reader-scenario.json')).json() as { fontSize?: number; columnCount?: 'auto' | 'one' | 'two' }
+  const scenario = await (await fetch('/reader-scenario.json')).json() as { fontSize?: number; columnCount?: 'auto' | 'one' | 'two'; language?: Language }
+  if (scenario.language) setLanguagePreference(scenario.language)
   await new EpubReaderRepository(runtime.database).savePreferences('book', book.bookId, {
     ...DEFAULT_READER_PREFERENCES, fontSize: scenario.fontSize ?? 1, columnCount: scenario.columnCount ?? 'auto',
   })

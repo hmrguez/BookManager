@@ -1,3 +1,5 @@
+import { LocalizedError } from '../localization/LocalizedError'
+import { t, useLanguage } from '../localization'
 import { useState, type InputHTMLAttributes } from 'react'
 import { Capacitor } from '@capacitor/core'
 import { pickOriginalFiles } from './original-files'
@@ -8,6 +10,7 @@ export function OriginalFileInput({ kind, folder = false, onFiles, ...props }: O
   readonly folder?: boolean
   readonly onFiles: (files: File[]) => void
 }) {
+  useLanguage()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
   return <>
@@ -19,13 +22,13 @@ export function OriginalFileInput({ kind, folder = false, onFiles, ...props }: O
         setError(undefined)
         setBusy(true)
         void pickOriginalFiles(kind, folder).then((files) => { if (files.length) onFiles(files) })
-          .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'The file could not be opened.'))
+          .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : t("The file could not be opened.")))
           .finally(() => setBusy(false))
       }}
       onChange={(event) => {
         if (event.currentTarget.files?.length) onFiles(Array.from(event.currentTarget.files))
         event.currentTarget.value = ''
       }} />
-    {error && <small role="alert" className="col-span-full block min-w-0 w-full py-2 text-center text-[var(--text-secondary)]">{error}</small>}
+    {error && <small role="alert" className="col-span-full block min-w-0 w-full py-2 text-center text-[var(--text-secondary)]">{<LocalizedError message={error} />}</small>}
   </>
 }

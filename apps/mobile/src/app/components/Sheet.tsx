@@ -1,3 +1,4 @@
+import { t, useLanguage } from '../../localization'
 import { useEffect, useLayoutEffect, useRef, type ReactNode } from 'react'
 import { useWideLayout } from '../../responsive/useWideLayout'
 import { X } from 'lucide-react'
@@ -19,6 +20,7 @@ export function Sheet({
   adaptiveDetail?: boolean
   wide?: boolean
 }) {
+  useLanguage()
   const wideLayout = useWideLayout()
   const docked = adaptiveDetail && wideLayout
   const dialogRef = useRef<HTMLElement>(null)
@@ -89,7 +91,7 @@ export function Sheet({
         <div className={tw('sheet-handle')} aria-hidden="true" />
         <header className={tw('sheet-header')}>
           <h2>{title}</h2>
-          <button className={tw('icon-button')} type="button" onClick={onClose} aria-label="Close">
+          <button className={tw('icon-button')} type="button" onClick={onClose} aria-label={t("Close")}>
             <X aria-hidden="true" />
           </button>
         </header>

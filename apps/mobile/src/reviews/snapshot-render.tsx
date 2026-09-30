@@ -1,3 +1,4 @@
+import { translateAt } from '../localization'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { AchievementSeal } from './AchievementSeal'
 import type { SnapshotContent } from './snapshot'
@@ -43,7 +44,7 @@ export async function renderSnapshot(content: SnapshotContent): Promise<string> 
   const column = (inner - Math.max(0, content.badges.length - 1) * 34) / Math.max(1, content.badges.length)
   const badges = content.badges.map(b => ({ ...b, titles: lines(b.title, story ? 760 : column, story ? 36 : 30, true),
     captions: lines(b.caption, story ? 760 : column, story ? 30 : 26),
-    best: b.personalBest ? lines('Your best recorded quarter', story ? 760 : column, 24) : [] }))
+    best: b.personalBest ? lines(translateAt('Your best recorded quarter', content.language), story ? 760 : column, 24) : [] }))
   const badgeHeight = (b: typeof badges[number]) => b.titles.length * (story ? 46 : 39) + b.captions.length * (story ? 40 : 35) + b.best.length * 32 + 20
   const badgeArea = badges.length ? (story ? badges.reduce((n, b) => n + Math.max(120, badgeHeight(b)) + 36, 0) : Math.max(...badges.map(badgeHeight)) + 124) + 38 : 0
   const titleY = story ? 230 : 180, titleHeight = title.length * (story ? 96 : 82)
@@ -71,7 +72,7 @@ export async function renderSnapshot(content: SnapshotContent): Promise<string> 
     for (const row of rows) { ctx.fillText(row, x, y); y += leading }
     return y
   }
-  draw(['A SEASON AMONG PAGES'], margin, story ? 110 : 80, 22, 30)
+  draw([translateAt('A SEASON AMONG PAGES', content.language)], margin, story ? 110 : 80, 22, 30)
   draw([content.period], margin, story ? 153 : 121, 28, 38)
   draw(title, 540, titleY, story ? 76 : 64, story ? 96 : 82, true, true)
   if (art) {

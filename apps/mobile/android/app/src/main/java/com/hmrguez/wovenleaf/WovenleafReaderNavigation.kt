@@ -113,7 +113,7 @@ internal class ReaderChapterRailView(
         isClickable = true
         isFocusable = true
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_YES
-        contentDescription = "Chapter rail"
+        contentDescription = WovenleafL10n.text("Chapter rail")
         setBackgroundColor(Color.TRANSPARENT)
     }
 
@@ -253,7 +253,7 @@ internal class ReaderChapterRailView(
             paint.color = if (focused) palette.ink else withAlpha(palette.secondaryInk, 0.72f)
             paint.textSize = sp(if (focused) 17f else 14f)
             paint.typeface = Typeface.create("serif", if (focused) Typeface.BOLD else Typeface.NORMAL)
-            val raw = entries[entryIndex].link.title?.trim().orEmpty().ifBlank { "Untitled section" }
+            val raw = entries[entryIndex].link.title?.trim().orEmpty().ifBlank { WovenleafL10n.text("Untitled section") }
             val available = card.width() - dp(34 + minOf(entries[entryIndex].depth, 3) * 8)
             val title = android.text.TextUtils.ellipsize(raw, android.text.TextPaint(paint), available, android.text.TextUtils.TruncateAt.END).toString()
             canvas.drawText(title, card.left + dp(17 + minOf(entries[entryIndex].depth, 3) * 8), y, paint)
@@ -327,8 +327,8 @@ internal class ReaderChapterRailView(
         android.net.Uri.decode(fragment.removePrefix("#"))
 
     private fun refreshAccessibility() {
-        val title = entries.getOrNull(activeIndex)?.link?.title ?: "No chapters"
-        contentDescription = "Chapter rail, $title"
+        val title = entries.getOrNull(activeIndex)?.link?.title ?: WovenleafL10n.text("No chapters")
+        contentDescription = WovenleafL10n.text("Chapter rail, {{title}}", mapOf("title" to title))
     }
 
     private fun flatten(links: List<Link>, depth: Int = 0): List<Entry> = links.flatMap {
@@ -385,29 +385,29 @@ internal class ReaderNavigationDialog(
             gravity = Gravity.CENTER_VERTICAL
         }
         header.addView(TextView(activity).apply {
-            text = "Book map"
+            text = WovenleafL10n.text("Book map")
             textSize = 22f
             typeface = Typeface.create("serif", Typeface.NORMAL)
             setTextColor(palette.ink)
         }, LinearLayout.LayoutParams(0, dp(48), 1f))
-        header.addView(quietButton("Done") { dialog.dismiss() })
+        header.addView(quietButton(WovenleafL10n.text("Done")) { dialog.dismiss() })
         shell.addView(header)
 
         val modes = LinearLayout(activity).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
         }
-        contentsButton = modeButton("Contents") { mode = 0; query = ""; search.setText(""); refresh() }
-        bookmarksButton = modeButton("Bookmarks") { mode = 1; query = ""; search.setText(""); refresh() }
-        notesButton = modeButton("Notes") { mode = 2; query = ""; search.setText(""); refresh() }
+        contentsButton = modeButton(WovenleafL10n.text("Contents")) { mode = 0; query = ""; search.setText(""); refresh() }
+        bookmarksButton = modeButton(WovenleafL10n.text("Bookmarks")) { mode = 1; query = ""; search.setText(""); refresh() }
+        notesButton = modeButton(WovenleafL10n.text("Notes")) { mode = 2; query = ""; search.setText(""); refresh() }
         modes.addView(contentsButton, LinearLayout.LayoutParams(0, dp(48), 1f))
         modes.addView(bookmarksButton, LinearLayout.LayoutParams(0, dp(48), 1f))
         modes.addView(notesButton, LinearLayout.LayoutParams(0, dp(48), 1f))
         shell.addView(modes)
 
         search = EditText(activity).apply {
-            hint = if (publication.isSearchable) "Search in this book" else "Search unavailable for this book"
-            contentDescription = "Search within book"
+            hint = if (publication.isSearchable) WovenleafL10n.text("Search in this book") else WovenleafL10n.text("Search unavailable for this book")
+            contentDescription = WovenleafL10n.text("Search within book")
             isEnabled = publication.isSearchable
             isSingleLine = true
             setTextColor(palette.ink)
@@ -484,12 +484,12 @@ internal class ReaderNavigationDialog(
             refresh()
             return
         }
-        status("Searching…")
+        status(WovenleafL10n.text("Searching…"))
         searchJob = activity.lifecycleScope.launch {
             delay(250)
             val iterator = publication.search(query)
             if (iterator == null) {
-                status("Search is unavailable for this publication.")
+                status(WovenleafL10n.text("Search is unavailable for this publication."))
                 return@launch
             }
             val found = mutableListOf<Locator>()
@@ -516,18 +516,18 @@ internal class ReaderNavigationDialog(
             }
         }
         if (query.isNotEmpty()) {
-            if (results.isEmpty()) status("No passages found.") else results.forEach(::addSearchResult)
+            if (results.isEmpty()) status(WovenleafL10n.text("No passages found.")) else results.forEach(::addSearchResult)
         } else if (mode == 0) {
-            if (tocEntries.isEmpty()) status("This publication does not include a table of contents.")
+            if (tocEntries.isEmpty()) status(WovenleafL10n.text("This publication does not include a table of contents."))
             else tocEntries.forEach(::addTocEntry)
         } else if (mode == 1) {
             val bookmarks = state.bookmarks.sortedByDescending { it.updatedAt }
-            if (bookmarks.isEmpty()) status("No bookmarks yet.") else bookmarks.forEach(::addBookmark)
+            if (bookmarks.isEmpty()) status(WovenleafL10n.text("No bookmarks yet.")) else bookmarks.forEach(::addBookmark)
         } else {
             val annotations = annotationState.annotations
                 .filterNot(ReaderAnnotationRecord::isDeleted)
                 .sortedWith(compareByDescending<ReaderAnnotationRecord> { it.updatedAt }.thenBy { it.id })
-            if (annotations.isEmpty()) status("No highlights or notes yet.") else annotations.forEach(::addAnnotation)
+            if (annotations.isEmpty()) status(WovenleafL10n.text("No highlights or notes yet.")) else annotations.forEach(::addAnnotation)
         }
     }
 
@@ -546,8 +546,8 @@ internal class ReaderNavigationDialog(
     private fun addTocEntry(entry: TocEntry) {
         val selected = state.toc?.locator?.href == publication.locatorFromLink(entry.link)?.href
         addRow(
-            title = (if (selected) "• " else "") + (entry.link.title ?: "Untitled section"),
-            detail = "Level ${entry.depth + 1}",
+            title = (if (selected) "• " else "") + (entry.link.title ?: WovenleafL10n.text("Untitled section")),
+            detail = WovenleafL10n.text("Level {{level}}", mapOf("level" to (entry.depth + 1).toString())),
             inset = entry.depth * 18,
         ) {
             onNavigateLink(entry.link)
@@ -558,7 +558,7 @@ internal class ReaderNavigationDialog(
     private fun addSearchResult(locator: Locator) {
         val excerpt = listOfNotNull(locator.text.before, locator.text.highlight, locator.text.after)
             .joinToString(" ").replace(Regex("\\s+"), " ").trim().take(190)
-        addRow(locator.title ?: "Passage", excerpt.ifBlank { "Open match" }) {
+        addRow(locator.title ?: WovenleafL10n.text("Passage"), excerpt.ifBlank { WovenleafL10n.text("Open match") }) {
             onNavigateLocator(locator)
             dialog.dismiss()
         }
@@ -572,7 +572,7 @@ internal class ReaderNavigationDialog(
             setBackgroundColor(palette.page)
         }
         row.addView(
-            rowText(bookmark.locator.title ?: "Saved passage", progression ?: "Bookmark").apply {
+            rowText(bookmark.locator.title ?: WovenleafL10n.text("Saved passage"), progression ?: WovenleafL10n.text("Bookmark")).apply {
                 setOnClickListener {
                     onNavigateLocator(bookmark.locator)
                     dialog.dismiss()
@@ -581,9 +581,9 @@ internal class ReaderNavigationDialog(
             LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f),
         )
         row.addView(Button(activity).apply {
-            text = "Remove"
+            text = WovenleafL10n.text("Remove")
             isAllCaps = false
-            contentDescription = "Remove bookmark"
+            contentDescription = WovenleafL10n.text("Remove bookmark")
             setTextColor(palette.secondaryInk)
             setBackgroundColor(palette.page)
             setOnClickListener {
@@ -600,7 +600,7 @@ internal class ReaderNavigationDialog(
         val detail = buildList {
             add(annotation.quote.replace(Regex("\\s+"), " ").trim().take(160))
             annotation.chapter?.let(::add)
-            if (annotation.anchorStatus == "review") add("Needs review")
+            if (annotation.anchorStatus == "review") add(WovenleafL10n.text("Needs review"))
             if (annotation.note.isNotBlank()) add(annotation.note.replace(Regex("\\s+"), " ").trim().take(120))
             if (annotation.tags.isNotEmpty()) add(annotation.tags.joinToString(" · "))
         }.joinToString("\n")
@@ -609,7 +609,7 @@ internal class ReaderNavigationDialog(
             setBackgroundColor(palette.page)
         }
         row.addView(rowText(
-            if (annotation.anchorStatus == "review") "Needs review" else annotation.chapter ?: "Highlighted passage",
+            if (annotation.anchorStatus == "review") WovenleafL10n.text("Needs review") else annotation.chapter ?: WovenleafL10n.text("Highlighted passage"),
             detail,
         ).apply {
             setPadding(dp(14), dp(11), dp(14), dp(6))
@@ -622,12 +622,12 @@ internal class ReaderNavigationDialog(
         row.addView(LinearLayout(activity).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.END
-            addView(modeButton(if (annotation.anchorStatus == "review") "Review" else "Edit") {
+            addView(modeButton(if (annotation.anchorStatus == "review") WovenleafL10n.text("Review") else WovenleafL10n.text("Edit")) {
                 dialog.dismiss()
                 if (annotation.anchorStatus == "review") onReviewAnnotation(annotation)
                 else onEditAnnotation(annotation)
             })
-            addView(modeButton("Delete") {
+            addView(modeButton(WovenleafL10n.text("Delete")) {
                 onDeleteAnnotation(annotation)
                 refresh()
             })

@@ -1,3 +1,4 @@
+import { t, getLocale, formatNumber, translateCopy } from '../localization'
 import { z } from 'zod'
 import { emptyReviewBackup, readReviewBackup, replaceReviewBackup, reviewBackupSchema, type ReviewBackup } from '../reviews/backup'
 import {
@@ -1151,33 +1152,33 @@ export function createLibraryMarkdown(
   annotationStates: readonly ReaderAnnotationState[] = [],
 ): string {
   const shelfLabels: Record<LibraryBook['shelf'], string> = {
-    tbr: 'To Be Read',
-    next: 'Up Next',
-    reading: 'Reading',
-    finished: 'Finished',
-    dnf: 'DNF',
+    tbr: t("To Be Read"),
+    next: t("Up Next"),
+    reading: t("Reading"),
+    finished: t("Finished"),
+    dnf: t("DNF"),
   }
   const lines = [
-    '# Wovenleaf Reading Journal',
+    '# ' + t("Wovenleaf Reading Journal"),
     '',
-    '> Human-readable view only. This Markdown omits canonical IDs, provenance, relationships, checksums, and restore metadata. Keep the portable JSON archive for a lossless move.',
+    '> ' + t("Human-readable view only. This Markdown omits canonical IDs, provenance, relationships, checksums, and restore metadata. Keep the portable JSON archive for a lossless move."),
     '',
-    `Exported ${createdAt}`,
+    t("Exported {{date}}", { date: new Date(createdAt).toLocaleString(getLocale()) }),
   ]
 
   for (const shelf of ['tbr', 'next', 'reading', 'finished', 'dnf'] as const) {
     const shelfBooks = books.filter((book) => book.shelf === shelf)
-    lines.push('', `## ${shelfLabels[shelf]} (${shelfBooks.length})`)
+    lines.push('', `## ${shelfLabels[shelf]} (${formatNumber(shelfBooks.length)})`)
     if (!shelfBooks.length) {
-      lines.push('', '_No books on this shelf._')
+      lines.push('', '_' + t("No books on this shelf.") + '_')
       continue
     }
     for (const book of shelfBooks) {
       lines.push('', `### ${escapeMarkdown(book.title)}`)
-      lines.push('', `- Author${book.authors.length === 1 ? '' : 's'}: ${book.authors.map(escapeMarkdown).join(', ')}`)
-      if (book.pageCount) lines.push(`- Pages: ${book.currentPage} of ${book.pageCount} (${book.progress}%)`)
-      else lines.push(`- Progress: ${book.progress}%`)
-      if (book.rating) lines.push(`- Rating: ${book.rating}/5`)
+      lines.push('', `- ${book.authors.length === 1 ? t("Author") : t("Authors")}: ${book.authors.map(escapeMarkdown).join(', ')}`)
+      if (book.pageCount) lines.push('- ' + t("Pages: {{current}} of {{total}} ({{progress}}%)", { current: formatNumber(book.currentPage), total: formatNumber(book.pageCount), progress: formatNumber(book.progress) }))
+      else lines.push('- ' + t("Progress: {{value}}%", { value: formatNumber(book.progress) }))
+      if (book.rating) lines.push('- ' + t("Rating: {{value}}/5", { value: formatNumber(book.rating) }))
       if (book.notes) lines.push('', book.notes)
     }
   }
@@ -1194,24 +1195,24 @@ export function createLibraryMarkdown(
         || left.createdAt.localeCompare(right.createdAt)
         || left.id.localeCompare(right.id)
     })
-  lines.push('', `## Highlights & Notes (${highlights.length})`)
+  lines.push('', '## ' + t("Highlights & Notes ({{count}})", { count: formatNumber(highlights.length) }))
   if (!highlights.length) {
-    lines.push('', '_No saved highlights or passage notes._')
+    lines.push('', '_' + t("No saved highlights or passage notes.") + '_')
   } else {
     for (const annotation of highlights) {
       const book = bookById.get(annotation.bookId)
-      lines.push('', `### ${escapeMarkdown(book?.title ?? 'Unknown book')}`)
-      const details = [annotation.chapter, annotation.color, annotation.createdAt]
+      lines.push('', `### ${escapeMarkdown(book?.title ?? t("Unknown book"))}`)
+      const details = [annotation.chapter, translateCopy(annotation.color[0]!.toUpperCase() + annotation.color.slice(1)), new Date(annotation.createdAt).toLocaleString(getLocale())]
         .filter((value): value is string => Boolean(value))
         .map(escapeMarkdown)
       lines.push('', `_${details.join(' · ')}_`)
       lines.push('', ...annotation.quote.split(/\r?\n/).map((line) => `> ${line}`))
       if (annotation.note) lines.push('', annotation.note)
       if (annotation.tags.length) {
-        lines.push('', `Tags: ${annotation.tags.map((tag) => `#${escapeMarkdown(tag.replaceAll(' ', '-'))}`).join(' ')}`)
+        lines.push('', `${t("Tags")}: ${annotation.tags.map((tag) => `#${escapeMarkdown(tag.replaceAll(' ', '-'))}`).join(' ')}`)
       }
       if (annotation.anchor.status === 'review') {
-        lines.push('', '_Anchor needs review after an EPUB revision._')
+        lines.push('', '_' + t("Anchor needs review after an EPUB revision.") + '_')
       }
     }
   }

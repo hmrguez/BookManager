@@ -1,3 +1,4 @@
+import { t, useLanguage } from '../localization'
 import { VirtualBookList } from './VirtualBookList'
 import { BookTile } from './LibraryPresentation'
 import { useLibraryView } from './use-library-view'
@@ -15,6 +16,7 @@ import { FinishBookAction } from './FinishBookAction'
 import type { UpNextSuggestionSet } from '../up-next-model'
 
 function SearchHighlightedText({ value, highlight }: { value: string; highlight?: SearchHighlight }) {
+  useLanguage()
   if (!highlight?.ranges.length) return value
   const parts: ReactNode[] = []
   let offset = 0
@@ -44,16 +46,17 @@ export function SearchBookCopy({
   result?: LocalSearchResult
   children?: ReactNode
 }) {
+  useLanguage()
   const context = result?.highlights.find(({ field }) => field !== 'title' && field !== 'contributor')
   const contextLabels: Partial<Record<SearchHighlight['field'], string>> = {
-    'alternate-title': 'Also titled',
-    series: 'Series',
-    identifier: 'Identifier',
-    tag: 'Tag',
-    list: 'Shelf',
-    note: 'Private note',
-    source: 'Source',
-    edition: 'Edition',
+    get 'alternate-title'() { return t("Also titled") },
+    get series() { return t("Series") },
+    get identifier() { return t("Identifier") },
+    get tag() { return t("Tag") },
+    get list() { return t("Shelf") },
+    get note() { return t("Private note") },
+    get source() { return t("Source") },
+    get edition() { return t("Edition") },
   }
 
   return (
@@ -126,6 +129,7 @@ export function ShelfSection({
   onRecommendationSettings?: () => void
   recommendationsLoading?: boolean
 }) {
+  useLanguage()
   const grid = useLibraryView() === 'grid'
   const recommendedIds = new Set(recommendations?.suggestions.map(({ book }) => book.id))
   const meta = shelfCopy[shelf]
@@ -162,12 +166,12 @@ export function ShelfSection({
           <h2>{meta.label} <i>·</i> {books.length}</h2>
           <ChevronDown className={tw(isCollapsed ? 'is-collapsed' : '')} aria-hidden="true" />
         </button>
-        {shelf === 'tbr' && onRecommendationSettings && <button className={tw('shelf-add')} type="button" disabled={recommendationsLoading} onClick={onRecommendationSettings} aria-label="Recommendation preferences"><SlidersHorizontal aria-hidden="true" /></button>}
+        {shelf === 'tbr' && onRecommendationSettings && <button className={tw('shelf-add')} type="button" disabled={recommendationsLoading} onClick={onRecommendationSettings} aria-label={t("Recommendation preferences")}><SlidersHorizontal aria-hidden="true" /></button>}
         <button
           type="button"
           className={tw('shelf-add')}
           onClick={() => onAdd(shelf)}
-          aria-label={`Add a book to ${meta.label}`}
+          aria-label={t("Add a book to {{v0}}", { v0: meta.label })}
         >
           <Plus aria-hidden="true" />
         </button>
@@ -183,12 +187,12 @@ export function ShelfSection({
           isFiltering ? (
             <div className={tw('empty-shelf empty-shelf--filter')} {...shelfCascadeItem(0, cascadeItemCount)}>
               <Search aria-hidden="true" />
-              <span><strong>No matches on this shelf</strong><small>Try another title or author</small></span>
+              <span><strong>{t("No matches on this shelf")}</strong><small>{t("Try another title or author")}</small></span>
             </div>
           ) : (
             <button className={tw('empty-shelf')} type="button" onClick={() => onAdd(shelf)} {...shelfCascadeItem(0, cascadeItemCount)}>
               <CirclePlus aria-hidden="true" />
-              <span><strong>{meta.empty}</strong><small>Add a title to this shelf</small></span>
+              <span><strong>{meta.empty}</strong><small>{t("Add a title to this shelf")}</small></span>
             </button>
           )
         ) : (
@@ -210,19 +214,19 @@ export function ShelfSection({
 
                   {shelf === 'tbr' && (
                     <button className={tw('row-action row-action--next')} type="button" onClick={() => onNext(book.id)}>
-                      Next <ArrowRight aria-hidden="true" />
+                      {t("Next ")}<ArrowRight aria-hidden="true" />
                     </button>
                   )}
                   {shelf === 'next' && (
                     <button className={tw('row-action row-action--start')} type="button" onClick={() => onStart(book.id)}>
-                      Start <ArrowRight aria-hidden="true" />
+                      {t("Start ")}<ArrowRight aria-hidden="true" />
                     </button>
                   )}
                   {shelf === 'reading' && (
                     <div className={tw('reading-actions')}>
                       <button className={tw('progress-button')} type="button" onClick={() => onProgress(book.id)}>
                         <span>{book.progress}%</span>
-                        <ProgressMeter value={book.progress} label={`${book.title} reading progress`} />
+                        <ProgressMeter value={book.progress} label={t("{{v0}} reading progress", { v0: book.title })} />
                       </button>
                       <FinishBookAction onFinish={() => onFinish(book.id)} onDnf={() => onDnf(book.id)} />
                     </div>
@@ -231,10 +235,10 @@ export function ShelfSection({
                     <RatingStars compact value={book.rating} onChange={(rating) => onRate(book.id, rating)} />
                   )}
                 </>}
-                {recommendedIds.has(book.id) && <button type="button" className={tw('recommendation-star')} aria-label={`Why ${book.title} is recommended`} onClick={() => onRecommendation?.(book.id)}><Star aria-hidden="true" /></button>}
+                {recommendedIds.has(book.id) && <button type="button" className={tw('recommendation-star')} aria-label={t("Why {{v0}} is recommended", { v0: book.title })} onClick={() => onRecommendation?.(book.id)}><Star aria-hidden="true" /></button>}
                 {shelf === 'dnf' && (
-                  <button className={tw('row-action')} type="button" onClick={() => onStart(book.id)} aria-label={`Return ${book.title} to Reading`}>
-                    Resume <ArrowRight aria-hidden="true" />
+                  <button className={tw('row-action')} type="button" onClick={() => onStart(book.id)} aria-label={t("Return {{v0}} to Reading", { v0: book.title })}>
+                    {t("Resume ")}<ArrowRight aria-hidden="true" />
                   </button>
                 )}
               </article>

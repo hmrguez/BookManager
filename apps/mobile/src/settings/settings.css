@@ -82,3 +82,7 @@
 .private-erasure-card button:disabled { opacity: .5; }
 .private-erasure-card ul { margin-block: .75rem; padding-inline-start: 1.25rem; font-size: .85rem; line-height: 1.6; }
 .private-erasure-card :focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
+
+.settings-page label.appearance-field { display: grid; gap: 10px; font: 500 .8rem/1.4 var(--font-interface); }
+.settings-page label.appearance-field select { width: 100%; min-width: 0; min-height: 44px; padding: .65rem; background: var(--surface-page); border: 1px solid var(--border-subtle); border-radius: 8px; color: var(--text-primary); font: inherit; }
+.settings-page label.appearance-field select:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }

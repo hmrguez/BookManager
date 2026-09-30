@@ -1,3 +1,4 @@
+import { t, useLanguage } from '../localization'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { AnchoredMenu } from '../design-system/AnchoredMenu'
 import { BookMinus, Check } from 'lucide-react'
@@ -10,6 +11,7 @@ export function FinishBookAction({ onFinish, onDnf }: {
   onFinish: () => void
   onDnf: () => void
 }) {
+  useLanguage()
   const [open, setOpen] = useState(false)
   const menuId = useId()
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -47,9 +49,9 @@ export function FinishBookAction({ onFinish, onDnf }: {
       aria-haspopup="menu"
       aria-expanded={open}
       aria-controls={open ? menuId : undefined}
-      aria-description="Tap to finish. Hold for Finish or DNF, or press the down arrow for options."
+      aria-description={t("Tap to finish. Hold for Finish or DNF, or press the down arrow for options.")}
       aria-keyshortcuts="ArrowDown ArrowUp Shift+F10"
-      title="Tap to finish · Hold for more options"
+      title={t("Tap to finish · Hold for more options")}
       onPointerDown={(event) => {
         if (event.button !== 0 || !event.isPrimary) return
         clearHold()
@@ -93,16 +95,16 @@ export function FinishBookAction({ onFinish, onDnf }: {
         else onFinish()
       }}
     >
-      Finish <Check aria-hidden="true" />
+      {t("Finish ")}<Check aria-hidden="true" />
     </button>
-    {open && <AnchoredMenu id={menuId} label="Reading status" triggerRef={triggerRef} initialFocus={firstItem} onClose={closeMenu}>
+    {open && <AnchoredMenu id={menuId} label={t("Reading status")} triggerRef={triggerRef} initialFocus={firstItem} onClose={closeMenu}>
       <button type="button" role="menuitem" tabIndex={-1} onClick={() => { closeMenu(); onFinish() }}>
         <Check aria-hidden="true" />
-        <span><strong>Finish</strong><small>Mark as completed</small></span>
+        <span><strong>{t("Finish")}</strong><small>{t("Mark as completed")}</small></span>
       </button>
       <button type="button" role="menuitem" tabIndex={-1} onClick={() => { closeMenu(); onDnf() }}>
         <BookMinus aria-hidden="true" />
-        <span><strong>DNF</strong><small>Did not finish</small></span>
+        <span><strong>{t("DNF")}</strong><small>{t("Did not finish")}</small></span>
       </button>
     </AnchoredMenu>}
   </>

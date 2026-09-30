@@ -1,0 +1,260 @@
+---
+import LanguageLinks from './LanguageLinks.astro';
+import {
+  createTranslator,
+  localizedPath,
+  localeFromPath,
+  screenshotPath,
+  type Language,
+} from '../localization';
+import LanguageMenu from './LanguageMenu.astro';
+const locale: Language =
+  Astro.props.locale ?? localeFromPath(Astro.url.pathname);
+const t = createTranslator(locale);
+import '@fontsource-variable/literata';
+import '@fontsource-variable/ibm-plex-sans';
+import '../styles.css';
+import StoreLinks from './StoreLinks.astro';
+import SiteFooter from './SiteFooter.astro';
+const stories = [
+  {
+    id: 'track',
+    number: '01',
+    label: t('THE BOOK TRACKER'),
+    title: t('Less organizing.\nMore reading.'),
+    text: t(
+      'Keep the books you want to read, the ones you’re reading, and the ones you loved together. Four simple shelves. A clear next chapter.',
+    ),
+    image: screenshotPath(locale, 'library'),
+    width: 390,
+    height: 844,
+    alt: t(
+      'Wovenleaf mobile library showing reading shelves, book covers, and progress.',
+    ),
+    details: [
+      t('To be read → Up next → Reading → Finished'),
+      t('Page progress, personal ratings, and private notes'),
+      t('Save recommendations and choose what comes next'),
+    ],
+  },
+  {
+    id: 'read',
+    number: '02',
+    label: t('THE EPUB READER'),
+    title: t('A little room\nfor a good book.'),
+    text: t(
+      'Open your EPUBs right where your reading life lives. Settle into a quiet page, find your place, and make the reading room your own.',
+    ),
+    image: screenshotPath(locale, 'reader'),
+    width: 1206,
+    height: 2622,
+    alt: t(
+      'Wovenleaf mobile EPUB reader displaying A Quiet Reading Room, with typography and reading progress controls.',
+    ),
+    details: [
+      t('Attach your own EPUBs to the books in your library'),
+      t('Comfortable type and paper-inspired themes'),
+      t('Read on iOS and Android, with your files on your device'),
+    ],
+  },
+  {
+    id: 'listen',
+    number: '03',
+    label: t('THE AUDIOBOOK PLAYER'),
+    title: t('Let the story\ncome along.'),
+    text: t(
+      'Bring your audiobooks into the same library. Press play, pick your pace, and keep the story with you when your hands are busy.',
+    ),
+    image: screenshotPath(locale, 'audiobook'),
+    width: 376,
+    height: 844,
+    alt: t(
+      'Wovenleaf mobile audiobook player showing Pride and Prejudice at 43% progress, with playback controls, bookmarks, and notes.',
+    ),
+    details: [
+      t('M4B or an ordered set of MP3 files'),
+      t('Playback controls, speed, and a sleep timer'),
+      t('Save a bookmark or a private note as you listen'),
+    ],
+  },
+];
+---
+
+<!doctype html>
+<html lang={locale}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title set:html={t('Wovenleaf — Track, read, listen. One quiet place.')} />
+    <meta
+      name="description"
+      content={t(
+        'A fast, simple book tracker, EPUB reader, and audiobook player. Your whole reading life, together in Wovenleaf.',
+      )}
+    />
+    <meta name="theme-color" content="#f6f3eb" />
+    <link rel="icon" type="image/svg+xml" href="/mark.svg" />
+    <LanguageLinks locale={locale} />
+  </head>
+  <body>
+    <a class="skip" href="#main" set:html={t('Skip to content')} />
+    <main id="main">
+      <section class="hero wrap">
+        <div class="hero-copy">
+          <header class="hero-brand">
+            <a
+              class="brand"
+              href="#main"
+              aria-label={t('Wovenleaf home')}
+              set:html={t(
+                '<img src="/mark.svg" width="40" height="40" alt="" />Wovenleaf',
+              )}
+            />
+            <LanguageMenu locale={locale} />
+          </header>
+          <p
+            class="eyebrow"
+            set:html={t('<span class="dot"></span> YOUR WHOLE READING LIFE')}
+          />
+          <h1 set:html={t('One place.<br />Every <em>chapter.</em>')} />
+          <p
+            class="lead"
+            set:html={t(
+              'A fast, simple book tracker, EPUB reader, and audiobook player. Together, at last.',
+            )}
+          />
+          <StoreLinks locale={locale} />
+          <p
+            class="small-note"
+            set:html={t('Made for iOS and Android. No account needed.')}
+          />
+        </div>
+        <div class="hero-art">
+          <span
+            class="annotation"
+            set:html={t('A quieter kind of all-in-one.')}
+          />
+          <div class="screen-frame">
+            <img
+              class="library-screen"
+              src={screenshotPath(locale, 'library')}
+              alt={t(
+                'Wovenleaf’s book tracker with four shelves, reading progress, ratings, and complete book covers.',
+              )}
+              width="390"
+              height="844"
+              fetchpriority="high"
+            />
+          </div>
+          <span
+            class="art-caption"
+            set:html={t(
+              '<span>BOOKS, BEAUTIFULLY TOGETHER</span><span>01 — 03</span>',
+            )}
+          />
+        </div>
+      </section>
+      <div class="intro-strip wrap">
+        <p
+          set:html={t('Less switching.<br /><strong>More story.</strong>')}
+        /><p
+          set:html={t(
+            'Remember a recommendation. Turn a page. Press play.<br />It all belongs in the same quiet place.',
+          )}
+        /><span aria-hidden="true">↓</span>
+      </div>
+      <div class="stories wrap">
+        {
+          stories.map((story) => (
+            <section
+              class:list={['story', { reverse: story.id === 'read' }]}
+              id={story.id}
+            >
+              <a
+                class="story-image"
+                href={
+                  story.id === 'track'
+                    ? localizedPath(locale, '/screenshots/library/')
+                    : story.image
+                }
+                target="_blank"
+                rel="noopener"
+                aria-label={t(
+                  'View the app screenshot full size (opens in a new tab)',
+                )}
+              >
+                <>
+                  <img
+                    class:list={{ 'library-screen': story.id === 'track' }}
+                    src={story.image}
+                    alt={story.alt}
+                    width={story.width}
+                    height={story.height}
+                    loading="lazy"
+                  />
+                  <span
+                    set:html={t(
+                      'Take a closer look <span aria-hidden="true">↗</span>',
+                    )}
+                  />
+                </>
+              </a>
+              <div class="story-copy">
+                <>
+                  <p class="eyebrow">
+                    <span class="chapter-number">{story.number}</span>
+                    {story.label}
+                  </p>
+                  <h2>
+                    {story.title.split('\n').map((line) => (
+                      <span>
+                        {line}
+                        <br />
+                      </span>
+                    ))}
+                  </h2>
+                  <p>{story.text}</p>
+                  <ul>
+                    {story.details.map((detail) => (
+                      <li>{detail}</li>
+                    ))}
+                  </ul>
+                </>
+              </div>
+            </section>
+          ))
+        }
+      </div>
+      <section class="privacy wrap">
+        <div class="privacy-mark" aria-hidden="true">✳</div><p
+          class="eyebrow"
+          set:html={t('PERSONAL BY NATURE')}
+        /><h2
+          set:html={t('Your reading life.<br /><em>Yours to keep.</em>')}
+        /><p
+          set:html={t(
+            'Your library, files, and private notes stay on your device.<br />No account to create. No feed to keep up with.',
+          )}
+        /><div class="privacy-notes">
+          <span set:html={t('Stored on your device')} /><span
+            set:html={t('Portable library backups')}
+          /><span set:html={t('No account required')} />
+        </div>
+        <p
+          class="privacy-detail"
+          set:html={t(
+            'Online search and cover lookups use Open Library.<br /> <a href="/privacy/">Read the privacy policy →</a>',
+          )}
+        />
+      </section>
+      <section class="closing wrap">
+        <p class="eyebrow" set:html={t('THE NEXT CHAPTER IS YOURS')} /><h2
+          set:html={t(
+            'A book tracker.<br />A reader. A player.<br /><em>A simpler reading life.</em>',
+          )}
+        /><StoreLinks locale={locale} />
+      </section>
+    </main>
+    <SiteFooter locale={locale} />
+  </body>
+</html>

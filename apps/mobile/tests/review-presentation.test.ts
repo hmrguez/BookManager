@@ -32,3 +32,10 @@ test('all eight original identity names have independent offline stills', async 
   }
   for (const genre of REVIEW_GENRES) expect(reviewArtwork.pathways[genre].animation).toBeNull()
 })
+
+test('badge captions use singular grammar without changing quantitative qualifiers', () => {
+  expect(metricFact('01', 1, '', 'en-US')).toBe('1 distinct book marked finished')
+  expect(metricFact('01', 1, '', 'es-ES')).toBe('1 libro distinto marcado como terminado')
+  expect(metricFact('10', 1, '', 'fr-FR')).toBe('1 jour avec au moins cinq minutes d’écoute enregistrées')
+  expect(metricFact('10', 2, '', 'fr-FR')).not.toBe(metricFact('10', 1, '', 'fr-FR'))
+})

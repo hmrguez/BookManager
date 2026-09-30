@@ -1,3 +1,5 @@
+import { LocalizedError } from '../localization/LocalizedError'
+import { t, translateCopy, useLanguage } from '../localization'
 import { useEffect, useState } from 'react'
 import { ArrowUpRight, ChevronRight, BookOpen } from 'lucide-react'
 import { getStorageRuntime } from '../storage/runtime'
@@ -12,6 +14,7 @@ import './reviews.css'
 export function ReviewsPage({ refresh, invitation, onDismiss, onOpen }: {
   refresh: unknown; invitation: ReviewPeriod | null; onDismiss: () => void; onOpen: (period: ReviewPeriod) => void
 }) {
+  useLanguage()
   const [archive, setArchive] = useState<ReviewKeepsake[]>([])
   const [updates, setUpdates] = useState<string[]>([])
   const [latest, setLatest] = useState<ReviewPeriod>()
@@ -39,40 +42,41 @@ export function ReviewsPage({ refresh, invitation, onDismiss, onOpen }: {
   const unopened = latest && !archive.some(entry => entry.facts.quarter.year === latest.year && entry.facts.quarter.quarter === latest.quarter)
   const years = [...new Set(archive.map(entry => entry.facts.quarter.year))]
   return <section className="reviews-page" aria-labelledby="reviews-title">
-    <header className="reviews-heading"><p className="review-eyebrow">A reading life</p><h1 id="reviews-title">Reviews</h1><p>Your seasons in books, kept here.</p></header>
-    {loading && <p role="status">Gathering your reading seasons…</p>}
-    {error && <p role="alert">{error}</p>}
-    {unopened && <section className="review-new" aria-label="Latest quarterly review">
-      <div className="review-new-heading"><span className="review-eyebrow">Your latest season</span>{invitation && <span className="review-new-label">New</span>}</div>
-      <h2>{quarterLabel(latest)}</h2><p>A moment to look back.<br />A little to take with you.</p>
-      <button className="review-open" onClick={() => onOpen(latest)}>Open review <ArrowUpRight size={18} aria-hidden="true" /></button>
-      {invitation && <button className="review-dismiss" aria-label="Dismiss quarterly invitation" onClick={() => {
+    <header className="reviews-heading"><p className="review-eyebrow">{t("A reading life")}</p><h1 id="reviews-title">{t("Reviews")}</h1><p>{t("Your seasons in books, kept here.")}</p></header>
+    {loading && <p role="status">{t("Gathering your reading seasons…")}</p>}
+    {error && <p role="alert">{<LocalizedError message={error} />}</p>}
+    {unopened && <section className="review-new" aria-label={t("Latest quarterly review")}>
+      <div className="review-new-heading"><span className="review-eyebrow">{t("Your latest season")}</span>{invitation && <span className="review-new-label">{t("New")}</span>}</div>
+      <h2>{quarterLabel(latest)}</h2><p>{t("A moment to look back.")}<br />{t("A little to take with you.")}</p>
+      <button className="review-open" onClick={() => onOpen(latest)}>{t("Open review")}<ArrowUpRight size={18} aria-hidden="true" /></button>
+      {invitation && <button className="review-dismiss" aria-label={t("Dismiss quarterly invitation")} onClick={() => {
         void getStorageRuntime().then(runtime => runtime.reviewKeepsakes.dismissInvitation(invitation)).then(onDismiss).catch(() => setError('Could not dismiss the invitation. Please try again.'))
-      }}>Not now</button>}
+      }}>{t("Not now")}</button>}
     </section>}
-    {years.map(year => <section key={year} className="review-year" aria-label={`${year} reviews`}><h2>{year}</h2>
+    {years.map(year => <section key={year} className="review-year" aria-label={t("{{v0}} reviews", { v0: year })}><h2>{year}</h2>
       {archive.filter(entry => entry.facts.quarter.year === year).map(entry => {
         const genre = entry.identity.status === 'chosen' ? entry.identity.genre : null
         return <button className="review-season" key={entry.id} onClick={() => onOpen(entry.facts.quarter)}>
           <span className="review-season-art" aria-hidden="true">{genre ? <PathwayArtwork artwork={entry.artwork.pathways[genre]} /> : <BookOpen strokeWidth={1} />}</span>
-          <span className="review-season-copy"><span className="review-season-date">{quarterLabel(entry.facts.quarter)}</span><span className="review-season-title">{genre ? pathways[genre].title : 'A quarter to keep'}</span><small>{entry.completedAt ? 'View keepsake' : 'Continue review'}{updates.includes(entry.id) ? ' · Update available' : ''}</small></span>
+          <span className="review-season-copy"><span className="review-season-date">{quarterLabel(entry.facts.quarter)}</span><span className="review-season-title">{genre ? translateCopy(pathways[genre].title) : t("A quarter to keep")}</span><small>{entry.completedAt ? t("View keepsake") : t("Continue review")}{updates.includes(entry.id) ? t(" · Update available") : ''}</small></span>
           <ChevronRight size={16} aria-hidden="true" />
         </button>
       })}
     </section>)}
-    {!loading && !archive.length && <p className="review-archive-note">Your keepsakes will gather here, one quarter at a time.</p>}
-    <details className="review-history"><summary>Looking for an earlier season?</summary>
+    {!loading && !archive.length && <p className="review-archive-note">{t("Your keepsakes will gather here, one quarter at a time.")}</p>}
+    <details className="review-history"><summary>{t("Looking for an earlier season?")}</summary>
       <form onSubmit={event => { event.preventDefault(); const details = event.currentTarget.parentElement; if (details instanceof HTMLDetailsElement) details.open = false; onOpen({ year: Number(year), quarter: Number(quarter) }) }}>
-        <p>Open a completed quarter with recorded reading activity.</p>
-        <div className="review-history-fields"><label>Year<input type="number" min="1900" max={latest?.year ?? new Date().getFullYear()} required value={year} onChange={event => setYear(event.target.value)} /></label>
-          <label>Quarter<select aria-label="Quarter" value={quarter} onChange={event => setQuarter(event.target.value)}><option value="1">January–March</option><option value="2">April–June</option><option value="3">July–September</option><option value="4">October–December</option></select></label></div>
-        <button className="review-open" disabled={loading}>Open quarter <ArrowUpRight size={18} aria-hidden="true" /></button>
+        <p>{t("Open a completed quarter with recorded reading activity.")}</p>
+        <div className="review-history-fields"><label>{t("Year")}<input type="number" min="1900" max={latest?.year ?? new Date().getFullYear()} required value={year} onChange={event => setYear(event.target.value)} /></label>
+          <label>{t("Quarter")}<select aria-label={t("Quarter")} value={quarter} onChange={event => setQuarter(event.target.value)}><option value="1">{t("January–March")}</option><option value="2">{t("April–June")}</option><option value="3">{t("July–September")}</option><option value="4">{t("October–December")}</option></select></label></div>
+        <button className="review-open" disabled={loading}>{t("Open quarter")}<ArrowUpRight size={18} aria-hidden="true" /></button>
       </form>
     </details>
   </section>
 }
 
 export function QuarterlyReviews({ period, reduced, onClose }: { period?: ReviewPeriod; reduced: boolean; onClose: () => void }) {
+  useLanguage()
   const [repository, setRepository] = useState<ReviewKeepsakeRepository>()
   const [saved, setSaved] = useState<ReviewKeepsake>()
   const [fresh, setFresh] = useState(false)
@@ -87,11 +91,11 @@ export function QuarterlyReviews({ period, reduced, onClose }: { period?: Review
       // Resume legacy reveals directly in their collection, preserving all saved facts.
       if (entry.steps.find(step => step.id === entry.progress.stepId)?.kind === 'pathway' && entry.identity.status !== 'unselected') entry = await repo.complete(selected)
       if (active) { setRepository(repo); setSaved(entry); setFresh(isFresh) }
-    })().catch(error => { if (active) setError(error instanceof Error ? error.message : 'The review could not be opened.') })
+    })().catch(error => { if (active) setError(error instanceof Error ? error.message : t("The review could not be opened.")) })
     return () => { active = false }
   }, [period])
-  return <Sheet title="Quarterly review" onClose={onClose} tall>
+  return <Sheet title={t("Quarterly review")} onClose={onClose} tall>
     {saved && repository ? <ReviewViewer key={saved.id} initial={saved} fresh={fresh} repository={repository} reduced={reduced} onDone={onClose} />
-      : <section className="quarterly-review">{error ? <p role="alert">{error}</p> : <p role="status">Opening your reading season…</p>}</section>}
+      : <section className="quarterly-review">{error ? <p role="alert">{<LocalizedError message={error} />}</p> : <p role="status">{t("Opening your reading season…")}</p>}</section>}
   </Sheet>
 }

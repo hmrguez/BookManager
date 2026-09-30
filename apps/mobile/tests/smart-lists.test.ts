@@ -1,3 +1,4 @@
+import { PORTABLE_ARCHIVE_SCHEMA_VERSION } from '../src/storage/portable-archive'
 import { describe, expect, test } from 'bun:test'
 import { libraryBookSchema } from '../src/library-model'
 import { EMPTY_LIBRARY_ORGANIZATION } from '../src/organization-model'
@@ -67,7 +68,7 @@ describe('versioned explainable smart lists', () => {
     expect(result.items).toHaveLength(1)
     expect(result.items[0].reasons).toHaveLength(16)
     expect(result.items[0].reasons).toContain('Status is Reading')
-    expect(result.items[0].reasons).toContain('Ownership is owned')
+    expect(result.items[0].reasons).toContain('Ownership is Owned')
     expect(result.groups).toEqual([expect.objectContaining({ label: 'Reading' })])
     expect(result.explanation).toContain('All of:')
   })
@@ -201,7 +202,7 @@ describe('versioned explainable smart lists', () => {
     )
     const inspected = await inspectPortableArchive(bundle.archive)
 
-    expect(inspected.manifest.schemaVersion).toBe(8)
+    expect(inspected.manifest.schemaVersion).toBe(PORTABLE_ARCHIVE_SCHEMA_VERSION)
     expect(inspected.manifest.entries.some(({ path }) => path === 'data/smart-lists.json')).toBe(true)
     expect(inspected.smartLists).toEqual([saved])
     expect(inspected.smartLists[0].definition).toEqual(futureDefinition)

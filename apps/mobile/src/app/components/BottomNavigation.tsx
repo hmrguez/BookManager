@@ -1,3 +1,4 @@
+import { t, useLanguage } from '../../localization'
 import { Notebook, BookOpen, Library, Plus, Settings } from 'lucide-react'
 import type { ShelfId } from '../../library'
 import { tw } from '../../tailwind/styles'
@@ -20,25 +21,26 @@ export function BottomNavigation({
   onReviews: () => void
   hasNewReview: boolean
 }) {
+  useLanguage()
   return (
-    <nav className={tw('bottom-nav')} aria-label="App shortcuts">
+    <nav className={tw('bottom-nav')} aria-label={t("App shortcuts")}>
       <button
         className={tw(view === 'library' ? 'is-active' : '')}
         type="button"
         onClick={onLibrary}
         aria-current={view === 'library' ? 'page' : undefined}
       >
-        <Library aria-hidden="true" /><span>My Books</span>
+        <Library aria-hidden="true" /><span>{t("My Books")}</span>
       </button>
       <button type="button" onClick={() => onShelf('reading')}>
-        <BookOpen aria-hidden="true" /><span>Reading</span>
+        <BookOpen aria-hidden="true" /><span>{t("Reading")}</span>
       </button>
       <button className={tw('bottom-nav__add')} type="button" onClick={onAdd}>
-        <Plus aria-hidden="true" /><span>Add Book</span>
+        <Plus aria-hidden="true" /><span>{t("Add Book")}</span>
       </button>
-      <button type="button" onClick={onReviews} aria-label="Reviews" className={tw(view === 'reviews' ? 'is-active' : '')} aria-current={view === 'reviews' ? 'page' : undefined} aria-describedby={hasNewReview ? 'new-review-notice' : undefined}>
-        <span className="review-nav-icon"><Notebook aria-hidden="true" />{hasNewReview && <span className="review-nav-dot" aria-hidden="true" />}</span><span>Reviews</span>
-        {hasNewReview && <span id="new-review-notice" className="review-sr-only">New quarterly review available</span>}
+      <button type="button" onClick={onReviews} aria-label={t("Reviews")} className={tw(view === 'reviews' ? 'is-active' : '')} aria-current={view === 'reviews' ? 'page' : undefined} aria-describedby={hasNewReview ? 'new-review-notice' : undefined}>
+        <span className="review-nav-icon"><Notebook aria-hidden="true" />{hasNewReview && <span className="review-nav-dot" aria-hidden="true" />}</span><span>{t("Reviews")}</span>
+        {hasNewReview && <span id="new-review-notice" className="review-sr-only">{t("New quarterly review available")}</span>}
       </button>
       <button
         className={tw(view === 'settings' ? 'is-active' : '')}
@@ -46,7 +48,7 @@ export function BottomNavigation({
         onClick={onSettings}
         aria-current={view === 'settings' ? 'page' : undefined}
       >
-        <Settings aria-hidden="true" /><span>Settings</span>
+        <Settings aria-hidden="true" /><span>{t("Settings")}</span>
       </button>
     </nav>
   )

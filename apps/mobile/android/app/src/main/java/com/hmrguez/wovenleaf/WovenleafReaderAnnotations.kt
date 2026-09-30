@@ -18,11 +18,13 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.readium.r2.shared.publication.Locator
 
-internal enum class ReaderAnnotationColor(val wireValue: String, val label: String) {
+internal enum class ReaderAnnotationColor(val wireValue: String, private val labelKey: String) {
     OCHRE("ochre", "Ochre"),
     SAGE("sage", "Sage"),
     BLUE("blue", "Slate"),
     ROSE("rose", "Rose");
+
+    val label: String get() = WovenleafL10n.text(labelKey)
 
     fun tint(theme: String): Int {
         val value = when (this to theme) {
@@ -181,7 +183,7 @@ internal class ReaderAnnotationEditorDialog(
         }
         if (needsReview) {
             content.addView(body(
-                "This EPUB revision changed the original range. Confirm only if this is the same passage; Wovenleaf never moves an ambiguous highlight silently.",
+                WovenleafL10n.text("This EPUB revision changed the original range. Confirm only if this is the same passage; Wovenleaf never moves an ambiguous highlight silently."),
                 palette.raised,
             ))
         }
@@ -190,7 +192,7 @@ internal class ReaderAnnotationEditorDialog(
         content.addView(label("COLOR"))
         val colors = RadioGroup(activity).apply {
             orientation = RadioGroup.HORIZONTAL
-            contentDescription = "Highlight color"
+            contentDescription = WovenleafL10n.text("Highlight color")
         }
         ReaderAnnotationColor.entries.forEachIndexed { index, color ->
             colors.addView(RadioButton(activity).apply {
@@ -205,7 +207,7 @@ internal class ReaderAnnotationEditorDialog(
         content.addView(label("NOTE"))
         val note = EditText(activity).apply {
             setText(annotation?.note.orEmpty())
-            hint = "What do you want to remember?"
+            hint = WovenleafL10n.text("What do you want to remember?")
             minLines = 5
             maxLines = 14
             gravity = Gravity.TOP
@@ -214,29 +216,29 @@ internal class ReaderAnnotationEditorDialog(
             setHintTextColor(palette.secondaryInk)
             setBackgroundColor(palette.raised)
             setPadding(dp(12), dp(12), dp(12), dp(12))
-            contentDescription = "Passage note"
+            contentDescription = WovenleafL10n.text("Passage note")
         }
         content.addView(note, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(150)))
         content.addView(label("TAGS"))
         val tags = EditText(activity).apply {
             setText(annotation?.tags?.joinToString(", ").orEmpty())
-            hint = "Theme, character, revisit"
+            hint = WovenleafL10n.text("Theme, character, revisit")
             isSingleLine = true
             setTextColor(palette.ink)
             setHintTextColor(palette.secondaryInk)
             setBackgroundColor(palette.raised)
             setPadding(dp(12), 0, dp(12), 0)
-            contentDescription = "Tags, separated by commas"
+            contentDescription = WovenleafL10n.text("Tags, separated by commas")
         }
         content.addView(tags, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48)))
         content.addView(body(
-            "Wovenleaf saves only the passage you selected, never hidden chapter text. Protected EPUBs remain unsupported.",
+            WovenleafL10n.text("Wovenleaf saves only the passage you selected, never hidden chapter text. Protected EPUBs remain unsupported."),
             Color.TRANSPARENT,
             small = true,
         ))
         if (annotation != null && onDelete != null) {
             content.addView(Button(activity).apply {
-                text = "Delete annotation"
+                text = WovenleafL10n.text("Delete annotation")
                 isAllCaps = false
                 setTextColor(Color.rgb(176, 45, 35))
                 setBackgroundColor(Color.TRANSPARENT)
@@ -246,10 +248,10 @@ internal class ReaderAnnotationEditorDialog(
 
         val scroll = ScrollView(activity).apply { addView(content) }
         val dialog = AlertDialog.Builder(activity)
-            .setTitle(if (needsReview) "Review highlight" else if (annotation == null) "New highlight" else "Edit highlight")
+            .setTitle(if (needsReview) WovenleafL10n.text("Review highlight") else if (annotation == null) WovenleafL10n.text("New highlight") else WovenleafL10n.text("Edit highlight"))
             .setView(scroll)
-            .setNegativeButton("Cancel", null)
-            .setPositiveButton(if (needsReview) "Keep here" else "Save", null)
+            .setNegativeButton(WovenleafL10n.text("Cancel"), null)
+            .setPositiveButton(if (needsReview) WovenleafL10n.text("Keep here") else WovenleafL10n.text("Save"), null)
             .create()
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {

@@ -246,17 +246,17 @@ internal class ReaderSettingsDialog(
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        header.addView(text("Reading surface", 22f, Typeface.SERIF), LinearLayout.LayoutParams(0, dp(48), 1f))
+        header.addView(text(WovenleafL10n.text("Reading surface"), 22f, Typeface.SERIF), LinearLayout.LayoutParams(0, dp(48), 1f))
         header.addView(Button(activity).apply {
-            text = "Done"
+            text = WovenleafL10n.text("Done")
             isAllCaps = false
             setBackgroundColor(Color.TRANSPARENT)
             setOnClickListener { dialog.dismiss() }
         })
         stack.addView(header)
-        stack.addView(secondary("Live preview keeps the open passage in place. Save a quiet default or tune only this book."))
+        stack.addView(secondary(WovenleafL10n.text("Live preview keeps the open passage in place. Save a quiet default or tune only this book.")))
 
-        scopeSegment = segmented(listOf("All books", "This book"), if (scope == ReaderPreferenceScope.GLOBAL) 0 else 1) { index ->
+        scopeSegment = segmented(listOf(WovenleafL10n.text("All books"), WovenleafL10n.text("This book")), if (scope == ReaderPreferenceScope.GLOBAL) 0 else 1) { index ->
             val next = if (index == 0) ReaderPreferenceScope.GLOBAL else ReaderPreferenceScope.BOOK
             if (next == scope) return@segmented
             scope = next
@@ -269,69 +269,69 @@ internal class ReaderSettingsDialog(
             }
             sync()
         }
-        section(stack, "Apply to", scopeSegment.view)
+        section(stack, WovenleafL10n.text("Apply to"), scopeSegment.view)
 
-        themeSegment = segmented(listOf("Paper", "White", "Graphite"), 0) { index ->
+        themeSegment = segmented(listOf(WovenleafL10n.text("Paper"), WovenleafL10n.text("White"), WovenleafL10n.text("Graphite")), 0) { index ->
             mutate { it.copy(theme = listOf("paper", "white", "graphite")[index]) }
         }
-        section(stack, "Paper", themeSegment.view)
+        section(stack, WovenleafL10n.text("Paper"), themeSegment.view)
 
         typefacePicker = TypefacePicker(activity) { index ->
             if (!syncing) mutate { it.copy(fontFamily = listOf("literary", "sans", "mono", "accessible")[index]) }
         }
         section(stack, "Typeface", typefacePicker.view)
 
-        val size = sliderRow("Size", 0.8, 2.0) { current, value -> current.copy(fontSize = value) }
+        val size = sliderRow(WovenleafL10n.text("Size"), 0.8, 2.0) { current, value -> current.copy(fontSize = value) }
         sizeSlider = size.slider
         sizeValue = size.value
-        val weight = sliderRow("Ink weight", 0.75, 1.5) { current, value -> current.copy(fontWeight = value) }
+        val weight = sliderRow(WovenleafL10n.text("Ink weight"), 0.75, 1.5) { current, value -> current.copy(fontWeight = value) }
         weightSlider = weight.slider
         weightValue = weight.value
-        val line = sliderRow("Line spacing", 1.2, 1.9) { current, value -> current.copy(lineHeight = value) }
+        val line = sliderRow(WovenleafL10n.text("Line spacing"), 1.2, 1.9) { current, value -> current.copy(lineHeight = value) }
         lineSlider = line.slider
         lineValue = line.value
-        section(stack, "Type", size.view, weight.view, line.view)
+        section(stack, WovenleafL10n.text("Type"), size.view, weight.view, line.view)
 
-        val margin = sliderRow("Margins", 0.4, 2.5) { current, value -> current.copy(pageMargins = value) }
+        val margin = sliderRow(WovenleafL10n.text("Margins"), 0.4, 2.5) { current, value -> current.copy(pageMargins = value) }
         marginSlider = margin.slider
         marginValue = margin.value
-        alignmentSegment = segmented(listOf("Ragged", "Justified"), 0) { index ->
+        alignmentSegment = segmented(listOf(WovenleafL10n.text("Ragged"), WovenleafL10n.text("Justified")), 0) { index ->
             mutate { it.copy(textAlign = if (index == 0) "start" else "justify") }
         }
         hyphenSwitch = Switch(activity).apply {
-            text = "Hyphenation"
+            text = WovenleafL10n.text("Hyphenation")
             setOnCheckedChangeListener { _, checked -> if (!syncing) mutate { it.copy(hyphens = checked) } }
         }
         labels += hyphenSwitch
-        section(stack, "Composition", margin.view, labelled("Alignment", alignmentSegment.view), hyphenSwitch)
+        section(stack, WovenleafL10n.text("Composition"), margin.view, labelled(WovenleafL10n.text("Alignment"), alignmentSegment.view), hyphenSwitch)
 
-        layoutSegment = segmented(listOf("Pages", "Scroll"), 0) { index ->
+        layoutSegment = segmented(listOf(WovenleafL10n.text("Pages"), WovenleafL10n.text("Scroll")), 0) { index ->
             mutate { it.copy(layout = if (index == 0) "paginated" else "scroll") }
         }
-        columnSegment = segmented(listOf("Auto", "One", "Two"), 0) { index ->
+        columnSegment = segmented(listOf(WovenleafL10n.text("Auto"), WovenleafL10n.text("One"), WovenleafL10n.text("Two")), 0) { index ->
             mutate { it.copy(columnCount = listOf("auto", "one", "two")[index]) }
         }
-        section(stack, "Movement", labelled("Reading mode", layoutSegment.view), labelled("Columns", columnSegment.view))
+        section(stack, WovenleafL10n.text("Movement"), labelled(WovenleafL10n.text("Reading mode"), layoutSegment.view), labelled(WovenleafL10n.text("Columns"), columnSegment.view))
 
         publisherSwitch = Switch(activity).apply {
-            text = "Use publisher styling"
+            text = WovenleafL10n.text("Use publisher styling")
             setOnCheckedChangeListener { _, checked -> if (!syncing) mutate { it.copy(publisherStyles = checked) } }
         }
         labels += publisherSwitch
         section(
             stack,
-            "Book design",
+            WovenleafL10n.text("Book design"),
             publisherSwitch,
-            secondary("Original styling remains available, while Wovenleaf keeps a safe text size and readable ink contrast."),
+            secondary(WovenleafL10n.text("Original styling remains available, while Wovenleaf keeps a safe text size and readable ink contrast.")),
         )
         section(
             stack,
-            "Ambient light",
-            secondary("Match the page to the room: lower device brightness until the page stops glowing. Wovenleaf leaves system brightness under your control, like a front light on an e-reader."),
+            WovenleafL10n.text("Ambient light"),
+            secondary(WovenleafL10n.text("Match the page to the room: lower device brightness until the page stops glowing. Wovenleaf leaves system brightness under your control, like a front light on an e-reader.")),
         )
 
         stack.addView(Button(activity).apply {
-            text = "Reset to quiet paper"
+            text = WovenleafL10n.text("Reset to quiet paper")
             isAllCaps = false
             gravity = Gravity.START or Gravity.CENTER_VERTICAL
             setBackgroundColor(Color.TRANSPARENT)
@@ -483,7 +483,7 @@ internal class ReaderSettingsDialog(
         percent: Boolean = false,
     ) {
         slider.progress = (((value - minimum) / (maximum - minimum)) * 100).roundToInt()
-        label.text = if (percent) "${(value * 100).roundToInt()}%" else "%.2f".format(value)
+        label.text = if (percent) "${(value * 100).roundToInt()}%" else String.format(WovenleafL10n.locale(), "%.2f", value)
     }
 
     private fun palette() = ReaderPalette(preferences.theme, isHighContrast(activity))
@@ -509,7 +509,7 @@ private class TypefacePicker(
     val view = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
     }
-    private val labels = listOf("Ag   Literary", "Ag   Sans", "Ag   Mono", "Ag   Accessible")
+    private val labels = listOf(WovenleafL10n.text("Ag   Literary"), WovenleafL10n.text("Ag   Sans"), WovenleafL10n.text("Ag   Mono"), WovenleafL10n.text("Ag   Accessible"))
     private val buttons = labels.mapIndexed { index, label ->
         Button(context).apply {
             text = label

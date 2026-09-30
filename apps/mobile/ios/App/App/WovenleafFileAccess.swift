@@ -23,14 +23,14 @@ enum WovenleafFileReferences {
     static func register(_ url: URL, scope: URL? = nil) throws -> [String: Any] {
         guard url.isFileURL, !url.path.contains("/tmp/"), !url.path.contains("/Inbox/"),
               !url.path.contains("/IncomingShares/") else {
-            throw OriginalFileError(code: "RESELECT_FILE", message: "Choose the original in Files.")
+            throw OriginalFileError(code: "RESELECT_FILE", message: WovenleafL10n.text("Choose the original in Files."))
         }
         let root = scope ?? url
         let access = OriginalFileAccess(url: url, scope: root)
         return try access.coordinated { file in
             let values = try file.resourceValues(forKeys: [.fileSizeKey, .nameKey, .contentTypeKey, .isRegularFileKey])
             guard values.isRegularFile == true, let size = values.fileSize else {
-                throw OriginalFileError(code: "FILE_UNSUPPORTED", message: "Choose a readable file.")
+                throw OriginalFileError(code: "FILE_UNSUPPORTED", message: WovenleafL10n.text("Choose a readable file."))
             }
             let id = SHA256.hash(data: Data(file.absoluteString.utf8)).map { String(format: "%02x", $0) }.joined()
             let name = values.name ?? file.lastPathComponent
@@ -95,7 +95,7 @@ enum WovenleafFileReferences {
     }
 
     static func unavailable(_ code: String = "FILE_MISSING") -> OriginalFileError {
-        OriginalFileError(code: code, message: "The original file is unavailable. Choose it again; progress and notes are safe.")
+        OriginalFileError(code: code, message: WovenleafL10n.text("The original file is unavailable. Choose it again; progress and notes are safe."))
     }
 }
 
@@ -152,5 +152,35 @@ final class OriginalFileAccess: NSObject, NSFilePresenter {
             while let bytes = try handle.read(upToCount: 1024 * 1024), !bytes.isEmpty { hash.update(data: bytes) }
             return hash.finalize().map { String(format: "%02x", $0) }.joined()
         }
+    }
+}
+
+// Interface language is independent of a publication's language and TTS voice.
+enum WovenleafL10n {
+    private static let defaults = UserDefaults(suiteName: "group.com.hmrguez.wovenleaf") ?? .standard
+    private static let storageKey = "wovenleaf.interfaceLocale.v1"
+    private static var catalogs: [String: [String: String]] = [:]
+    private static let lock = NSLock()
+    static var locale: String {
+        defaults.string(forKey: storageKey) ?? Locale.preferredLanguages.first ?? "en-US"
+    }
+    static func setLocale(_ value: String) {
+        defaults.set(value, forKey: storageKey)
+        NotificationCenter.default.post(name: .init("WovenleafInterfaceLanguageChanged"), object: nil)
+    }
+    static func text(_ source: String, _ parameters: [String: String] = [:]) -> String {
+        lock.lock()
+        defer { lock.unlock() }
+        let candidate = locale.lowercased().split(separator: "-").first.map(String.init) ?? "en"
+        let language = ["en", "es", "de", "it", "fr"].contains(candidate) ? candidate : "en"
+        if catalogs[language] == nil {
+            let host = Bundle.main.bundleURL.pathExtension == "appex" ? Bundle(url: Bundle.main.bundleURL.deletingLastPathComponent().deletingLastPathComponent()) : Bundle.main
+            let url = host?.url(forResource: language, withExtension: "json", subdirectory: "public/locales")
+            catalogs[language] = url.flatMap { try? Data(contentsOf: $0) }
+                .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: String] } ?? [:]
+        }
+        var result = catalogs[language]?[source] ?? source
+        for (name, value) in parameters { result = result.replacingOccurrences(of: "{{" + name + "}}", with: value) }
+        return result
     }
 }

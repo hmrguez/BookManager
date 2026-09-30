@@ -83,7 +83,7 @@ describe('native system media surface contract', () => {
     expect(source).toContain('override fun onMediaButtonEvent')
     expect(source).toContain('override fun onPositionDiscontinuity')
     expect(source).toContain('return successResult(snapshot())')
-    expect(source).toContain('Back ${backwardSkipSeconds()} seconds')
+    expect(source).toContain('WovenleafL10n.text("Back {{seconds}} seconds", mapOf("seconds" to backwardSkipSeconds().toString()))')
   })
 
   test('keeps web system controls and position state aligned with the native contract', async () => {

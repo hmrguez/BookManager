@@ -1,0 +1,156 @@
+---
+import {
+  languages,
+  languageNames,
+  localizedPath,
+  createTranslator,
+  type Language,
+} from '../localization';
+const { locale } = Astro.props as { locale: Language };
+const t = createTranslator(locale);
+const path = Astro.url.pathname;
+---
+
+<nav class="language-menu" aria-label={t('Language')} data-language={locale}>
+  <details>
+    <summary>{languageNames[locale]}</summary>
+    <ul>
+      {
+        languages.map((language) => (
+          <li>
+            <a
+              href={localizedPath(language, path)}
+              lang={language}
+              hreflang={language}
+              aria-current={language === locale ? 'true' : undefined}
+            >
+              {languageNames[language]}
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+  </details>
+  <aside class="language-suggestion" hidden aria-live="polite">
+    <a class="language-suggestion-link"></a>
+    <button type="button" aria-label={t('Dismiss language suggestion')}
+      >×</button
+    >
+  </aside>
+</nav>
+<script>
+  for (const menu of document.querySelectorAll<HTMLElement>('.language-menu')) {
+    const language = menu.dataset.language;
+    const supported = ['en', 'es', 'de', 'it', 'fr'];
+    const preferred = navigator.languages
+      .map((locale) => locale.split('-')[0])
+      .find((locale) => supported.includes(locale));
+    const suggestion = menu.querySelector<HTMLElement>('.language-suggestion')!;
+    const link = menu.querySelector<HTMLAnchorElement>(
+      '.language-suggestion-link',
+    )!;
+    const dismiss = menu.querySelector<HTMLButtonElement>(
+      '.language-suggestion button',
+    )!;
+    let visited = false;
+    try {
+      visited = localStorage.getItem('wovenleaf.site.language-choice') !== null;
+    } catch {
+      /* Suggestion works without storage. */
+    }
+    if (preferred && preferred !== language && !visited) {
+      const target = menu.querySelector<HTMLAnchorElement>(
+        `a[hreflang="${preferred}"]`,
+      )!;
+      link.href = target.href;
+      link.textContent = target.textContent;
+      link.lang = preferred;
+      suggestion.hidden = false;
+    }
+    const remember = () => {
+      try {
+        localStorage.setItem('wovenleaf.site.language-choice', 'chosen');
+      } catch {
+        /* Optional preference. */
+      }
+    };
+    menu
+      .querySelectorAll('a')
+      .forEach((anchor) => anchor.addEventListener('click', remember));
+    dismiss.addEventListener('click', () => {
+      suggestion.hidden = true;
+      remember();
+    });
+  }
+</script>
+<style>
+  .language-menu {
+    position: relative;
+    font-size: 12px;
+    color: var(--muted);
+    margin-inline-start: auto;
+  }
+  summary {
+    cursor: pointer;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  summary::after {
+    content: '⌄';
+  }
+  summary::-webkit-details-marker {
+    display: none;
+  }
+  ul {
+    position: absolute;
+    z-index: 10;
+    inset-inline-end: 0;
+    top: 44px;
+    min-width: 150px;
+    padding: 8px;
+    margin: 0;
+    list-style: none;
+    background: var(--paper, #f6f3eb);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+  a {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    padding-inline: 10px;
+  }
+  a[aria-current='true'] {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .language-suggestion {
+    display: flex;
+    align-items: center;
+    position: absolute;
+    inset-inline-end: 0;
+    top: 44px;
+    z-index: 9;
+    background: var(--paper, #f6f3eb);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 4px;
+  }
+  .language-suggestion[hidden] {
+    display: none;
+  }
+  button {
+    min-height: 44px;
+    min-width: 44px;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    color: var(--muted);
+  }
+  :is(a, summary, button):focus-visible {
+    outline: 2px solid var(--green);
+    outline-offset: 2px;
+  }
+</style>

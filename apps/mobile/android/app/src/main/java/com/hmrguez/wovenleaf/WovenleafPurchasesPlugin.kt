@@ -39,11 +39,11 @@ class WovenleafPurchasesPlugin : Plugin(), PurchasesUpdatedListener {
     @PluginMethod fun activateReviewAccess(call: PluginCall) {
         val token = call.getString("token")?.trim()
         if (!ReviewAccessVerifier.verify(token, reviewPublicKey)) {
-            call.reject("The review token is invalid for this app.", "INVALID_REVIEW_TOKEN")
+            call.reject(WovenleafL10n.text("The review token is invalid for this app."), "INVALID_REVIEW_TOKEN")
             return
         }
         if (!reviewPreferences.edit().putString("token", token).commit()) {
-            call.reject("Review access could not be saved.", "STORAGE_ERROR")
+            call.reject(WovenleafL10n.text("Review access could not be saved."), "STORAGE_ERROR")
             return
         }
         call.resolve(JSObject().put("active", true))
@@ -51,7 +51,7 @@ class WovenleafPurchasesPlugin : Plugin(), PurchasesUpdatedListener {
 
     @PluginMethod fun endReviewAccess(call: PluginCall) {
         if (!reviewPreferences.edit().remove("token").commit()) {
-            call.reject("Review access could not be removed.", "STORAGE_ERROR")
+            call.reject(WovenleafL10n.text("Review access could not be removed."), "STORAGE_ERROR")
             return
         }
         call.resolve(JSObject().put("active", false))
@@ -132,14 +132,14 @@ class WovenleafPurchasesPlugin : Plugin(), PurchasesUpdatedListener {
     private fun refresh(call: PluginCall, explicitRestore: Boolean) {
         connect { ready ->
             if (!ready) {
-                if (explicitRestore) call.reject("Google Play could not restore purchases.", "STORE_ERROR")
+                if (explicitRestore) call.reject(WovenleafL10n.text("Google Play could not restore purchases."), "STORE_ERROR")
                 else call.resolve(status(cachedOwnership(), false, null))
                 return@connect
             }
             billing.queryPurchasesAsync(QueryPurchasesParams.newBuilder()
                 .setProductType(BillingClient.ProductType.INAPP).build()) { result, purchases ->
                 if (result.responseCode != BillingClient.BillingResponseCode.OK) {
-                    if (explicitRestore) call.reject("Google Play could not restore purchases.", "STORE_ERROR")
+                    if (explicitRestore) call.reject(WovenleafL10n.text("Google Play could not restore purchases."), "STORE_ERROR")
                     else call.resolve(status(cachedOwnership(), false, null))
                     return@queryPurchasesAsync
                 }
@@ -158,7 +158,7 @@ class WovenleafPurchasesPlugin : Plugin(), PurchasesUpdatedListener {
                     product { call.resolve(status(false, pending, it)) }
                 } else {
                     deliver(purchased) { delivered ->
-                        if (!delivered) call.reject("Google Play could not acknowledge the purchase. Try restoring again.", "STORE_ERROR")
+                        if (!delivered) call.reject(WovenleafL10n.text("Google Play could not acknowledge the purchase. Try restoring again."), "STORE_ERROR")
                         else call.resolve(status(true, pending, null))
                     }
                 }
@@ -187,8 +187,8 @@ class WovenleafPurchasesPlugin : Plugin(), PurchasesUpdatedListener {
 
     @PluginMethod fun purchase(call: PluginCall) {
         main.post {
-            if (purchaseCall != null) { call.reject("A purchase is already in progress.", "BUSY"); return@post }
-            if (publicKey.isEmpty()) { call.reject("Configure the Play licensing public key first.", "UNAVAILABLE"); return@post }
+            if (purchaseCall != null) { call.reject(WovenleafL10n.text("A purchase is already in progress."), "BUSY"); return@post }
+            if (publicKey.isEmpty()) { call.reject(WovenleafL10n.text("Configure the Play licensing public key first."), "UNAVAILABLE"); return@post }
             purchaseCall = call
             connect { ready ->
                 if (!ready) { rejectPurchase(); return@connect }
@@ -236,7 +236,7 @@ class WovenleafPurchasesPlugin : Plugin(), PurchasesUpdatedListener {
     }
 
     private fun rejectPurchase() {
-        purchaseCall?.reject("Google Play could not complete the purchase. Try restoring if you were charged.", "STORE_ERROR")
+        purchaseCall?.reject(WovenleafL10n.text("Google Play could not complete the purchase. Try restoring if you were charged."), "STORE_ERROR")
         purchaseCall = null
     }
 
@@ -246,7 +246,7 @@ class WovenleafPurchasesPlugin : Plugin(), PurchasesUpdatedListener {
                 activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/redeem"))
                     .setPackage("com.android.vending"))
                 call.resolve()
-            } catch (_: Exception) { call.reject("Google Play is unavailable.", "UNAVAILABLE") }
+            } catch (_: Exception) { call.reject(WovenleafL10n.text("Google Play is unavailable."), "UNAVAILABLE") }
         }
     }
 

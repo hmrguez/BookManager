@@ -1,11 +1,12 @@
+import { t, useLanguage } from '../localization'
 import { useCallback, useId, useRef, useState } from 'react'
 import { BookOpen, Check, ChevronDown, Headphones, Library } from 'lucide-react'
 import { AnchoredMenu } from '../design-system/AnchoredMenu'
 
 const sources = [
-  { value: 'ebook', label: 'E-reader', detail: 'EPUB or PDF', icon: BookOpen },
-  { value: 'audio', label: 'Audiobook', detail: 'M4B or MP3', icon: Headphones },
-  { value: 'libby', label: 'Libby', detail: 'Connect a library loan', icon: Library },
+  { value: 'ebook', get label() { return t("E-reader") }, get detail() { return t("EPUB or PDF") }, icon: BookOpen },
+  { value: 'audio', get label() { return t("Audiobook") }, get detail() { return t("M4B or MP3") }, icon: Headphones },
+  { value: 'libby', get label() { return t("Libby") }, get detail() { return t("Connect a library loan") }, icon: Library },
 ]
 
 export function SourcePicker({ value, onChange, disabled, includeLibby }: {
@@ -14,6 +15,7 @@ export function SourcePicker({ value, onChange, disabled, includeLibby }: {
   readonly disabled: boolean
   readonly includeLibby: boolean
 }) {
+  useLanguage()
   const id = useId()
   const trigger = useRef<HTMLButtonElement>(null)
   const [open, setOpen] = useState(false)
@@ -28,7 +30,7 @@ export function SourcePicker({ value, onChange, disabled, includeLibby }: {
   const show = (index: number) => { setInitialFocus(index); setOpen(true) }
 
   return <div className="source-picker">
-    <button ref={trigger} type="button" className="source-picker__trigger" aria-label={`Attach to: ${selected.label}`}
+    <button ref={trigger} type="button" className="source-picker__trigger" aria-label={t("Attach to: {{v0}}", { v0: selected.label })}
       aria-haspopup="menu" aria-expanded={open} aria-controls={open ? id : undefined} disabled={disabled}
       onClick={() => open ? close() : show(Math.max(0, options.findIndex(option => option.value === value)))}
       onKeyDown={event => {
@@ -39,7 +41,7 @@ export function SourcePicker({ value, onChange, disabled, includeLibby }: {
       }}>
       <Icon size={18} aria-hidden="true" /><span>{selected.label}</span><ChevronDown size={15} aria-hidden="true" />
     </button>
-    {open && <AnchoredMenu id={id} label="Reading source" triggerRef={trigger} initialFocus={initialFocus} followScroll onClose={close}>
+    {open && <AnchoredMenu id={id} label={t("Reading source")} triggerRef={trigger} initialFocus={initialFocus} followScroll onClose={close}>
       {options.map(({ value: key, label, detail, icon: OptionIcon }) => <button key={key} type="button" role="menuitemradio" tabIndex={-1}
         aria-checked={value === key} onClick={() => { close(); onChange(key) }}>
         <OptionIcon aria-hidden="true" /><span className="flex-1"><strong>{label}</strong><small>{detail}</small></span>

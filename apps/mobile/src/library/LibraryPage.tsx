@@ -1,3 +1,4 @@
+import { t, useLanguage } from '../localization'
 import { revealShelfBook } from './reveal-book'
 import { useEffect } from 'react'
 import {
@@ -94,6 +95,7 @@ export function LibraryPage({
   onRate: (bookId: string, rating: number) => void
   onMoveQueueBook: (bookId: string, targetIndex: number, visibleIds: readonly string[]) => void
 }) {
+  useLanguage()
   const {
     activeCustomShelves,
     activeSmartLists,
@@ -134,7 +136,7 @@ export function LibraryPage({
     <LibraryPresentation books={books} onDropBook={onDropBook}>
       <header className={tw('app-header')} id="top">
         <div className={tw('title-row')}>
-          <h1 tabIndex={-1}>My Books</h1>
+          <h1 tabIndex={-1}>{t("My Books")}</h1>
           <div className={tw('header-actions library-header-actions')}>
             <LibraryViewControl />
             <button
@@ -144,7 +146,7 @@ export function LibraryPage({
                 onCloseLibrarySearch()
                 onOpenCommandMenu()
               }}
-              aria-label="Open command menu"
+              aria-label={t("Open command menu")}
               aria-keyshortcuts="Meta+K Control+K"
             >
               <CommandIcon aria-hidden="true" />
@@ -155,7 +157,7 @@ export function LibraryPage({
               onClick={() => librarySearchOpen
                 ? onCloseLibrarySearch()
                 : onLibrarySearchOpenChange(true)}
-              aria-label={librarySearchOpen ? 'Close library search' : 'Search my library'}
+              aria-label={librarySearchOpen ? t("Close library search") : t("Search my library")}
               aria-expanded={librarySearchOpen}
             >
               {librarySearchOpen ? <X aria-hidden="true" /> : <Search aria-hidden="true" />}
@@ -172,51 +174,51 @@ export function LibraryPage({
                 type="search"
                 value={libraryQuery}
                 onChange={(event) => onLibraryQueryChange(event.target.value)}
-                placeholder="Title, author, tag, ISBN…"
-                aria-label="Search your local library"
+                placeholder={t("Title, author, tag, ISBN…")}
+                aria-label={t("Search your local library")}
                 autoCapitalize="none"
                 enterKeyHint="search"
               />
               <small aria-live="polite">
                 {indexing
-                  ? `Indexing ${searchCheckpoint?.nextDocument ?? 0}/${books.length}`
-                  : librarySearchActive ? `${visibleBooks.length} found` : 'On this device'}
+                  ? t("Indexing {{v0}}/{{v1}}", { v0: searchCheckpoint?.nextDocument ?? 0, v1: books.length })
+                  : librarySearchActive ? t("{{v0}} found", { v0: visibleBooks.length }) : t("On this device")}
               </small>
               {libraryQuery && (
-                <button type="button" onClick={() => onLibraryQueryChange('')} aria-label="Clear library search">
+                <button type="button" onClick={() => onLibraryQueryChange('')} aria-label={t("Clear library search")}>
                   <X aria-hidden="true" />
                 </button>
               )}
             </div>
             <div className={tw('library-search-controls')}>
               <label>
-                <span className={tw('sr-only')}>Filter by shelf</span>
+                <span className={tw('sr-only')}>{t("Filter by shelf")}</span>
                 <select
                   value={libraryShelfFilter}
                   onChange={(event) => onLibraryShelfFilterChange(event.target.value as ShelfId | 'all')}
                 >
-                  <option value="all">All shelves</option>
+                  <option value="all">{t("All shelves")}</option>
                   {SHELVES.map((shelf) => <option key={shelf.id} value={shelf.id}>{shelf.label}</option>)}
                 </select>
               </label>
               <label>
-                <span className={tw('sr-only')}>Sort library search results</span>
+                <span className={tw('sr-only')}>{t("Sort library search results")}</span>
                 <select
                   value={librarySort}
                   onChange={(event) => onLibrarySortChange(event.target.value as LocalSearchSort)}
                 >
-                  <option value="relevance">Relevance</option>
-                  <option value="title">Title</option>
-                  <option value="updated">Recently updated</option>
-                  <option value="added">Recently added</option>
+                  <option value="relevance">{t("Relevance")}</option>
+                  <option value="title">{t("Title")}</option>
+                  <option value="updated">{t("Recently updated")}</option>
+                  <option value="added">{t("Recently added")}</option>
                 </select>
               </label>
-              <span><CommandIcon aria-hidden="true" /> K · Commands</span>
+              <span><CommandIcon aria-hidden="true" /> {t(" K · Commands")}</span>
             </div>
           </div>
         )}
 
-        <nav className={tw('shelf-tabs')} aria-label="Jump to a shelf">
+        <nav className={tw('shelf-tabs')} aria-label={t("Jump to a shelf")}>
           {SHELVES.map((shelf) => (
             <button type="button" key={shelf.id} onClick={() => onScrollToShelf(shelf.id)} {...libraryDropTarget('status', shelf.id, shelf.label)}>
               <span>{shelf.shortLabel}</span><strong>{booksByShelf[shelf.id].length}</strong>
@@ -224,8 +226,8 @@ export function LibraryPage({
           ))}
         </nav>
         {FEATURES.smartLists && activeSmartLists.some(({ pinned }) => pinned) && (
-          <nav className={tw('pinned-shelf-tabs')} aria-label="Pinned smart lists">
-            <span><ListFilter aria-hidden="true" /> Smart</span>
+          <nav className={tw('pinned-shelf-tabs')} aria-label={t("Pinned smart lists")}>
+            <span><ListFilter aria-hidden="true" /> {t(" Smart")}</span>
             <div>
               {activeSmartLists.filter(({ pinned }) => pinned).map((list) => {
                 const result = smartListQueries.get(list.id)
@@ -246,8 +248,8 @@ export function LibraryPage({
           </nav>
         )}
         {activeCustomShelves.some(({ pinned }) => pinned) && (
-          <nav className={tw('pinned-shelf-tabs')} aria-label="Pinned custom shelves">
-            <span><Pin aria-hidden="true" /> Pinned</span>
+          <nav className={tw('pinned-shelf-tabs')} aria-label={t("Pinned custom shelves")}>
+            <span><Pin aria-hidden="true" /> {t(" Pinned")}</span>
             <div>
               {activeCustomShelves.filter(({ pinned }) => pinned).map((shelf) => (
                 <button
@@ -273,10 +275,10 @@ export function LibraryPage({
           <FeedbackNotice
             tone={coverEnrichmentStatus.state === 'checking' ? 'loading' : 'info'}
             title={coverEnrichmentStatus.state === 'checking'
-              ? 'Picking up covers'
+              ? t("Picking up covers")
               : coverEnrichmentStatus.state === 'paused'
-                ? 'Cover search paused'
-                : 'Covers checked'}
+                ? t("Cover search paused")
+                : t("Covers checked")}
           >
             {coverEnrichmentCopy(coverEnrichmentStatus)}
           </FeedbackNotice>
@@ -284,7 +286,7 @@ export function LibraryPage({
         {librarySearchActive && visibleBooks.length === 0 ? (
           <div className={tw('library-no-results')}>
             <Search aria-hidden="true" />
-            <div><strong>No books found</strong><span>Try another title, contributor, tag, identifier, or shelf.</span></div>
+            <div><strong>{t("No books found")}</strong><span>{t("Try another title, contributor, tag, identifier, or shelf.")}</span></div>
           </div>
         ) : (
           <>
@@ -336,11 +338,11 @@ export function LibraryPage({
               <>
                 <div className={tw('smart-lists-heading')}>
                   <div>
-                    <span>Live from your library</span><h2>Smart lists</h2>
-                    <p>Saved rules recalculate locally—and every match can explain itself.</p>
+                    <span>{t("Live from your library")}</span><h2>{t("Smart lists")}</h2>
+                    <p>{t("Saved rules recalculate locally—and every match can explain itself.")}</p>
                   </div>
-                  <button type="button" onClick={() => onOpenSheet({ kind: 'smart-list' })} aria-label="New smart list">
-                    <ListFilter aria-hidden="true" /> <span>New smart list</span>
+                  <button type="button" onClick={() => onOpenSheet({ kind: 'smart-list' })} aria-label={t("New smart list")}>
+                    <ListFilter aria-hidden="true" /> <span>{t("New smart list")}</span>
                   </button>
                 </div>
                 <div className={tw('smart-list-stack')}>
@@ -360,17 +362,17 @@ export function LibraryPage({
                 {!activeSmartLists.length && (
                   <button className={tw('smart-list-empty')} type="button" onClick={() => onOpenSheet({ kind: 'smart-list' })}>
                     <ListFilter aria-hidden="true" />
-                    <span><strong>Let the library organize itself</strong><small>Start from a template or compose rules of your own</small></span>
-                    <i>5 templates</i>
+                    <span><strong>{t("Let the library organize itself")}</strong><small>{t("Start from a template or compose rules of your own")}</small></span>
+                    <i>{t("5 templates")}</i>
                   </button>
                 )}
                 {archivedSmartLists.length > 0 && (
                   <section className={tw('archived-shelves')}>
-                    <header><Archive aria-hidden="true" /><span>Archived smart lists</span><strong>{archivedSmartLists.length}</strong></header>
+                    <header><Archive aria-hidden="true" /><span>{t("Archived smart lists")}</span><strong>{archivedSmartLists.length}</strong></header>
                     <div>
                       {archivedSmartLists.map((list) => (
                         <button type="button" key={list.id} onClick={() => onOpenSheet({ kind: 'smart-list', smartListId: list.id })}>
-                          <span><strong>{list.name}</strong><small>Saved rules remain intact</small></span>
+                          <span><strong>{list.name}</strong><small>{t("Saved rules remain intact")}</small></span>
                           <ChevronRight aria-hidden="true" />
                         </button>
                       ))}
@@ -382,10 +384,9 @@ export function LibraryPage({
 
             {!librarySearchActive && (
               <div className={tw('custom-shelves-heading')}>
-                <div><span>Your collections</span><h2>Custom shelves</h2><p>Collect freely. Reading status still belongs to the shelves above.</p></div>
+                <div><span>{t("Your collections")}</span><h2>{t("Custom shelves")}</h2><p>{t("Collect freely. Reading status still belongs to the shelves above.")}</p></div>
                 <button type="button" onClick={() => onOpenSheet({ kind: 'custom-shelf' })}>
-                  <FolderPlus aria-hidden="true" /> New shelf
-                </button>
+                  <FolderPlus aria-hidden="true" /> {t(" New shelf")}</button>
               </div>
             )}
             {activeCustomShelves
@@ -407,16 +408,16 @@ export function LibraryPage({
             {!librarySearchActive && !activeCustomShelves.length && (
               <button className={tw('custom-shelf-empty')} type="button" onClick={() => onOpenSheet({ kind: 'custom-shelf' })}>
                 <FolderPlus aria-hidden="true" />
-                <span><strong>Make a shelf of your own</strong><small>A book can belong to as many as you like</small></span>
+                <span><strong>{t("Make a shelf of your own")}</strong><small>{t("A book can belong to as many as you like")}</small></span>
               </button>
             )}
             {!librarySearchActive && archivedCustomShelves.length > 0 && (
               <section className={tw('archived-shelves')}>
-                <header><Archive aria-hidden="true" /><span>Archived shelves</span><strong>{archivedCustomShelves.length}</strong></header>
+                <header><Archive aria-hidden="true" /><span>{t("Archived shelves")}</span><strong>{archivedCustomShelves.length}</strong></header>
                 <div>
                   {archivedCustomShelves.map((shelf) => (
                     <button type="button" key={shelf.id} onClick={() => onOpenSheet({ kind: 'custom-shelf', shelfId: shelf.id })}>
-                      <span><strong>{shelf.name}</strong><small>Books remain in your library</small></span>
+                      <span><strong>{shelf.name}</strong><small>{t("Books remain in your library")}</small></span>
                       <ChevronRight aria-hidden="true" />
                     </button>
                   ))}
@@ -431,12 +432,12 @@ export function LibraryPage({
 }
 
 function coverEnrichmentCopy(status: CoverEnrichmentStatus): string {
-  const books = `${status.pending} ${status.pending === 1 ? 'book' : 'books'}`
+  const books = t("{{v0}} {{v1}}", { v0: status.pending, v1: status.pending === 1 ? 'book' : 'books' })
   if (status.state === 'checking') {
-    return `${books} still to check. Keep Wovenleaf open for a moment.`
+    return t("{{v0}} still to check. Keep Wovenleaf open for a moment.", { v0: books })
   }
   if (status.state === 'paused') {
-    return `${books} still to check. Wovenleaf will continue when the catalog is available.`
+    return t("{{v0}} still to check. Wovenleaf will continue when the catalog is available.", { v0: books })
   }
-  return `${books} still need a cover. Open a book and tap its cover to add one.`
+  return t("{{v0}} still need a cover. Open a book and tap its cover to add one.", { v0: books })
 }

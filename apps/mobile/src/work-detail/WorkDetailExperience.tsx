@@ -1,8 +1,9 @@
+import { t, translateCopy, useLanguage } from '../localization'
 import { ReadingHistoryControls } from './ReadingHistoryControls'
 import { useDetailDraft } from './DetailDraft'
 import { BookSource } from './BookSource'
 import './book-detail.css'
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import {
   BookCheck,
@@ -105,10 +106,10 @@ const detailSections: ReadonlyArray<{
   readonly label: string
   readonly icon: ReactNode
 }> = [
-  { id: 'overview', label: 'Edition', icon: <BookOpen aria-hidden="true" /> },
-  { id: 'reading', label: 'Reading', icon: <Clock3 aria-hidden="true" /> },
-  { id: 'notes', label: 'Notes', icon: <StickyNote aria-hidden="true" /> },
-  { id: 'library', label: 'Library', icon: <Library aria-hidden="true" /> },
+  { id: 'overview', get label() { return t("Edition") }, icon: <BookOpen aria-hidden="true" /> },
+  { id: 'reading', get label() { return t("Reading") }, icon: <Clock3 aria-hidden="true" /> },
+  { id: 'notes', get label() { return t("Notes") }, icon: <StickyNote aria-hidden="true" /> },
+  { id: 'library', get label() { return t("Library") }, icon: <Library aria-hidden="true" /> },
 ]
 
 const editionIcons: Record<WorkEditionDetail['kind'], ReactNode> = {
@@ -146,7 +147,8 @@ export function WorkDetailExperience({
   audiobookBusy,
   audiobookImport,
 }: WorkDetailExperienceProps) {
-  const model = useMemo(() => buildWorkDetailModel(book), [book])
+  useLanguage()
+  const model = buildWorkDetailModel(book)
   const [activeSection, setActiveSection] = useState<WorkDetailSection>('overview')
   const [selectedEditionId, setSelectedEditionId] = useState(model.initialEditionId)
   const [preferredEditionId, setPreferredEditionId] = useState(model.initialEditionId)
@@ -204,17 +206,17 @@ export function WorkDetailExperience({
 
     if (identityPreview.kind === 'preferred') {
       setPreferredEditionId(selectedEdition.id)
-      snapshot.message = `${selectedEdition.label} is now preferred.`
+      snapshot.message = t("{{edition}} is now preferred.", { edition: selectedEdition.label })
     } else if (identityPreview.kind === 'split') {
       setSeparatedEditionIds((current) => [...new Set([...current, selectedEdition.id])])
-      snapshot.message = `${selectedEdition.label} moved to a new Work. Its data stayed attached.`
+      snapshot.message = t("{{v0}} moved to a new Work. Its data stayed attached.", { v0: selectedEdition.label })
     } else {
       setMergedRecord(true)
-      snapshot.message = `Imported ${model.title} record merged here. Edition facts stayed separate.`
+      snapshot.message = t("Imported {{title}} record merged here. Edition facts stayed separate.", { title: model.title })
     }
 
     setIdentitySnapshot(snapshot)
-    setAnnouncement(`${snapshot.message} Undo is available.`)
+    setAnnouncement(t("{{message}} Undo is available.", { message: snapshot.message }))
     setIdentityPreview(undefined)
   }
 
@@ -223,7 +225,7 @@ export function WorkDetailExperience({
     setPreferredEditionId(identitySnapshot.preferredEditionId)
     setSeparatedEditionIds(identitySnapshot.separatedEditionIds)
     setMergedRecord(identitySnapshot.mergedRecord)
-    setAnnouncement(`Undone. ${identitySnapshot.message.replace(/\.$/, '')} was restored to its previous state.`)
+    setAnnouncement(t("Undone. The previous state was restored."))
     setIdentitySnapshot(undefined)
   }
 
@@ -233,8 +235,8 @@ export function WorkDetailExperience({
         <EditableBookCover book={book} onCover={onCover} />
         <div className={tw("work-detail__identity")}>
           <div className={tw("work-detail__eyebrow")}>
-            <span>Work record</span>
-            <StatusBadge icon={<HardDrive aria-hidden="true" />}>Saved locally</StatusBadge>
+            <span>{t("Work record")}</span>
+            <StatusBadge icon={<HardDrive aria-hidden="true" />}>{t("Saved locally")}</StatusBadge>
           </div>
           <h3>{model.title}</h3>
           <p>{model.authors.join(', ')}</p>
@@ -252,12 +254,12 @@ export function WorkDetailExperience({
       <section className={tw("edition-switcher")} aria-labelledby="edition-switcher-title">
         <header>
           <div>
-            <span>Manifestations</span>
-            <h4 id="edition-switcher-title">Choose an edition or access</h4>
+            <span>{t("Manifestations")}</span>
+            <h4 id="edition-switcher-title">{t("Choose an edition or access")}</h4>
           </div>
-          <small>{model.editions.length} together · one Work history</small>
+          <small>{t("{{count}} together · one Work history", { count: model.editions.length })}</small>
         </header>
-        <div className={tw("edition-switcher__rail")} role="radiogroup" aria-label="Editions and formats">
+        <div className={tw("edition-switcher__rail")} role="radiogroup" aria-label={t("Editions and formats")}>
           {model.editions.map((edition) => {
             const preferred = preferredEditionId === edition.id
             const separated = separatedEditionIds.includes(edition.id)
@@ -273,16 +275,16 @@ export function WorkDetailExperience({
                 <span className={tw("edition-switcher__icon")}>{editionIcons[edition.kind]}</span>
                 <span>
                   <strong>{edition.shortLabel}</strong>
-                  <small>{separated ? 'Separate Work' : edition.accessLabel}</small>
+                  <small>{separated ? t("Separate Work") : edition.accessLabel}</small>
                 </span>
-                {preferred && <i aria-label="Preferred edition"><Check aria-hidden="true" /></i>}
+                {preferred && <i aria-label={t("Preferred edition")}><Check aria-hidden="true" /></i>}
               </button>
             )
           })}
         </div>
       </section>
 
-      <nav className={tw("work-detail__tabs")} aria-label="Book detail sections" role="tablist">
+      <nav className={tw("work-detail__tabs")} aria-label={t("Book detail sections")} role="tablist">
         {detailSections.map((section) => (
           <button
             type="button"
@@ -389,6 +391,7 @@ function SimpleBookDetail({
   audiobookBusy,
   audiobookImport,
 }: Omit<WorkDetailExperienceProps, 'onEnrich'>) {
+  useLanguage()
   const [editing, setEditing] = useState(false)
   const [title, setTitle] = useState(book.title)
   const [author, setAuthor] = useState(book.authors.join(', '))
@@ -419,7 +422,7 @@ function SimpleBookDetail({
         <div className={tw('work-detail__identity')}>
           <span className={tw('simple-book-detail__status')}>{SHELVES.find(({ id }) => id === book.shelf)?.label}</span>
           <h3>{book.title}</h3>
-          <p>{book.authors.join(', ') || 'Unknown author'}</p>
+          <p>{book.authors.join(', ') || t("Unknown author")}</p>
         </div>
       </header>
 
@@ -427,20 +430,20 @@ function SimpleBookDetail({
         onRead={onRead} onAttachEpub={onAttachEpub} onAttachAudiobook={onAttachAudiobook}
         epubBusy={epubBusy} epubImport={epubImport} audiobookBusy={audiobookBusy} audiobookImport={audiobookImport} />
 
-      <section className="book-progress" aria-label="Reading progress">
-        <div className="book-progress__label"><span>{book.shelf === 'finished' ? 'Finished' : 'Your progress'}</span><strong>{book.progress}%</strong></div>
-        <progress max={100} value={book.progress} aria-label="Book progress" />
+      <section className="book-progress" aria-label={t("Reading progress")}>
+        <div className="book-progress__label"><span>{book.shelf === 'finished' ? t("Finished") : t("Your progress")}</span><strong>{book.progress}%</strong></div>
+        <progress max={100} value={book.progress} aria-label={t("Book progress")} />
         <div className="book-progress__actions">
-          <button type="button" onClick={onProgress}>Update progress</button>
-          {book.shelf !== 'finished' && <button type="button" onClick={onFinish}><BookCheck size={16} aria-hidden="true" /> Mark finished</button>}
+          <button type="button" onClick={onProgress}>{t("Update progress")}</button>
+          {book.shelf !== 'finished' && <button type="button" onClick={onFinish}><BookCheck size={16} aria-hidden="true" /> {t(" Mark finished")}</button>}
         </div>
       </section>
 
       <ReadingHistoryControls book={book} onMetadata={onMetadata} onReread={onReread} />
 
-      <section className="book-organization" aria-label="Organize book">
+      <section className="book-organization" aria-label={t("Organize book")}>
         <section className={tw('simple-detail-section')} aria-labelledby="reading-status-title">
-          <h4 id="reading-status-title">Shelves</h4>
+          <h4 id="reading-status-title">{t("Shelves")}</h4>
           <div className={tw('simple-shelf-choices')}>
             {SHELVES.map((shelf) => (
               <button type="button" key={shelf.id} aria-pressed={shelf.id === book.shelf} onClick={() => onMove(shelf.id)}>
@@ -450,7 +453,7 @@ function SimpleBookDetail({
           </div>
           {customShelves.length > 0 && (
             <fieldset className={tw('simple-custom-shelves')}>
-              <legend>Custom shelves</legend>
+              <legend>{t("Custom shelves")}</legend>
               {customShelves.map((shelf) => {
                 const checked = customShelfIds.includes(shelf.id)
                 return (
@@ -466,51 +469,51 @@ function SimpleBookDetail({
           )}
         </section>
 
-        <details className="book-disclosure"><summary>Tags <ChevronRight size={16} aria-hidden="true" /></summary>
+        <details className="book-disclosure"><summary>{t("Tags")}<ChevronRight size={16} aria-hidden="true" /></summary>
           <WorkTagEditor tags={tags} suggestions={tagSuggestions} onChange={onTags} />
         </details>
       </section>
 
-      <section className={tw('simple-personal')} aria-label="Rating and notes">
-        <div className={tw('work-memory__rating')}><span>Your rating</span><RatingStars value={book.rating} onChange={onRate} /></div>
+      <section className={tw('simple-personal')} aria-label={t("Rating and notes")}>
+        <div className={tw('work-memory__rating')}><span>{t("Your rating")}</span><RatingStars value={book.rating} onChange={onRate} /></div>
         <details className="book-disclosure book-notes">
-          <summary><StickyNote size={17} aria-hidden="true" /> Your notes <ChevronRight size={16} aria-hidden="true" /></summary>
-          <label><span className="sr-only">Private note</span><textarea value={book.notes} onChange={(event) => onNotes(event.target.value)} rows={3} placeholder="What do you want to remember?" /></label>
+          <summary><StickyNote size={17} aria-hidden="true" /> {t(" Your notes")}<ChevronRight size={16} aria-hidden="true" /></summary>
+          <label><span className="sr-only">{t("Private note")}</span><textarea value={book.notes} onChange={(event) => onNotes(event.target.value)} rows={3} placeholder={t("What do you want to remember?")} /></label>
         </details>
       </section>
 
       <details className="book-disclosure">
-        <summary>Book information <ChevronRight size={16} aria-hidden="true" /></summary>
+        <summary>{t("Book information")}<ChevronRight size={16} aria-hidden="true" /></summary>
         <section className={tw('simple-detail-section')} aria-labelledby="book-information-title">
-          <h4 id="book-information-title" className="sr-only">Book information</h4>
+          <h4 id="book-information-title" className="sr-only">{t("Book information")}</h4>
           {editing ? (
             <form ref={metadataForm} className={tw('simple-details-form')} onSubmit={saveDetails}>
-              <label><span>Title</span><input required value={title} onChange={(event) => setTitle(event.target.value)} /></label>
-              <label><span>Author</span><input value={author} onChange={(event) => setAuthor(event.target.value)} /></label>
-              <label><span>Pages</span><input type="number" min="0" value={pageCount} onChange={(event) => setPageCount(event.target.value)} /></label>
-              <div><button type="button" onClick={() => setEditing(false)}>Cancel</button><button type="submit">Save</button></div>
+              <label><span>{t("Title")}</span><input required value={title} onChange={(event) => setTitle(event.target.value)} /></label>
+              <label><span>{t("Author")}</span><input value={author} onChange={(event) => setAuthor(event.target.value)} /></label>
+              <label><span>{t("Pages")}</span><input type="number" min="0" value={pageCount} onChange={(event) => setPageCount(event.target.value)} /></label>
+              <div><button type="button" onClick={() => setEditing(false)}>{t("Cancel")}</button><button type="submit">{t("Save")}</button></div>
             </form>
           ) : (
             <div className={tw('simple-facts')}>
               <dl>
-                <div><dt>Format</dt><dd>{book.format ?? 'Not set'}</dd></div>
-                {book.format?.toUpperCase() !== 'AUDIOBOOK' && <div><dt>Length</dt><dd>{book.pageCount ? `${book.pageCount} pages` : 'Not set'}</dd></div>}
-                <div><dt>ISBN</dt><dd>{book.identifiers?.[0] ?? 'Not set'}</dd></div>
+                <div><dt>{t("Format")}</dt><dd>{book.format ?? t("Not set")}</dd></div>
+                {book.format?.toUpperCase() !== 'AUDIOBOOK' && <div><dt>{t("Length")}</dt><dd>{book.pageCount ? t("{{v0}} pages", { v0: book.pageCount }) : t("Not set")}</dd></div>}
+                <div><dt>{t("ISBN")}</dt><dd>{book.identifiers?.[0] ?? t("Not set")}</dd></div>
               </dl>
-              <button type="button" onClick={() => setEditing(true)}><Pencil aria-hidden="true" /> Edit details</button>
+              <button type="button" onClick={() => setEditing(true)}><Pencil aria-hidden="true" /> {t(" Edit details")}</button>
             </div>
           )}
         </section>
       </details>
       <details className="book-disclosure">
-        <summary>More options <ChevronRight size={16} aria-hidden="true" /></summary>
-        <section className={tw('remove-work')} aria-label="Remove from library">
+        <summary>{t("More options")}<ChevronRight size={16} aria-hidden="true" /></summary>
+        <section className={tw('remove-work')} aria-label={t("Remove from library")}>
           <button type="button" onClick={() => (confirmRemove ? onRemove() : setConfirmRemove(true))}>
             <Trash2 aria-hidden="true" />
-            <span><strong>{confirmRemove ? 'Tap again to remove' : 'Remove from library'}</strong><small>Your attached files and library entry will be removed.</small></span>
+            <span><strong>{confirmRemove ? t("Tap again to remove") : t("Remove from library")}</strong><small>{t("Your attached files and library entry will be removed.")}</small></span>
             <ChevronRight aria-hidden="true" />
           </button>
-          {confirmRemove && <button type="button" onClick={() => setConfirmRemove(false)}>Cancel</button>}
+          {confirmRemove && <button type="button" onClick={() => setConfirmRemove(false)}>{t("Cancel")}</button>}
         </section>
       </details>
     </div>
@@ -534,6 +537,7 @@ function EditionOverview({
   readonly onMetadata: (changes: Partial<LibraryBook>) => void
   readonly onEnrich: () => Promise<boolean>
 }) {
+  useLanguage()
   const capture = book.capture ?? (book.id.startsWith('manual-') ? {
     method: 'manual-entry' as const,
     capturedAt: book.addedAt,
@@ -543,12 +547,12 @@ function EditionOverview({
     <div className={tw("edition-overview")} id="selected-edition-panel">
       <header className={tw("panel-heading")}>
         <div>
-          <span>Selected edition · {edition.medium}</span>
+          <span>{t("Selected edition ·")}{' '}{translateCopy(edition.medium)}</span>
           <h4>{edition.label}</h4>
         </div>
         <div className={tw("panel-heading__badges")}>
-          {preferred && <StatusBadge icon={<Check aria-hidden="true" />}>Preferred</StatusBadge>}
-          {separated && <StatusBadge tone="accent">Separate Work</StatusBadge>}
+          {preferred && <StatusBadge icon={<Check aria-hidden="true" />}>{t("Preferred")}</StatusBadge>}
+          {separated && <StatusBadge tone="accent">{t("Separate Work")}</StatusBadge>}
         </div>
       </header>
 
@@ -557,7 +561,7 @@ function EditionOverview({
           {edition.availabilityTone === 'local' ? <HardDrive /> : edition.availabilityTone === 'record-only' ? <BookCopy /> : <WifiOff />}
         </span>
         <div>
-          <span>Current access</span>
+          <span>{t("Current access")}</span>
           <h5 id="edition-access-title">{edition.accessLabel}</h5>
           <p>{edition.accessDetail}</p>
         </div>
@@ -578,7 +582,7 @@ function EditionOverview({
 
       <div className={tw("edition-overview__split")}>
         <section className={tw("edition-facts")} aria-labelledby="edition-facts-title">
-          <header><span>Edition facts, never Work facts</span><h5 id="edition-facts-title">Publication ledger</h5></header>
+          <header><span>{t("Edition facts, never Work facts")}</span><h5 id="edition-facts-title">{t("Publication ledger")}</h5></header>
           <dl>
             {edition.facts.map((fact) => (
               <div key={fact.label}>
@@ -591,27 +595,27 @@ function EditionOverview({
 
         <div className={tw("edition-assets-stack")}>
           <section className={tw("edition-asset")} aria-labelledby="edition-asset-title">
-            <header><span>Current asset</span><h5 id="edition-asset-title">{edition.asset ? edition.asset.name : 'No readable asset'}</h5></header>
+            <header><span>{t("Current asset")}</span><h5 id="edition-asset-title">{edition.asset ? edition.asset.name : t("No readable asset")}</h5></header>
             {edition.asset ? (
               <dl>
-                <div><dt>Format</dt><dd>{edition.asset.format}</dd></div>
-                <div><dt>Location</dt><dd>{edition.asset.location}</dd></div>
-                <div><dt>Status</dt><dd>{edition.asset.detail}</dd></div>
+                <div><dt>{t("Format")}</dt><dd>{edition.asset.format}</dd></div>
+                <div><dt>{t("Location")}</dt><dd>{edition.asset.location}</dd></div>
+                <div><dt>{t("Status")}</dt><dd>{edition.asset.detail}</dd></div>
               </dl>
             ) : (
-              <p>This edition is catalogued without a content file. Cover art and metadata remain available offline.</p>
+              <p>{t("This edition is catalogued without a content file. Cover art and metadata remain available offline.")}</p>
             )}
           </section>
 
           {edition.loan && (
             <section className={tw("edition-loan")} aria-labelledby="edition-loan-title">
-              <header><span>Loan state</span><h5 id="edition-loan-title">{edition.loan.due}</h5></header>
+              <header><span>{t("Loan state")}</span><h5 id="edition-loan-title">{edition.loan.due}</h5></header>
               <p><strong>{edition.loan.provider}</strong>{edition.loan.detail}</p>
             </section>
           )}
 
           <section className={tw("edition-provenance")} aria-labelledby="edition-provenance-title">
-            <header><span>Source provenance</span><h5 id="edition-provenance-title">Why these facts appear</h5></header>
+            <header><span>{t("Source provenance")}</span><h5 id="edition-provenance-title">{t("Why these facts appear")}</h5></header>
             <ul>
               {edition.sources.map((source) => <li key={source}><ShieldCheck aria-hidden="true" />{source}</li>)}
             </ul>
@@ -621,7 +625,7 @@ function EditionOverview({
 
       <button className={tw("edition-preference")} type="button" disabled={preferred} onClick={onPrefer}>
         <BookOpen aria-hidden="true" />
-        <span><strong>{preferred ? 'Preferred edition' : 'Choose as preferred edition'}</strong><small>Controls the cover and default quick action for this Work</small></span>
+        <span><strong>{preferred ? t("Preferred edition") : t("Choose as preferred edition")}</strong><small>{t("Controls the cover and default quick action for this Work")}</small></span>
         {preferred ? <Check aria-hidden="true" /> : <ChevronRight aria-hidden="true" />}
       </button>
     </div>
@@ -639,6 +643,7 @@ function CaptureMetadataPanel({
   readonly onMetadata: (changes: Partial<LibraryBook>) => void
   readonly onEnrich: () => Promise<boolean>
 }) {
+  useLanguage()
   const [editing, setEditing] = useState(false)
   const [title, setTitle] = useState(book.title)
   const [author, setAuthor] = useState(book.authors.join(', '))
@@ -654,7 +659,7 @@ function CaptureMetadataPanel({
     if (!title.trim()) return false
     const inspection = inspectIsbnInput(isbn)
     if (isbn.trim() && inspection.state !== 'valid') {
-      setIssue(inspection.state === 'invalid' ? inspection.message : 'Enter a valid ISBN.')
+      setIssue(inspection.state === 'invalid' ? inspection.message : t("Enter a valid ISBN."))
       return false
     }
     onMetadata(applyManualBookEdits(book, {
@@ -683,35 +688,35 @@ function CaptureMetadataPanel({
     <section className={tw('capture-metadata')} aria-labelledby="capture-metadata-title">
       <header>
         <div>
-          <span>Local capture · reader-owned fields win</span>
-          <h5 id="capture-metadata-title">Personal record</h5>
+          <span>{t("Local capture · reader-owned fields win")}</span>
+          <h5 id="capture-metadata-title">{t("Personal record")}</h5>
         </div>
-        <small>{capture.enrichedAt ? 'Enriched' : 'Awaiting enrichment'}</small>
+        <small>{capture.enrichedAt ? t("Enriched") : t("Awaiting enrichment")}</small>
       </header>
       {editing ? (
         <form ref={metadataForm} className={tw('capture-metadata__form')} onSubmit={save}>
-          <label><span>Title</span><input required value={title} onChange={(event) => setTitle(event.target.value)} /></label>
-          <label><span>Author</span><input value={author} onChange={(event) => setAuthor(event.target.value)} placeholder="Unknown author" /></label>
-          <label><span>ISBN</span><input value={isbn} onChange={(event) => setIsbn(event.target.value)} placeholder="978-…" inputMode="numeric" /></label>
-          <label><span>Pages</span><input value={pageCount} onChange={(event) => setPageCount(event.target.value)} type="number" min="0" inputMode="numeric" /></label>
+          <label><span>{t("Title")}</span><input required value={title} onChange={(event) => setTitle(event.target.value)} /></label>
+          <label><span>{t("Author")}</span><input value={author} onChange={(event) => setAuthor(event.target.value)} placeholder={t("Unknown author")} /></label>
+          <label><span>{t("ISBN")}</span><input value={isbn} onChange={(event) => setIsbn(event.target.value)} placeholder="978-…" inputMode="numeric" /></label>
+          <label><span>{t("Pages")}</span><input value={pageCount} onChange={(event) => setPageCount(event.target.value)} type="number" min="0" inputMode="numeric" /></label>
           {issue && <p role="alert">{issue}</p>}
           <div>
-            <button type="button" onClick={() => setEditing(false)}>Cancel</button>
-            <button type="submit">Save local details</button>
+            <button type="button" onClick={() => setEditing(false)}>{t("Cancel")}</button>
+            <button type="submit">{t("Save local details")}</button>
           </div>
         </form>
       ) : (
         <>
           <p>
             {capture.manualOverrides.length
-              ? `${capture.manualOverrides.length} local ${capture.manualOverrides.length === 1 ? 'field is' : 'fields are'} protected. Catalog updates fill only the gaps.`
-              : 'Catalog details can refresh without changing your reading history or edition identity.'}
+              ? t("localFieldsProtected", { count: capture.manualOverrides.length, value: capture.manualOverrides.length })
+              : t("Catalog details can refresh without changing your reading history or edition identity.")}
           </p>
           {issue && <p className={tw('capture-metadata__issue')} role="status">{issue}</p>}
           <div className={tw('capture-metadata__actions')}>
-            <button type="button" onClick={() => setEditing(true)}><Pencil aria-hidden="true" /> Edit local details</button>
+            <button type="button" onClick={() => setEditing(true)}><Pencil aria-hidden="true" /> {t(" Edit local details")}</button>
             <button type="button" onClick={() => { void enrich() }} disabled={enriching}>
-              <RefreshCw aria-hidden="true" /> {enriching ? 'Checking catalogs…' : 'Enrich now'}
+              <RefreshCw aria-hidden="true" /> {enriching ? t("Checking catalogs…") : t("Enrich now")}
             </button>
           </div>
         </>
@@ -735,36 +740,37 @@ function ReadingPanel({
   readonly onProgress: () => void
   readonly onFinish: () => void
 }) {
+  useLanguage()
   const editionNames = new Map(model.editions.map((edition) => [edition.id, edition.shortLabel]))
 
   return (
     <div className={tw("reading-panel")}>
       <section className={tw("reading-overview")} aria-labelledby="reading-overview-title">
         <div>
-          <span>One Work history</span>
-          <h4 id="reading-overview-title">{model.overallProgress}% complete</h4>
-          <p>Sessions from print, files, audio, and loans appear once in the same chronology.</p>
+          <span>{t("One Work history")}</span>
+          <h4 id="reading-overview-title">{model.overallProgress}{t("% complete")}</h4>
+          <p>{t("Sessions from print, files, audio, and loans appear once in the same chronology.")}</p>
         </div>
-        <div className={tw("reading-overview__meter")} aria-label={`${model.overallProgress}% complete`}>
+        <div className={tw("reading-overview__meter")} aria-label={t("{{v0}}% complete", { v0: model.overallProgress })}>
           <i><b style={{ width: `${model.overallProgress}%` }} /></i>
           <span><strong>{selectedEdition.shortLabel}</strong>{selectedEdition.progressLabel}</span>
         </div>
         <div className={tw("reading-overview__actions")}>
           {['EPUB', 'PDF'].includes(book.format?.toLocaleUpperCase() ?? '') && (
-            <button type="button" onClick={() => onRead()}><BookOpen aria-hidden="true" />{book.startedAt || book.progress > 0 ? 'Continue reading' : 'Start reading'}</button>
+            <button type="button" onClick={() => onRead()}><BookOpen aria-hidden="true" />{book.startedAt || book.progress > 0 ? t("Continue reading") : t("Start reading")}</button>
           )}
           {book.format?.toLocaleUpperCase() === 'AUDIOBOOK' && (
-            <button type="button" onClick={() => onRead()}><Headphones aria-hidden="true" />{book.startedAt || book.progress > 0 ? 'Continue listening' : 'Start listening'}</button>
+            <button type="button" onClick={() => onRead()}><Headphones aria-hidden="true" />{book.startedAt || book.progress > 0 ? t("Continue listening") : t("Start listening")}</button>
           )}
-          <button type="button" onClick={onProgress} disabled={book.shelf === 'finished'}>Update progress</button>
-          {book.shelf !== 'finished' && <button type="button" onClick={onFinish}><BookCheck aria-hidden="true" /> Mark finished</button>}
+          <button type="button" onClick={onProgress} disabled={book.shelf === 'finished'}>{t("Update progress")}</button>
+          {book.shelf !== 'finished' && <button type="button" onClick={onFinish}><BookCheck aria-hidden="true" /> {t(" Mark finished")}</button>}
         </div>
       </section>
 
       <section className={tw("reading-timeline")} aria-labelledby="reading-history-title">
         <header className={tw("panel-heading")}>
-          <div><span>All manifestations</span><h4 id="reading-history-title">Reading history</h4></div>
-          <small>{model.sessions.length} sessions</small>
+          <div><span>{t("All manifestations")}</span><h4 id="reading-history-title">{t("Reading history")}</h4></div>
+          <small>{model.sessions.length} {t(" sessions")}</small>
         </header>
         {model.sessions.length ? (
           <ol>
@@ -779,7 +785,7 @@ function ReadingPanel({
         ) : (
           <EmptyDetailState
             icon={<Clock3 aria-hidden="true" />}
-            title="No reading sessions yet"
+            title={t("No reading sessions yet")}
             copy="Starting any edition will add one event to this Work history."
           />
         )}
@@ -805,19 +811,20 @@ function NotesPanel({
   readonly onNotes: (notes: string) => void
   readonly onTags: (tags: readonly string[]) => void
 }) {
+  useLanguage()
   const editionNames = new Map(model.editions.map((edition) => [edition.id, edition.shortLabel]))
 
   return (
     <div className={tw("notes-panel")}>
       <section className={tw("work-memory")} aria-labelledby="work-memory-title">
-        <header><span>Work-level memory</span><h4 id="work-memory-title">Your private record</h4></header>
-        <div className={tw("work-memory__rating")}><span>Rating</span><RatingStars value={book.rating} onChange={onRate} /></div>
+        <header><span>{t("Work-level memory")}</span><h4 id="work-memory-title">{t("Your private record")}</h4></header>
+        <div className={tw("work-memory__rating")}><span>{t("Rating")}</span><RatingStars value={book.rating} onChange={onRate} /></div>
         <label>
-          <span>Private note</span>
+          <span>{t("Private note")}</span>
           <textarea
             value={book.notes}
             onChange={(event) => onNotes(event.target.value)}
-            placeholder="What do you want to remember about the Work?"
+            placeholder={t("What do you want to remember about the Work?")}
             rows={3}
           />
         </label>
@@ -826,14 +833,14 @@ function NotesPanel({
 
       <section className={tw("annotation-ledger")} aria-labelledby="annotation-ledger-title">
         <header className={tw("panel-heading")}>
-          <div><span>Edition-located, Work-visible</span><h4 id="annotation-ledger-title">Annotations</h4></div>
-          <small>{model.annotations.length} saved</small>
+          <div><span>{t("Edition-located, Work-visible")}</span><h4 id="annotation-ledger-title">{t("Annotations")}</h4></div>
+          <small>{model.annotations.length} {t(" saved")}</small>
         </header>
         {model.annotations.length ? (
           <ol>
             {model.annotations.map((annotation) => (
               <li key={annotation.id}>
-                <span><strong>{annotation.kind}</strong><small>{editionNames.get(annotation.editionId)} · {annotation.locator}</small></span>
+                <span><strong>{translateCopy(annotation.kind)}</strong><small>{editionNames.get(annotation.editionId)} · {annotation.locator}</small></span>
                 <p>{annotation.excerpt}</p>
               </li>
             ))}
@@ -841,7 +848,7 @@ function NotesPanel({
         ) : (
           <EmptyDetailState
             icon={<StickyNote aria-hidden="true" />}
-            title="No annotations yet"
+            title={t("No annotations yet")}
             copy="Highlights and bookmarks will keep their exact edition location here."
           />
         )}
@@ -879,17 +886,18 @@ function LibraryPanel({
   readonly onUndoIdentity: () => void
   readonly onRemove: () => void
 }) {
+  useLanguage()
   const [showShelves, setShowShelves] = useState(false)
   const [confirmRemove, setConfirmRemove] = useState(false)
 
   return (
     <div className={tw("library-panel")}>
       <section className={tw("library-membership")} aria-labelledby="library-membership-title">
-        <header><span>Lists and status</span><h4 id="library-membership-title">Where this Work lives</h4></header>
+        <header><span>{t("Lists and status")}</span><h4 id="library-membership-title">{t("Where this Work lives")}</h4></header>
         <div className={tw("library-membership__status")}>
           <button type="button" onClick={() => setShowShelves((value) => !value)}>
             <FolderInput aria-hidden="true" />
-            <span><strong>{SHELVES.find(({ id }) => id === book.shelf)?.label}</strong><small>Reading status applies to the Work</small></span>
+            <span><strong>{SHELVES.find(({ id }) => id === book.shelf)?.label}</strong><small>{t("Reading status applies to the Work")}</small></span>
             <ChevronRight className={tw(showShelves ? 'is-rotated' : '')} aria-hidden="true" />
           </button>
           {showShelves && (
@@ -904,7 +912,7 @@ function LibraryPanel({
         </div>
 
         <fieldset>
-          <legend>Custom shelves</legend>
+          <legend>{t("Custom shelves")}</legend>
           {customShelves.length ? customShelves.map((shelf) => {
             const checked = customShelfIds.includes(shelf.id)
             return (
@@ -917,17 +925,17 @@ function LibraryPanel({
                     : [...customShelfIds, shelf.id])}
                 />
                 <span>{shelf.name}</span>
-                {shelf.pinned && <Pin aria-label="Pinned" />}
+                {shelf.pinned && <Pin aria-label={t("Pinned")} />}
               </label>
             )
-          }) : <p>No custom shelves yet. Reading status still stays independent.</p>}
+          }) : <p>{t("No custom shelves yet. Reading status still stays independent.")}</p>}
         </fieldset>
       </section>
 
       <section className={tw("work-history")} aria-labelledby="work-history-title">
         <header className={tw("panel-heading")}>
-          <div><span>Local journal</span><h4 id="work-history-title">Work history</h4></div>
-          <small>Offline-first</small>
+          <div><span>{t("Local journal")}</span><h4 id="work-history-title">{t("Work history")}</h4></div>
+          <small>{t("Offline-first")}</small>
         </header>
         <ol>
           {model.history.map((event) => (
@@ -938,28 +946,28 @@ function LibraryPanel({
 
       <section className={tw("identity-actions")} aria-labelledby="identity-actions-title">
         <header>
-          <div><span>Careful tools</span><h4 id="identity-actions-title">Work identity & editions</h4></div>
-          <button type="button" onClick={onUndoIdentity} disabled={!undoAvailable}><RotateCcw aria-hidden="true" /> Undo</button>
+          <div><span>{t("Careful tools")}</span><h4 id="identity-actions-title">{t("Work identity & editions")}</h4></div>
+          <button type="button" onClick={onUndoIdentity} disabled={!undoAvailable}><RotateCcw aria-hidden="true" /> {t(" Undo")}</button>
         </header>
-        <p>Every identity change previews what moves. Assets, loans, sources, progress, and annotations remain attached by Edition ID.</p>
+        <p>{t("Every identity change previews what moves. Assets, loans, sources, progress, and annotations remain attached by Edition ID.")}</p>
         <div className={tw("identity-actions__state")}>
           <span>{selectedEdition.label}</span>
-          <strong>{separated ? 'Split into a separate Work' : mergedRecord ? 'Imported record merged' : 'Belongs to this Work'}</strong>
+          <strong>{separated ? t("Split into a separate Work") : mergedRecord ? t("Imported record merged") : t("Belongs to this Work")}</strong>
         </div>
         <div className={tw("identity-actions__buttons")}>
           <button type="button" onClick={() => onPreviewIdentity('merge')} disabled={mergedRecord}>
-            <GitMerge aria-hidden="true" /><span><strong>Merge another Work…</strong><small>Review a possible duplicate and its destination</small></span><ChevronRight aria-hidden="true" />
+            <GitMerge aria-hidden="true" /><span><strong>{t("Merge another Work…")}</strong><small>{t("Review a possible duplicate and its destination")}</small></span><ChevronRight aria-hidden="true" />
           </button>
           <button type="button" onClick={() => onPreviewIdentity('split')} disabled={separated || model.editions.length < 2}>
-            <Scissors aria-hidden="true" /><span><strong>Split selected edition…</strong><small>Create a new Work without detaching its data</small></span><ChevronRight aria-hidden="true" />
+            <Scissors aria-hidden="true" /><span><strong>{t("Split selected edition…")}</strong><small>{t("Create a new Work without detaching its data")}</small></span><ChevronRight aria-hidden="true" />
           </button>
         </div>
       </section>
 
-      <section className={tw("remove-work")} aria-label="Remove from library">
+      <section className={tw("remove-work")} aria-label={t("Remove from library")}>
         <button type="button" onClick={() => (confirmRemove ? onRemove() : setConfirmRemove(true))}>
           <Trash2 aria-hidden="true" />
-          <span><strong>{confirmRemove ? 'Tap again to remove from library' : 'Remove from library'}</strong><small>Also removes this Work from every custom shelf</small></span>
+          <span><strong>{confirmRemove ? t("Tap again to remove from library") : t("Remove from library")}</strong><small>{t("Also removes this Work from every custom shelf")}</small></span>
           <ChevronRight aria-hidden="true" />
         </button>
       </section>
@@ -976,6 +984,7 @@ function WorkTagEditor({
   readonly suggestions: readonly string[]
   readonly onChange: (tags: readonly string[]) => void
 }) {
+  useLanguage()
   const [value, setValue] = useState('')
 
   const addTag = (event: FormEvent) => {
@@ -988,14 +997,14 @@ function WorkTagEditor({
 
   return (
     <div className={tw("work-tag-editor")}>
-      <span>Tags</span>
+      <span>{t("Tags")}</span>
       <div>
         {tags.map((tag) => (
           <button type="button" key={tag} onClick={() => onChange(tags.filter((item) => item !== tag))}>
             <Hash aria-hidden="true" />{tag}<X aria-hidden="true" />
           </button>
         ))}
-        {!tags.length && <small>No tags yet</small>}
+        {!tags.length && <small>{t("No tags yet")}</small>}
       </div>
       <form onSubmit={addTag}>
         <input
@@ -1003,13 +1012,13 @@ function WorkTagEditor({
           onChange={(event) => setValue(event.target.value)}
           list="work-detail-tag-suggestions"
           maxLength={40}
-          placeholder="Add a tag"
-          aria-label="New tag"
+          placeholder={t("Add a tag")}
+          aria-label={t("New tag")}
         />
         <datalist id="work-detail-tag-suggestions">
           {suggestions.map((suggestion) => <option value={suggestion} key={suggestion} />)}
         </datalist>
-        <button type="submit" disabled={!value.trim()}>Add</button>
+        <button type="submit" disabled={!value.trim()}>{t("Add")}</button>
       </form>
     </div>
   )
@@ -1024,6 +1033,7 @@ function IdentityPreviewDialog({
   readonly onCancel: () => void
   readonly onConfirm: () => void
 }) {
+  useLanguage()
   const dialogRef = useRef<HTMLElement>(null)
 
   useEffect(() => {
@@ -1054,7 +1064,7 @@ function IdentityPreviewDialog({
           {impact.assurances.map((assurance) => <li key={assurance}><ShieldCheck aria-hidden="true" />{assurance}</li>)}
         </ul>
         <div>
-          <button type="button" onClick={onCancel}>Cancel</button>
+          <button type="button" onClick={onCancel}>{t("Cancel")}</button>
           <button type="button" onClick={onConfirm}>{impact.confirmLabel}</button>
         </div>
       </section>
@@ -1064,6 +1074,7 @@ function IdentityPreviewDialog({
 }
 
 function EmptyDetailState({ icon, title, copy }: { readonly icon: ReactNode; readonly title: string; readonly copy: string }) {
+  useLanguage()
   return (
     <div className={tw("detail-empty-state")}>
       <span>{icon}</span>

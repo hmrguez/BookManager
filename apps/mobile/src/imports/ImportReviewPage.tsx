@@ -1,3 +1,5 @@
+import { LocalizedError } from '../localization/LocalizedError'
+import { t, formatNumber, getLocale, useLanguage } from '../localization'
 import { useWideLayout } from '../responsive/useWideLayout'
 import { useMemo, useState } from 'react'
 import { ArrowLeft, Check, ChevronDown, ChevronLeft, ChevronRight, LoaderCircle, TriangleAlert } from 'lucide-react'
@@ -10,7 +12,7 @@ import './import-review.css'
 
 const PAGE_SIZE = 100
 const proposalCopy = {
-  add: 'New', update: 'Update', conflict: 'Review', skip: 'Unchanged', error: 'Needs attention',
+  get add() { return t("New") }, get update() { return t("Update") }, get conflict() { return t("Review") }, get skip() { return t("Unchanged") }, get error() { return t("Needs attention") },
 } as const
 
 type Filter = 'all' | 'attention' | 'add' | 'update' | 'skip'
@@ -24,6 +26,7 @@ export function ImportReviewPage({ preview, books, busy, progress, error, onBack
   onBack: () => void
   onCommit: (decisions: readonly ImportReviewDecision[]) => Promise<void>
 }) {
+  useLanguage()
   const wideLayout = useWideLayout()
   const [overrides, setOverrides] = useState<Record<string, ImportReviewDecision>>({})
   const [filter, setFilter] = useState<Filter>('all')
@@ -65,31 +68,31 @@ export function ImportReviewPage({ preview, books, busy, progress, error, onBack
   return (
     <main data-wide={wideLayout || undefined} className="import-review import-compact" aria-busy={busy}>
       <header className="import-heading">
-        <button type="button" className="import-back" onClick={onBack} disabled={busy} aria-label={complete ? 'View library' : 'Back to settings'}><ArrowLeft /></button>
+        <button type="button" className="import-back" onClick={onBack} disabled={busy} aria-label={complete ? t("View library") : t("Back to settings")}><ArrowLeft /></button>
         <div>
-          <span className="import-eyebrow">{preview.source.key === 'goodreads-csv' ? 'From Goodreads' : 'Library import'}</span>
-          <h1>{complete ? 'Your library is here.' : preparing ? 'Reading your library…' : committing ? 'Bringing your books home…' : 'Make yourself at home.'}</h1>
-          <p>{complete ? `${included.length.toLocaleString()} books imported` : preparing ? `${preview.proposals.length.toLocaleString()} of ${progress.total.toLocaleString()} books found` : `${preview.proposals.length.toLocaleString()} books · review the exceptions, then import`}</p>
+          <span className="import-eyebrow">{preview.source.key === 'goodreads-csv' ? t("From Goodreads") : t("Library import")}</span>
+          <h1>{complete ? t("Your library is here.") : preparing ? t("Reading your library…") : committing ? t("Bringing your books home…") : t("Make yourself at home.")}</h1>
+          <p>{complete ? t('booksImported', { count: included.length, value: formatNumber(included.length) }) : preparing ? t("{{v0}} of {{v1}} books found", { v0: preview.proposals.length.toLocaleString(getLocale()), v1: progress.total.toLocaleString(getLocale()) }) : t("{{v0}} books · review the exceptions, then import", { v0: preview.proposals.length.toLocaleString(getLocale()) })}</p>
         </div>
       </header>
 
       {(busy || complete) && (
         <div className="import-live" role="status" aria-live="polite">
-          <div><span>{complete ? <Check /> : <LoaderCircle className="import-spin" />}{complete ? 'Saved on this device' : preparing ? 'Preparing your books' : 'Saving your library'}</span><strong>{complete ? 'Done' : `${progress?.completed.toLocaleString() ?? 0} / ${progress?.total.toLocaleString() ?? preview.proposals.length}`}</strong></div>
-          <progress aria-label={preparing ? 'Preparation progress' : 'Import progress'} max={100} value={complete ? 100 : progressPercent} />
-          {complete && <small>Books are ready. Missing covers can fill in afterward.</small>}
+          <div><span>{complete ? <Check /> : <LoaderCircle className="import-spin" />}{complete ? t("Saved on this device") : preparing ? t("Preparing your books") : t("Saving your library")}</span><strong>{complete ? t("Done") : t("{{v0}} / {{v1}}", { v0: progress?.completed.toLocaleString(getLocale()) ?? 0, v1: progress?.total.toLocaleString(getLocale()) ?? preview.proposals.length })}</strong></div>
+          <progress aria-label={preparing ? t("Preparation progress") : t("Import progress")} max={100} value={complete ? 100 : progressPercent} />
+          {complete && <small>{t("Books are ready. Missing covers can fill in afterward.")}</small>}
         </div>
       )}
 
-      <nav className="import-filters" aria-label="Filter import books">
+      <nav className="import-filters" aria-label={t("Filter import books")}>
         {(Object.keys(labels) as Filter[]).map((key) => (
           <button key={key} type="button" aria-pressed={filter === key} onClick={() => { setFilter(key); setPage(0); setExpandedId(undefined) }}>
-            {labels[key]} <span>{counts[key].toLocaleString()}</span>
+            {labels[key]} <span>{counts[key].toLocaleString(getLocale())}</span>
           </button>
         ))}
       </nav>
 
-      <div className="import-book-list" aria-label="Import rows">
+      <div className="import-book-list" aria-label={t("Import rows")}>
         {rows.map((proposal, index) => {
           const decision = decisionFor(proposal)
           const expanded = expandedId === proposal.id
@@ -100,12 +103,12 @@ export function ImportReviewPage({ preview, books, busy, progress, error, onBack
             <article className={`import-book-row${expanded ? ' is-expanded' : ''}${imported ? ' is-imported' : ''}`} key={proposal.id}>
               <div className="import-book-line" style={wideLayout ? { gridRow: index + 1 } : undefined}>
                 <label className="import-select">
-                  <input type="checkbox" checked={decision.included} disabled={immutable} onChange={(event) => changeDecision(proposal, { included: event.target.checked })} aria-label={`Include ${proposal.record?.title ?? `row ${proposal.rowNumber}`}`} />
+                  <input type="checkbox" checked={decision.included} disabled={immutable} onChange={(event) => changeDecision(proposal, { included: event.target.checked })} aria-label={t("Include {{v0}}", { v0: proposal.record?.title ?? `row ${proposal.rowNumber}` })} />
                   <span aria-hidden="true">{imported ? <Check className="import-arrived" /> : active ? <LoaderCircle className="import-spin" /> : proposal.kind === 'error' ? <TriangleAlert /> : decision.included ? <Check /> : null}</span>
                 </label>
                 <button className="import-book-expand" type="button" aria-expanded={expanded} aria-controls={`details-${proposal.id}`} onClick={() => setExpandedId(expanded ? undefined : proposal.id)}>
-                  <span className="import-book-identity"><strong>{proposal.record?.title ?? `Row ${proposal.rowNumber}`}</strong><small>{proposal.record?.authors.join(', ') ?? proposal.validationErrors.join(' · ')}</small></span>
-                  <span className={`import-book-status${needsAttention(proposal) ? ' needs-attention' : ''}`}>{imported ? 'Imported' : active ? 'Saving' : proposalCopy[proposal.kind]}</span>
+                  <span className="import-book-identity"><strong>{proposal.record?.title ?? t("Row {{v0}}", { v0: proposal.rowNumber })}</strong><small>{proposal.record?.authors.join(', ') ?? proposal.validationErrors.join(' · ')}</small></span>
+                  <span className={`import-book-status${needsAttention(proposal) ? ' needs-attention' : ''}`}>{imported ? t("Imported") : active ? t("Saving") : proposalCopy[proposal.kind]}</span>
                   <ChevronRight className="import-chevron" />
                 </button>
               </div>
@@ -117,25 +120,25 @@ export function ImportReviewPage({ preview, books, busy, progress, error, onBack
             </article>
           )
         })}
-        {!rows.length && <p className="import-empty">{preparing ? 'Reading the first books…' : 'No books in this category.'}</p>}
+        {!rows.length && <p className="import-empty">{preparing ? t("Reading the first books…") : t("No books in this category.")}</p>}
       </div>
 
-      {pageCount > 1 && <nav className="import-pagination" aria-label="Import pages">
-        <button type="button" disabled={currentPage === 0} onClick={() => { setPage(currentPage - 1); setExpandedId(undefined) }} aria-label="Previous books"><ChevronLeft /></button>
-        <span>{(currentPage * PAGE_SIZE + 1).toLocaleString()}–{Math.min((currentPage + 1) * PAGE_SIZE, visible.length).toLocaleString()} of {visible.length.toLocaleString()}</span>
-        <button type="button" disabled={currentPage + 1 >= pageCount} onClick={() => { setPage(currentPage + 1); setExpandedId(undefined) }} aria-label="Next books"><ChevronRight /></button>
+      {pageCount > 1 && <nav className="import-pagination" aria-label={t("Import pages")}>
+        <button type="button" disabled={currentPage === 0} onClick={() => { setPage(currentPage - 1); setExpandedId(undefined) }} aria-label={t("Previous books")}><ChevronLeft /></button>
+        <span>{(currentPage * PAGE_SIZE + 1).toLocaleString(getLocale())}–{Math.min((currentPage + 1) * PAGE_SIZE, visible.length).toLocaleString(getLocale())} {t(" of")}{' '}{visible.length.toLocaleString(getLocale())}</span>
+        <button type="button" disabled={currentPage + 1 >= pageCount} onClick={() => { setPage(currentPage + 1); setExpandedId(undefined) }} aria-label={t("Next books")}><ChevronRight /></button>
       </nav>}
 
-      <details className="import-privacy"><summary>What stays private <ChevronDown /></summary>
-        <p>The file is processed on this device. Books, shelves, notes, and reading history are saved together. You can undo this import in Settings. Cover lookup happens separately.</p>
+      <details className="import-privacy"><summary>{t("What stays private")}<ChevronDown /></summary>
+        <p>{t("The file is processed on this device. Books, shelves, notes, and reading history are saved together. You can undo this import in Settings. Cover lookup happens separately.")}</p>
       </details>
 
       <footer className="import-action-bar">
-        <div><strong>{complete ? 'All set.' : unresolved.length ? `${unresolved.length} selected books need review` : `${included.length.toLocaleString()} books selected`}</strong><span>{complete ? 'Your reading life, in one place.' : 'Saved locally · undo available'}</span></div>
+        <div><strong>{complete ? t("All set.") : unresolved.length ? t('booksNeedReview', { count: unresolved.length, value: formatNumber(unresolved.length) }) : t('booksSelected', { count: included.length, value: formatNumber(included.length) })}</strong><span>{complete ? t("Your reading life, in one place.") : t("Saved locally · undo available")}</span></div>
         <button type="button" disabled={!complete && (busy || included.length === 0 || unresolved.length > 0)} onClick={() => complete ? onBack() : void onCommit(preview.proposals.map(decisionFor))}>
-          {busy ? <LoaderCircle className="import-spin" /> : <Check />}{complete ? 'View library' : preparing ? 'Preparing…' : committing ? 'Importing…' : `Import ${included.length.toLocaleString()} books`}
+          {busy ? <LoaderCircle className="import-spin" /> : <Check />}{complete ? t("View library") : preparing ? t("Preparing…") : committing ? t("Importing…") : t('importBooks', { count: included.length, value: formatNumber(included.length) })}
         </button>
-        {error && <p role="alert">{error}</p>}
+        {error && <p role="alert">{<LocalizedError message={error} />}</p>}
       </footer>
     </main>
   )
@@ -156,6 +159,7 @@ function ProposalDetails({
   decision: ImportReviewDecision
   onChange: (patch: Partial<ImportReviewDecision>) => void
 }) {
+  useLanguage()
   const createId = proposal.record
     ? importedLibraryBookId(sourceKey, proposal.record.externalKey)
     : undefined
@@ -165,22 +169,22 @@ function ProposalDetails({
     : proposal.changes
   const createdValue = effectiveChanges.find(({ field }) => field === '$record')?.after.value
   const effectiveReason = selectedBook && decision.targetId !== proposal.targetId
-    ? `Remapped by you to “${selectedBook.title}”; ${effectiveChanges.length} reviewed fields would change.`
+    ? t("Remapped by you to “{{v0}}”; {{v1}} reviewed fields would change.", { v0: selectedBook.title, v1: effectiveChanges.length })
     : decision.targetId === createId && proposal.kind === 'conflict'
-      ? 'You chose to keep this ambiguous row distinct by creating a new record.'
+      ? t("You chose to keep this ambiguous row distinct by creating a new record.")
       : proposal.reason
 
   return (
       <div className={tw("import-proposal__body")}>
         <div className={tw("import-proposal__identity")}>
-          <span>{proposal.externalKey ?? 'Invalid row'}</span>
-          <h3>{proposal.record?.title ?? 'Could not normalize this row'}</h3>
+          <span>{proposal.externalKey ?? t("Invalid row")}</span>
+          <h3>{proposal.record?.title ?? t("Could not normalize this row")}</h3>
           <p>{proposal.record?.authors.join(', ') ?? proposal.validationErrors.join(' · ')}</p>
         </div>
 
         {proposal.record && proposal.kind !== 'skip' && (
           <label className={tw("import-target-select")}>
-            <span>Map this row to</span>
+            <span>{t("Map this row to")}</span>
             <select
               value={decision.targetId ?? ''}
               onChange={(event) => onChange({
@@ -189,8 +193,8 @@ function ProposalDetails({
                 included: Boolean(event.target.value),
               })}
             >
-              <option value="">Choose or exclude…</option>
-              {createId && <option value={createId}>Create “{proposal.record.title}”</option>}
+              <option value="">{t("Choose or exclude…")}</option>
+              {createId && <option value={createId}>{t("Create “")}{proposal.record.title}”</option>}
               {books.map((book) => (
                 <option key={book.id} value={book.id}>{book.title} — {book.authors.join(', ')}</option>
               ))}
@@ -201,7 +205,7 @@ function ProposalDetails({
 
         <p className={tw("import-proposal__reason")}>{effectiveReason}</p>
         <details>
-          <summary>Why this proposal?</summary>
+          <summary>{t("Why this proposal?")}</summary>
           <div className={tw("import-proposal__evidence")}>
             <ul>
               {proposal.match.reasons.map((reason) => <li key={reason}>{reason}</li>)}
@@ -211,7 +215,7 @@ function ProposalDetails({
               <div className={tw("import-match-candidates")}>
                 {proposal.match.candidates.map((candidate) => (
                   <div key={candidate.targetId}>
-                    <span>{Math.round(candidate.score * 100)}% signal</span>
+                    <span>{Math.round(candidate.score * 100)}{t("% signal")}</span>
                     <strong>{candidate.title}</strong>
                     <small>{candidate.authors.join(', ')}</small>
                   </div>
@@ -230,19 +234,19 @@ function ProposalDetails({
             )}
             {proposal.entities.length > 0 && (
               <div className={tw("import-entity-ledger")}>
-                <span>Preserved behind each book</span>
+                <span>{t("Preserved behind each book")}</span>
                 <ul>
                   {entitySummary(proposal).map(({ label, count }) => (
                     <li key={label}><strong>{count}</strong>{label}</li>
                   ))}
                 </ul>
                 <details className={tw("import-entity-details")}>
-                  <summary>Source, targets & rationale</summary>
+                  <summary>{t("Source, targets & rationale")}</summary>
                   <ul>
                     {proposal.entities.map((entity) => (
                       <li key={`${entity.entityType}:${entity.entityId}`}>
                         <strong>{entity.label}</strong>
-                        <span>{entity.sourceKey} · {entity.confidence} confidence · {entity.action}</span>
+                        <span>{entity.sourceKey} · {entity.confidence} {t(" confidence ·")}{entity.action}</span>
                         <small>{entity.rationale}</small>
                         <code>{entity.entityId}</code>
                       </li>
@@ -274,29 +278,29 @@ function humanField(field: string): string {
 }
 
 function displayValue(value: unknown): string {
-  if (value === undefined) return 'Not set'
+  if (value === undefined) return t("Not set")
   if (Array.isArray(value)) return value.join(', ')
   return String(value)
 }
 
 function entitySummary(proposal: ImportProposal): Array<{ readonly label: string; readonly count: number }> {
-  const labels: Record<ImportProposal['entities'][number]['entityType'], string> = {
-    work: 'work',
-    edition: 'edition',
-    'source-record': 'source record',
-    identifier: 'identifier',
-    person: 'person',
-    contributor: 'credit',
-    list: 'shelf',
-    'list-entry': 'shelf placement',
-    'integration-checkpoint': 'checkpoint',
-    'reading-event': 'reading event',
-    'progress-snapshot': 'reading state',
+  type EntityType = ImportProposal['entities'][number]['entityType']
+  const labels: Record<EntityType, import('../localization').TranslationKey> = {
+    "work": "importEntity_work",
+    "edition": "importEntity_edition",
+    "source-record": "importEntity_source-record",
+    "identifier": "importEntity_identifier",
+    "person": "importEntity_person",
+    "contributor": "importEntity_contributor",
+    "list": "importEntity_list",
+    "list-entry": "importEntity_list-entry",
+    "integration-checkpoint": "importEntity_integration-checkpoint",
+    "reading-event": "importEntity_reading-event",
+    "progress-snapshot": "importEntity_progress-snapshot",
   }
-  const counts = new Map<string, number>()
+  const counts = new Map<EntityType, number>()
   proposal.entities.forEach(({ entityType }) => {
-    const label = labels[entityType]
-    counts.set(label, (counts.get(label) ?? 0) + 1)
+    counts.set(entityType, (counts.get(entityType) ?? 0) + 1)
   })
-  return [...counts].map(([label, count]) => ({ label: count === 1 ? label : `${label}s`, count }))
+  return [...counts].map(([entityType, count]) => ({ label: t(labels[entityType], { count }), count }))
 }

@@ -1,3 +1,4 @@
+import { snapshotContent, snapshotDefaults } from '../src/reviews/snapshot'
 import { PortableArchiveService } from '../src/storage/portable-archive'
 import { readReviewBackup } from '../src/reviews/backup'
 import { RecoveryService } from '../src/storage/recovery'
@@ -495,4 +496,22 @@ test('native-copy cleanup failure survives a new coordinator and cannot be bypas
   await retry.finishPrivateErasure()
   expect(scopes).toMatchObject([{ bookIds: ['keepsake-book'], queueIds: [], all: false }])
   expect(await retry.hasPendingErasure()).toBe(false)
+})
+
+test('review images use each supported language or explicit English without rewriting saved facts', async () => {
+  const { repository } = await setup()
+  const saved = (await repository.open(period, artwork)).keepsake
+  const before = JSON.stringify(saved)
+  const selection = { ...snapshotDefaults(saved), badgeIds: saved.facts.earned.slice(0, 3).map(badge => badge.id) }
+  const english = snapshotContent(saved, selection, 'en-US')
+  for (const locale of ['es-ES', 'de-DE', 'it-IT', 'fr-FR']) {
+    const localized = snapshotContent(saved, selection, locale)
+    expect(localized.language).toBe(locale)
+    expect(localized.notice).toBe('')
+    expect(localized.badges[0]!.title).not.toBe(english.badges[0]!.title)
+    expect(localized.badges[0]!.caption).not.toBe(english.badges[0]!.caption)
+    expect(snapshotContent(saved, { ...selection, language: 'en' }, locale)).toEqual(english)
+  }
+  expect(JSON.stringify(saved)).toBe(before)
+  expect((await repository.get(period))!.facts).toEqual(saved.facts)
 })

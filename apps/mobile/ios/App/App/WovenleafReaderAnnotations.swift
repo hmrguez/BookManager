@@ -9,10 +9,10 @@ enum ReaderAnnotationColor: String, CaseIterable {
 
     var label: String {
         switch self {
-        case .ochre: return "Ochre"
-        case .sage: return "Sage"
-        case .blue: return "Slate"
-        case .rose: return "Rose"
+        case .ochre: return WovenleafL10n.text("Ochre")
+        case .sage: return WovenleafL10n.text("Sage")
+        case .blue: return WovenleafL10n.text("Slate")
+        case .rose: return WovenleafL10n.text("Rose")
         }
     }
 
@@ -220,18 +220,18 @@ final class ReaderAnnotationEditorViewController: UIViewController {
     }
 
     @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    required init?(coder: NSCoder) { fatalError(WovenleafL10n.text("init(coder:) has not been implemented")) }
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = needsReview ? "Review highlight" : (annotation == nil ? "New highlight" : "Edit highlight")
+        title = needsReview ? WovenleafL10n.text("Review highlight") : (annotation == nil ? WovenleafL10n.text("New highlight") : WovenleafL10n.text("Edit highlight"))
         navigationItem.leftBarButtonItem = UIBarButtonItem(
             barButtonSystemItem: .cancel,
             target: self,
             action: #selector(close)
         )
         navigationItem.rightBarButtonItem = UIBarButtonItem(
-            title: needsReview ? "Keep Here" : "Save",
+            title: needsReview ? WovenleafL10n.text("Keep Here") : WovenleafL10n.text("Save"),
             style: .done,
             target: self,
             action: #selector(save)
@@ -248,7 +248,7 @@ final class ReaderAnnotationEditorViewController: UIViewController {
 
         if needsReview {
             let review = insetLabel(
-                "This EPUB revision changed the original range. Confirm only if this is the same passage; Wovenleaf never moves an ambiguous highlight silently.",
+                WovenleafL10n.text("This EPUB revision changed the original range. Confirm only if this is the same passage; Wovenleaf never moves an ambiguous highlight silently."),
                 font: .preferredFont(forTextStyle: .subheadline)
             )
             review.textColor = palette.ink
@@ -261,14 +261,14 @@ final class ReaderAnnotationEditorViewController: UIViewController {
         let quoteLabel = insetLabel("“\(quote)”", font: .preferredFont(forTextStyle: .body))
         quoteLabel.textColor = palette.ink
         quoteLabel.backgroundColor = palette.raised
-        quoteLabel.accessibilityLabel = "Selected passage: \(quote)"
-        stack.addArrangedSubview(sectionLabel("PASSAGE"))
+        quoteLabel.accessibilityLabel = WovenleafL10n.text("Selected passage: {{quote}}", ["quote": quote])
+        stack.addArrangedSubview(sectionLabel(WovenleafL10n.text("PASSAGE")))
         stack.addArrangedSubview(quoteLabel)
 
         colorControl.selectedSegmentIndex = ReaderAnnotationColor.allCases.firstIndex(
             of: annotation?.color ?? .ochre
         ) ?? 0
-        colorControl.accessibilityLabel = "Highlight color"
+        colorControl.accessibilityLabel = WovenleafL10n.text("Highlight color")
         stack.addArrangedSubview(sectionLabel("COLOR"))
         stack.addArrangedSubview(colorControl)
 
@@ -281,12 +281,12 @@ final class ReaderAnnotationEditorViewController: UIViewController {
         noteView.layer.borderWidth = 1
         noteView.textContainerInset = UIEdgeInsets(top: 12, left: 10, bottom: 12, right: 10)
         noteView.heightAnchor.constraint(greaterThanOrEqualToConstant: 132).isActive = true
-        noteView.accessibilityLabel = "Passage note"
+        noteView.accessibilityLabel = WovenleafL10n.text("Passage note")
         stack.addArrangedSubview(sectionLabel("NOTE"))
         stack.addArrangedSubview(noteView)
 
         tagsField.text = annotation?.tags.joined(separator: ", ") ?? ""
-        tagsField.placeholder = "Theme, character, revisit"
+        tagsField.placeholder = WovenleafL10n.text("Theme, character, revisit")
         tagsField.font = .preferredFont(forTextStyle: .body)
         tagsField.textColor = palette.ink
         tagsField.backgroundColor = palette.raised
@@ -294,7 +294,7 @@ final class ReaderAnnotationEditorViewController: UIViewController {
         tagsField.layer.borderWidth = 1
         tagsField.setLeftPadding(12)
         tagsField.heightAnchor.constraint(equalToConstant: 48).isActive = true
-        tagsField.accessibilityLabel = "Tags, separated by commas"
+        tagsField.accessibilityLabel = WovenleafL10n.text("Tags, separated by commas")
         stack.addArrangedSubview(sectionLabel("TAGS"))
         stack.addArrangedSubview(tagsField)
 
@@ -302,12 +302,12 @@ final class ReaderAnnotationEditorViewController: UIViewController {
         boundary.numberOfLines = 0
         boundary.font = .preferredFont(forTextStyle: .footnote)
         boundary.textColor = palette.secondaryInk
-        boundary.text = "Wovenleaf saves only the passage you selected, never hidden chapter text. Protected EPUBs remain unsupported."
+        boundary.text = WovenleafL10n.text("Wovenleaf saves only the passage you selected, never hidden chapter text. Protected EPUBs remain unsupported.")
         stack.addArrangedSubview(boundary)
 
         if annotation != nil {
             let delete = UIButton(type: .system)
-            delete.setTitle("Delete annotation", for: .normal)
+            delete.setTitle(WovenleafL10n.text("Delete annotation"), for: .normal)
             delete.setTitleColor(.systemRed, for: .normal)
             delete.heightAnchor.constraint(equalToConstant: 46).isActive = true
             delete.addTarget(self, action: #selector(deleteAnnotation), for: .touchUpInside)

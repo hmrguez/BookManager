@@ -1,28 +1,42 @@
 ---
-const currentPath = Astro.url.pathname.replace(/\/$/, '');
+import {
+  createTranslator,
+  localizedPath,
+  localeFromPath,
+  type Language,
+} from '../localization';
+const locale: Language =
+  Astro.props.locale ?? localeFromPath(Astro.url.pathname);
+const t = createTranslator(locale);
+const currentPath = Astro.url.pathname
+  .replace(/^\/(?:es|de|it|fr)(?=\/|$)/, '')
+  .replace(/\/$/, '');
 ---
 
 <footer class="site-footer wrap">
   <div class="footer-top">
-    <a class="brand" href="/" aria-label="Wovenleaf home">
-      <img src="/mark.svg" width="28" height="28" alt="" />Wovenleaf
-    </a>
-    <p>All your reading. One quiet place.</p>
-    <a class="back-link" href="#main">Back to the beginning ↑</a>
+    <a
+      class="brand"
+      href={localizedPath(locale, '/')}
+      aria-label={t('Wovenleaf home')}
+      set:html={t(
+        '<img src="/mark.svg" width="28" height="28" alt="" />Wovenleaf',
+      )}
+    />
+    <p set:html={t('All your reading. One quiet place.')} />
+    <a class="back-link" href="#main" set:html={t('Back to the beginning ↑')} />
   </div>
-  <nav class="footer-legal" aria-label="Legal">
+  <nav class="footer-legal" aria-label={t('Legal')}>
     <a
-      href="/privacy/"
+      href={localizedPath(locale, '/privacy/')}
       aria-current={currentPath === '/privacy' ? 'page' : undefined}
-    >
-      Privacy policy
-    </a>
+      set:html={t('Privacy policy')}
+    />
     <a
-      href="/terms/"
+      href={localizedPath(locale, '/terms/')}
       aria-current={currentPath === '/terms' ? 'page' : undefined}
-    >
-      Terms of service
-    </a>
+      set:html={t('Terms of service')}
+    />
   </nav>
 </footer>
 

@@ -1,0 +1,288 @@
+---
+import {
+  createTranslator,
+  localeFromPath,
+  type Language,
+} from '../localization';
+const locale: Language =
+  Astro.props.locale ?? localeFromPath(Astro.url.pathname);
+const t = createTranslator(locale);
+import LegalLayout from '../layouts/LegalLayout.astro';
+import { operator } from '../legal';
+const operatorParameters = {
+  operatorName: operator.name,
+  operatorCountry: operator.country === 'Spain' ? t('Spain') : operator.country,
+  operatorEmail: operator.email,
+};
+
+const sections = [
+  { id: 'who-we-are', title: t('Who we are') },
+  { id: 'on-your-device', title: t('What stays on your device') },
+  { id: 'open-library', title: t('Open Library and covers') },
+  { id: 'goodreads', title: t('Goodreads CSV imports') },
+  { id: 'permissions', title: t('Device features and permissions') },
+  { id: 'scanner', title: t('Android scanner diagnostics') },
+  { id: 'exports', title: t('Exports and external services') },
+  { id: 'website', title: t('This website and contact') },
+  { id: 'retention', title: t('Storage, retention, and deletion') },
+  { id: 'legal-bases', title: t('Legal bases and international data') },
+  { id: 'your-rights', title: t('Your choices and rights') },
+  { id: 'changes', title: t('Changes to this policy') },
+];
+---
+
+<LegalLayout
+  locale={locale}
+  title={t('Privacy policy')}
+  description={t(
+    'How Wovenleaf handles your local library, Goodreads imports, Open Library searches, device permissions, scanner diagnostics, and website visits.',
+  )}
+  summary={t(
+    'Your library lives on your device. Here is what stays there, when an online service is involved, and the choices you have.',
+  )}
+  sections={sections}
+>
+  <section id="who-we-are">
+    <h2 set:html={t('1. Who we are')} />
+    <p
+      set:html={t(
+        'Wovenleaf is provided by {{operatorName}}, based in {{operatorCountry}}. We are responsible for the personal information we process in operating Wovenleaf and this website. You can contact us at <a href="mailto:{{operatorEmail}}">{{operatorEmail}}</a>.',
+        operatorParameters,
+      )}
+    />
+    <p
+      set:html={t(
+        'This policy covers the mobile app and its landing website. The app has no Wovenleaf account, cloud library, advertising, or social profile. We do not receive a copy of your library or sell your personal information. Online book services, Android scanner diagnostics, and website hosting are explained separately below.',
+      )}
+    />
+  </section>
+
+  <section id="on-your-device">
+    <h2 set:html={t('2. What stays on your device')} />
+    <p
+      set:html={t(
+        'Wovenleaf stores and processes your library in its local database and app storage. Depending on the features you use, this includes:',
+      )}
+    />
+    <ul>
+      <li
+        set:html={t(
+          'Books, identifiers, covers, shelves, lists, ratings, and private notes.',
+        )}
+      />
+      <li
+        set:html={t(
+          'Reading and listening history, progress, bookmarks, highlights, and preferences.',
+        )}
+      />
+      <li
+        set:html={t(
+          'Imported CSV records, import history, EPUBs, audiobooks, and associated files.',
+        )}
+      />
+      <li
+        set:html={t(
+          'Voice notes you record, search history or cached results, and local recovery copies.',
+        )}
+      />
+    </ul>
+    <p
+      set:html={t(
+        'Reading, listening, organization, file inspection, and local library search take place on your device. Searching private notes, if enabled, is also local. Wovenleaf does not upload your EPUBs, audiobooks, recordings, notes, or full CSV export to us or to a book-search provider.',
+      )}
+    />
+  </section>
+
+  <section id="open-library">
+    <h2 set:html={t('3. Open Library and covers')} />
+    <p
+      set:html={t(
+        'Online catalog search and metadata enrichment contact <a href="https://openlibrary.org/">Open Library</a>, operated by the Internet Archive. Requests may contain your search text, a book’s ISBN, title or author, and your language preference. The provider also receives the IP address and technical request information needed to handle the connection. These requests can reveal which books you are interested in.',
+      )}
+    />
+    <p
+      set:html={t(
+        'Displaying a remotely hosted cover can contact Open Library’s cover servers or the image host returned in its book data. The host receives the requested image address and connection information, even when you are viewing an existing library entry rather than making a new search. Wovenleaf caches some search results locally to reduce repeated lookups.',
+      )}
+    />
+    <p
+      set:html={t(
+        'These services have their own logging and retention practices. See the <a href="https://archive.org/about/terms" >Internet Archive’s privacy policy and terms</a>. Your private notes, ratings, reading progress, and book file contents are not included in Wovenleaf’s metadata requests.',
+      )}
+    />
+  </section>
+
+  <section id="goodreads">
+    <h2 set:html={t('4. Goodreads CSV imports')} />
+    <p
+      set:html={t(
+        'You obtain your export from Goodreads and choose or share the CSV file with Wovenleaf. The app parses it, prepares the review, matches records, and applies the import locally. It does not receive your Goodreads login credentials, sign in for you, or send changes back to Goodreads.',
+      )}
+    />
+    <p
+      set:html={t(
+        '<strong>After import, missing covers may be filled in automatically through Open Library.</strong> This sends ISBNs and, where needed, a title and author from the imported records, along with your language preference. Lookups can retry when you reopen or return to the app. The CSV file itself and its private review, rating, or shelf data are not uploaded. Opening the Goodreads export page takes you to their website under their own policies.',
+      )}
+    />
+  </section>
+
+  <section id="permissions">
+    <h2 set:html={t('5. Device features and permissions')} />
+    <ul>
+      <li
+        set:html={t(
+          '<strong>Camera:</strong> used when you choose to scan an ISBN. Barcode recognition runs on the device; a resulting ISBN may be used for an online book lookup. Android scanner diagnostics are described below.',
+        )}
+      />
+      <li
+        set:html={t(
+          '<strong>Microphone:</strong> used when you start a private voice note. Playback pauses before recording. The recording is saved locally.',
+        )}
+      />
+      <li
+        set:html={t(
+          '<strong>Files and images:</strong> Wovenleaf reads the documents, audiobook files, or cover images you select or share with it. A file provider you choose may first download a file from your own cloud storage.',
+        )}
+      />
+      <li
+        set:html={t(
+          '<strong>Clipboard and sharing:</strong> the app can read an ISBN when you use its paste action, or receive text and files you share with it.',
+        )}
+      />
+      <li
+        set:html={t(
+          '<strong>Audio and notifications:</strong> system media controls support background listening. If you enable “Show book details when locked”, titles, authors, chapters, and covers can appear on the lock screen and connected system media surfaces.',
+        )}
+      />
+    </ul>
+    <p
+      set:html={t(
+        'You can change permissions in your device settings. Declining a permission may disable the feature that needs it; you can still enter books manually and use other available features.',
+      )}
+    />
+  </section>
+
+  <section id="scanner">
+    <h2 set:html={t('6. Android scanner diagnostics')} />
+    <p
+      set:html={t(
+        'The Android ISBN scanner uses Google ML Kit. Although image recognition happens on the device, Google’s SDK collects diagnostic and usage data, including device model and operating system, app version, installation identifiers, performance, configuration, and feature or error events. Google receives this data over HTTPS for diagnostics and usage analytics.',
+      )}
+    />
+    <p
+      set:html={t(
+        'This is a third-party exception to local processing, not a Wovenleaf reading-activity analytics service. See <a href="https://developers.google.com/ml-kit/android-data-disclosure" >Google’s ML Kit data disclosure</a> and <a href="https://policies.google.com/privacy" >Google’s privacy policy</a>. You can type or paste an ISBN instead of using the camera scanner.',
+      )}
+    />
+  </section>
+
+  <section id="exports">
+    <h2 set:html={t('7. Exports and external services')} />
+    <p
+      set:html={t(
+        'Exports and backups are created on your device. Depending on the format and options, they can include library records, ratings, notes, annotations, and EPUB files. Wovenleaf does not encrypt exported files. Review the contents before saving or sharing them: your chosen recipient or storage provider will have access, and a cloud-synced folder may upload them.',
+      )}
+    />
+    <p
+      set:html={t(
+        'EPUBs can contain web links or references to online resources. Opening an external link or loading a remote resource can contact its host, which receives connection information and the requested address. That host’s privacy practices apply. App-store links and other websites you choose to open likewise take you outside Wovenleaf.',
+      )}
+    />
+    <p
+      set:html={t(
+        'Your operating system, app store, email service, and selected document or sharing providers may process information under their own settings and policies. Wovenleaf has no automatic library upload or cloud-sync service.',
+      )}
+    />
+  </section>
+
+  <section id="website">
+    <h2 set:html={t('8. This website and contact')} />
+    <p
+      set:html={t(
+        'This landing website is hosted by Vercel. Delivering pages and protecting the site involves processing connection and request information, such as IP address, browser or device information, requested page, timestamp, and referrer when supplied. This is separate from your app library, which is not sent to the website.',
+      )}
+    />
+    <p
+      set:html={t(
+        'We do not add advertising cookies, tracking pixels, or visitor analytics scripts to this website. Fonts and images are served with the site. Hosting and security processing are described in <a href="https://vercel.com/legal/privacy-notice" >Vercel’s privacy notice</a>.',
+      )}
+    />
+    <p
+      set:html={t(
+        'If you email us, we receive your address, message, and any attachments you choose to send. We use them to respond, investigate your request, and maintain necessary support or legal records. Do not send your library or private files unless they are needed for your request. Our email provider processes that correspondence to deliver and store it.',
+      )}
+    />
+  </section>
+
+  <section id="retention">
+    <h2 set:html={t('9. Storage, retention, and deletion')} />
+    <p
+      set:html={t(
+        'Local records remain in app storage until you remove them or clear the app’s data. Import history, cached data, and recovery copies may retain earlier versions after an entry is edited or removed. To remove all Wovenleaf-managed data on a device, use the operating system’s option to clear app data or delete the app and its data; merely offloading an app may preserve data. Delete any separately saved exports and original source files from their own locations if you no longer want them.',
+      )}
+    />
+    <p
+      set:html={t(
+        'The app configures its private storage to be excluded from automatic platform backups. Local recovery points remain on the device. Device behavior and copies you save elsewhere are controlled by the relevant platform or provider. We cannot recover or remotely erase data we do not possess.',
+      )}
+    />
+    <p
+      set:html={t(
+        'Protection relies on your device’s security and app sandbox; the library database and exports do not have additional Wovenleaf encryption. Use a device lock and protect your backups.',
+      )}
+    />
+    <p
+      set:html={t(
+        'We keep correspondence only as long as needed to handle the request, follow up, and meet applicable recordkeeping or legal-claim obligations. Hosting logs and third-party diagnostics follow their providers’ retention practices, which depend on operational, security, and legal needs. We do not maintain a separate server-side history of your reading or catalog searches.',
+      )}
+    />
+  </section>
+
+  <section id="legal-bases">
+    <h2 set:html={t('10. Legal bases and international data')} />
+    <p
+      set:html={t(
+        'Where European data protection law applies, processing necessary to provide the app features you request is based on performing our agreement with you. We rely on legitimate interests to deliver and secure this website, respond to general inquiries, and maintain the reliability of optional scanner functionality. Where a legal obligation applies, that obligation is the basis for the relevant processing. If processing requires consent, we must obtain it separately; this policy is not a request for blanket consent.',
+      )}
+    />
+    <p
+      set:html={t(
+        'Local-only records are not transferred to us. Online requests and correspondence may be processed outside your country, including in the United States, by the Internet Archive, Google, Vercel, or the services you choose. Those providers explain their processing and transfer safeguards in their policies. For transfers we are responsible for, we use safeguards required by applicable law, such as an adequacy decision or standard contractual clauses where applicable. Contact us for information about safeguards relevant to your request.',
+      )}
+    />
+  </section>
+
+  <section id="your-rights">
+    <h2 set:html={t('11. Your choices and rights')} />
+    <p
+      set:html={t(
+        'You can view and edit your library in the app, export it from Settings → Advanced, manage permissions in your device settings, and remove local data as described above. Using the app without network access prevents online searches, automatic cover lookups, and other outbound requests while offline; already available local content remains usable.',
+      )}
+    />
+    <p
+      set:html={t(
+        'Depending on your location and the processing involved, you may have rights to access, correct, delete, or obtain a portable copy of personal information, restrict processing, object to processing based on legitimate interests, or withdraw consent without affecting earlier lawful processing. We do not use your information for automated decisions with legal or similarly significant effects.',
+      )}
+    />
+    <p
+      set:html={t(
+        'Send requests to <a href="mailto:{{operatorEmail}}">{{operatorEmail}}</a>. We will respond within the period required by law, generally one month for GDPR requests, and explain any lawful extension. We may need limited information to verify a request. We cannot retrieve a local library we do not hold. You may also complain to your local data protection authority, including the <a href="https://www.aepd.es/" >Spanish Data Protection Agency (AEPD)</a> where applicable.',
+        operatorParameters,
+      )}
+    />
+    <p
+      set:html={t(
+        'Wovenleaf is a general-purpose reading app and is not directed specifically at children. We do not request a child’s age or create child profiles. A parent or guardian who believes a child has sent us personal information can contact us to request its removal, subject to applicable law.',
+      )}
+    />
+  </section>
+
+  <section id="changes">
+    <h2 set:html={t('12. Changes to this policy')} />
+    <p
+      set:html={t(
+        'Our intention is to keep your reading library local to your device. We will update this policy when the app, website, or relevant data practices change and show the new date here. Material changes will receive any notice or consent required by law before the new processing begins. See also the <a href="/terms/">terms of service</a>.',
+      )}
+    />
+  </section>
+</LegalLayout>

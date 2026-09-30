@@ -1,3 +1,4 @@
+import { t } from './localization'
 import { readingChanged, type ManualReadingOperation } from './storage/manual-reading'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
@@ -12,11 +13,11 @@ import { getStorageRuntime } from './storage/runtime'
 export type { BookSearchResult, LibraryBook, ShelfId } from './library-model'
 
 export const SHELVES: Array<{ id: ShelfId; label: string; shortLabel: string }> = [
-  { id: 'tbr', label: 'To Be Read', shortLabel: 'TBR' },
-  { id: 'next', label: 'Up Next', shortLabel: 'Next' },
-  { id: 'reading', label: 'Reading', shortLabel: 'Reading' },
-  { id: 'finished', label: 'Finished', shortLabel: 'Done' },
-  { id: 'dnf', label: 'DNF', shortLabel: 'DNF' },
+  { id: 'tbr', get label() { return t("To Be Read") }, get shortLabel() { return t("TBR") } },
+  { id: 'next', get label() { return t("Up Next") }, get shortLabel() { return t("Next") } },
+  { id: 'reading', get label() { return t("Reading") }, get shortLabel() { return t("Reading") } },
+  { id: 'finished', get label() { return t("Finished") }, get shortLabel() { return t("Done") } },
+  { id: 'dnf', get label() { return t("DNF") }, get shortLabel() { return t("DNF") } },
 ]
 
 export function useLibrary() {

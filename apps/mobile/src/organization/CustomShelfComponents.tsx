@@ -1,3 +1,4 @@
+import { t, useLanguage } from '../localization'
 import { VirtualBookList } from '../library/VirtualBookList'
 import { BookTile } from '../library/LibraryPresentation'
 import { useLibraryView } from '../library/use-library-view'
@@ -40,6 +41,7 @@ export function CustomShelfSection({
   onDetails: (id: string) => void
   onManage: () => void
 }) {
+  useLanguage()
   const grid = useLibraryView() === 'grid'
   const noteCount = shelf.notes ? 1 : 0
   const cascadeItemCount = noteCount + Math.max(books.length, 1)
@@ -63,7 +65,7 @@ export function CustomShelfSection({
           aria-controls={`custom-shelf-books-${shelf.id}`}
         >
           <h2>
-            {shelf.pinned && <Pin aria-label="Pinned shelf" />}
+            {shelf.pinned && <Pin aria-label={t("Pinned shelf")} />}
             {shelf.name} <i>·</i> {books.length}
           </h2>
           <ChevronDown className={tw(isCollapsed ? 'is-collapsed' : '')} aria-hidden="true" />
@@ -72,7 +74,7 @@ export function CustomShelfSection({
           type="button"
           className={tw('shelf-add custom-shelf__manage')}
           onClick={onManage}
-          aria-label={`Manage ${shelf.name}`}
+          aria-label={t("Manage {{v0}}", { v0: shelf.name })}
         >
           <FolderCog aria-hidden="true" />
         </button>
@@ -86,12 +88,12 @@ export function CustomShelfSection({
           isFiltering ? (
             <div className={tw('empty-shelf empty-shelf--filter')} {...shelfCascadeItem(noteCount, cascadeItemCount)}>
               <Search aria-hidden="true" />
-              <span><strong>No matches on this shelf</strong><small>Try another title, author, or tag</small></span>
+              <span><strong>{t("No matches on this shelf")}</strong><small>{t("Try another title, author, or tag")}</small></span>
             </div>
           ) : (
             <button className={tw('empty-shelf')} type="button" onClick={onManage} {...shelfCascadeItem(noteCount, cascadeItemCount)}>
               <FolderPlus aria-hidden="true" />
-              <span><strong>Collect the first book</strong><small>Books keep their reading status</small></span>
+              <span><strong>{t("Collect the first book")}</strong><small>{t("Books keep their reading status")}</small></span>
             </button>
           )
         ) : (
@@ -141,6 +143,7 @@ export function CustomShelfEditorSheet({
   onArchive: (shelf: CustomShelf) => void
   onDelete: (shelf: CustomShelf) => void
 }) {
+  useLanguage()
   const initialBookIds = shelf
     ? orderedShelfEntries(organization, shelf.id).map(({ bookId }) => bookId)
     : []
@@ -185,46 +188,46 @@ export function CustomShelfEditorSheet({
   }
 
   return (
-    <Sheet title={shelf ? `Edit ${shelf.name}` : 'New custom shelf'} onClose={onClose} tall>
+    <Sheet title={shelf ? t("Edit {{v0}}", { v0: shelf.name }) : t("New custom shelf")} onClose={onClose} tall>
       <form className={tw('custom-shelf-editor')} onSubmit={submit}>
         <div className={tw('custom-shelf-editor__intro')}>
-          <span>Collection, not reading status</span>
-          <p>Books can live on several custom shelves. Their TBR, Up Next, Reading, Finished, or DNF status stays unchanged.</p>
+          <span>{t("Collection, not reading status")}</span>
+          <p>{t("Books can live on several custom shelves. Their TBR, Up Next, Reading, Finished, or DNF status stays unchanged.")}</p>
         </div>
 
         <label className={tw('shelf-field')}>
-          <span>Shelf name</span>
+          <span>{t("Shelf name")}</span>
           <input
             autoFocus
             required
             maxLength={80}
             value={name}
             onChange={(event) => setName(event.target.value)}
-            placeholder="Small press favorites"
+            placeholder={t("Small press favorites")}
           />
         </label>
 
         <label className={tw('shelf-field')}>
-          <span>Shelf note <i>optional</i></span>
+          <span>{t("Shelf note")}<i>{t("optional")}</i></span>
           <textarea
             maxLength={1_000}
             rows={2}
             value={notes}
             onChange={(event) => setNotes(event.target.value)}
-            placeholder="Why these books belong together"
+            placeholder={t("Why these books belong together")}
           />
         </label>
 
         <label className={tw('shelf-pin-field')}>
           <input type="checkbox" checked={pinned} onChange={(event) => setPinned(event.target.checked)} />
           <Pin aria-hidden="true" />
-          <span><strong>Pin this shelf</strong><small>Keep a shortcut beneath your reading shelves</small></span>
+          <span><strong>{t("Pin this shelf")}</strong><small>{t("Keep a shortcut beneath your reading shelves")}</small></span>
         </label>
 
         <section className={tw('shelf-membership-editor')}>
           <header>
-            <div><span>Books</span><h3>{orderedBookIds.length} selected</h3></div>
-            <small>Checkboxes change membership only</small>
+            <div><span>{t("Books")}</span><h3>{orderedBookIds.length} {t(" selected")}</h3></div>
+            <small>{t("Checkboxes change membership only")}</small>
           </header>
           <div className={tw('shelf-book-search')}>
             <Search aria-hidden="true" />
@@ -232,11 +235,11 @@ export function CustomShelfEditorSheet({
               type="search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Find a book to add or reorder"
-              aria-label="Find a book to add or reorder"
+              placeholder={t("Find a book to add or reorder")}
+              aria-label={t("Find a book to add or reorder")}
             />
             {query && (
-              <button type="button" onClick={() => setQuery('')} aria-label="Clear book search">
+              <button type="button" onClick={() => setQuery('')} aria-label={t("Clear book search")}>
                 <X aria-hidden="true" />
               </button>
             )}
@@ -254,33 +257,32 @@ export function CustomShelfEditorSheet({
                   </label>
                   {selected && (
                     <label className={tw('shelf-position')}>
-                      <span>Order</span>
+                      <span>{t("Order")}</span>
                       <input
-                        key={`${book.id}-${order}`}
+                        key={t("{{v0}}-{{v1}}", { v0: book.id, v1: order })}
                         type="number"
                         min="1"
                         max={orderedBookIds.length}
                         defaultValue={order}
                         onBlur={(event) => moveToPosition(book.id, Number(event.target.value))}
-                        aria-label={`Position of ${book.title}`}
+                        aria-label={t("Position of {{v0}}", { v0: book.title })}
                       />
                     </label>
                   )}
                 </div>
               )
             })}
-            {!visibleBooks.length && <p className={tw('shelf-membership-empty')}>No matching books.</p>}
+            {!visibleBooks.length && <p className={tw('shelf-membership-empty')}>{t("No matching books.")}</p>}
           </div>
           {matchingBooks.length > visibleBooks.length && (
             <p className={tw('shelf-result-limit')}>
-              Showing 80 of {matchingBooks.length}. Refine the search to reach any book without loading the entire library.
-            </p>
+              {t("Showing 80 of ")}{matchingBooks.length}{t(". Refine the search to reach any book without loading the entire library.")}</p>
           )}
-          <p className={tw('shelf-order-help')}>Set any selected book’s order number to move it without dragging.</p>
+          <p className={tw('shelf-order-help')}>{t("Set any selected book’s order number to move it without dragging.")}</p>
         </section>
 
         <ActionButton type="submit" disabled={!name.trim()}>
-          <Check aria-hidden="true" /> {shelf ? 'Save shelf' : 'Create shelf'}
+          <Check aria-hidden="true" /> {shelf ? t("Save shelf") : t("Create shelf")}
         </ActionButton>
 
         {shelf && (
@@ -288,8 +290,8 @@ export function CustomShelfEditorSheet({
             <button type="button" onClick={() => onArchive(shelf)}>
               {shelf.archived ? <ArchiveRestore aria-hidden="true" /> : <Archive aria-hidden="true" />}
               <span>
-                <strong>{shelf.archived ? 'Restore shelf' : 'Archive shelf'}</strong>
-                <small>{shelf.archived ? 'Return it to My Books' : 'Hide this shelf; every book stays in your library'}</small>
+                <strong>{shelf.archived ? t("Restore shelf") : t("Archive shelf")}</strong>
+                <small>{shelf.archived ? t("Return it to My Books") : t("Hide this shelf; every book stays in your library")}</small>
               </span>
             </button>
             <button
@@ -299,8 +301,8 @@ export function CustomShelfEditorSheet({
             >
               <Trash2 aria-hidden="true" />
               <span>
-                <strong>{confirmDelete ? 'Tap again to delete shelf' : 'Delete shelf'}</strong>
-                <small>Deletes membership and the shelf only—not the books</small>
+                <strong>{confirmDelete ? t("Tap again to delete shelf") : t("Delete shelf")}</strong>
+                <small>{t("Deletes membership and the shelf only—not the books")}</small>
               </span>
             </button>
           </div>

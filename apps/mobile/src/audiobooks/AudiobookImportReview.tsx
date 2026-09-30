@@ -1,3 +1,4 @@
+import { t, translateCopy, useLanguage } from '../localization'
 import { useState } from 'react'
 import {
   ArrowDown,
@@ -23,6 +24,7 @@ export function AudiobookImportReviewPanel({
   onImport: (review: AudiobookImportReview) => void
   onDismiss: () => void
 }) {
+  useLanguage()
   const [review, setReview] = useState(() => defaultAudiobookReview(draft))
   const updateContributors = (field: 'authors' | 'narrators', value: string) => {
     setReview((current) => ({
@@ -51,11 +53,11 @@ export function AudiobookImportReviewPanel({
       <header className={tw('audio-review__header')}>
         <div className={tw('audio-review__mark')}><Headphones aria-hidden="true" /></div>
         <div>
-          <span>One book · {segments.length} {segments.length === 1 ? 'file' : 'files'}</span>
-          <h3 id="audio-review-title">Check the listening order.</h3>
-          <p>Review the sequence and shared details before adding this audiobook.</p>
+          <span>{t('oneBookFiles', { count: segments.length, value: segments.length })}</span>
+          <h3 id="audio-review-title">{t("Check the listening order.")}</h3>
+          <p>{t("Review the sequence and shared details before adding this audiobook.")}</p>
         </div>
-        <button type="button" onClick={onDismiss} disabled={busy} aria-label="Dismiss audiobook review">
+        <button type="button" onClick={onDismiss} disabled={busy} aria-label={t("Dismiss audiobook review")}>
           <X aria-hidden="true" />
         </button>
       </header>
@@ -64,16 +66,16 @@ export function AudiobookImportReviewPanel({
         <div className={tw('audio-review__issues')} role="status">
           {draft.issues.map((issue) => (
             <p key={`${issue.code}:${issue.segmentIds.join(':')}`} data-severity={issue.severity}>
-              <span>{issue.severity === 'review' ? 'Review' : 'Note'}</span>{issue.message}
+              <span>{issue.severity === 'review' ? t("Review") : t("Note")}</span>{translateCopy(issue.message ?? '')}
             </p>
           ))}
         </div>
       )}
 
       <fieldset className={tw('audio-review__metadata')} disabled={busy}>
-        <legend>Shared book details</legend>
+        <legend>{t("Shared book details")}</legend>
         <label>
-          <span>Title</span>
+          <span>{t("Title")}</span>
           <input
             value={review.title}
             required
@@ -81,44 +83,44 @@ export function AudiobookImportReviewPanel({
           />
         </label>
         <label>
-          <span>Author</span>
+          <span>{t("Author")}</span>
           <input
             value={review.authors.join(', ')}
-            placeholder="Add if the files do not say"
+            placeholder={t("Add if the files do not say")}
             onChange={(event) => updateContributors('authors', event.currentTarget.value)}
           />
         </label>
         <label>
-          <span>Narrator</span>
+          <span>{t("Narrator")}</span>
           <input
             value={review.narrators.join(', ')}
-            placeholder="Optional"
+            placeholder={t("Optional")}
             onChange={(event) => updateContributors('narrators', event.currentTarget.value)}
           />
         </label>
         <label>
-          <span>Series</span>
+          <span>{t("Series")}</span>
           <input
             value={review.series ?? ''}
-            placeholder="Optional"
+            placeholder={t("Optional")}
             onChange={(event) => setReview((current) => ({ ...current, series: event.currentTarget.value || undefined }))}
           />
         </label>
       </fieldset>
 
       <div className={tw('audio-sequence__heading')}>
-        <span><ListMusic aria-hidden="true" />Playback sequence</span>
+        <span><ListMusic aria-hidden="true" />{t("Playback sequence")}</span>
         <span><Clock3 aria-hidden="true" />{formatDuration(draft.totalDurationMs)}</span>
       </div>
-      <ol className={tw('audio-sequence')} aria-label="Audiobook file order" aria-live="polite">
+      <ol className={tw('audio-sequence')} aria-label={t("Audiobook file order")} aria-live="polite">
         {segments.map((segment, index) => (
           <li key={segment.id}>
             <span className={tw('audio-sequence__number')}>{String(index + 1).padStart(2, '0')}</span>
             <span className={tw('audio-sequence__file')}>
               <strong>{segment.title ?? segment.fileName}</strong>
               <small>
-                {segment.title ? segment.fileName : 'No embedded track title'} · {formatDuration(segment.durationMs)}
-                {segment.trackNumber ? ` · track ${segment.trackNumber}${segment.trackTotal ? ` of ${segment.trackTotal}` : ''}` : ''}
+                {segment.title ? segment.fileName : t("No embedded track title")} · {formatDuration(segment.durationMs)}
+                {segment.trackNumber ? t(" · track {{v0}}{{v1}}", { v0: segment.trackNumber, v1: segment.trackTotal ? ` of ${segment.trackTotal}` : '' }) : ''}
               </small>
             </span>
             {segments.length > 1 && (
@@ -127,7 +129,7 @@ export function AudiobookImportReviewPanel({
                   type="button"
                   disabled={busy || index === 0}
                   onClick={() => moveSegment(segment.id, -1)}
-                  aria-label={`Move ${segment.fileName} earlier`}
+                  aria-label={t("Move {{v0}} earlier", { v0: segment.fileName })}
                 >
                   <ArrowUp aria-hidden="true" />
                 </button>
@@ -135,7 +137,7 @@ export function AudiobookImportReviewPanel({
                   type="button"
                   disabled={busy || index === segments.length - 1}
                   onClick={() => moveSegment(segment.id, 1)}
-                  aria-label={`Move ${segment.fileName} later`}
+                  aria-label={t("Move {{v0}} later", { v0: segment.fileName })}
                 >
                   <ArrowDown aria-hidden="true" />
                 </button>
@@ -154,10 +156,10 @@ export function AudiobookImportReviewPanel({
               disabled={busy}
               onChange={(event) => setReview((current) => ({ ...current, orderConfirmed: event.currentTarget.checked }))}
             />
-            <span><strong>This order is correct</strong><small>Required because the file evidence was ambiguous.</small></span>
+            <span><strong>{t("This order is correct")}</strong><small>{t("Required because the file evidence was ambiguous.")}</small></span>
           </label>
         ) : (
-          <p className={tw('audio-order-proof')}><Check aria-hidden="true" />Ordered from unique disc/track tags or numbered filenames.</p>
+          <p className={tw('audio-order-proof')}><Check aria-hidden="true" />{t("Ordered from unique disc/track tags or numbered filenames.")}</p>
         )}
         <button
           className={tw('audio-import-commit')}
@@ -165,7 +167,7 @@ export function AudiobookImportReviewPanel({
           disabled={busy || !canImport}
           onClick={() => onImport(review)}
         >
-          {busy ? 'Building the book…' : `Import as one audiobook`}
+          {busy ? t("Building the book…") : t("Import as one audiobook")}
         </button>
       </footer>
     </section>

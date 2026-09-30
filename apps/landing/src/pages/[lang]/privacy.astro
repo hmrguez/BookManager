@@ -1,0 +1,12 @@
+---
+import Page from '../../components/PrivacyPage.astro';
+import { languages } from '../../localization';
+export function getStaticPaths() {
+  return languages
+    .filter((language) => language !== 'en')
+    .map((locale) => ({ params: { lang: locale }, props: { locale } }));
+}
+const { locale } = Astro.props;
+---
+
+<Page locale={locale} />

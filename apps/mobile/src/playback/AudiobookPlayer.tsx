@@ -1,3 +1,5 @@
+import { LocalizedError } from '../localization/LocalizedError'
+import { t, formatNumber, useLanguage } from '../localization'
 import {
   useEffect,
   useEffectEvent,
@@ -51,6 +53,7 @@ export type AudiobookPlayerPreview = {
 }
 
 export function AudiobookPlayer({ book, preview, onChooseFile }: { readonly book: LibraryBook; readonly preview?: AudiobookPlayerPreview; readonly onChooseFile?: () => void }) {
+  useLanguage()
   // Static capture data is accepted only by the development build.
   const capture = import.meta.env.DEV ? preview : undefined
   const bookId = book.id
@@ -93,7 +96,7 @@ export function AudiobookPlayer({ book, preview, onChooseFile }: { readonly book
       const playback = runtime.playback
       playbackService = playback
       const bookContext = await playback.contextForBook(bookId)
-      if (!bookContext) throw new Error('No playable audiobook is attached to this book.')
+      if (!bookContext) throw new Error(t("No playable audiobook is attached to this book."))
       await playback.connect()
       await playback.checkBook(bookId)
       const current = playback.snapshot?.queueId === bookContext.queueId && playback.snapshot.state !== 'error'
@@ -238,7 +241,7 @@ export function AudiobookPlayer({ book, preview, onChooseFile }: { readonly book
     setIssue(undefined)
     try {
       if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
-        throw new Error('Voice notes are unavailable on this device. Text notes and bookmarks still work.')
+        throw new Error(t("Voice notes are unavailable on this device. Text notes and bookmarks still work."))
       }
       const point = await service.prepareVoiceNote(bookId)
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -317,8 +320,8 @@ export function AudiobookPlayer({ book, preview, onChooseFile }: { readonly book
   if (!snapshot || !context || !preferences) {
     return (
       <div className={tw('audiobook-player audiobook-player--loading')}>
-        <span role={issue ? 'alert' : 'status'}>{issue ?? 'Preparing your listening place…'}</span>
-        {issue && onChooseFile && <button type="button" onClick={onChooseFile}>Choose file</button>}
+        <span role={issue ? 'alert' : 'status'}>{issue ?? t("Preparing your listening place…")}</span>
+        {issue && onChooseFile && <button type="button" onClick={onChooseFile}>{t("Choose file")}</button>}
       </div>
     )
   }
@@ -332,15 +335,15 @@ export function AudiobookPlayer({ book, preview, onChooseFile }: { readonly book
         <div className={tw('audiobook-player__cover')}>
           <BookCover book={book} large />
         </div>
-        <span>Now listening</span>
+        <span>{t("Now listening")}</span>
         <h3>{context.title}</h3>
-        <p>{context.authors.join(', ') || context.narrators.join(', ') || 'Local audiobook'}</p>
+        <p>{context.authors.join(', ') || context.narrators.join(', ') || t("Local audiobook")}</p>
       </header>
 
       <section className={tw('audiobook-player__timeline')} aria-labelledby="listening-position-title">
         <div className={tw('audiobook-player__chapter')}>
-          <span id="listening-position-title">{currentChapter?.title ?? 'Audiobook'}</span>
-          <small>{snapshot.route.name}{snapshot.capabilities.backgroundPlayback ? ' · background ready' : ' · foreground only'}</small>
+          <span id="listening-position-title">{currentChapter?.title ?? t("Audiobook")}</span>
+          <small>{snapshot.route.name}{snapshot.capabilities.backgroundPlayback ? t(" · background ready") : t(" · foreground only")}</small>
         </div>
         <input
           type="range"
@@ -348,7 +351,7 @@ export function AudiobookPlayer({ book, preview, onChooseFile }: { readonly book
           max={Math.max(1, snapshot.durationMs - 1)}
           step="1000"
           value={position}
-          aria-label="Audiobook position"
+          aria-label={t("Audiobook position")}
           onInput={(event) => setSeekDraft(Number(event.currentTarget.value))}
           onChange={(event) => {
             const target = Number(event.currentTarget.value)
@@ -358,7 +361,7 @@ export function AudiobookPlayer({ book, preview, onChooseFile }: { readonly book
         />
         <div className={tw('audiobook-player__times')}>
           <strong>{formatAudioTime(position)}</strong>
-          <span>{Math.min(100, Math.round(position / Math.max(1, snapshot.durationMs) * 100))}% complete</span>
+          <span>{Math.min(100, Math.round(position / Math.max(1, snapshot.durationMs) * 100))}{t("% complete")}</span>
           <span>−{formatAudioTime(Math.max(0, snapshot.durationMs - position))}</span>
         </div>
       </section>
@@ -366,7 +369,7 @@ export function AudiobookPlayer({ book, preview, onChooseFile }: { readonly book
       {seekUndo && (
         <button className={tw('audiobook-player__undo')} type="button" onClick={() => void run((playback) => playback.undoLastSeek())}>
           <RotateCcw aria-hidden="true" />
-          <span><strong>Position changed</strong><small>Return to {formatAudioTime(seekUndo.beforePositionMs)}</small></span>
+          <span><strong>{t("Position changed")}</strong><small>{t('Return to {{time}}', { time: formatAudioTime(seekUndo.beforePositionMs) })}</small></span>
         </button>
       )}
 
@@ -375,91 +378,90 @@ export function AudiobookPlayer({ book, preview, onChooseFile }: { readonly book
           <Timer aria-hidden="true" />
           <span>
             <strong>{snapshot.sleepTimer.mode === 'chapter-end'
-              ? `End of chapter · ${formatAudioTime(sleepRemainingMs)}`
+              ? t("End of chapter · {{v0}}", { v0: formatAudioTime(sleepRemainingMs) })
               : formatAudioTime(sleepRemainingMs)}</strong>
-            <small>Sleep timer remains active in the background</small>
+            <small>{t("Sleep timer remains active in the background")}</small>
           </span>
           <button type="button" onClick={() => void run((playback) => playback.extendSleepTimer(preferences.effective.shakeExtensionMs))}>
-            +{Math.round(preferences.effective.shakeExtensionMs / 60_000)} min
-          </button>
-          <button type="button" onClick={() => void run((playback) => playback.cancelSleepTimer())}>Cancel</button>
+            +{Math.round(preferences.effective.shakeExtensionMs / 60_000)} {t(" min")}</button>
+          <button type="button" onClick={() => void run((playback) => playback.cancelSleepTimer())}>{t("Cancel")}</button>
         </div>
       )}
 
       <div className={tw('audiobook-player__transport')}>
-        <button type="button" onClick={() => void run((playback) => playback.previousChapter())} aria-label="Previous chapter">
-          <ChevronLeft aria-hidden="true" /><small>Chapter</small>
+        <button type="button" onClick={() => void run((playback) => playback.previousChapter())} aria-label={t("Previous chapter")}>
+          <ChevronLeft aria-hidden="true" /><small>{t("Chapter")}</small>
         </button>
-        <button type="button" onClick={() => void run((playback) => playback.seekByConfigured(bookId, 'backward'))} aria-label={`Back ${preferences.effective.backwardSkipMs / 1_000} seconds`}>
-          <SkipBack aria-hidden="true" /><small>{preferences.effective.backwardSkipMs / 1_000}s</small>
+        <button type="button" onClick={() => void run((playback) => playback.seekByConfigured(bookId, 'backward'))} aria-label={t("Back {{v0}} seconds", { v0: preferences.effective.backwardSkipMs / 1_000 })}>
+          <SkipBack aria-hidden="true" /><small>{preferences.effective.backwardSkipMs / 1_000}{t("s")}</small>
         </button>
-        <button className={tw('audiobook-player__play')} type="button" onClick={() => void run((playback) => playing ? playback.pause() : playback.play())} aria-label={playing ? 'Pause' : 'Play'}>
+        <button className={tw('audiobook-player__play')} type="button" onClick={() => void run((playback) => playing ? playback.pause() : playback.play())} aria-label={playing ? t("Pause") : t("Play")}>
           {playing ? <Pause aria-hidden="true" /> : <Play aria-hidden="true" />}
         </button>
-        <button type="button" onClick={() => void run((playback) => playback.seekByConfigured(bookId, 'forward'))} aria-label={`Forward ${preferences.effective.forwardSkipMs / 1_000} seconds`}>
-          <SkipForward aria-hidden="true" /><small>{preferences.effective.forwardSkipMs / 1_000}s</small>
+        <button type="button" onClick={() => void run((playback) => playback.seekByConfigured(bookId, 'forward'))} aria-label={t("Forward {{v0}} seconds", { v0: preferences.effective.forwardSkipMs / 1_000 })}>
+          <SkipForward aria-hidden="true" /><small>{preferences.effective.forwardSkipMs / 1_000}{t("s")}</small>
         </button>
-        <button type="button" onClick={() => void run((playback) => playback.nextChapter())} aria-label="Next chapter">
-          <ChevronRight aria-hidden="true" /><small>Chapter</small>
+        <button type="button" onClick={() => void run((playback) => playback.nextChapter())} aria-label={t("Next chapter")}>
+          <ChevronRight aria-hidden="true" /><small>{t("Chapter")}</small>
         </button>
       </div>
 
       <div className={tw('audiobook-player__quick')}>
-        <button type="button" onClick={() => void saveBookmark()}><Bookmark aria-hidden="true" /> Bookmark</button>
-        <button type="button" onClick={() => document.getElementById('audiobook-quick-note')?.focus()}><StickyNote aria-hidden="true" /> Quick note</button>
+        <button type="button" onClick={() => void saveBookmark()}><Bookmark aria-hidden="true" /> {t(" Bookmark")}</button>
+        <button type="button" onClick={() => document.getElementById('audiobook-quick-note')?.focus()}><StickyNote aria-hidden="true" /> {t(" Quick note")}</button>
         <button type="button" onClick={recording ? stopRecording : () => { void startVoiceCapture() }} className={tw(recording ? 'is-recording' : '')}>
           {recording ? <Square aria-hidden="true" /> : <Mic aria-hidden="true" />}
-          {recording ? 'Save recording' : 'Voice note'}
+          {recording ? t("Save recording") : t("Voice note")}
         </button>
       </div>
 
-      <section className={tw('audiobook-player__settings')} aria-label="Listening controls">
+      <section className={tw('audiobook-player__settings')} aria-label={t("Listening controls")}>
         <details open>
-          <summary><Gauge aria-hidden="true" /><span>Speed</span><strong>{snapshot.rate.toFixed(snapshot.rate % 1 ? 2 : 0)}×</strong></summary>
+          <summary><Gauge aria-hidden="true" /><span>{t("Speed")}</span><strong>{formatNumber(snapshot.rate, { minimumFractionDigits: snapshot.rate % 1 ? 2 : 0, maximumFractionDigits: 2 })}×</strong></summary>
           <div className={tw('audiobook-player__scope')}>
-            <button type="button" aria-pressed={rateScope === 'book'} onClick={() => setRateScope('book')}>This book</button>
-            <button type="button" aria-pressed={rateScope === 'global'} onClick={() => setRateScope('global')}>All books</button>
-            {preferences.book?.rate !== undefined && <button type="button" onClick={() => void applyGlobalRate()}>Use global</button>}
+            <button type="button" aria-pressed={rateScope === 'book'} onClick={() => setRateScope('book')}>{t("This book")}</button>
+            <button type="button" aria-pressed={rateScope === 'global'} onClick={() => setRateScope('global')}>{t("All books")}</button>
+            {preferences.book?.rate !== undefined && <button type="button" onClick={() => void applyGlobalRate()}>{t("Use global")}</button>}
           </div>
           <div className={tw('audiobook-player__presets')}>
             {speedPresets
               .filter((rate) => rate >= snapshot.capabilities.minimumRate && rate <= snapshot.capabilities.maximumRate)
               .map((rate) => (
-                <button key={rate} type="button" aria-pressed={snapshot.rate === rate} onClick={() => void changeRate(rate)}>{rate}×</button>
+                <button key={rate} type="button" aria-pressed={snapshot.rate === rate} onClick={() => void changeRate(rate)}>{formatNumber(rate)}×</button>
               ))}
           </div>
-          <p>Pitch stays natural. {rateScope === 'book' ? 'This speed follows this audiobook.' : 'This becomes the default for every audiobook.'}</p>
+          <p>{t("Pitch stays natural.")}{' '}{rateScope === 'book' ? t("This speed follows this audiobook.") : t("This becomes the default for every audiobook.")}</p>
         </details>
 
         <details>
-          <summary><Timer aria-hidden="true" /><span>Sleep & skips</span><strong>{snapshot.sleepTimer ? formatAudioTime(sleepRemainingMs) : 'Off'}</strong></summary>
+          <summary><Timer aria-hidden="true" /><span>{t("Sleep & skips")}</span><strong>{snapshot.sleepTimer ? formatAudioTime(sleepRemainingMs) : t("Off")}</strong></summary>
           <div className={tw('audiobook-player__presets')}>
             {sleepPresets.map((minutes) => (
-              <button key={minutes} type="button" onClick={() => void run((playback) => playback.setSleepTimer(minutes * 60_000))}>{minutes} min</button>
+              <button key={minutes} type="button" onClick={() => void run((playback) => playback.setSleepTimer(minutes * 60_000))}>{minutes} {t(" min")}</button>
             ))}
-            <button type="button" onClick={() => void run((playback) => playback.setSleepTimerAtChapterEnd())}>Chapter</button>
+            <button type="button" onClick={() => void run((playback) => playback.setSleepTimerAtChapterEnd())}>{t("Chapter")}</button>
           </div>
           <div className={tw('audiobook-player__skip-fields')}>
-            <label><span>Back</span><select value={preferences.effective.backwardSkipMs} onChange={(event) => void saveGlobalControl({ backwardSkipMs: Number(event.currentTarget.value) })}>{skipPresets.map((value) => <option key={value} value={value}>{value / 1_000} sec</option>)}</select></label>
-            <label><span>Forward</span><select value={preferences.effective.forwardSkipMs} onChange={(event) => void saveGlobalControl({ forwardSkipMs: Number(event.currentTarget.value) })}>{skipPresets.map((value) => <option key={value} value={value}>{value / 1_000} sec</option>)}</select></label>
+            <label><span>{t("Back")}</span><select value={preferences.effective.backwardSkipMs} onChange={(event) => void saveGlobalControl({ backwardSkipMs: Number(event.currentTarget.value) })}>{skipPresets.map((value) => <option key={value} value={value}>{value / 1_000} {t(" sec")}</option>)}</select></label>
+            <label><span>{t("Forward")}</span><select value={preferences.effective.forwardSkipMs} onChange={(event) => void saveGlobalControl({ forwardSkipMs: Number(event.currentTarget.value) })}>{skipPresets.map((value) => <option key={value} value={value}>{value / 1_000} {t(" sec")}</option>)}</select></label>
           </div>
           <button className={tw('audiobook-player__shake')} type="button" aria-pressed={preferences.effective.shakeToExtend} onClick={() => void toggleShake()}>
-            <span><strong>Shake to extend</strong><small>Add {preferences.effective.shakeExtensionMs / 60_000} minutes only while a timer is active.</small></span><i aria-hidden="true" />
+            <span><strong>{t("Shake to extend")}</strong><small>{t('Add {{minutes}} minutes only while a timer is active.', { minutes: formatNumber(preferences.effective.shakeExtensionMs / 60_000) })}</small></span><i aria-hidden="true" />
           </button>
         </details>
       </section>
 
       <section className={tw('audiobook-player__notes')} aria-labelledby="quick-notes-title">
         <header>
-          <div><span>Exact timeline</span><h4 id="quick-notes-title">Bookmarks & notes</h4></div>
-          <button type="button" onClick={() => void exportNotes()}><FileDown aria-hidden="true" /> Export</button>
+          <div><span>{t("Exact timeline")}</span><h4 id="quick-notes-title">{t("Bookmarks & notes")}</h4></div>
+          <button type="button" onClick={() => void exportNotes()}><FileDown aria-hidden="true" /> {t(" Export")}</button>
         </header>
         <form onSubmit={(event) => { void saveTextNote(event) }}>
-          <label htmlFor="audiobook-quick-note">Note at {formatAudioTime(snapshot.absolutePositionMs)}</label>
-          <textarea id="audiobook-quick-note" value={note} onChange={(event) => setNote(event.target.value)} placeholder="A thought to return to…" />
-          <div><button type="button" onClick={() => void saveBookmark()}><Bookmark aria-hidden="true" /> Bookmark with note</button><button type="submit" disabled={!note.trim()}><StickyNote aria-hidden="true" /> Save note</button></div>
+          <label htmlFor="audiobook-quick-note">{t('Note at {{time}}', { time: formatAudioTime(snapshot.absolutePositionMs) })}</label>
+          <textarea id="audiobook-quick-note" value={note} onChange={(event) => setNote(event.target.value)} placeholder={t("A thought to return to…")} />
+          <div><button type="button" onClick={() => void saveBookmark()}><Bookmark aria-hidden="true" /> {t(" Bookmark with note")}</button><button type="submit" disabled={!note.trim()}><StickyNote aria-hidden="true" /> {t(" Save note")}</button></div>
         </form>
-        <p className={tw('audiobook-player__privacy')}><Mic aria-hidden="true" /><span><strong>Voice notes are microphone-only.</strong> Playback pauses before recording; audiobook audio is never captured, mixed, or exported. Recordings remain in local app storage.</span></p>
+        <p className={tw('audiobook-player__privacy')}><Mic aria-hidden="true" /><span><strong>{t("Voice notes are microphone-only.")}</strong> {t(" Playback pauses before recording; audiobook audio is never captured, mixed, or exported. Recordings remain in local app storage.")}</span></p>
 
         {annotations.length ? (
           <ol className={tw('audiobook-player__annotation-list')}>
@@ -469,28 +471,28 @@ export function AudiobookPlayer({ book, preview, onChooseFile }: { readonly book
                 <li key={annotation.id}>
                   <div>
                     <span>{annotation.kind === 'bookmark' ? <Bookmark aria-hidden="true" /> : annotation.kind === 'voice-note' ? <Mic aria-hidden="true" /> : <StickyNote aria-hidden="true" />}</span>
-                    <p><strong>{formatAudioTime(annotation.absolutePositionMs)}</strong><small>{chapter ?? 'Audiobook timeline'} · {annotation.kind.replace('-', ' ')}</small></p>
-                    <button type="button" onClick={() => void removeAnnotation(annotation.id)} aria-label={`Delete annotation at ${formatAudioTime(annotation.absolutePositionMs)}`}><Trash2 aria-hidden="true" /></button>
+                    <p><strong>{formatAudioTime(annotation.absolutePositionMs)}</strong><small>{chapter ?? t("Audiobook timeline")} · {annotation.kind.replace('-', ' ')}</small></p>
+                    <button type="button" onClick={() => void removeAnnotation(annotation.id)} aria-label={t("Delete annotation at {{v0}}", { v0: formatAudioTime(annotation.absolutePositionMs) })}><Trash2 aria-hidden="true" /></button>
                   </div>
-                  {annotation.kind === 'voice-note' && voiceUrls[annotation.id] && <audio controls preload="metadata" src={voiceUrls[annotation.id]} aria-label={`Voice note at ${formatAudioTime(annotation.absolutePositionMs)}`} />}
+                  {annotation.kind === 'voice-note' && voiceUrls[annotation.id] && <audio controls preload="metadata" src={voiceUrls[annotation.id]} aria-label={t("Voice note at {{v0}}", { v0: formatAudioTime(annotation.absolutePositionMs) })} />}
                   {editingId === annotation.id ? (
                     <form onSubmit={(event) => { event.preventDefault(); void saveEditedNote(annotation.id) }}>
-                      <input autoFocus value={editingNote} onChange={(event) => setEditingNote(event.target.value)} aria-label="Annotation note" />
-                      <button type="submit">Save</button>
+                      <input autoFocus value={editingNote} onChange={(event) => setEditingNote(event.target.value)} aria-label={t("Annotation note")} />
+                      <button type="submit">{t("Save")}</button>
                     </form>
                   ) : annotation.note ? (
                     <button className={tw('audiobook-player__annotation-note')} type="button" onClick={() => { setEditingId(annotation.id); setEditingNote(annotation.note) }}>{annotation.note}</button>
                   ) : (
-                    <button className={tw('audiobook-player__annotation-note')} type="button" onClick={() => { setEditingId(annotation.id); setEditingNote('') }}>Add a note</button>
+                    <button className={tw('audiobook-player__annotation-note')} type="button" onClick={() => { setEditingId(annotation.id); setEditingNote('') }}>{t("Add a note")}</button>
                   )}
                 </li>
               )
             })}
           </ol>
-        ) : <p className={tw('audiobook-player__empty')}>Your first bookmark will keep the exact time and chapter here.</p>}
+        ) : <p className={tw('audiobook-player__empty')}>{t("Your first bookmark will keep the exact time and chapter here.")}</p>}
       </section>
 
-      {(issue || snapshot.error) && <div className={tw('audiobook-player__issue')} role="alert"><p>{issue ?? snapshot.error?.message}</p>{onChooseFile && <button type="button" onClick={onChooseFile}>Choose file</button>}</div>}
+      {(issue || snapshot.error) && <div className={tw('audiobook-player__issue')} role="alert"><p>{<LocalizedError message={issue ?? snapshot.error?.message ?? ''} />}</p>{onChooseFile && <button type="button" onClick={onChooseFile}>{t("Choose file")}</button>}</div>}
     </div>
   )
 
@@ -514,18 +516,18 @@ export function AudiobookPlayer({ book, preview, onChooseFile }: { readonly book
 
 async function requestMotionPermission(): Promise<void> {
   if (!('DeviceMotionEvent' in window)) {
-    throw new Error('Motion sensing is unavailable on this device. The sleep timer itself remains available.')
+    throw new Error(t("Motion sensing is unavailable on this device. The sleep timer itself remains available."))
   }
   const motion = DeviceMotionEvent as typeof DeviceMotionEvent & {
     requestPermission?: () => Promise<'granted' | 'denied'>
   }
   if (motion.requestPermission && await motion.requestPermission() !== 'granted') {
-    throw new Error('Motion access was not granted. The sleep timer itself remains available.')
+    throw new Error(t("Motion access was not granted. The sleep timer itself remains available."))
   }
 }
 
 function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'The listening control could not be updated.'
+  return error instanceof Error ? error.message : t("The listening control could not be updated.")
 }
 
 function safeFilename(value: string): string {

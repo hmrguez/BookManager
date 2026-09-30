@@ -1,3 +1,4 @@
+import { t, useLanguage } from '../localization'
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { ImagePlus, X } from 'lucide-react'
@@ -17,6 +18,7 @@ export function EditableBookCover({
   readonly book: LibraryBook
   readonly onCover: (thumbnail: string) => void
 }) {
+  useLanguage()
   const inputRef = useRef<HTMLInputElement>(null)
   const pressRef = useRef<{ pointerId: number; x: number; y: number; startedAt: number } | null>(null)
   const suppressClickRef = useRef(false)
@@ -64,11 +66,11 @@ export function EditableBookCover({
     setMessage(undefined)
     try {
       onCover(await prepareManualCover(file))
-      setMessage('Cover saved on this device.')
+      setMessage(t("Cover saved on this device."))
     } catch (error) {
       setMessage(error instanceof ManualCoverError
         ? error.message
-        : 'Wovenleaf could not save that cover. Try another image.')
+        : t("Wovenleaf could not save that cover. Try another image."))
     } finally {
       setBusy(false)
     }
@@ -93,8 +95,8 @@ export function EditableBookCover({
       <button
         type="button"
         disabled={busy}
-        aria-label={`View cover for ${book.title}`}
-        aria-description="Press and hold to change the cover."
+        aria-label={t("View cover for {{v0}}", { v0: book.title })}
+        aria-description={t("Press and hold to change the cover.")}
         aria-haspopup="dialog"
         aria-expanded={expanded}
         onPointerDown={startPress}
@@ -121,7 +123,7 @@ export function EditableBookCover({
         <CoverPreview book={book} onClose={() => setExpanded(false)}>
           <button className={tw('primary-button cover-preview__change')} type="button" disabled={busy} onClick={() => inputRef.current?.click()}>
             <ImagePlus aria-hidden="true" />
-            {busy ? 'Preparing…' : book.thumbnail ? 'Change cover' : 'Add cover'}
+            {busy ? t("Preparing…") : book.thumbnail ? t("Change cover") : t("Add cover")}
           </button>
           {fileInput}
           {message && <p className={tw('cover-preview__message')} role="status">{message}</p>}
@@ -136,6 +138,7 @@ function CoverPreview({ book, onClose, children }: {
   readonly onClose: () => void
   readonly children: ReactNode
 }) {
+  useLanguage()
   const dialogRef = useRef<HTMLDialogElement>(null)
   const backdropPressRef = useRef(false)
   const [failedThumbnail, setFailedThumbnail] = useState<string>()
@@ -157,7 +160,7 @@ function CoverPreview({ book, onClose, children }: {
       ref={dialogRef}
       className={tw('cover-preview', motionStyles.reveal)}
       data-motion-event="reveal"
-      aria-label={`Cover of ${book.title}`}
+      aria-label={t("Cover of {{v0}}", { v0: book.title })}
       onCancel={(event) => { event.preventDefault(); closePreview() }}
       onKeyDown={(event) => event.stopPropagation()}
       onMouseDown={(event) => event.stopPropagation()}
@@ -170,13 +173,13 @@ function CoverPreview({ book, onClose, children }: {
       <div className={tw('cover-preview__content')}>
         <header className={tw('cover-preview__header')}>
           <h3>{book.title}</h3>
-          <button className={tw('icon-button cover-preview__close')} type="button" onClick={closePreview} aria-label="Close cover preview">
+          <button className={tw('icon-button cover-preview__close')} type="button" onClick={closePreview} aria-label={t("Close cover preview")}>
             <X aria-hidden="true" />
           </button>
         </header>
         <div className={tw('cover-preview__image')}>
           {book.thumbnail && failedThumbnail !== book.thumbnail ? (
-            <img referrerPolicy="no-referrer" src={book.thumbnail} alt={`Cover of ${book.title}`} onError={() => setFailedThumbnail(book.thumbnail)} />
+            <img referrerPolicy="no-referrer" src={book.thumbnail} alt={t("Cover of {{v0}}", { v0: book.title })} onError={() => setFailedThumbnail(book.thumbnail)} />
           ) : (
             <BookCover book={book} large />
           )}

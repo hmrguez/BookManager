@@ -1,3 +1,4 @@
+import { t, useLanguage } from './localization'
 import { VirtualBookList } from './library/VirtualBookList'
 import { BookTile } from './library/LibraryPresentation'
 import { useLibraryView } from './library/use-library-view'
@@ -36,6 +37,7 @@ export function UpNextSection({
   motionMode: MotionMode
   libraryHydrated: boolean
 }) {
+  useLanguage()
   const grid = useLibraryView() === 'grid'
   const relevantMotionSequence = shelfMotion?.from === 'next' || shelfMotion?.to === 'next'
     ? shelfMotion.sequence
@@ -67,14 +69,14 @@ export function UpNextSection({
           aria-expanded={!isCollapsed}
           aria-controls="shelf-books-next"
         >
-          <h2>Up Next <i>·</i> {books.length}</h2>
+          <h2>{t("Up Next")}<i>·</i> {books.length}</h2>
           <ChevronDown className={tw(isCollapsed ? 'is-collapsed' : '')} aria-hidden="true" />
         </button>
         <button
           type="button"
           className={tw("shelf-add")}
           onClick={onAdd}
-          aria-label="Add a book to Up Next"
+          aria-label={t("Add a book to Up Next")}
         >
           <Plus aria-hidden="true" />
         </button>
@@ -95,8 +97,8 @@ export function UpNextSection({
           >
             <Plus aria-hidden="true" />
             <span>
-              <strong>Choose what comes next</strong>
-              <small>Add a title, then arrange it your way</small>
+              <strong>{t("Choose what comes next")}</strong>
+              <small>{t("Add a title, then arrange it your way")}</small>
             </span>
           </button>
         ) : (
@@ -111,7 +113,7 @@ export function UpNextSection({
                   {...shelfCascadeItem(index, cascadeItemCount)}
                 >
                   {grid ? <BookTile book={book} onDetails={onDetails} position={index + 1} onReorder={(offset) => onMove(book.id, index + offset)} /> : <>
-                    <span className={tw("up-next-book__number")} aria-label={`Position ${index + 1}`}>
+                    <span className={tw("up-next-book__number")} aria-label={t("Position {{v0}}", { v0: index + 1 })}>
                       {String(index + 1).padStart(2, '0')}
                     </span>
                     <button className={tw("book-identity")} type="button" draggable data-library-book={book.id} onClick={() => onDetails(book.id)}>
@@ -130,7 +132,7 @@ export function UpNextSection({
                         className={tw("up-next-book__move")}
                         onClick={() => onMove(book.id, index - 1)}
                         disabled={index === 0}
-                        aria-label={`Move ${book.title} earlier`}
+                        aria-label={t("Move {{v0}} earlier", { v0: book.title })}
                       >
                         <ArrowUp aria-hidden="true" />
                       </button>
@@ -139,7 +141,7 @@ export function UpNextSection({
                         className={tw("up-next-book__move")}
                         onClick={() => onMove(book.id, index + 1)}
                         disabled={index === displayedBooks.length - 1}
-                        aria-label={`Move ${book.title} later`}
+                        aria-label={t("Move {{v0}} later", { v0: book.title })}
                       >
                         <ArrowDown aria-hidden="true" />
                       </button>
@@ -147,9 +149,9 @@ export function UpNextSection({
                         type="button"
                         className={tw("row-action up-next-book__start")}
                         onClick={() => onStart(book.id)}
-                        aria-label={`Start reading ${book.title}`}
+                        aria-label={t("Start reading {{v0}}", { v0: book.title })}
                       >
-                        Start <ArrowRight aria-hidden="true" />
+                        {t("Start ")}<ArrowRight aria-hidden="true" />
                       </button>
                     </div>
                   </>}

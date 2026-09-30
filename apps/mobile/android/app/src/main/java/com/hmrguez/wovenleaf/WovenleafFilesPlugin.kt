@@ -22,7 +22,7 @@ import java.io.File
 import java.io.InputStream
 import java.security.MessageDigest
 
-class OriginalFileException(val code: String, message: String = "Choose the original file again. Your progress is safe.") : Exception(message)
+class OriginalFileException(val code: String, message: String = WovenleafL10n.text("Choose the original file again. Your progress is safe.")) : Exception(message)
 
 /** Original provider URIs; persist access when offered, otherwise use the live Open With grant. */
 object OriginalFiles {
@@ -93,7 +93,7 @@ object OriginalFiles {
         try { android.system.Os.lseek(descriptor.fileDescriptor, 0, android.system.OsConstants.SEEK_CUR) }
         catch (error: android.system.ErrnoException) {
             descriptor.close()
-            throw OriginalFileException("FILE_UNSUPPORTED", "This provider cannot open PDFs directly. Download the file and choose its local original.")
+            throw OriginalFileException("FILE_UNSUPPORTED", WovenleafL10n.text("This provider cannot open PDFs directly. Download the file and choose its local original."))
         }
         return descriptor
     }
@@ -109,7 +109,7 @@ object OriginalFiles {
         try {
             context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst()) {
-                    val name = cursor.getString(0) ?: "Book"
+                    val name = cursor.getString(0) ?: WovenleafL10n.text("Book")
                     var size = if (cursor.isNull(1)) -1 else cursor.getLong(1)
                     if (size < 0) context.contentResolver.openFileDescriptor(uri, "r")?.use { size = it.statSize }
                     if (size < 0) throw OriginalFileException("FILE_UNSUPPORTED")
@@ -289,7 +289,7 @@ class WovenleafFilesPlugin : Plugin() {
             return when (val value = call.data.opt(key)) {
                 is Int -> value.toLong()
                 is Long -> value
-                else -> throw OriginalFileException("FILE_UNSUPPORTED", "Invalid file offset or size.")
+                else -> throw OriginalFileException("FILE_UNSUPPORTED", WovenleafL10n.text("Invalid file offset or size."))
             }
         }
 

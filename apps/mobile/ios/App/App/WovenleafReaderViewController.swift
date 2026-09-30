@@ -35,7 +35,7 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
     private let topChrome = UIView()
     private let bottomChrome = UIView()
     private let titleLabel = UILabel()
-    private lazy var libraryButton = ReaderChromeButton(title: "Library", target: self, action: #selector(closeReader))
+    private lazy var libraryButton = ReaderChromeButton(title: WovenleafL10n.text("Library"), target: self, action: #selector(closeReader))
     private lazy var appearanceButton = ReaderChromeButton(symbol: "textformat.size", target: self, action: #selector(showReaderSettings))
     private lazy var bookmarkButton = ReaderChromeButton(symbol: "bookmark", target: self, action: #selector(toggleBookmark))
     private lazy var outlineButton = ReaderChromeButton(symbol: "line.3.horizontal.decrease", target: self, action: #selector(showReaderOutline))
@@ -86,9 +86,9 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
                     highContrast: UIAccessibility.isDarkerSystemColorsEnabled
                 ),
                 editingActions: EditingAction.defaultActions + [
-                    EditingAction(title: "Highlight", action: #selector(createHighlight(_:))),
-                    EditingAction(title: "Add Note", action: #selector(createPassageNote(_:))),
-                    EditingAction(title: "Read Aloud", action: #selector(readSelectionAloud(_:))),
+                    EditingAction(title: WovenleafL10n.text("Highlight"), action: #selector(createHighlight(_:))),
+                    EditingAction(title: WovenleafL10n.text("Add Note"), action: #selector(createPassageNote(_:))),
+                    EditingAction(title: WovenleafL10n.text("Read Aloud"), action: #selector(readSelectionAloud(_:))),
                 ]
             )
         )
@@ -97,7 +97,7 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
     }
 
     @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    required init?(coder: NSCoder) { fatalError(WovenleafL10n.text("init(coder:) has not been implemented")) }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -105,13 +105,13 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         navigationController?.setToolbarHidden(true, animated: false)
         view.backgroundColor = readerPalette.page
 
-        libraryButton.accessibilityLabel = "Close reader and return to library"
-        appearanceButton.accessibilityLabel = "Reading appearance"
-        bookmarkButton.accessibilityLabel = "Add bookmark"
-        outlineButton.accessibilityLabel = "Browse chapters, bookmarks, notes, and search"
-        previousButton.accessibilityLabel = "Previous page"
-        nextButton.accessibilityLabel = "Next page"
-        compatibilityButton.accessibilityLabel = "Reading compatibility"
+        libraryButton.accessibilityLabel = WovenleafL10n.text("Close reader and return to library")
+        appearanceButton.accessibilityLabel = WovenleafL10n.text("Reading appearance")
+        bookmarkButton.accessibilityLabel = WovenleafL10n.text("Add bookmark")
+        outlineButton.accessibilityLabel = WovenleafL10n.text("Browse chapters, bookmarks, notes, and search")
+        previousButton.accessibilityLabel = WovenleafL10n.text("Previous page")
+        nextButton.accessibilityLabel = WovenleafL10n.text("Next page")
+        compatibilityButton.accessibilityLabel = WovenleafL10n.text("Reading compatibility")
         compatibilityButton.isHidden = context.compatibility?.notices.isEmpty != false
 
         buildReaderChrome()
@@ -376,7 +376,7 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         lastChapterHref = locator.href.string
         if let previousChapter, previousChapter != locator.href.string {
             chapterRail.revealActiveMomentarily()
-            feedbackView.show(locator.title ?? "New chapter", symbol: "text.book.closed")
+            feedbackView.show(locator.title ?? WovenleafL10n.text("New chapter"), symbol: "text.book.closed")
         }
         checkpointTimer?.invalidate()
         checkpointTimer = Timer.scheduledTimer(withTimeInterval: 0.75, repeats: false) { [weak self] _ in
@@ -421,19 +421,19 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
     func navigator(_ navigator: Navigator, presentExternalURL url: URL) {
         guard let scheme = url.scheme?.lowercased(), ["http", "https"].contains(scheme) else {
             presentReaderMessage(
-                title: "Link blocked",
-                message: "Wovenleaf only hands web links to your browser. This link uses an unsupported address type."
+                title: WovenleafL10n.text("Link blocked"),
+                message: WovenleafL10n.text("Wovenleaf only hands web links to your browser. This link uses an unsupported address type.")
             )
             return
         }
-        let destination = url.host ?? "your browser"
+        let destination = url.host ?? WovenleafL10n.text("your browser")
         let alert = UIAlertController(
-            title: "Leave Wovenleaf?",
-            message: "Open \(destination) in your default browser? The book file and Wovenleaf’s private storage are not shared.",
+            title: WovenleafL10n.text("Leave Wovenleaf?"),
+            message: WovenleafL10n.text("Open {{destination}} in your default browser? The book file and Wovenleaf’s private storage are not shared.", ["destination": destination]),
             preferredStyle: .alert
         )
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Open in Browser", style: .default) { _ in
+        alert.addAction(UIAlertAction(title: WovenleafL10n.text("Cancel"), style: .cancel))
+        alert.addAction(UIAlertAction(title: WovenleafL10n.text("Open in Browser"), style: .default) { _ in
             UIApplication.shared.open(url, options: [:])
         })
         present(alert, animated: !UIAccessibility.isReduceMotionEnabled)
@@ -441,11 +441,11 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
 
     func navigator(_ navigator: Navigator, presentError error: NavigatorError) {
         let alert = UIAlertController(
-            title: "Page unavailable",
-            message: "Wovenleaf kept your last trusted reading position.",
+            title: WovenleafL10n.text("Page unavailable"),
+            message: WovenleafL10n.text("Wovenleaf kept your last trusted reading position."),
             preferredStyle: .alert
         )
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        alert.addAction(UIAlertAction(title: WovenleafL10n.text("OK"), style: .default))
         present(alert, animated: true)
     }
 
@@ -501,8 +501,8 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         guard let locator = lastLocator ?? navigator.currentLocation else { return }
         if let existing = navigationState.bookmarks.first(where: { samePassage($0.locator, locator) }) {
             deleteBookmark(existing)
-            UIAccessibility.post(notification: .announcement, argument: "Bookmark removed")
-            feedbackView.show("Bookmark removed", symbol: "bookmark.slash")
+            UIAccessibility.post(notification: .announcement, argument: WovenleafL10n.text("Bookmark removed"))
+            feedbackView.show(WovenleafL10n.text("Bookmark removed"), symbol: "bookmark.slash")
             return
         }
         let timestamp = ReaderOutbox.timestamp()
@@ -525,8 +525,8 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
             createdAt: timestamp
         )
         updateBookmarkButton()
-        UIAccessibility.post(notification: .announcement, argument: "Bookmark added")
-        feedbackView.show("Page kept", symbol: "bookmark.fill")
+        UIAccessibility.post(notification: .announcement, argument: WovenleafL10n.text("Bookmark added"))
+        feedbackView.show(WovenleafL10n.text("Page kept"), symbol: "bookmark.fill")
         bookmarkButton.pulse()
     }
 
@@ -601,7 +601,7 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
             let percent = isAtEnd ? 100 : min(99, Int((progression * 100).rounded()))
             progressControl.setProgress(progression, label: "\(percent)%")
         } else {
-            progressControl.setLabel(locator.title ?? "Reading")
+            progressControl.setLabel(locator.title ?? WovenleafL10n.text("Reading"))
         }
     }
 
@@ -610,7 +610,7 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         Task {
             guard await navigator.go(to: link, options: .animated) else {
                 pendingJumpOrigin = nil
-                presentReaderMessage(title: "Section unavailable", message: "This book’s navigation entry is broken or missing.")
+                presentReaderMessage(title: WovenleafL10n.text("Section unavailable"), message: WovenleafL10n.text("This book’s navigation entry is broken or missing."))
                 return
             }
             if fromToc, let locator = await publication.locate(link) {
@@ -629,7 +629,7 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         Task {
             if !(await navigator.go(to: locator, options: .animated)) {
                 pendingJumpOrigin = nil
-                presentReaderMessage(title: "Passage unavailable", message: "Wovenleaf could not recover this passage in the current edition.")
+                presentReaderMessage(title: WovenleafL10n.text("Passage unavailable"), message: WovenleafL10n.text("Wovenleaf could not recover this passage in the current edition."))
             }
         }
     }
@@ -638,8 +638,8 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         Task {
             guard let locator = await publication.locate(progression: progression) else {
                 presentReaderMessage(
-                    title: "Position unavailable",
-                    message: "This book does not provide enough navigation data for precise scrubbing."
+                    title: WovenleafL10n.text("Position unavailable"),
+                    message: WovenleafL10n.text("This book does not provide enough navigation data for precise scrubbing.")
                 )
                 return
             }
@@ -672,8 +672,8 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
             .trimmingCharacters(in: .whitespacesAndNewlines), !quote.isEmpty
         else {
             presentReaderMessage(
-                title: "Select a passage",
-                message: "Select a passage first, then choose Read Aloud."
+                title: WovenleafL10n.text("Select a passage"),
+                message: WovenleafL10n.text("Select a passage first, then choose Read Aloud.")
             )
             return
         }
@@ -684,17 +684,17 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         }
         speechSynthesizer.speak(utterance)
         navigator.clearSelection()
-        UIAccessibility.post(notification: .announcement, argument: "Reading selected passage aloud")
+        UIAccessibility.post(notification: .announcement, argument: WovenleafL10n.text("Reading selected passage aloud"))
     }
 
     @objc private func showCompatibilityNotice() {
         guard let profile = context.compatibility, !profile.notices.isEmpty else { return }
         let alert = UIAlertController(
-            title: "Reading this edition",
+            title: WovenleafL10n.text("Reading this edition"),
             message: profile.notices.joined(separator: "\n\n"),
             preferredStyle: .alert
         )
-        alert.addAction(UIAlertAction(title: "Continue", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: WovenleafL10n.text("Continue"), style: .default) { [weak self] _ in
             guard let self else { return }
             UIAccessibility.post(notification: .screenChanged, argument: self.navigator.view)
         })
@@ -703,15 +703,15 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
 
     private func createAnnotationFromSelection() {
         guard let selection = navigator.currentSelection else {
-            presentReaderMessage(title: "Select a passage", message: "Select a short passage first, then choose Highlight or Add Note.")
+            presentReaderMessage(title: WovenleafL10n.text("Select a passage"), message: WovenleafL10n.text("Select a short passage first, then choose Highlight or Add Note."))
             return
         }
         let quote = selection.locator.text.highlight?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !quote.isEmpty, quote.count <= 10_000 else {
             navigator.clearSelection()
             presentReaderMessage(
-                title: "Selection unavailable",
-                message: "Choose a passage between 1 and 10,000 characters. Wovenleaf does not save whole chapters as annotations."
+                title: WovenleafL10n.text("Selection unavailable"),
+                message: WovenleafL10n.text("Choose a passage between 1 and 10,000 characters. Wovenleaf does not save whole chapters as annotations.")
             )
             return
         }
@@ -728,8 +728,8 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
             let candidates = await matchingReanchorCandidates(for: annotation)
             guard !candidates.isEmpty else {
                 presentReaderMessage(
-                    title: "Passage unavailable",
-                    message: "This revised EPUB no longer contains the quoted passage. The annotation remains in Needs Review."
+                    title: WovenleafL10n.text("Passage unavailable"),
+                    message: WovenleafL10n.text("This revised EPUB no longer contains the quoted passage. The annotation remains in Needs Review.")
                 )
                 return
             }
@@ -738,8 +738,8 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
                 return
             }
             let chooser = UIAlertController(
-                title: "Choose the matching passage",
-                message: "The quote appears more than once. Compare its chapter and surrounding words before confirming.",
+                title: WovenleafL10n.text("Choose the matching passage"),
+                message: WovenleafL10n.text("The quote appears more than once. Compare its chapter and surrounding words before confirming."),
                 preferredStyle: .alert
             )
             for candidate in candidates.prefix(12) {
@@ -747,7 +747,7 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
                     self?.openReviewCandidate(candidate, annotation: annotation)
                 })
             }
-            chooser.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+            chooser.addAction(UIAlertAction(title: WovenleafL10n.text("Cancel"), style: .cancel))
             present(chooser, animated: !UIAccessibility.isReduceMotionEnabled)
         }
     }
@@ -755,7 +755,7 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
     private func openReviewCandidate(_ locator: Locator, annotation: ReaderAnnotationRecord) {
         Task {
             guard await navigator.go(to: locator, options: .animated) else {
-                presentReaderMessage(title: "Passage unavailable", message: "This matching range could not be opened.")
+                presentReaderMessage(title: WovenleafL10n.text("Passage unavailable"), message: WovenleafL10n.text("This matching range could not be opened."))
                 return
             }
             presentAnnotationEditor(locator: locator, annotation: annotation, needsReview: true)
@@ -858,8 +858,8 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         )
         navigator.clearSelection()
         applyAnnotationDecorations()
-        UIAccessibility.post(notification: .announcement, argument: existing == nil ? "Highlight saved" : "Annotation updated")
-        feedbackView.show(existing == nil ? "Passage marked" : "Note updated", symbol: "pencil.line")
+        UIAccessibility.post(notification: .announcement, argument: existing == nil ? WovenleafL10n.text("Highlight saved") : WovenleafL10n.text("Annotation updated"))
+        feedbackView.show(existing == nil ? WovenleafL10n.text("Passage marked") : WovenleafL10n.text("Note updated"), symbol: "pencil.line")
     }
 
     private func deleteAnnotation(_ annotation: ReaderAnnotationRecord) {
@@ -876,12 +876,12 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         )
         applyAnnotationDecorations()
         let alert = UIAlertController(
-            title: "Annotation deleted",
-            message: "The deletion is retained for sync and portable export. You can undo it now.",
+            title: WovenleafL10n.text("Annotation deleted"),
+            message: WovenleafL10n.text("The deletion is retained for sync and portable export. You can undo it now."),
             preferredStyle: .alert
         )
-        alert.addAction(UIAlertAction(title: "Done", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Undo", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: WovenleafL10n.text("Done"), style: .cancel))
+        alert.addAction(UIAlertAction(title: WovenleafL10n.text("Undo"), style: .default) { [weak self] _ in
             self?.restoreAnnotation(id: annotation.id)
         })
         present(alert, animated: !UIAccessibility.isReduceMotionEnabled)
@@ -899,7 +899,7 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
             annotationId: id
         )
         applyAnnotationDecorations()
-        UIAccessibility.post(notification: .announcement, argument: "Annotation restored")
+        UIAccessibility.post(notification: .announcement, argument: WovenleafL10n.text("Annotation restored"))
     }
 
     private func setupAnnotationInteractions() {
@@ -1045,8 +1045,8 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
         nextButton.isEnabled = !isAtEnd
         if isAtEnd, !didShowFinishFeedback {
             didShowFinishFeedback = true
-            feedbackView.show("End of book", symbol: "checkmark")
-            UIAccessibility.post(notification: .announcement, argument: "End of book")
+            feedbackView.show(WovenleafL10n.text("End of book"), symbol: "checkmark")
+            UIAccessibility.post(notification: .announcement, argument: WovenleafL10n.text("End of book"))
         } else if !isAtEnd {
             didShowFinishFeedback = false
         }
@@ -1058,8 +1058,8 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
             navigationState.bookmarks.contains { samePassage($0.locator, current) }
         } ?? false
         bookmarkButton.setSymbol(bookmarked ? "bookmark.fill" : "bookmark")
-        bookmarkButton.accessibilityLabel = bookmarked ? "Remove bookmark" : "Add bookmark"
-        bookmarkButton.accessibilityValue = bookmarked ? "Bookmarked" : "Not bookmarked"
+        bookmarkButton.accessibilityLabel = bookmarked ? WovenleafL10n.text("Remove bookmark") : WovenleafL10n.text("Add bookmark")
+        bookmarkButton.accessibilityValue = bookmarked ? WovenleafL10n.text("Bookmarked") : WovenleafL10n.text("Not bookmarked")
     }
 
     private func samePassage(_ left: Locator, _ right: Locator) -> Bool {
@@ -1100,7 +1100,7 @@ final class WovenleafReaderViewController: UIViewController, EPUBNavigatorDelega
 
     private func presentReaderMessage(title: String, message: String) {
         let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        alert.addAction(UIAlertAction(title: WovenleafL10n.text("OK"), style: .default))
         present(alert, animated: !UIAccessibility.isReduceMotionEnabled)
     }
 
@@ -1192,14 +1192,14 @@ private final class ReaderProgressControl: UIStackView {
         slider.value = 0
         slider.isContinuous = true
         slider.widthAnchor.constraint(equalToConstant: 124).isActive = true
-        slider.accessibilityLabel = "Reading position"
+        slider.accessibilityLabel = WovenleafL10n.text("Reading position")
         slider.addTarget(self, action: #selector(valueChanged), for: .valueChanged)
         slider.addTarget(
             self,
             action: #selector(commit),
             for: [.touchUpInside, .touchUpOutside, .touchCancel]
         )
-        label.text = "Opening…"
+        label.text = WovenleafL10n.text("Opening…")
         label.font = .monospacedDigitSystemFont(ofSize: 10, weight: .medium)
         label.textAlignment = .center
         label.isAccessibilityElement = false
@@ -1209,7 +1209,7 @@ private final class ReaderProgressControl: UIStackView {
     }
 
     @available(*, unavailable)
-    required init(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    required init(coder: NSCoder) { fatalError(WovenleafL10n.text("init(coder:) has not been implemented")) }
 
     func setProgress(_ progression: Double, label text: String) {
         if !slider.isTracking { slider.value = Float(progression) }
@@ -1264,7 +1264,7 @@ private final class ReaderChromeButton: UIButton {
     }
 
     @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    required init?(coder: NSCoder) { fatalError(WovenleafL10n.text("init(coder:) has not been implemented")) }
 
     override var isHighlighted: Bool {
         didSet {
@@ -1337,7 +1337,7 @@ private final class ReaderFeedbackView: UIView {
     }
 
     @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    required init?(coder: NSCoder) { fatalError(WovenleafL10n.text("init(coder:) has not been implemented")) }
 
     func applyPalette(_ palette: ReaderPalette) {
         backgroundColor = palette.raised

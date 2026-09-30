@@ -45,7 +45,7 @@ final class WovenleafPlaybackPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func loadQueue(_ call: CAPPluginCall) {
         guard let manifest = call.getObject("manifest"), let sources = call.getArray("sources") else {
-            call.reject("The playback queue is invalid.", "QUEUE_INVALID")
+            call.reject(WovenleafL10n.text("The playback queue is invalid."), "QUEUE_INVALID")
             return
         }
         performCommand(call) {
@@ -125,7 +125,7 @@ final class WovenleafPlaybackPlugin: CAPPlugin, CAPBridgedPlugin {
 
     private func performCommand(_ call: CAPPluginCall, operation: @escaping () throws -> Void) {
         guard let commandId = call.getString("commandId"), let expectedRevision = call.getInt("expectedRevision") else {
-            call.reject("The playback command is invalid.", "COMMAND_REJECTED")
+            call.reject(WovenleafL10n.text("The playback command is invalid."), "COMMAND_REJECTED")
             return
         }
         Task { @MainActor in
@@ -139,7 +139,7 @@ final class WovenleafPlaybackPlugin: CAPPlugin, CAPBridgedPlugin {
             } catch let error as PlaybackEngineError {
                 call.reject(error.message, error.code)
             } catch {
-                call.reject("Playback could not apply this command.", "COMMAND_REJECTED", error)
+                call.reject(WovenleafL10n.text("Playback could not apply this command."), "COMMAND_REJECTED", error)
             }
         }
     }
@@ -358,7 +358,7 @@ private final class WovenleafPlaybackEngine: NSObject {
         }
         return [
             "kind": kind,
-            "name": output?.portName ?? "iPhone audio",
+            "name": output?.portName ?? WovenleafL10n.text("iPhone audio"),
             "external": !["built-in", "unknown"].contains(kind),
         ]
     }
@@ -366,6 +366,7 @@ private final class WovenleafPlaybackEngine: NSObject {
     private override init() {
         super.init()
         player.automaticallyWaitsToMinimizeStalling = true
+        NotificationCenter.default.addObserver(self, selector: #selector(interfaceLanguageChanged), name: .init("WovenleafInterfaceLanguageChanged"), object: nil)
         installObservers()
         restorePausedQueue()
     }
@@ -385,7 +386,7 @@ private final class WovenleafPlaybackEngine: NSObject {
             return snapshot
         }
         guard expectedRevision == revision else {
-            throw PlaybackEngineError(code: "STALE_REVISION", message: "Playback changed before this command arrived.")
+            throw PlaybackEngineError(code: "STALE_REVISION", message: WovenleafL10n.text("Playback changed before this command arrived."))
         }
         lastCommandId = id
         do {
@@ -405,7 +406,7 @@ private final class WovenleafPlaybackEngine: NSObject {
     func loadQueue(manifest object: JSObject, sources sourceObjects: [Any], artwork artworkObject: JSObject?) throws {
         let decodedManifest: PlaybackManifest = try decode(object)
         guard decodedManifest.schemaVersion == playbackBridgeVersion, !decodedManifest.segments.isEmpty else {
-            throw PlaybackEngineError(code: "QUEUE_INVALID", message: "This audiobook queue version is unsupported.")
+            throw PlaybackEngineError(code: "QUEUE_INVALID", message: WovenleafL10n.text("This audiobook queue version is unsupported."))
         }
         let decodedSources: [PlaybackSource] = try decode(sourceObjects)
         let byCapability = Dictionary(uniqueKeysWithValues: decodedSources.map { ($0.capability, $0) })
@@ -453,7 +454,7 @@ private final class WovenleafPlaybackEngine: NSObject {
             rebuildQueue(at: 0, autoplay: false)
         }
         guard manifest != nil, player.currentItem != nil else {
-            throw PlaybackEngineError(code: "QUEUE_INVALID", message: "Load an audiobook before playing.")
+            throw PlaybackEngineError(code: "QUEUE_INVALID", message: WovenleafL10n.text("Load an audiobook before playing."))
         }
         if playIntent && (state == "playing" || state == "buffering") { return }
         try checkOriginalSources()
@@ -462,7 +463,7 @@ private final class WovenleafPlaybackEngine: NSObject {
             try audio.setCategory(.playback, mode: .spokenAudio, options: [.allowAirPlay, .allowBluetoothA2DP])
             try audio.setActive(true)
         } catch {
-            throw PlaybackEngineError(code: "ENGINE_UNAVAILABLE", message: "The iOS audio session could not start.")
+            throw PlaybackEngineError(code: "ENGINE_UNAVAILABLE", message: WovenleafL10n.text("The iOS audio session could not start."))
         }
         let wasPaused = state != "playing"
         playIntent = true
@@ -501,7 +502,7 @@ private final class WovenleafPlaybackEngine: NSObject {
 
     func seek(to requestedMs: Int, reason: String) throws {
         guard manifest != nil else {
-            throw PlaybackEngineError(code: "QUEUE_INVALID", message: "No audiobook queue is loaded.")
+            throw PlaybackEngineError(code: "QUEUE_INVALID", message: WovenleafL10n.text("No audiobook queue is loaded."))
         }
         let before = absolutePositionMs
         let target = max(0, min(requestedMs, max(0, durationMs - 1)))
@@ -526,7 +527,7 @@ private final class WovenleafPlaybackEngine: NSObject {
 
     func setRate(_ requestedRate: Float) throws {
         guard requestedRate >= 0.5, requestedRate <= 3 else {
-            throw PlaybackEngineError(code: "COMMAND_REJECTED", message: "The requested playback speed is unsupported.")
+            throw PlaybackEngineError(code: "COMMAND_REJECTED", message: WovenleafL10n.text("The requested playback speed is unsupported."))
         }
         if abs(requestedRate - rate) < 0.001 { return }
         let position = absolutePositionMs
@@ -545,7 +546,7 @@ private final class WovenleafPlaybackEngine: NSObject {
             remaining = durationMs ?? 0
         }
         guard remaining > 0 else {
-            throw PlaybackEngineError(code: "COMMAND_REJECTED", message: "The sleep timer duration is invalid.")
+            throw PlaybackEngineError(code: "COMMAND_REJECTED", message: WovenleafL10n.text("The sleep timer duration is invalid."))
         }
         scheduleSleepTimer(mode: mode == "chapter-end" ? "chapter-end" : "duration", remainingMs: remaining)
     }
@@ -585,7 +586,7 @@ private final class WovenleafPlaybackEngine: NSObject {
 
     func adoptPosition(_ positionMs: Int, provenance: String) throws {
         guard state != "playing", state != "buffering", !playIntent else {
-            throw PlaybackEngineError(code: "COMMAND_REJECTED", message: "Pause playback before adopting another position.")
+            throw PlaybackEngineError(code: "COMMAND_REJECTED", message: WovenleafL10n.text("Pause playback before adopting another position."))
         }
         try seek(to: positionMs, reason: "adopt:\(provenance)")
     }
@@ -848,7 +849,7 @@ private final class WovenleafPlaybackEngine: NSObject {
         suppressionReason = "error"
         error = [
             "code": "playbackFailed",
-            "message": "iOS playback could not continue this segment.",
+            "message": WovenleafL10n.text("iOS playback could not continue this segment."),
             "recoverable": true,
             "capability": currentSegment?.playableCapability ?? NSNull(),
             "expectedFingerprint": currentSegment?.fingerprint ?? NSNull(),
@@ -1003,11 +1004,13 @@ private final class WovenleafPlaybackEngine: NSObject {
             suppressionReason = "error"
             self.error = [
                 "code": "relinkRequired",
-                "message": "A saved audiobook segment is missing or changed. Progress was preserved.",
+                "message": WovenleafL10n.text("A saved audiobook segment is missing or changed. Progress was preserved."),
                 "recoverable": true,
             ]
         }
     }
+
+    @objc private func interfaceLanguageChanged() { updateNowPlaying() }
 
     private func updateNowPlaying() {
         guard let manifest else {
@@ -1018,7 +1021,7 @@ private final class WovenleafPlaybackEngine: NSObject {
         let metadata = previewEnabled ? manifest.systemSurfaceMetadata.preview.title : manifest.systemSurfaceMetadata.private.title
         let contributor = previewEnabled
             ? manifest.systemSurfaceMetadata.preview.contributor
-            : manifest.systemSurfaceMetadata.private.subtitle
+            : WovenleafL10n.text("Audiobook")
         let chapterIndex = manifest.chapters.firstIndex { $0.key == currentChapter?.key }
         var nowPlaying: [String: Any] = [
             MPMediaItemPropertyTitle: metadata,
@@ -1124,7 +1127,7 @@ private final class WovenleafPlaybackEngine: NSObject {
         for segment in manifest.segments {
             guard let source = sources[segment.playableCapability],
                   source.fingerprint == segment.fingerprint, source.mediaType == segment.mediaType else {
-                throw PlaybackEngineError(code: "RELINK_REQUIRED", message: "An audiobook file is unavailable. Choose it again; your progress is safe.")
+                throw PlaybackEngineError(code: "RELINK_REQUIRED", message: WovenleafL10n.text("An audiobook file is unavailable. Choose it again; your progress is safe."))
             }
             do {
                 let access = try WovenleafFileReferences.acquire(source.uri)
@@ -1134,7 +1137,7 @@ private final class WovenleafPlaybackEngine: NSObject {
                 }
                 acquired[segment.playableCapability] = access
             } catch {
-                throw PlaybackEngineError(code: "RELINK_REQUIRED", message: "An audiobook file is missing, changed, or no longer accessible. Choose it again; your progress is safe.")
+                throw PlaybackEngineError(code: "RELINK_REQUIRED", message: WovenleafL10n.text("An audiobook file is missing, changed, or no longer accessible. Choose it again; your progress is safe."))
             }
         }
         return acquired
@@ -1142,7 +1145,7 @@ private final class WovenleafPlaybackEngine: NSObject {
 
     private func checkOriginalSources() throws {
         do { for access in sourceAccess.values { try access.check() } }
-        catch { throw PlaybackEngineError(code: "RELINK_REQUIRED", message: "An audiobook file is no longer available. Choose it again; your progress is safe.") }
+        catch { throw PlaybackEngineError(code: "RELINK_REQUIRED", message: WovenleafL10n.text("An audiobook file is no longer available. Choose it again; your progress is safe.")) }
     }
 
     private func sha256(_ url: URL) throws -> String {

@@ -1,3 +1,5 @@
+import { parseBookAction } from './book-actions'
+import { t, translateCopy, useLanguage } from '../localization'
 import {
   BookCheck,
   BookOpen,
@@ -59,54 +61,55 @@ export function CommandPalette({
   onBook,
   onBookAction,
 }: CommandPaletteProps) {
+  useLanguage()
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const dialogRef = useRef<HTMLElement>(null)
   const listId = useId()
   const booksById = useMemo(() => new Map(books.map((book) => [book.id, book])), [books])
-  const commands = useMemo<PaletteCommand[]>(() => [
+  const commands: PaletteCommand[] = (() => [
     {
       id: 'library',
-      label: 'My Books',
-      detail: 'Return to the whole library',
+      label: t("My Books"),
+      detail: t("Return to the whole library"),
       icon: Library,
       keywords: ['home', 'library', 'books', 'navigate'],
       run: onLibrary,
     },
     {
       id: 'add',
-      label: 'Add a book',
-      detail: 'Search providers or add local metadata',
+      label: t("Add a book"),
+      detail: t("Search providers or add local metadata"),
       icon: Plus,
       keywords: ['new', 'create', 'book', 'search'],
       run: onAdd,
     },
     {
       id: 'reading',
-      label: 'Currently reading',
-      detail: 'Jump to books in progress',
+      label: t("Currently reading"),
+      detail: t("Jump to books in progress"),
       icon: BookOpen,
       keywords: ['reading', 'progress', 'shelf', 'navigate'],
       run: () => onShelf('reading'),
     },
     {
       id: 'next',
-      label: 'Up Next',
-      detail: 'Open the shortest shortlist',
+      label: t("Up Next"),
+      detail: t("Open the shortest shortlist"),
       icon: Sparkles,
       keywords: ['next', 'queue', 'shelf', 'navigate'],
       run: () => onShelf('next'),
     },
     {
       id: 'settings',
-      label: 'Settings',
-      detail: 'Appearance, privacy, import, and export',
+      label: t("Settings"),
+      detail: t("Appearance, privacy, import, and export"),
       icon: Settings,
       keywords: ['preferences', 'privacy', 'appearance', 'navigate'],
       run: onSettings,
     },
-  ], [onAdd, onLibrary, onSettings, onShelf])
+  ])()
 
   const commandIndex = useMemo(() => {
     const index = new LocalSearchIndex()
@@ -119,7 +122,7 @@ export function CommandPalette({
     return index
   }, [commands])
 
-  const items = useMemo<PaletteItem[]>(() => {
+  const items = (() => {
     const cleanQuery = query.trim()
     const bookAction = parseBookAction(cleanQuery)
     const bookQuery = bookAction?.query ?? cleanQuery
@@ -143,9 +146,9 @@ export function CommandPalette({
           .filter((book) => !bookAction || book.shelf !== bookAction.shelf)
           .map((book) => ({
             id: `book:${book.id}`,
-            label: bookAction ? `${bookAction.label} · ${book.title}` : book.title,
+            label: bookAction ? t("{{v0}} · {{v1}}", { v0: bookAction.label, v1: book.title }) : book.title,
             detail: bookAction
-              ? `${book.authors.join(', ')} · Move from ${shelfLabel(book.shelf)}`
+              ? t("{{v0}} · Move from {{v1}}", { v0: book.authors.join(', '), v1: shelfLabel(book.shelf) })
               : [book.authors.join(', '), book.format, shelfLabel(book.shelf)]
                   .filter(Boolean)
                   .join(' · '),
@@ -157,16 +160,7 @@ export function CommandPalette({
           }))
       : []
     return [...commandItems, ...bookItems]
-  }, [
-    booksById,
-    commandIndex,
-    commands,
-    includePrivateNotes,
-    libraryIndex,
-    onBook,
-    onBookAction,
-    query,
-  ])
+  })()
 
   useEffect(() => {
     if (!open) return
@@ -219,8 +213,7 @@ export function CommandPalette({
         <header className={tw("command-palette__search")}>
           <Search aria-hidden="true" />
           <label className={tw("sr-only")} htmlFor={`${listId}-input`} id={`${listId}-title`}>
-            Wovenleaf command menu
-          </label>
+            {t("Wovenleaf command menu")}</label>
           <input
             ref={inputRef}
             id={`${listId}-input`}
@@ -231,7 +224,7 @@ export function CommandPalette({
             aria-activedescendant={items[activeIndex] ? `${listId}-${items[activeIndex].id}` : undefined}
             autoComplete="off"
             autoCapitalize="none"
-            placeholder="Find a book or command"
+            placeholder={t("Find a book or command")}
             value={query}
             onChange={(event) => {
               setQuery(event.target.value)
@@ -250,7 +243,7 @@ export function CommandPalette({
               }
             }}
           />
-          <kbd>Esc</kbd>
+          <kbd>{t("Esc")}</kbd>
         </header>
 
         <div className={tw("command-palette__results")} id={listId} role="listbox">
@@ -259,7 +252,7 @@ export function CommandPalette({
             const previousGroup = items[index - 1]?.group
             return (
               <div className={tw("command-palette__result")} key={item.id}>
-                {item.group !== previousGroup && <p>{item.group}</p>}
+                {item.group !== previousGroup && <p>{translateCopy(item.group)}</p>}
                 <button
                   id={`${listId}-${item.id}`}
                   type="button"
@@ -280,16 +273,16 @@ export function CommandPalette({
           }) : (
             <div className={tw("command-palette__empty")}>
               <Search aria-hidden="true" />
-              <strong>Nothing found</strong>
-              <span>Try a title, author, shelf, or action.</span>
+              <strong>{t("Nothing found")}</strong>
+              <span>{t("Try a title, author, shelf, or action.")}</span>
             </div>
           )}
         </div>
 
         <footer>
-          <span><kbd>↑</kbd><kbd>↓</kbd> Move</span>
-          <span><kbd>↵</kbd> Open</span>
-          <span>Local only</span>
+          <span><kbd>↑</kbd><kbd>↓</kbd> {t(" Move")}</span>
+          <span><kbd>↵</kbd> {t(" Open")}</span>
+          <span>{t("Local only")}</span>
         </footer>
       </section>
     </div>
@@ -297,31 +290,13 @@ export function CommandPalette({
 }
 
 function shelfLabel(shelf: ShelfId): string {
-  return {
+  return translateCopy({
     tbr: 'To Be Read',
     next: 'Up Next',
     reading: 'Reading',
     finished: 'Finished',
     dnf: 'DNF',
-  }[shelf]
-}
-
-function parseBookAction(query: string): {
-  readonly label: string
-  readonly query: string
-  readonly shelf: ShelfId
-} | undefined {
-  const match = /^(start|read|finish|complete|done|next|queue)\s+(.+)$/i.exec(query)
-  if (!match) return undefined
-  const verb = match[1].toLocaleLowerCase()
-  const bookQuery = match[2].trim()
-  if (verb === 'finish' || verb === 'complete' || verb === 'done') {
-    return { label: 'Mark finished', query: bookQuery, shelf: 'finished' }
-  }
-  if (verb === 'next' || verb === 'queue') {
-    return { label: 'Move to Up Next', query: bookQuery, shelf: 'next' }
-  }
-  return { label: 'Start reading', query: bookQuery, shelf: 'reading' }
+  }[shelf])
 }
 
 function isPresent<Value>(value: Value | undefined): value is Value {

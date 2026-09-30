@@ -1,16 +1,17 @@
+import { t } from '../localization'
 import type { ShelfId } from '../library'
 
 export const appearanceLabels = {
   paperMode: {
-    warm: 'Warm',
-    cool: 'Cool',
-    print: 'Print',
-    night: 'Night',
+    get warm() { return t("Warm") },
+    get cool() { return t("Cool") },
+    get print() { return t("Print") },
+    get night() { return t("Night") },
   },
   contrast: {
-    system: 'System',
-    standard: 'Standard',
-    high: 'High',
+    get system() { return t("System") },
+    get standard() { return t("Standard") },
+    get high() { return t("High") },
   },
   typeScale: {
     standard: '100%',
@@ -18,35 +19,35 @@ export const appearanceLabels = {
     'x-large': '125%',
   },
   motion: {
-    system: 'System',
-    reduced: 'Reduced',
+    get system() { return t("System") },
+    get reduced() { return t("Reduced") },
   },
 } as const
 
 export const shelfCopy: Record<ShelfId, { label: string; eyebrow: string; empty: string }> = {
   tbr: {
-    label: 'To Be Read',
-    eyebrow: 'A home for every maybe',
-    empty: 'Save something for later',
+    get label() { return t("To Be Read") },
+    get eyebrow() { return t("A home for every maybe") },
+    get empty() { return t("Save something for later") },
   },
   next: {
-    label: 'Up Next',
-    eyebrow: 'Your shortest shortlist',
-    empty: 'Choose what comes next',
+    get label() { return t("Up Next") },
+    get eyebrow() { return t("Your shortest shortlist") },
+    get empty() { return t("Choose what comes next") },
   },
   reading: {
-    label: 'Reading',
-    eyebrow: 'The books in your hands',
-    empty: 'Start your next read',
+    get label() { return t("Reading") },
+    get eyebrow() { return t("The books in your hands") },
+    get empty() { return t("Start your next read") },
   },
   finished: {
-    label: 'Finished',
-    eyebrow: 'A private reading record',
-    empty: 'Finished books land here',
+    get label() { return t("Finished") },
+    get eyebrow() { return t("A private reading record") },
+    get empty() { return t("Finished books land here") },
   },
   dnf: {
-    label: 'DNF',
-    eyebrow: 'Did not finish',
-    empty: 'Set a book aside for now',
+    get label() { return t("DNF") },
+    get eyebrow() { return t("Did not finish") },
+    get empty() { return t("Set a book aside for now") },
   },
 }

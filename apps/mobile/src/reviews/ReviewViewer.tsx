@@ -1,3 +1,6 @@
+import { LocalizedError } from '../localization/LocalizedError'
+import { badgeName } from './presentation'
+import { t, useLanguage, translateCopy, getLocale } from '../localization'
 import { ReviewMaintenance } from './ReviewMaintenance'
 import { lazy, Suspense, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { App } from '@capacitor/app'
@@ -14,11 +17,12 @@ const ReviewSnapshot = lazy(() => import('./ReviewSnapshot').then(module => ({ d
 
 type Badge = SavedReviewFacts['earned'][number]
 function BadgeDetails({ badge, saved }: { badge: Badge; saved: ReviewKeepsake }) {
-  return <div className="review-evidence"><h4>{badge.name}</h4><p>{badgeFact(badge)}</p>
+  useLanguage()
+  return <div className="review-evidence"><h4>{badgeName(badge.id)}</h4><p>{badgeFact(badge)}</p>
     {badge.detail && <p>{badge.detail}</p>}
     <ul>{saved.facts.supportingBooks.filter(book => badge.workIds.includes(book.workId)).map(book => <li key={book.workId}>{book.title}</li>)}</ul>
-    {badge.personalBest && <><p>Your best recorded quarter. Compared with complete, comparable recorded quarters:</p><ul>
-      {badge.comparisons.map(c => <li key={`${c.quarter.year}-${c.quarter.quarter}`}>{quarterLabel(c.quarter)}: {new Intl.NumberFormat('en').format(c.value)} {badge.unit}</li>)}
+    {badge.personalBest && <><p>{t("Your best recorded quarter. Compared with complete, comparable recorded quarters:")}</p><ul>
+      {badge.comparisons.map(c => <li key={`${c.quarter.year}-${c.quarter.quarter}`}>{quarterLabel(c.quarter)}: {new Intl.NumberFormat(getLocale()).format(c.value)} {translateCopy(badge.unit)}</li>)}
     </ul></>}
   </div>
 }
@@ -26,6 +30,7 @@ function BadgeDetails({ badge, saved }: { badge: Badge; saved: ReviewKeepsake })
 export function ReviewViewer({ initial, fresh, repository, reduced, onDone }: {
   initial: ReviewKeepsake; fresh: boolean; repository: ReviewKeepsakeRepository; reduced: boolean; onDone: () => void
 }) {
+  useLanguage()
   const [snapshot, setSnapshot] = useState(false)
   const [saved, setSaved] = useState(initial)
   const [index, setIndex] = useState(() => initial.completedAt ? initial.steps.length - 1 : initial.steps.findIndex(step => step.id === initial.progress.stepId))
@@ -119,59 +124,59 @@ export function ReviewViewer({ initial, fresh, repository, reduced, onDone }: {
   }
   const choices = [...new Set([...saved.facts.genre.choices, ...REVIEW_GENRES])]
   const collection = step.kind === 'collection'
-  if (snapshot) return <section className="quarterly-review"><Suspense fallback={<p role="status">Preparing your image…</p>}><ReviewSnapshot initial={saved} repository={repository} onDeleted={onDone} onClose={() => { setSnapshot(false); void repository.get(period).then(current => { if (current) { setSaved(current); setIndex(current.steps.length - 1) } else onDone() }).catch(() => setError('Could not refresh this review. Please reopen it.')) }} /></Suspense></section>
+  if (snapshot) return <section className="quarterly-review"><Suspense fallback={<p role="status">{t("Preparing your image…")}</p>}><ReviewSnapshot initial={saved} repository={repository} onDeleted={onDone} onClose={() => { setSnapshot(false); void repository.get(period).then(current => { if (current) { setSaved(current); setIndex(current.steps.length - 1) } else onDone() }).catch(() => setError('Could not refresh this review. Please reopen it.')) }} /></Suspense></section>
   return <section className="quarterly-review" aria-busy={busy}>
     <p className="review-eyebrow">{quarterLabel(period)}</p>
-    {error && <p role="alert">{error}</p>}
+    {error && <p role="alert">{<LocalizedError message={error} />}</p>}
     {badge && <>
-      <p className="review-eyebrow">A moment worth keeping · {index + 1} of {saved.facts.revealIds.length}</p>
+      <p className="review-eyebrow">{t("A moment worth keeping · {{current}} of {{total}}", { current: index + 1, total: saved.facts.revealIds.length })}</p>
       <div className="review-badge" data-phase={phase} data-paused={paused || manual}>
-        <button className="review-stamp-button" type="button" disabled={busy} onClick={tap} aria-label={phase !== 'settled' ? 'Finish badge reveal' : lastBadge ? 'Keep this achievement visible' : 'Next achievement'}><Seal badge={badge} /></button>
-        <h3 ref={heading} tabIndex={-1}>{badge.name}</h3><p className="review-fact">{badgeFact(badge)}</p>
+        <button className="review-stamp-button" type="button" disabled={busy} onClick={tap} aria-label={phase !== 'settled' ? t("Finish badge reveal") : lastBadge ? t("Keep this achievement visible") : t("Next achievement")}><Seal badge={badge} /></button>
+        <h3 ref={heading} tabIndex={-1}>{badgeName(badge.id)}</h3><p className="review-fact">{badgeFact(badge)}</p>
         {badge.detail && <p>{badge.detail}</p>}
-        {badge.personalBest && <p className="review-best">Your best recorded quarter</p>}
+        {badge.personalBest && <p className="review-best">{t("Your best recorded quarter")}</p>}
       </div>
       <div className="review-controls">
-        {index > 0 && <button disabled={busy} onClick={() => void go(index - 1)}>Previous</button>}
-        {!manual && <button disabled={busy || !!details} onClick={() => { if (!paused) setElapsed(BADGE_SETTLED_MS); setPaused(!paused) }}>{paused ? 'Resume' : 'Pause'}</button>}
-        <button onClick={() => { setPaused(true); setElapsed(BADGE_SETTLED_MS); setDetails(details ? undefined : badge) }}>{details ? 'Close details' : 'Details'}</button>
+        {index > 0 && <button disabled={busy} onClick={() => void go(index - 1)}>{t("Previous")}</button>}
+        {!manual && <button disabled={busy || !!details} onClick={() => { if (!paused) setElapsed(BADGE_SETTLED_MS); setPaused(!paused) }}>{paused ? t("Resume") : t("Pause")}</button>}
+        <button onClick={() => { setPaused(true); setElapsed(BADGE_SETTLED_MS); setDetails(details ? undefined : badge) }}>{details ? t("Close details") : t("Details")}</button>
       </div>
       {details && <BadgeDetails badge={details} saved={saved} />}
-      {lastBadge ? <div className="review-actions"><button className="review-primary" disabled={busy} onClick={() => void discover()}>Discover your pathway</button><button disabled={busy} onClick={() => void finish(true)}>Skip</button></div>
-        : <button className="review-primary" disabled={busy} onClick={tap}>{phase === 'settled' ? 'Continue' : 'Finish reveal'}</button>}
-      <button className="review-quiet" disabled={busy} onClick={() => void restart()}>Start again</button>
+      {lastBadge ? <div className="review-actions"><button className="review-primary" disabled={busy} onClick={() => void discover()}>{t("Discover your pathway")}</button><button disabled={busy} onClick={() => void finish(true)}>{t("Skip")}</button></div>
+        : <button className="review-primary" disabled={busy} onClick={tap}>{phase === 'settled' ? t("Continue") : t("Finish reveal")}</button>}
+      <button className="review-quiet" disabled={busy} onClick={() => void restart()}>{t("Start again")}</button>
     </>}
     {step.kind === 'reflection' && <>
-      <h3 ref={heading} tabIndex={-1}>A moment to reflect on your reading.</h3>
+      <h3 ref={heading} tabIndex={-1}>{t("A moment to reflect on your reading.")}</h3>
       {['01', '09', '28'].filter(id => (saved.facts.metrics[id]?.value ?? 0) >= .01).map(id => <p key={id}>{metricFact(id, saved.facts.metrics[id]!.value!)}</p>)}
-      <p>Keep a little of this season with you.</p>
-      <div className="review-actions"><button className="review-primary" disabled={busy} onClick={() => void discover()}>Discover your pathway</button><button disabled={busy} onClick={() => void finish(true)}>Skip</button></div>
+      <p>{t("Keep a little of this season with you.")}</p>
+      <div className="review-actions"><button className="review-primary" disabled={busy} onClick={() => void discover()}>{t("Discover your pathway")}</button><button disabled={busy} onClick={() => void finish(true)}>{t("Skip")}</button></div>
     </>}
     {(chooser || step.kind === 'pathway' && !genre) && <>
-      <h3 ref={heading} tabIndex={-1}>Which pathway feels like your quarter?</h3><p>A title for this season. The choice is yours.</p>
+      <h3 ref={heading} tabIndex={-1}>{t("Which pathway feels like your quarter?")}</h3><p>{t("A title for this season. The choice is yours.")}</p>
       <div className="review-choices">{choices.map(choice => <button key={choice} disabled={busy} onClick={() => void choose(choice)}>
         <PathwayArtwork artwork={saved.artwork.pathways[choice]} />
-        <span>{pathways[choice].title}</span><small>{pathways[choice].label}</small>
+        <span>{translateCopy(pathways[choice].title)}</span><small>{translateCopy(pathways[choice].label)}</small>
       </button>)}</div>
-      <button disabled={busy} onClick={() => collection ? setChooser(false) : void finish(true)}>{collection ? 'Cancel' : 'Skip'}</button>
+      <button disabled={busy} onClick={() => collection ? setChooser(false) : void finish(true)}>{collection ? t("Cancel") : t("Skip")}</button>
     </>}
     {collection && !chooser && <>
-      <p className="review-eyebrow">{genre && saved.facts.genre.suggested === genre ? 'Inspired by your reading' : 'Your reading season'}</p>
-      <h3 ref={heading} tabIndex={-1}>{genre ? pathways[genre].title : 'A quarter to keep'}</h3>
+      <p className="review-eyebrow">{genre && saved.facts.genre.suggested === genre ? t("Inspired by your reading") : t("Your reading season")}</p>
+      <h3 ref={heading} tabIndex={-1}>{genre ? translateCopy(pathways[genre].title) : t("A quarter to keep")}</h3>
       {genre && <>
-        <button className="review-stamp-button" aria-label="Pathway details" onClick={() => setIdentityDetails(!identityDetails)}><PathwayArtwork key={genre} artwork={saved.artwork.pathways[genre]} /></button>
-        {identityDetails && <div className="review-evidence"><p>{pathways[genre].label} · Your chosen quarterly reading identity</p><button onClick={() => setChooser(true)}>Choose another pathway</button>
-          <button disabled={busy} onClick={() => void write(async () => { setSaved(await repository.setIdentity(period, { status: 'removed' })); setIdentityDetails(false) })}>Remove pathway</button></div>}
+        <button className="review-stamp-button" aria-label={t("Pathway details")} onClick={() => setIdentityDetails(!identityDetails)}><PathwayArtwork key={genre} artwork={saved.artwork.pathways[genre]} /></button>
+        {identityDetails && <div className="review-evidence"><p>{translateCopy(pathways[genre].label)} {t(" · Your chosen quarterly reading identity")}</p><button onClick={() => setChooser(true)}>{t("Choose another pathway")}</button>
+          <button disabled={busy} onClick={() => void write(async () => { setSaved(await repository.setIdentity(period, { status: 'removed' })); setIdentityDetails(false) })}>{t("Remove pathway")}</button></div>}
       </>}
       <div className="review-collection">{(all ? saved.facts.earned : saved.facts.featuredIds.map(id => saved.facts.earned.find(b => b.id === id)!)).map(b => <article key={b.id}>
-        <Seal badge={b} /><div className="review-collection-copy"><h4>{b.name}</h4><p>{badgeFact(b)}</p>{b.personalBest && <p className="review-best">Your best recorded quarter</p>}
-        <details><summary>Details</summary><BadgeDetails badge={b} saved={saved} /></details></div>
+        <Seal badge={b} /><div className="review-collection-copy"><h4>{badgeName(b.id)}</h4><p>{badgeFact(b)}</p>{b.personalBest && <p className="review-best">{t("Your best recorded quarter")}</p>}
+        <details><summary>{t("Details")}</summary><BadgeDetails badge={b} saved={saved} /></details></div>
       </article>)}</div>
-      <div className="review-actions"><button className="review-primary" onClick={onDone}>Done</button>
-        {saved.facts.earned.length > 0 && <button onClick={() => setAll(!all)}>{all ? 'Featured badges' : 'All earned badges'}</button>}
-        <button disabled={busy} onClick={() => void restart()}>Replay highlights</button>
-        <button onClick={() => setSnapshot(true)}>Make an image</button></div>
-      {!genre && <details className="review-secondary-menu"><summary>Review options</summary><button onClick={() => setChooser(true)}>Choose a pathway</button></details>}
+      <div className="review-actions"><button className="review-primary" onClick={onDone}>{t("Done")}</button>
+        {saved.facts.earned.length > 0 && <button onClick={() => setAll(!all)}>{all ? t("Featured badges") : t("All earned badges")}</button>}
+        <button disabled={busy} onClick={() => void restart()}>{t("Replay highlights")}</button>
+        <button onClick={() => setSnapshot(true)}>{t("Make an image")}</button></div>
+      {!genre && <details className="review-secondary-menu"><summary>{t("Review options")}</summary><button onClick={() => setChooser(true)}>{t("Choose a pathway")}</button></details>}
     </>}
     <ReviewMaintenance saved={saved} repository={repository} onDeleted={onDone} onPause={() => { setPaused(true); setElapsed(BADGE_SETTLED_MS) }} onUpdated={updated => { setSaved(updated); setIndex(updated.completedAt ? updated.steps.length - 1 : 0); setPaused(true); setElapsed(BADGE_SETTLED_MS); setDetails(undefined); setChooser(false); setAll(false); setIdentityDetails(false) }} />
   </section>

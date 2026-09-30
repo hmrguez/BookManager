@@ -39,6 +39,7 @@
 		32612ED2BF08AED9F8AD304F /* LibbyInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A32A7CEEBC973E60D980735; };
 		12E88B465BB217FE936DFAD6 /* WovenleafLibbyPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7736A0714CA318FEB4FA010; };
 		F859F07A3EF446B14DC19246 /* LibbyInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A32A7CEEBC973E60D980735; };
+		38F38762EE2DE01A169530F8 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = C01C96D14D7FAF1680CA896B /* InfoPlist.strings */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -110,6 +111,11 @@
 		A16000052FEC000000000005 /* LibbyExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LibbyExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		5A32A7CEEBC973E60D980735 /* LibbyInbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibbyInbox.swift; sourceTree = "<group>"; };
 		B7736A0714CA318FEB4FA010 /* WovenleafLibbyPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WovenleafLibbyPlugin.swift; sourceTree = "<group>"; };
+		0F33CBF1DE735B427AC572C1 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		5192F8224F743E87F3EF02C4 /* es */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = es; path = es.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		FB1C548F7E75525EA89D3BFE /* de */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = de; path = de.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		8CA9560A98ABA9976FB0CA3C /* it */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = it; path = it.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		072E825667BF86CA69393ECA /* fr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = fr; path = fr.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -162,6 +168,7 @@
 		504EC3061FED79650016851F /* App */ = {
 			isa = PBXGroup;
 			children = (
+				C01C96D14D7FAF1680CA896B /* InfoPlist.strings */,
 				A14000022FF3000000000002 /* WovenleafFeedbackPlugin.swift */,
 				A11200022FF3000000000002 /* WovenleafReviewAccessibilityPlugin.swift */,
 				A11500022FF3000000000002 /* WovenleafSnapshotPlugin.swift */,
@@ -306,6 +313,10 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
+				es,
+				de,
+				it,
+				fr,
 				Base,
 			);
 			mainGroup = 504EC2FB1FED79650016851F;
@@ -328,6 +339,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				38F38762EE2DE01A169530F8 /* InfoPlist.strings in Resources */,
 				504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */,
 				50B271D11FEDC1A000F3C39B /* public in Resources */,
 				504EC30F1FED79650016851F /* Assets.xcassets in Resources */,
@@ -445,6 +457,7 @@
 			name = LaunchScreen.storyboard;
 			sourceTree = "<group>";
 		};
+		C01C96D14D7FAF1680CA896B /* InfoPlist.strings */ = {isa = PBXVariantGroup; children = (0F33CBF1DE735B427AC572C1 /* en */, 5192F8224F743E87F3EF02C4 /* es */, FB1C548F7E75525EA89D3BFE /* de */, 8CA9560A98ABA9976FB0CA3C /* it */, 072E825667BF86CA69393ECA /* fr */, ); name = InfoPlist.strings; sourceTree = "<group>"; };
 /* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */

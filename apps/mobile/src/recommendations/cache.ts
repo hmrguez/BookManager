@@ -1,3 +1,4 @@
+import { getLanguage } from '../localization'
 import { z } from 'zod'
 import type { LibraryBook } from '../library-model'
 import { buildUpNextSuggestions, upNextCriterionSchema, type UpNextState, type UpNextSuggestionSet } from '../up-next-model'
@@ -44,8 +45,9 @@ export class RecommendationCache {
 
   get expiresAt() { return this.#entry?.expiresAt ?? 0 }
 
-  get(books: readonly LibraryBook[], state: UpNextState, now = new Date()): UpNextSuggestionSet {
+  get(books: readonly LibraryBook[], state: UpNextState, now = new Date(), languageRevision: string = getLanguage()): UpNextSuggestionSet {
     const fingerprint = JSON.stringify([
+      languageRevision,
       state.mode, state.preferences, state.pinnedCriteria, state.dismissedCriteria, state.dismissedSuggestions,
       books.map(({ id, title, authors, shelf, tags, series, seriesPosition, format, pageCount, addedAt, loan, rating }) =>
         [id, title, authors, shelf, tags, series, seriesPosition, format, pageCount, addedAt, loan, rating]),

@@ -1,3 +1,4 @@
+import { useLanguage, REGIONAL_LOCALES } from '../localization'
 import { useDeferredValue, useMemo } from 'react'
 import type { Catalog } from '../domain/catalog'
 import { SHELVES, type LibraryBook, type ShelfId } from '../library'
@@ -41,6 +42,7 @@ export function useLibraryViewModel({
   librarySort,
   searchPreferences,
 }: LibraryViewModelOptions) {
+  const languageRevision = useLanguage()
   const deferredLibraryQuery = useDeferredValue(libraryQuery.trim())
   const normalizedLibraryQuery = deferredLibraryQuery.toLocaleLowerCase()
   const tagNamesByBookId = useMemo(() => {
@@ -165,9 +167,9 @@ export function useLibraryViewModel({
   const smartListQueries = useMemo(
     () => new Map(activeSmartLists.map((list) => [
       list.id,
-      querySmartList(list.definition, smartListDocuments),
+      querySmartList(list.definition, smartListDocuments, { locale: REGIONAL_LOCALES[languageRevision] }),
     ])),
-    [activeSmartLists, smartListDocuments],
+    [activeSmartLists, smartListDocuments, languageRevision],
   )
 
   return {

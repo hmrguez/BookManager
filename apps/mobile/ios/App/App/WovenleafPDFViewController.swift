@@ -31,14 +31,14 @@ final class WovenleafPDFViewController: UIViewController {
         super.init(nibName: nil, bundle: nil)
     }
 
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    required init?(coder: NSCoder) { fatalError(WovenleafL10n.text("init(coder:) has not been implemented")) }
 
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = paper
         view.tintColor = ink
         overrideUserInterfaceStyle = .light
-        let library = button("Library", symbol: "chevron.left", action: #selector(closeReader))
+        let library = button(WovenleafL10n.text("Library"), symbol: "chevron.left", action: #selector(closeReader))
         let title = UILabel()
         title.text = context.title
         title.font = .preferredFont(forTextStyle: .subheadline)
@@ -47,7 +47,7 @@ final class WovenleafPDFViewController: UIViewController {
         title.lineBreakMode = .byTruncatingTail
         title.textAlignment = .center
         title.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        configure(fitButton, title: "Fit page", symbol: "arrow.up.left.and.arrow.down.right", action: #selector(fitPage))
+        configure(fitButton, title: WovenleafL10n.text("Fit page"), symbol: "arrow.up.left.and.arrow.down.right", action: #selector(fitPage))
         // Keep a stable toolbar width while removing the unnecessary action.
         fitButton.alpha = 0
         fitButton.isUserInteractionEnabled = false
@@ -55,12 +55,12 @@ final class WovenleafPDFViewController: UIViewController {
         let top = UIStackView(arrangedSubviews: [library, title, fitButton])
         top.alignment = .center
         top.spacing = 12
-        configure(previousButton, title: "Previous page", symbol: "chevron.left", action: #selector(previousPage))
-        configure(nextButton, title: "Next page", symbol: "chevron.right", action: #selector(nextPage))
+        configure(previousButton, title: WovenleafL10n.text("Previous page"), symbol: "chevron.left", action: #selector(previousPage))
+        configure(nextButton, title: WovenleafL10n.text("Next page"), symbol: "chevron.right", action: #selector(nextPage))
         pageButton.titleLabel?.font = .preferredFont(forTextStyle: .footnote)
         pageButton.titleLabel?.adjustsFontForContentSizeCategory = true
         pageButton.addTarget(self, action: #selector(goToPage), for: .touchUpInside)
-        pageButton.accessibilityHint = "Choose a page number"
+        pageButton.accessibilityHint = WovenleafL10n.text("Choose a page number")
         let bottom = UIStackView(arrangedSubviews: [previousButton, pageButton, nextButton])
         bottom.alignment = .center
         bottom.distribution = .equalSpacing
@@ -140,7 +140,7 @@ final class WovenleafPDFViewController: UIViewController {
 
     private func pageChanged() {
         guard ready else { return }
-        pageButton.setTitle("Page \(pageIndex + 1) of \(document.pageCount)", for: .normal)
+        pageButton.setTitle(WovenleafL10n.text("Page {{page}} of {{total}}", ["page": String(pageIndex + 1), "total": String(document.pageCount)]), for: .normal)
         previousButton.isEnabled = pageIndex > 0
         nextButton.isEnabled = pageIndex < document.pageCount - 1
         observePageZoom(in: pdfView)
@@ -198,7 +198,7 @@ final class WovenleafPDFViewController: UIViewController {
         button.addTarget(self, action: action, for: .touchUpInside)
         button.widthAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
         button.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
-        if title == "Library" {
+        if title == WovenleafL10n.text("Library") {
             var config = UIButton.Configuration.plain()
             config.title = title
             config.image = UIImage(systemName: symbol)
@@ -246,14 +246,14 @@ final class WovenleafPDFViewController: UIViewController {
     @objc private func nextPage() { if let page = document.page(at: pageIndex + 1) { pdfView.go(to: page) } }
 
     @objc private func goToPage() {
-        let alert = UIAlertController(title: "Go to page", message: "1–\(document.pageCount)", preferredStyle: .alert)
+        let alert = UIAlertController(title: WovenleafL10n.text("Go to page"), message: "1–\(document.pageCount)", preferredStyle: .alert)
         alert.addTextField { field in
             field.keyboardType = .numberPad
             field.text = String(self.pageIndex + 1)
-            field.accessibilityLabel = "Page number"
+            field.accessibilityLabel = WovenleafL10n.text("Page number")
         }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Go", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: WovenleafL10n.text("Cancel"), style: .cancel))
+        alert.addAction(UIAlertAction(title: WovenleafL10n.text("Go"), style: .default) { [weak self] _ in
             guard let self, let number = Int(alert.textFields?.first?.text ?? ""), let page = self.document.page(at: max(0, min(self.document.pageCount - 1, number - 1))) else { return }
             self.pdfView.go(to: page)
         })

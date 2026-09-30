@@ -538,7 +538,7 @@ describe('paper page turns and reader chrome', () => {
       Bun.file(new URL('../android/app/src/main/java/com/hmrguez/wovenleaf/WovenleafReaderActivity.kt', import.meta.url)).text(),
     ])
 
-    expect(ios).toContain('libraryButton.accessibilityLabel = "Close reader and return to library"')
+    expect(ios).toContain('libraryButton.accessibilityLabel = WovenleafL10n.text("Close reader and return to library")')
     expect(ios).not.toContain('private lazy var historyButton')
     expect(ios).toContain('private static let readerRightPadding: CGFloat = 8')
     expect(ios).toContain('constant: -Self.readerRightPadding')

@@ -1,0 +1,2 @@
+"NSCameraUsageDescription" = "Wovenleaf utilise l’appareil photo uniquement lorsque vous scannez un code-barres ISBN.";
+"NSMicrophoneUsageDescription" = "Wovenleaf utilise le microphone uniquement lorsque vous enregistrez une note vocale privée. La lecture du livre audio est d’abord mise en pause et n’est jamais enregistrée.";

@@ -57,14 +57,14 @@ class WovenleafPlaybackPlugin : Plugin() {
     private fun invoke(call: PluginCall, action: String) {
         val controller = controllerFuture
         if (controller == null) {
-            call.reject("The Android playback service is unavailable.", "ENGINE_UNAVAILABLE")
+            call.reject(WovenleafL10n.text("The Android playback service is unavailable."), "ENGINE_UNAVAILABLE")
             return
         }
         val executor = ContextCompat.getMainExecutor(context)
         controller.addListener({
             val mediaController = runCatching { controller.get() }.getOrElse {
                 call.reject(
-                    "The Android playback service could not connect.",
+                    WovenleafL10n.text("The Android playback service could not connect."),
                     "ENGINE_UNAVAILABLE",
                     it as? Exception ?: Exception(it),
                 )
@@ -75,7 +75,7 @@ class WovenleafPlaybackPlugin : Plugin() {
             resultFuture.addListener({
                 val result = runCatching { resultFuture.get() }.getOrElse {
                     call.reject(
-                        "The Android playback command failed.",
+                        WovenleafL10n.text("The Android playback command failed."),
                         "COMMAND_REJECTED",
                         it as? Exception ?: Exception(it),
                     )
@@ -84,7 +84,7 @@ class WovenleafPlaybackPlugin : Plugin() {
                 if (result.resultCode != SessionResult.RESULT_SUCCESS) {
                     call.reject(
                         result.extras.getString(PlaybackContract.ERROR_MESSAGE)
-                            ?: "The Android playback command was rejected.",
+                            ?: WovenleafL10n.text("The Android playback command was rejected."),
                         result.extras.getString(PlaybackContract.ERROR_CODE) ?: "COMMAND_REJECTED",
                     )
                     return@addListener
@@ -99,7 +99,7 @@ class WovenleafPlaybackPlugin : Plugin() {
                     )
                     else -> {
                         val raw = result.extras.getString(PlaybackContract.SNAPSHOT)
-                        if (raw == null) call.reject("Playback returned no authoritative snapshot.", "ENGINE_UNAVAILABLE")
+                        if (raw == null) call.reject(WovenleafL10n.text("Playback returned no authoritative snapshot."), "ENGINE_UNAVAILABLE")
                         else call.resolve(JSObject(raw))
                     }
                 }

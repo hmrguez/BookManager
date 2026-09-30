@@ -1,3 +1,4 @@
+import { t, useLanguage } from '../localization'
 import { useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Grid2X2, List } from 'lucide-react'
 import type { LibraryBook } from '../library'
@@ -13,6 +14,7 @@ export function LibraryPresentation({ books, onDropBook, children }: {
   onDropBook: (bookId: string, target: LibraryDropTarget) => void
   children: ReactNode
 }) {
+  useLanguage()
   const [view, setView] = useState(readLibraryView)
   const root = useRef<HTMLDivElement>(null)
   const announcement = useLibraryDrag(root, books, onDropBook)
@@ -31,14 +33,15 @@ export function LibraryPresentation({ books, onDropBook, children }: {
 }
 
 export function LibraryViewControl() {
+  useLanguage()
   const view = useLibraryView()
   const setView = useContext(ChangeViewContext)
   return (
-    <div className={tw('library-view-control')} role="group" aria-label="Library view">
-      <button type="button" aria-label="List view" title="List view" aria-pressed={view === 'list'} onClick={() => setView('list')}>
+    <div className={tw('library-view-control')} role="group" aria-label={t("Library view")}>
+      <button type="button" aria-label={t("List view")} title={t("List view")} aria-pressed={view === 'list'} onClick={() => setView('list')}>
         <List aria-hidden="true" />
       </button>
-      <button type="button" aria-label="Grid view" title="Grid view" aria-pressed={view === 'grid'} onClick={() => setView('grid')}>
+      <button type="button" aria-label={t("Grid view")} title={t("Grid view")} aria-pressed={view === 'grid'} onClick={() => setView('grid')}>
         <Grid2X2 aria-hidden="true" />
       </button>
     </div>
@@ -46,8 +49,9 @@ export function LibraryViewControl() {
 }
 
 export function LibraryViewHint() {
+  useLanguage()
   return useLibraryView() === 'grid' ? (
-    <p className={tw('library-view-hint')}>Open a cover for details. Hold or drag to move.</p>
+    <p className={tw('library-view-hint')}>{t("Open a cover for details. Hold or drag to move.")}</p>
   ) : null
 }
 
@@ -57,6 +61,7 @@ export function BookTile({ book, onDetails, position, onReorder }: {
   position?: number
   onReorder?: (offset: number) => void
 }) {
+  useLanguage()
   const authors = book.authors.join(', ')
   return (
     <button
@@ -65,8 +70,8 @@ export function BookTile({ book, onDetails, position, onReorder }: {
       onClick={() => onDetails(book.id)}
       draggable
       data-library-book={book.id}
-      title={`${book.title}${authors ? ` — ${authors}` : ''}${position ? ` · Position ${position}. Alt + arrow keys to reorder.` : ''}`}
-      aria-label={`${book.title}${authors ? ` by ${authors}` : ''}${position ? `, position ${position}. Alt + arrow keys to reorder.` : ''}`}
+      title={`${book.title}${authors ? t(" — {{v0}}", { v0: authors }) : ''}${position ? t(" · Position {{v0}}. Alt + arrow keys to reorder.", { v0: position }) : ''}`}
+      aria-label={`${book.title}${authors ? t(" by {{v0}}", { v0: authors }) : ''}${position ? t(", position {{v0}}. Alt + arrow keys to reorder.", { v0: position }) : ''}`}
       onKeyDown={(event) => {
         if (!onReorder || !event.altKey) return
         const offset = ['ArrowLeft', 'ArrowUp'].includes(event.key) ? -1
@@ -79,13 +84,13 @@ export function BookTile({ book, onDetails, position, onReorder }: {
       <BookCover book={book} large />
       <span className={tw('book-tile__copy')}>
         <strong>{book.title}</strong>
-        <small>{authors || 'Unknown author'}</small>
+        <small>{authors || t("Unknown author")}</small>
       </span>
       {(position || book.shelf === 'reading' || (book.shelf === 'finished' && book.rating > 0)) && (
         <span className={tw('book-tile__meta')}>
           {position && <span>№ {String(position).padStart(2, '0')}</span>}
-          {book.shelf === 'reading' && <><ProgressMeter value={book.progress} label={`${book.title} reading progress`} /><span>{book.progress}%</span></>}
-          {book.shelf === 'finished' && book.rating > 0 && <span aria-label={`${book.rating} out of 5 stars`}>{'★'.repeat(book.rating)}</span>}
+          {book.shelf === 'reading' && <><ProgressMeter value={book.progress} label={t("{{v0}} reading progress", { v0: book.title })} /><span>{book.progress}%</span></>}
+          {book.shelf === 'finished' && book.rating > 0 && <span aria-label={t("{{v0}} out of 5 stars", { v0: book.rating })}>{'★'.repeat(book.rating)}</span>}
         </span>
       )}
     </button>

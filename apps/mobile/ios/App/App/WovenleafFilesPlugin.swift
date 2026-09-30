@@ -19,7 +19,7 @@ final class WovenleafFilesPlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPickerD
 
     @objc func pick(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
-            guard self.pickerCall == nil else { call.reject("A file picker is already open."); return }
+            guard self.pickerCall == nil else { call.reject(WovenleafL10n.text("A file picker is already open.")); return }
             self.pickerCall = call
             let types: [UTType] = call.getBool("folder") == true ? [.folder]
                 : call.getString("kind") == "audio" ? [.audio, .image, .json, UTType(filenameExtension: "m4b") ?? .audio, UTType(filenameExtension: "cue") ?? .plainText]
@@ -151,6 +151,6 @@ final class WovenleafFilesPlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPickerD
 
     private static func reject(_ call: CAPPluginCall, _ error: Error) {
         let code = (error as? OriginalFileError)?.code ?? ((error as NSError).code == NSFileReadNoPermissionError ? "FILE_PERMISSION" : "FILE_MISSING")
-        call.reject("The original file could not be opened. Choose it again.", code, error)
+        call.reject(WovenleafL10n.text("The original file could not be opened. Choose it again."), code, error)
     }
 }

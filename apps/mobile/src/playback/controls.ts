@@ -1,3 +1,4 @@
+import { t, getLocale } from '../localization'
 import { z } from 'zod'
 import { immutablePlaybackManifest } from '../audiobooks/manifest'
 import type { PlaybackManifest } from '../audiobooks/model'
@@ -313,23 +314,23 @@ export class AudiobookControlsRepository {
     if (!context) throw new AudiobookPlaybackError('notFound', 'No audiobook is attached to this book.')
     const chapterTitles = new Map(context.chapters.map(({ key, title }) => [key, title]))
     const lines = [
-      `# ${context.title} — listening notes`,
+      '# ' + t("{{title}} — listening notes", { title: context.title }),
       '',
-      `Exported ${this.#now().toISOString()}. Times use the audiobook’s absolute timeline.`,
+      t("Exported {{date}}. Times use the audiobook’s absolute timeline.", { date: this.#now().toLocaleString(getLocale()) }),
       '',
     ]
-    if (!annotations.length) lines.push('_No bookmarks or quick notes._', '')
+    if (!annotations.length) lines.push('_' + t("No bookmarks or quick notes.") + '_', '')
     for (const annotation of annotations) {
       const label = annotation.kind === 'bookmark'
-        ? 'Bookmark'
-        : annotation.kind === 'voice-note' ? 'Voice note' : 'Quick note'
+        ? t("Bookmark")
+        : annotation.kind === 'voice-note' ? t("Voice note") : t("Quick note")
       const chapter = annotation.chapterId ? chapterTitles.get(annotation.chapterId) : undefined
       lines.push(`## ${label} · ${formatAudioTime(annotation.absolutePositionMs)}`)
       lines.push('')
-      if (chapter) lines.push(`Chapter: ${chapter}`, '')
+      if (chapter) lines.push(t("Chapter: {{chapter}}", { chapter }), '')
       if (annotation.note) lines.push(annotation.note, '')
       if (annotation.kind === 'voice-note') {
-        lines.push(`_Local voice recording · ${formatAudioTime(annotation.voiceDurationMs ?? 0)}. Audio is not embedded in this text export._`, '')
+        lines.push('_' + t("Local voice recording · {{duration}}. Audio is not embedded in this text export.", { duration: formatAudioTime(annotation.voiceDurationMs ?? 0) }) + '_', '')
       }
     }
     return lines.join('\n')

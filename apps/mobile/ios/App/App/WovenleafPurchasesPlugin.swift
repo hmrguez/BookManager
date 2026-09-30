@@ -34,7 +34,7 @@ final class WovenleafPurchasesPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func activateReviewAccess(_ call: CAPPluginCall) {
         let token = (call.getString("token") ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard ReviewAccessVerifier.verify(token, publicKeyDER: reviewPublicKey) else {
-            call.reject("The review token is invalid for this app.", "INVALID_REVIEW_TOKEN")
+            call.reject(WovenleafL10n.text("The review token is invalid for this app."), "INVALID_REVIEW_TOKEN")
             return
         }
         UserDefaults.standard.set(token, forKey: reviewTokenKey)
@@ -91,7 +91,7 @@ final class WovenleafPurchasesPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func purchase(_ call: CAPPluginCall) {
         Task { @MainActor in
             guard !purchasing else {
-                call.reject("A purchase is already in progress.", "BUSY")
+                call.reject(WovenleafL10n.text("A purchase is already in progress."), "BUSY")
                 return
             }
             purchasing = true
@@ -99,7 +99,7 @@ final class WovenleafPurchasesPlugin: CAPPlugin, CAPBridgedPlugin {
             do {
                 guard let product = try await Product.products(for: [productID]).first,
                       product.type == .nonConsumable else {
-                    call.reject("The upgrade is not available in this storefront.", "UNAVAILABLE")
+                    call.reject(WovenleafL10n.text("The upgrade is not available in this storefront."), "UNAVAILABLE")
                     return
                 }
                 switch try await product.purchase() {
@@ -107,7 +107,7 @@ final class WovenleafPurchasesPlugin: CAPPlugin, CAPBridgedPlugin {
                     guard case .verified(let transaction) = verification,
                           transaction.productID == productID,
                           transaction.revocationDate == nil else {
-                        call.reject("The purchase could not be verified.", "UNVERIFIED")
+                        call.reject(WovenleafL10n.text("The purchase could not be verified."), "UNVERIFIED")
                         return
                     }
                     await transaction.finish()
@@ -119,10 +119,10 @@ final class WovenleafPurchasesPlugin: CAPPlugin, CAPBridgedPlugin {
                 case .userCancelled:
                     call.resolve(["outcome": "cancelled"])
                 @unknown default:
-                    call.reject("The store returned an unknown purchase result.", "UNKNOWN")
+                    call.reject(WovenleafL10n.text("The store returned an unknown purchase result."), "UNKNOWN")
                 }
             } catch {
-                call.reject("The App Store could not complete the purchase.", "STORE_ERROR")
+                call.reject(WovenleafL10n.text("The App Store could not complete the purchase."), "STORE_ERROR")
             }
         }
     }
@@ -134,7 +134,7 @@ final class WovenleafPurchasesPlugin: CAPPlugin, CAPBridgedPlugin {
                 try await AppStore.sync()
                 call.resolve(await status())
             } catch {
-                call.reject("The App Store could not restore purchases.", "STORE_ERROR")
+                call.reject(WovenleafL10n.text("The App Store could not restore purchases."), "STORE_ERROR")
             }
         }
     }
@@ -142,11 +142,11 @@ final class WovenleafPurchasesPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func redeem(_ call: CAPPluginCall) {
         Task { @MainActor in
             guard #available(iOS 16.3, *) else {
-                call.reject("Redeeming this upgrade requires iOS 16.3 or later.", "UNAVAILABLE")
+                call.reject(WovenleafL10n.text("Redeeming this upgrade requires iOS 16.3 or later."), "UNAVAILABLE")
                 return
             }
             guard let scene = bridge?.viewController?.view.window?.windowScene else {
-                call.reject("Open the app before redeeming a code.", "NO_SCENE")
+                call.reject(WovenleafL10n.text("Open the app before redeeming a code."), "NO_SCENE")
                 return
             }
             do {
@@ -154,7 +154,7 @@ final class WovenleafPurchasesPlugin: CAPPlugin, CAPBridgedPlugin {
                 call.resolve()
                 notifyListeners("purchaseChanged", data: [:])
             } catch {
-                call.reject("The App Store could not open code redemption.", "STORE_ERROR")
+                call.reject(WovenleafL10n.text("The App Store could not open code redemption."), "STORE_ERROR")
             }
         }
     }

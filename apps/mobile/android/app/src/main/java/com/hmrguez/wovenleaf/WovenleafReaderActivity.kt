@@ -245,7 +245,7 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
                 OriginalFiles.verify(this@WovenleafReaderActivity, source)
                 OriginalFiles.resolve(this@WovenleafReaderActivity, source)
             } catch (_: Exception) {
-                showRecovery("This file is no longer available. Choose it again; your progress and notes are safe.")
+                showRecovery(WovenleafL10n.text("This file is no longer available. Choose it again; your progress and notes are safe."))
                 return@launch
             }
             val httpClient = DefaultHttpClient()
@@ -253,16 +253,16 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
             val parser = DefaultPublicationParser(this@WovenleafReaderActivity, httpClient, assetRetriever, null)
             val opener = PublicationOpener(parser)
             val asset = assetRetriever.retrieve(requireNotNull(AbsoluteUrl(uri.toString()))).getOrElse {
-                showRecovery("This EPUB could not be read safely.")
+                showRecovery(WovenleafL10n.text("This EPUB could not be read safely."))
                 return@launch
             }
             val opened = opener.open(asset, allowUserInteraction = false).getOrElse {
-                showRecovery("This EPUB could not be opened safely.")
+                showRecovery(WovenleafL10n.text("This EPUB could not be opened safely."))
                 return@launch
             }
             if (opened.isRestricted || !opened.conformsTo(Publication.Profile.EPUB)) {
                 opened.close()
-                showRecovery("This file is not an unprotected EPUB.")
+                showRecovery(WovenleafL10n.text("This file is not an unprotected EPUB."))
                 return@launch
             }
             publication = opened
@@ -357,7 +357,7 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(10), dp(5), dp(10), dp(5))
         }
-        topChrome.addView(textButton("Library") { closeReader() })
+        topChrome.addView(textButton(WovenleafL10n.text("Library")) { closeReader() })
         titleView = TextView(this).apply {
             text = readerContext.title
             textSize = 16f
@@ -366,17 +366,17 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
             gravity = Gravity.CENTER
         }
         topChrome.addView(titleView, LinearLayout.LayoutParams(0, dp(44), 1f))
-        bookmarkButton = textButton("Keep") { toggleBookmark() }.apply {
-            contentDescription = "Add bookmark"
+        bookmarkButton = textButton(WovenleafL10n.text("Keep")) { toggleBookmark() }.apply {
+            contentDescription = WovenleafL10n.text("Add bookmark")
         }
         topChrome.addView(bookmarkButton)
         if (readerContext.compatibility?.notices?.isNotEmpty() == true) {
             topChrome.addView(textButton("ⓘ") { showCompatibilityNotice() }.apply {
-                contentDescription = "Reading compatibility"
+                contentDescription = WovenleafL10n.text("Reading compatibility")
             })
         }
-        appearanceButton = textButton("Aa") { showReaderSettings() }
-        appearanceButton.contentDescription = "Reading appearance"
+        appearanceButton = textButton(WovenleafL10n.text("Aa")) { showReaderSettings() }
+        appearanceButton.contentDescription = WovenleafL10n.text("Reading appearance")
         appearanceButton.typeface = Typeface.create("serif", Typeface.BOLD)
         appearanceButton.textSize = 17f
         topChrome.addView(appearanceButton)
@@ -430,14 +430,14 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         }
         bottomChrome.addView(textButton("☰") { showNavigation() }.apply {
             textSize = 19f
-            contentDescription = "Browse chapters, bookmarks, notes, and search"
+            contentDescription = WovenleafL10n.text("Browse chapters, bookmarks, notes, and search")
         })
         val progressGroup = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
         }
         progress = TextView(this).apply {
-            text = "Opening…"
+            text = WovenleafL10n.text("Opening…")
             textSize = 12f
             typeface = Typeface.MONOSPACE
             gravity = Gravity.CENTER
@@ -445,7 +445,7 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         progressGroup.addView(progress, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(28)))
         scrubber = SeekBar(this).apply {
             max = 1000
-            contentDescription = "Reading position"
+            contentDescription = WovenleafL10n.text("Reading position")
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(view: SeekBar?, value: Int, fromUser: Boolean) {
                     if (fromUser) this@WovenleafReaderActivity.progress.text = "${(value / 10.0).toInt()}%"
@@ -463,14 +463,14 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
             requestPageTurn(ReaderPageTurnDirection.PREVIOUS)
         }.apply {
             textSize = 24f
-            contentDescription = "Previous page"
+            contentDescription = WovenleafL10n.text("Previous page")
         }
         bottomChrome.addView(previousButton)
         nextButton = textButton(if (readerContext.compatibility?.isRightToLeft == true) "‹" else "›") {
             requestPageTurn(ReaderPageTurnDirection.NEXT)
         }.apply {
             textSize = 24f
-            contentDescription = "Next page"
+            contentDescription = WovenleafL10n.text("Next page")
         }
         bottomChrome.addView(nextButton)
         chrome.addView(bottomChrome, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(62)))
@@ -527,7 +527,7 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         pendingJumpOrigin = lastLocator ?: fragment.currentLocator.value
         if (!fragment.go(link, animated = true)) {
             pendingJumpOrigin = null
-            readerMessage("Section unavailable", "This book’s navigation entry is broken or missing.")
+            readerMessage(WovenleafL10n.text("Section unavailable"), WovenleafL10n.text("This book’s navigation entry is broken or missing."))
             return
         }
         if (fromToc) {
@@ -547,7 +547,7 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         pendingJumpOrigin = lastLocator ?: fragment.currentLocator.value
         if (!fragment.go(locator, animated = true)) {
             pendingJumpOrigin = null
-            readerMessage("Passage unavailable", "Wovenleaf could not recover this passage in the current edition.")
+            readerMessage(WovenleafL10n.text("Passage unavailable"), WovenleafL10n.text("Wovenleaf could not recover this passage in the current edition."))
         }
     }
 
@@ -555,7 +555,7 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         lifecycleScope.launch {
             val locator = publication?.locateProgression(progression)
             if (locator == null) {
-                readerMessage("Position unavailable", "This book does not provide enough navigation data for precise scrubbing.")
+                readerMessage(WovenleafL10n.text("Position unavailable"), WovenleafL10n.text("This book does not provide enough navigation data for precise scrubbing."))
             } else {
                 navigate(locator)
             }
@@ -622,12 +622,12 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         lastChapterHref = locator.href.toString()
         if (previousChapter != null && previousChapter != lastChapterHref) {
             chapterRail.revealActiveMomentarily()
-            feedbackView.show(locator.title ?: "New chapter", "§")
+            feedbackView.show(locator.title ?: WovenleafL10n.text("New chapter"), "§")
         }
         if (pageBounds.atEnd && !didShowFinishFeedback) {
             didShowFinishFeedback = true
-            feedbackView.show("End of book", "✓")
-            content.announceForAccessibility("End of book")
+            feedbackView.show(WovenleafL10n.text("End of book"), "✓")
+            content.announceForAccessibility(WovenleafL10n.text("End of book"))
         } else if (!pageBounds.atEnd) {
             didShowFinishFeedback = false
         }
@@ -694,7 +694,7 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         if (navigator?.go(locator, animated = true) != true) {
             restoringHistory = false
             navigationHistory.addLast(locator)
-            readerMessage("Passage unavailable", "The previous passage is no longer available.")
+            readerMessage(WovenleafL10n.text("Passage unavailable"), WovenleafL10n.text("The previous passage is no longer available."))
         }
         return true
     }
@@ -727,9 +727,9 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
             timestamp,
         )
         updateBookmarkButton()
-        bookmarkButton.announceForAccessibility("Bookmark added")
+        bookmarkButton.announceForAccessibility(WovenleafL10n.text("Bookmark added"))
         bookmarkButton.pulse()
-        feedbackView.show("Page kept", "◆")
+        feedbackView.show(WovenleafL10n.text("Page kept"), "◆")
     }
 
     private fun deleteBookmark(bookmark: ReaderBookmarkState) {
@@ -737,19 +737,19 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         readerContext.navigationState.updatedAt = ReaderOutbox.timestamp()
         ReaderOutbox.enqueueBookmark(this, readerContext, sessionId, "delete", bookmark.id)
         updateBookmarkButton()
-        bookmarkButton.announceForAccessibility("Bookmark removed")
-        feedbackView.show("Bookmark removed", "◇")
+        bookmarkButton.announceForAccessibility(WovenleafL10n.text("Bookmark removed"))
+        feedbackView.show(WovenleafL10n.text("Bookmark removed"), "◇")
     }
 
     private inner class ReaderSelectionActionModeCallback : ActionMode.Callback {
         override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
-            menu.add(Menu.NONE, SELECTION_COPY, 0, "Copy")
+            menu.add(Menu.NONE, SELECTION_COPY, 0, WovenleafL10n.text("Copy"))
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
-            menu.add(Menu.NONE, SELECTION_HIGHLIGHT, 1, "Highlight")
+            menu.add(Menu.NONE, SELECTION_HIGHLIGHT, 1, WovenleafL10n.text("Highlight"))
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
-            menu.add(Menu.NONE, SELECTION_NOTE, 2, "Add note")
+            menu.add(Menu.NONE, SELECTION_NOTE, 2, WovenleafL10n.text("Add note"))
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
-            menu.add(Menu.NONE, SELECTION_READ_ALOUD, 3, "Read aloud")
+            menu.add(Menu.NONE, SELECTION_READ_ALOUD, 3, WovenleafL10n.text("Read aloud"))
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
             return true
         }
@@ -785,8 +785,8 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         val quote = selection?.locator?.text?.highlight?.trim().orEmpty()
         if (quote.isEmpty()) return
         val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.setPrimaryClip(ClipData.newPlainText("Book passage", quote))
-        content.announceForAccessibility("Passage copied")
+        clipboard.setPrimaryClip(ClipData.newPlainText(WovenleafL10n.text("Book passage"), quote))
+        content.announceForAccessibility(WovenleafL10n.text("Passage copied"))
     }
 
     private fun readSelectionAloud() {
@@ -800,15 +800,15 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
     private fun readSelection(selection: Selection?) {
         val quote = selection?.locator?.text?.highlight?.trim().orEmpty()
         if (quote.isEmpty()) {
-            readerMessage("Select a passage", "Select a passage first, then choose Read aloud.")
+            readerMessage(WovenleafL10n.text("Select a passage"), WovenleafL10n.text("Select a passage first, then choose Read aloud."))
             return
         }
         if (!speechReady) {
-            readerMessage("Read aloud unavailable", "The system speech service is not ready. Try again in a moment.")
+            readerMessage(WovenleafL10n.text("Read aloud unavailable"), WovenleafL10n.text("The system speech service is not ready. Try again in a moment."))
             return
         }
         textToSpeech?.speak(quote, TextToSpeech.QUEUE_FLUSH, null, "wovenleaf-selection")
-        content.announceForAccessibility("Reading selected passage aloud")
+        content.announceForAccessibility(WovenleafL10n.text("Reading selected passage aloud"))
     }
 
     private fun createAnnotationFromSelection() {
@@ -824,8 +824,8 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         val quote = locator?.text?.highlight?.trim().orEmpty()
         if (locator == null || quote.isEmpty() || quote.length > 10_000) {
             readerMessage(
-                if (selection == null) "Select a passage" else "Selection unavailable",
-                "Choose a passage between 1 and 10,000 characters. Wovenleaf does not save whole chapters as annotations.",
+                if (selection == null) WovenleafL10n.text("Select a passage") else WovenleafL10n.text("Selection unavailable"),
+                WovenleafL10n.text("Choose a passage between 1 and 10,000 characters. Wovenleaf does not save whole chapters as annotations."),
             )
             return
         }
@@ -842,20 +842,20 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
             val candidates = matchingReanchorCandidates(opened, annotation)
             if (candidates.isEmpty()) {
                 readerMessage(
-                    "Passage unavailable",
-                    "This revised EPUB no longer contains the quoted passage. The annotation remains in Needs Review.",
+                    WovenleafL10n.text("Passage unavailable"),
+                    WovenleafL10n.text("This revised EPUB no longer contains the quoted passage. The annotation remains in Needs Review."),
                 )
             } else if (candidates.size == 1) {
                 openReviewCandidate(candidates.first(), annotation)
             } else {
                 val choices = candidates.take(12)
                 AlertDialog.Builder(this@WovenleafReaderActivity)
-                    .setTitle("Choose the matching passage")
-                    .setMessage("The quote appears more than once. Compare its chapter and surrounding words before confirming.")
+                    .setTitle(WovenleafL10n.text("Choose the matching passage"))
+                    .setMessage(WovenleafL10n.text("The quote appears more than once. Compare its chapter and surrounding words before confirming."))
                     .setItems(choices.map(::reviewCandidateLabel).toTypedArray()) { _, index ->
                         openReviewCandidate(choices[index], annotation)
                     }
-                    .setNegativeButton("Cancel", null)
+                    .setNegativeButton(WovenleafL10n.text("Cancel"), null)
                     .show()
             }
         }
@@ -864,7 +864,7 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
     private fun openReviewCandidate(locator: Locator, annotation: ReaderAnnotationRecord) {
         val fragment = navigator ?: return
         if (!fragment.go(locator, animated = true)) {
-            readerMessage("Passage unavailable", "This matching range could not be opened.")
+            readerMessage(WovenleafL10n.text("Passage unavailable"), WovenleafL10n.text("This matching range could not be opened."))
             return
         }
         presentAnnotationEditor(locator, annotation, needsReview = true)
@@ -963,8 +963,8 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         )
         navigator?.clearSelection()
         applyAnnotationDecorations()
-        content.announceForAccessibility(if (existing == null) "Highlight saved" else "Annotation updated")
-        feedbackView.show(if (existing == null) "Passage marked" else "Note updated", "✎")
+        content.announceForAccessibility(if (existing == null) WovenleafL10n.text("Highlight saved") else WovenleafL10n.text("Annotation updated"))
+        feedbackView.show(if (existing == null) WovenleafL10n.text("Passage marked") else WovenleafL10n.text("Note updated"), "✎")
     }
 
     private fun deleteAnnotation(annotation: ReaderAnnotationRecord) {
@@ -976,10 +976,10 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         ReaderOutbox.enqueueAnnotation(this, readerContext, sessionId, "delete", stored.id)
         applyAnnotationDecorations()
         AlertDialog.Builder(this)
-            .setTitle("Annotation deleted")
-            .setMessage("The deletion is retained for sync and portable export. You can undo it now.")
-            .setNegativeButton("Done", null)
-            .setPositiveButton("Undo") { _, _ -> restoreAnnotation(stored.id) }
+            .setTitle(WovenleafL10n.text("Annotation deleted"))
+            .setMessage(WovenleafL10n.text("The deletion is retained for sync and portable export. You can undo it now."))
+            .setNegativeButton(WovenleafL10n.text("Done"), null)
+            .setPositiveButton(WovenleafL10n.text("Undo")) { _, _ -> restoreAnnotation(stored.id) }
             .show()
     }
 
@@ -990,7 +990,7 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         readerContext.annotationState.updatedAt = annotation.updatedAt
         ReaderOutbox.enqueueAnnotation(this, readerContext, sessionId, "restore", id)
         applyAnnotationDecorations()
-        content.announceForAccessibility("Annotation restored")
+        content.announceForAccessibility(WovenleafL10n.text("Annotation restored"))
     }
 
     private fun applyAnnotationDecorations() {
@@ -1083,8 +1083,8 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         val bookmarked = locator != null && readerContext.navigationState.bookmarks.any {
             samePassage(it.locator, locator)
         }
-        bookmarkButton.text = if (bookmarked) "Kept" else "Keep"
-        bookmarkButton.contentDescription = if (bookmarked) "Remove bookmark" else "Add bookmark"
+        bookmarkButton.text = if (bookmarked) WovenleafL10n.text("Kept") else WovenleafL10n.text("Keep")
+        bookmarkButton.contentDescription = if (bookmarked) WovenleafL10n.text("Remove bookmark") else WovenleafL10n.text("Add bookmark")
         bookmarkButton.isSelected = bookmarked
     }
 
@@ -1104,7 +1104,7 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         val progression = if (pageBounds.atEnd) 1.0 else locator.locations.totalProgression
         progress.text = progression?.let { "${if (pageBounds.atEnd) 100 else (it * 100).toInt().coerceAtMost(99)}%" }
             ?: locator.title
-            ?: "Reading"
+            ?: WovenleafL10n.text("Reading")
         if (!scrubbing && progression != null) scrubber.progress = (progression * 1000).toInt()
     }
 
@@ -1131,9 +1131,9 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
                 Html.FROM_HTML_MODE_LEGACY,
             ).toString().trim()
             AlertDialog.Builder(this)
-                .setTitle(link.title ?: "Footnote")
-                .setMessage(note.ifBlank { "This note has no readable text." })
-                .setPositiveButton("Return to passage", null)
+                .setTitle(link.title ?: WovenleafL10n.text("Footnote"))
+                .setMessage(note.ifBlank { WovenleafL10n.text("This note has no readable text.") })
+                .setPositiveButton(WovenleafL10n.text("Return to passage"), null)
                 .show()
             return false
         }
@@ -1143,18 +1143,18 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
 
     override fun onExternalLinkActivated(url: AbsoluteUrl) {
         if (!url.isHttp) {
-            readerMessage("Link unavailable", "Wovenleaf only hands web links to your browser.")
+            readerMessage(WovenleafL10n.text("Link unavailable"), WovenleafL10n.text("Wovenleaf only hands web links to your browser."))
             return
         }
         val uri = url.toUri()
-        val destination = uri.host ?: "this website"
+        val destination = uri.host ?: WovenleafL10n.text("this website")
         AlertDialog.Builder(this)
-            .setTitle("Leave Wovenleaf?")
-            .setMessage("Open $destination in your browser? The book file stays private.")
-            .setNegativeButton("Cancel", null)
-            .setPositiveButton("Open browser") { _, _ ->
+            .setTitle(WovenleafL10n.text("Leave Wovenleaf?"))
+            .setMessage(WovenleafL10n.text("Open {{destination}} in your browser? The book file stays private.", mapOf("destination" to destination)))
+            .setNegativeButton(WovenleafL10n.text("Cancel"), null)
+            .setPositiveButton(WovenleafL10n.text("Open browser")) { _, _ ->
                 runCatching { startActivity(Intent(Intent.ACTION_VIEW, uri)) }
-                    .onFailure { readerMessage("Browser unavailable", "No app can open this web link.") }
+                    .onFailure { readerMessage(WovenleafL10n.text("Browser unavailable"), WovenleafL10n.text("No app can open this web link.")) }
             }
             .show()
     }
@@ -1179,17 +1179,17 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         val relative = Url(source)
         val resolved = relative?.let { resource.url().resolve(it) }
         if (resolved == null) {
-            readerMessage("Image unavailable", "This image address is invalid.")
+            readerMessage(WovenleafL10n.text("Image unavailable"), WovenleafL10n.text("This image address is invalid."))
             return
         }
         val opened = publication
         val bytes = opened?.get(resolved)?.read()?.getOrNull()
         if (bytes == null || bytes.isEmpty() || bytes.size > 32 * 1024 * 1024) {
-            readerMessage("Image unavailable", "This image is missing or cannot be opened safely.")
+            readerMessage(WovenleafL10n.text("Image unavailable"), WovenleafL10n.text("This image is missing or cannot be opened safely."))
             return
         }
         val mediaType = opened.linkWithHref(resolved)?.mediaType?.toString() ?: "image/*"
-        val description = alternative?.takeIf(String::isNotBlank) ?: "Book image"
+        val description = alternative?.takeIf(String::isNotBlank) ?: WovenleafL10n.text("Book image")
         val escapedDescription = TextUtils.htmlEncode(description)
         val escapedCaption = TextUtils.htmlEncode(caption.orEmpty())
         val encoded = Base64.encodeToString(bytes, Base64.NO_WRAP)
@@ -1213,22 +1213,22 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
         AlertDialog.Builder(this)
             .setTitle(description)
             .setView(webView)
-            .setPositiveButton("Done", null)
+            .setPositiveButton(WovenleafL10n.text("Done"), null)
             .setOnDismissListener { webView.destroy() }
             .show()
     }
 
     private fun readerMessage(title: String, message: String) {
-        AlertDialog.Builder(this).setTitle(title).setMessage(message).setPositiveButton("OK", null).show()
+        AlertDialog.Builder(this).setTitle(title).setMessage(message).setPositiveButton(WovenleafL10n.text("OK"), null).show()
     }
 
     private fun showCompatibilityNotice() {
         val notices = readerContext.compatibility?.notices.orEmpty()
         if (notices.isEmpty()) return
         AlertDialog.Builder(this)
-            .setTitle("Reading this edition")
+            .setTitle(WovenleafL10n.text("Reading this edition"))
             .setMessage(notices.joinToString("\n\n"))
-            .setPositiveButton("Continue") { _, _ ->
+            .setPositiveButton(WovenleafL10n.text("Continue")) { _, _ ->
                 content.sendAccessibilityEvent(
                     android.view.accessibility.AccessibilityEvent.TYPE_VIEW_FOCUSED,
                 )
@@ -1290,10 +1290,10 @@ class WovenleafReaderActivity : AppCompatActivity(), EpubNavigatorFragment.Liste
     private fun showRecovery(message: String) {
         loading.visibility = View.GONE
         AlertDialog.Builder(this)
-            .setTitle("Book needs attention")
-            .setMessage("$message Re-import this edition to restore reading. Notes and reading history were kept.")
+            .setTitle(WovenleafL10n.text("Book needs attention"))
+            .setMessage(WovenleafL10n.text("{{message}} Re-import this edition to restore reading. Notes and reading history were kept.", mapOf("message" to message)))
             .setCancelable(false)
-            .setPositiveButton("Back to library") { _, _ -> finish() }
+            .setPositiveButton(WovenleafL10n.text("Back to library")) { _, _ -> finish() }
             .show()
     }
 

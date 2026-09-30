@@ -1,3 +1,4 @@
+import { getLocale, waitForNativeLanguage } from '../localization'
 import { originalFileUri, originalFileError } from '../files/original-files'
 import { Capacitor } from '@capacitor/core'
 import { Directory, Filesystem } from '@capacitor/filesystem'
@@ -62,7 +63,9 @@ export class EpubReaderService {
     const navigationState = await this.#repository.navigationStateForBook(capability)
     const annotationState = await this.#repository.annotationStateForBook(capability)
     try {
+      await waitForNativeLanguage()
       await nativeReader.open({
+        interfaceLocale: getLocale(),
         ...capability,
         fileUri: uri,
         globalPreferences: preferences.global,

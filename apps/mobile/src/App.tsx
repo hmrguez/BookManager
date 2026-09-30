@@ -1,3 +1,5 @@
+import { LocalizedError } from './localization/LocalizedError'
+import { t, translateCopy, useLanguage } from './localization'
 import { useReviewInvitation } from './reviews/useReviewInvitation'
 import { QuarterlyReviews, ReviewsPage } from './reviews/QuarterlyReviews'
 import { useWideLayout } from './responsive/useWideLayout'
@@ -116,6 +118,7 @@ import {
 } from './imports'
 
 function App() {
+  useLanguage()
   const wideLayout = useWideLayout()
   const detailRef = useRef<DetailSheetHandle>(null)
   const {
@@ -665,7 +668,7 @@ function App() {
     setEpubStorage((current) => ({ ...current, busy: true, error: undefined }))
     try {
       const freedBytes = await (await getStorageRuntime()).epubAssets.cleanup(preview)
-      setToast({ message: `${formatStorageBytes(freedBytes)} freed; reading history and notes were kept` })
+      setToast({ message: t("{{v0}} freed; reading history and notes were kept", { v0: formatStorageBytes(freedBytes) }) })
       await refreshEpubStorage()
     } catch (error) {
       setEpubStorage((current) => ({
@@ -745,10 +748,10 @@ function App() {
       const targetBook = targetBookId ? books.find(({ id }) => id === targetBookId) : undefined
       setToast({
         message: targetBook && results.length === 1
-          ? `Book attached to ${targetBook.title}`
+          ? t("Book attached to {{v0}}", { v0: targetBook.title })
           : results.length === 1
           ? resultToastMessage(results[0])
-          : `${changedCount} book${changedCount === 1 ? '' : 's'} added or revised; ${duplicateCount} already managed`,
+          : t("{{v0}} book{{v1}} added or revised; {{v2}} already managed", { v0: changedCount, v1: changedCount === 1 ? '' : 's', v2: duplicateCount }),
       })
       if (openAfterImport && results.length === 1) {
         setIncomingFileOpening((current) => current && { ...current, phase: 'opening' })
@@ -771,7 +774,7 @@ function App() {
   const withIncomingFileOpening = async (name: string | undefined, open: () => Promise<unknown>) => {
     if (incomingFileOpeningRef.current) return
     if (epubAbortRef.current || audiobookAbortRef.current) {
-      setToast({ message: 'Please wait for the current import to finish, then open this file again.' })
+      setToast({ message: t("Please wait for the current import to finish, then open this file again.") })
       return
     }
     incomingFileOpeningRef.current = true
@@ -782,7 +785,7 @@ function App() {
       await (await getStorageRuntime()).reader.closeForIncomingFile()
       await open()
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'The shared file could not be opened. Please try again.'
+      const message = error instanceof Error ? error.message : t("The shared file could not be opened. Please try again.")
       setEpubImport({ error: message })
       setToast({ message })
       void feedback.emit('error')
@@ -844,8 +847,8 @@ function App() {
       const book = books.find(({ id }) => id === bookId)
       setReaderRecovery({
         bookId,
-        title: book?.title ?? 'Book edition',
-        message: error instanceof Error ? error.message : 'This book could not be opened.',
+        title: book?.title ?? t("Book edition"),
+        message: error instanceof Error ? error.message : t("This book could not be opened."),
         canRetry: !(error instanceof EpubReaderError)
           || !['not-found', 'unavailable', 'unsupported-content'].includes(error.code),
       })
@@ -867,7 +870,7 @@ function App() {
   const openSharedIsbn = useEffectEvent((isbn: NonNullable<ReturnType<typeof extractValidIsbn>>) => {
     setView('library')
     setSheet({ kind: 'search', shelf: 'tbr', initialCapture: { isbn, method: 'share-sheet' } })
-    setToast({ message: 'Shared ISBN received · checking your library first' })
+    setToast({ message: t("Shared ISBN received · checking your library first") })
   })
 
   const onIncomingBookFile = useEffectEvent((url: string) => {
@@ -925,7 +928,7 @@ function App() {
     if (books.length) {
       const incoming = books.filter((file) => incomingDeliveryGuardRef.current.accept(`share:${file.uri}:${file.name}:${file.mimeType}`))
       if (!incoming.length) return
-      void withIncomingFileOpening(incoming.length === 1 ? incoming[0]!.name : `${incoming.length} books`, () => importEpubSources(incoming.map((file) => async () => {
+      void withIncomingFileOpening(incoming.length === 1 ? incoming[0]!.name : t("{{v0}} books", { v0: incoming.length }), () => importEpubSources(incoming.map((file) => async () => {
         const url = file.uri.startsWith('/') ? `file://${file.uri}` : file.uri
         const source = await epubSourceFromIncomingUrl(url)
         return { ...source, name: file.name, mediaType: file.mimeType }
@@ -951,7 +954,7 @@ function App() {
     if (!file) return
     if (!incomingDeliveryGuardRef.current.accept(`share:${file.uri}:${file.name}:${file.mimeType}`)) return
     showSettings()
-    setToast({ message: 'Goodreads export received · preparing your private preview' })
+    setToast({ message: t("Goodreads export received · preparing your private preview") })
     void goodreadsCsvFromSharedFile(file)
       .then(({ name, content }) => prepareImportPreview(name, content))
       .catch((error: unknown) => {
@@ -1062,9 +1065,9 @@ function App() {
       setToast({
         message: format === 'archive'
           ? assetContents.length > 0
-            ? `Portable archive verified with ${assetContents.length} book file${assetContents.length === 1 ? '' : 's'}`
-            : 'Portable archive verified; book files are excluded'
-          : `${format === 'csv' ? 'CSV' : 'Reading journal'} saved as a readable, lossy view`,
+            ? t("Portable archive verified with {{v0}} book file{{v1}}", { v0: assetContents.length, v1: assetContents.length === 1 ? '' : 's' })
+            : t("Portable archive verified; book files are excluded")
+          : `${format === 'csv' ? 'CSV' : t("Reading journal")} saved as a readable, lossy view`,
       })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
@@ -1100,7 +1103,7 @@ function App() {
       await Promise.all([reload(), reloadOrganization(), reloadSmartLists(), reloadUpNext()])
       await (await getStorageRuntime()).recovery.createSnapshot('manual')
       await refreshRecovery()
-      setToast({ message: 'Verified local recovery point saved' })
+      setToast({ message: t("Verified local recovery point saved") })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       setRecovery((current) => ({ ...current, error: message }))
@@ -1126,7 +1129,7 @@ function App() {
       recoveryArchiveRef.current = undefined
       await refreshRecovery()
       setView('library')
-      setToast({ message: 'Backup restored; the previous library remains available for rollback' })
+      setToast({ message: t("Backup restored; the previous library remains available for rollback") })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       setRecovery((current) => ({ ...current, error: message }))
@@ -1147,8 +1150,8 @@ function App() {
       await refreshImportHistory()
       setToast({
         message: result.preservedChanges
-          ? `Import undone; ${result.preservedChanges} later edits were preserved`
-          : 'Import undone; the previous library state is restored',
+          ? t("Import undone; {{v0}} later edits were preserved", { v0: result.preservedChanges })
+          : t("Import undone; the previous library state is restored"),
         family: 'undo',
       })
     } catch (error) {
@@ -1177,12 +1180,12 @@ function App() {
       const untouched = result.skippedRows + result.duplicateRows
       const remainder = result.excludedRows
       const coverSuffix = importPreview.source.key === 'goodreads-csv' && result.appliedRows
-        ? ' · covers filling in quietly'
+        ? t(" · covers filling in quietly")
         : ''
       setToast({
         message: result.appliedChanges
           ? `Imported ${changedRows} ${migratedLabel} · ${untouched} unchanged · ${remainder} left for later${coverSuffix}`
-          : `Import checked · ${untouched} unchanged · ${remainder} left for later`,
+          : t("Import checked · {{v0}} unchanged · {{v1}} left for later", { v0: untouched, v1: remainder }),
         undo: result.appliedChanges ? () => { void undoImportBatch(result.batchId) } : undefined,
       })
     } catch (error) {
@@ -1257,7 +1260,7 @@ function App() {
         else removeQueueBook(id)
         if (shelf === 'finished') closeSheet()
         setToast({
-          message: `${book.title} returned to ${shelfCopy[previousShelf].label}`,
+          message: t("{{v0}} returned to {{v1}}", { v0: book.title, v1: shelfCopy[previousShelf].label }),
           family: 'undo',
         })
       },
@@ -1275,7 +1278,7 @@ function App() {
         operationId: `shelf:${motion.sequence}:${bookId}:${shelf}`,
         soundProfile: shouldReduceMotion(appearance.motion) ? 'semantic' : 'shelf-transfer',
       })
-      setToast({ message: `Moved to ${shelfCopy[shelf].label}` })
+      setToast({ message: t("Moved to {{v0}}", { v0: shelfCopy[shelf].label }) })
       return
     }
 
@@ -1288,7 +1291,7 @@ function App() {
         operationId: `shelf:${motion.sequence}:${bookId}:${shelf}`,
       })
     }
-    setToast({ message: previous ? `Already in ${shelfCopy[shelf].label}` : `Added to ${shelfCopy[shelf].label}` })
+    setToast({ message: previous ? `Already in ${shelfCopy[shelf].label}` : t("Added to {{v0}}", { v0: shelfCopy[shelf].label }) })
   }
 
   const handleAdd = async (result: BookSearchResult, shelf: ShelfId): Promise<boolean> => {
@@ -1297,7 +1300,7 @@ function App() {
       return true
     } catch (error) {
       if (!(error instanceof LibraryUpgradeRequired)) {
-        setToast({ message: error instanceof Error ? error.message : 'The book could not be saved.' })
+        setToast({ message: error instanceof Error ? error.message : t("The book could not be saved.") })
       }
       return false
     }
@@ -1322,8 +1325,8 @@ function App() {
       updateBook(book.id, enrichCapturedBook(book, result))
       setToast({
         message: book.capture?.manualOverrides.length
-          ? 'Catalog gaps filled · your local overrides were preserved'
-          : 'Book details enriched from the catalog',
+          ? t("Catalog gaps filled · your local overrides were preserved")
+          : t("Book details enriched from the catalog"),
       })
       return true
     } catch {
@@ -1360,12 +1363,12 @@ function App() {
 
   const handleStart = (id: string) => {
     const book = books.find((item) => item.id === id)
-    moveWithUndo(id, 'reading', `${book?.title ?? 'Book'} is now being read`)
+    moveWithUndo(id, 'reading', t("{{v0}} is now being read", { v0: book?.title ?? 'Book' }))
   }
 
   const handleNext = (id: string) => {
     const book = books.find((item) => item.id === id)
-    moveWithUndo(id, 'next', `${book?.title ?? 'Book'} moved to Up Next`)
+    moveWithUndo(id, 'next', t("{{v0}} moved to Up Next", { v0: book?.title ?? 'Book' }))
   }
 
   const handleFinish = (id: string) => {
@@ -1375,7 +1378,7 @@ function App() {
 
   const handleDnf = (id: string) => {
     const book = books.find((item) => item.id === id)
-    moveWithUndo(id, 'dnf', `${book?.title ?? 'Book'} moved to DNF`)
+    moveWithUndo(id, 'dnf', t("{{v0}} moved to DNF", { v0: book?.title ?? 'Book' }))
   }
 
   const saveUpNextSettings = async (
@@ -1385,14 +1388,14 @@ function App() {
     try {
       await saveUpNextPreferences(mode, preferences)
     } catch {
-      setToast({ message: 'Could not save reading preferences. Please try again.' })
+      setToast({ message: t("Could not save reading preferences. Please try again.") })
       return
     }
     closeSheet()
     setToast({
       message: mode === 'manual'
-        ? 'TBR recommendations turned off'
-        : 'Reading preferences saved on this device',
+        ? t("TBR recommendations turned off")
+        : t("Reading preferences saved on this device"),
     })
   }
 
@@ -1400,7 +1403,7 @@ function App() {
     const shelfId = saveShelf(draft)
     setShelfMembersInOrder(shelfId, orderedBookIds)
     closeSheet()
-    setToast({ message: draft.id ? 'Custom shelf saved; reading statuses unchanged' : 'Custom shelf created' })
+    setToast({ message: draft.id ? t("Custom shelf saved; reading statuses unchanged") : t("Custom shelf created") })
   }
 
   const dropLibraryBook = (bookId: string, target: LibraryDropTarget) => {
@@ -1415,7 +1418,7 @@ function App() {
         moveQueueBook(bookId, targetIndex, ids)
         return
       }
-      moveWithUndo(bookId, target.id, `${book.title} moved to ${shelfCopy[target.id].label}`)
+      moveWithUndo(bookId, target.id, t("{{v0}} moved to {{v1}}", { v0: book.title, v1: shelfCopy[target.id].label }))
       return
     }
     const shelf = organization.shelves.find(({ id, archived }) => id === target.id && !archived)
@@ -1427,10 +1430,10 @@ function App() {
     if (next.every((id, index) => id === previous[index]) && next.length === previous.length) return
     setShelfMembersInOrder(shelf.id, next)
     setToast({
-      message: previous.includes(bookId) ? `${book.title} reordered in ${shelf.name}` : `${book.title} added to ${shelf.name}`,
+      message: previous.includes(bookId) ? t("{{v0}} reordered in {{v1}}", { v0: book.title, v1: shelf.name }) : t("{{v0}} added to {{v1}}", { v0: book.title, v1: shelf.name }),
       undo: () => {
         setShelfMembersInOrder(shelf.id, previous)
-        setToast({ message: 'Shelf change undone', family: 'undo' })
+        setToast({ message: t("Shelf change undone"), family: 'undo' })
       },
     })
   }
@@ -1447,20 +1450,20 @@ function App() {
     setToast({
       message: customShelf.archived
         ? `${customShelf.name} restored`
-        : `${customShelf.name} archived; its books remain in your library`,
+        : t("{{v0}} archived; its books remain in your library", { v0: customShelf.name }),
     })
   }
 
   const deleteCustomShelf = (customShelf: CustomShelf) => {
     removeShelf(customShelf.id)
     closeSheet()
-    setToast({ message: `${customShelf.name} deleted; no books were removed` })
+    setToast({ message: t("{{v0}} deleted; no books were removed", { v0: customShelf.name }) })
   }
 
   const saveSmartListEditor = (draft: SmartListDraft) => {
     saveSmartList(draft)
     closeSheet()
-    setToast({ message: draft.id ? 'Smart list saved and recalculated' : 'Smart list created' })
+    setToast({ message: draft.id ? t("Smart list saved and recalculated") : t("Smart list created") })
   }
 
   const archiveSmartList = (list: SavedSmartList) => {
@@ -1473,14 +1476,14 @@ function App() {
     setToast({
       message: list.archived
         ? `${list.name} restored and recalculated`
-        : `${list.name} archived; its rules are preserved`,
+        : t("{{v0}} archived; its rules are preserved", { v0: list.name }),
     })
   }
 
   const deleteSmartList = (list: SavedSmartList) => {
     removeSmartList(list.id)
     closeSheet()
-    setToast({ message: `${list.name} deleted; no books were removed` })
+    setToast({ message: t("{{v0}} deleted; no books were removed", { v0: list.name }) })
   }
 
   return (
@@ -1496,12 +1499,11 @@ function App() {
           <section className={tw('storage-recovery')} role="alert" aria-live="assertive">
             <AlertTriangle aria-hidden="true" />
             <div>
-              <strong>{legacyRecoveryAvailable ? 'Previous library needs recovery' : 'Library storage error'}</strong>
-              <p>{storageError ?? organizationError ?? smartListError ?? upNextError}</p>
+              <strong>{legacyRecoveryAvailable ? t("Previous library needs recovery") : t("Library storage error")}</strong>
+              <p>{<LocalizedError message={storageError ?? organizationError ?? smartListError ?? upNextError ?? ''} />}</p>
               {legacyRecoveryAvailable && (
                 <button type="button" onClick={() => { void downloadLegacyRecovery() }}>
-                  <Download aria-hidden="true" /> Download recovery copy
-                </button>
+                  <Download aria-hidden="true" /> {t(" Download recovery copy")}</button>
               )}
             </div>
           </section>
@@ -1599,7 +1601,7 @@ function App() {
             onRestoreBackup={() => { void restoreBackup() }}
             onClearBooks={() => {
               clearBooks()
-              setToast({ message: 'Development library cleared' })
+              setToast({ message: t("Development library cleared") })
             }}
           />
         )}
@@ -1622,8 +1624,8 @@ function App() {
         aria-live="polite"
       >
         <Check aria-hidden="true" />
-        <span>{toast?.message}</span>
-        {toast?.undo && <button type="button" onClick={toast.undo}>Undo</button>}
+        <span>{translateCopy(toast?.message ?? '')}</span>
+        {toast?.undo && <button type="button" onClick={toast.undo}>{t("Undo")}</button>}
       </div>
 
       {sheet?.kind === 'search' && (
@@ -1669,7 +1671,7 @@ function App() {
               handleFinish(selectedBook.id)
             } else {
               moveToShelf(selectedBook.id, targetShelf)
-              setToast({ message: `Moved to ${shelfCopy[targetShelf].label}` })
+              setToast({ message: t("Moved to {{v0}}", { v0: shelfCopy[targetShelf].label }) })
             }
           }}
           onProgress={() => openSheet({ kind: 'progress', bookId: selectedBook.id })}
@@ -1681,7 +1683,7 @@ function App() {
           onNotes={(notes) => updateBook(selectedBook.id, { notes })}
           onMetadata={(changes) => {
             updateBook(selectedBook.id, changes)
-            setToast({ message: Object.hasOwn(changes, 'finishedAt') ? 'Finish date updated' : 'Local book details saved as your preferred values' })
+            setToast({ message: Object.hasOwn(changes, 'finishedAt') ? t("Finish date updated") : t("Local book details saved as your preferred values") })
           }}
           onCover={(thumbnail) => {
             const resolvedPendingCover = !selectedBook.thumbnail
@@ -1694,7 +1696,7 @@ function App() {
                 return pending ? { ...current, pending } : undefined
               })
             }
-            setToast({ message: 'Cover updated and kept on this device' })
+            setToast({ message: t("Cover updated and kept on this device") })
           }}
           onEnrich={() => enrichBook(selectedBook)}
           onCustomShelves={(activeShelfIds) => {
@@ -1703,7 +1705,7 @@ function App() {
                 && archivedCustomShelves.some(({ id }) => id === entry.shelfId))
               .map(({ shelfId: customShelfId }) => customShelfId)
             setBookMemberships(selectedBook.id, [...archivedMemberships, ...activeShelfIds])
-            setToast({ message: 'Custom shelf membership saved; reading status unchanged' })
+            setToast({ message: t("Custom shelf membership saved; reading status unchanged") })
           }}
           onTags={(tags) => setBookTags(selectedBook.id, tags)}
           onRemove={() => {
@@ -1711,7 +1713,7 @@ function App() {
             removeBook(selectedBook.id)
             removeQueueBook(selectedBook.id)
             closeSheet()
-            setToast({ message: 'Removed from your library' })
+            setToast({ message: t("Removed from your library") })
           }}
           onAttachEpub={(files, overwriteCover) => {
             void importEpubSources(
@@ -1729,13 +1731,13 @@ function App() {
       )}
       {sheet?.kind === 'quarterly-reviews' && <QuarterlyReviews period={sheet.period} reduced={shouldReduceMotion(appearance.motion)} onClose={closeSheet} />}
       {sheet?.kind === 'audiobook-player' && selectedBook && (
-        <Sheet title="Audiobook player" onClose={closeSheet} tall>
+        <Sheet title={t("Audiobook player")} onClose={closeSheet} tall>
           <AudiobookPlayer key={selectedBook.id} book={selectedBook} onChooseFile={Capacitor.isNativePlatform() ? () => {
             const book = selectedBook
             closeSheet()
             void pickOriginalFiles('audio').then((files) => {
               if (files.length) return prepareAudiobookSources(() => audiobookSourcesFromFiles(files), book, false, true)
-            }).catch((error: unknown) => setToast({ message: error instanceof Error ? error.message : 'The audio could not be opened.' }))
+            }).catch((error: unknown) => setToast({ message: error instanceof Error ? error.message : t("The audio could not be opened.") }))
           } : undefined} />
         </Sheet>
       )}
@@ -1752,7 +1754,7 @@ function App() {
         />
       )}
       {FEATURES.smartLists && sheet?.kind === 'smart-list' && (
-        <Sheet title={selectedSmartList ? `Edit ${selectedSmartList.name}` : 'New smart list'} onClose={closeSheet} tall>
+        <Sheet title={selectedSmartList ? t("Edit {{v0}}", { v0: selectedSmartList.name }) : t("New smart list")} onClose={closeSheet} tall>
           <SmartListEditor
             key={sheet.smartListId ?? 'new-smart-list'}
             list={selectedSmartList}
@@ -1768,7 +1770,7 @@ function App() {
         </Sheet>
       )}
       {sheet?.kind === 'up-next' && (
-        <Sheet title="Reading suggestions" onClose={closeSheet} tall>
+        <Sheet title={t("Reading suggestions")} onClose={closeSheet} tall>
           <RecommendationSettings
             state={upNext}
             books={books}
@@ -1781,21 +1783,21 @@ function App() {
       )}
       {sheet?.kind === 'recommendation' && (() => {
         const suggestion = libraryViewModel.upNextSuggestions.suggestions.find(({ book }) => book.id === sheet.bookId)
-        return <Sheet title="Why this book?" onClose={closeSheet}>
+        return <Sheet title={t("Why this book?")} onClose={closeSheet}>
           {suggestion ? <RecommendationDetails suggestion={suggestion}
             onQueue={() => { handleNext(suggestion.book.id); closeSheet() }}
             onDismiss={() => { dismissSuggestion(suggestion.book.id); closeSheet() }}
             onManage={() => setSheet({ kind: 'up-next' })}
             onReasonState={setReasonState}
-          /> : <p>This suggestion has changed. Check your TBR for the latest picks.</p>}
+          /> : <p>{t("This suggestion has changed. Check your TBR for the latest picks.")}</p>}
         </Sheet>
       })()}
-      {originalRecovery && <Sheet title="Choose the original file" onClose={() => setOriginalRecovery(undefined)}>
+      {originalRecovery && <Sheet title={t("Choose the original file")} onClose={() => setOriginalRecovery(undefined)}>
         <div className={tw('reader-recovery')}>
           <span className={tw('reader-recovery__mark')} aria-hidden="true"><AlertTriangle /></span>
           <div className={tw('reader-recovery__copy')}>
             <h3>{originalRecovery.name}</h3>
-            <p>Wovenleaf could not access this file. Choose it below to allow access and open it.</p>
+            <p>{t("Wovenleaf could not access this file. Choose it below to allow access and open it.")}</p>
           </div>
           <button type="button" className={tw('primary-button')} onClick={() => {
             const kind = originalRecovery.kind
@@ -1804,9 +1806,9 @@ function App() {
               if (!files.length) return
               if (kind === 'ebook') await importEpubSources(files.map((file) => () => epubSourceFromFile(file)), undefined, false, true)
               else await prepareAudiobookSources(() => audiobookSourcesFromFiles(files), undefined, false, true)
-            }).catch((error: unknown) => setToast({ message: error instanceof Error ? error.message : 'The file could not be opened.' }))
-          }}>Choose file</button>
-          <button type="button" onClick={() => setOriginalRecovery(undefined)}>Cancel</button>
+            }).catch((error: unknown) => setToast({ message: error instanceof Error ? error.message : t("The file could not be opened.") }))
+          }}>{t("Choose file")}</button>
+          <button type="button" onClick={() => setOriginalRecovery(undefined)}>{t("Cancel")}</button>
         </div>
       </Sheet>}
       {readerRecovery && (
@@ -1820,7 +1822,7 @@ function App() {
               if (!files.length) return
               setReaderRecovery(undefined)
               await importEpubSources(files.map((file) => () => epubSourceFromFile(file)), bookId, false, true)
-            }).catch((error: unknown) => setToast({ message: error instanceof Error ? error.message : 'The file could not be opened.' }))
+            }).catch((error: unknown) => setToast({ message: error instanceof Error ? error.message : t("The file could not be opened.") }))
           } : undefined}
         />
       )}
@@ -1846,7 +1848,7 @@ function App() {
             handleFinish(bookId)
           } else {
             moveToShelf(bookId, targetShelf)
-            setToast({ message: `Moved to ${shelfCopy[targetShelf].label}` })
+            setToast({ message: t("Moved to {{v0}}", { v0: shelfCopy[targetShelf].label }) })
           }
         }}
       />
@@ -1856,8 +1858,8 @@ function App() {
 
 function resultToastMessage(result: EpubImportResult): string {
   if (result.outcome === 'duplicate') return `${result.title} is already safely managed`
-  if (result.outcome === 'revision') return `Revised book linked to ${result.title}`
-  return `${result.title} added from a verified book file`
+  if (result.outcome === 'revision') return t("Revised book linked to {{v0}}", { v0: result.title })
+  return t("{{v0}} added from a verified book file", { v0: result.title })
 }
 
 function audiobookResultToastMessage(result: { readonly outcome: string; readonly title: string }): string {

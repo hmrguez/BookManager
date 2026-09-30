@@ -118,7 +118,7 @@ final class ReaderChapterRailView: UIView {
         isOpaque = false
         clipsToBounds = false
         isAccessibilityElement = true
-        accessibilityLabel = "Chapter rail"
+        accessibilityLabel = WovenleafL10n.text("Chapter rail")
         accessibilityTraits = [.adjustable]
 
         let hover = UIHoverGestureRecognizer(target: self, action: #selector(hovered(_:)))
@@ -130,7 +130,7 @@ final class ReaderChapterRailView: UIView {
     }
 
     @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    required init?(coder: NSCoder) { fatalError(WovenleafL10n.text("init(coder:) has not been implemented")) }
 
     override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
         point.x <= railWidth || (previewIndex != nil && previewRect.contains(point))
@@ -253,7 +253,7 @@ final class ReaderChapterRailView: UIView {
         for entryIndex in visible {
             let isFocused = entryIndex == index
             let rawTitle = entries[entryIndex].link.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            let title = rawTitle.isEmpty ? "Untitled section" : rawTitle
+            let title = rawTitle.isEmpty ? WovenleafL10n.text("Untitled section") : rawTitle
             let font = isFocused
                 ? UIFont.preferredFont(forTextStyle: .headline)
                 : UIFont.preferredFont(forTextStyle: .subheadline)
@@ -394,8 +394,8 @@ final class ReaderChapterRailView: UIView {
 
     private func refreshAccessibilityValue() {
         accessibilityValue = entries.indices.contains(activeIndex)
-            ? entries[activeIndex].link.title ?? "Untitled section"
-            : "No chapters"
+            ? entries[activeIndex].link.title ?? WovenleafL10n.text("Untitled section")
+            : WovenleafL10n.text("No chapters")
     }
 
     private func flatten(_ links: [Link], depth: Int = 0) -> [Entry] {
@@ -436,7 +436,7 @@ final class ReaderOutlineViewController: UIViewController {
     private var tocEntries: [TocEntry] = []
     private var searchResults: [Locator] = []
     private var searchTask: Task<Void, Never>?
-    private let mode = UISegmentedControl(items: ["Contents", "Bookmarks", "Notes"])
+    private let mode = UISegmentedControl(items: [WovenleafL10n.text("Contents"), WovenleafL10n.text("Bookmarks"), WovenleafL10n.text("Notes")])
     private let tableView = UITableView(frame: .zero, style: .plain)
     private let statusLabel = UILabel()
     private let searchController = UISearchController(searchResultsController: nil)
@@ -461,11 +461,11 @@ final class ReaderOutlineViewController: UIViewController {
     }
 
     @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    required init?(coder: NSCoder) { fatalError(WovenleafL10n.text("init(coder:) has not been implemented")) }
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Navigate"
+        title = WovenleafL10n.text("Navigate")
         navigationItem.rightBarButtonItem = UIBarButtonItem(
             barButtonSystemItem: .done,
             target: self,
@@ -474,10 +474,10 @@ final class ReaderOutlineViewController: UIViewController {
         searchController.searchResultsUpdater = self
         searchController.obscuresBackgroundDuringPresentation = false
         searchController.searchBar.placeholder = publication.isSearchable
-            ? "Search in this book"
-            : "Search unavailable for this book"
+            ? WovenleafL10n.text("Search in this book")
+            : WovenleafL10n.text("Search unavailable for this book")
         searchController.searchBar.isUserInteractionEnabled = publication.isSearchable
-        searchController.searchBar.accessibilityLabel = "Search within book"
+        searchController.searchBar.accessibilityLabel = WovenleafL10n.text("Search within book")
         navigationItem.searchController = searchController
         navigationItem.hidesSearchBarWhenScrolling = false
         definesPresentationContext = true
@@ -485,7 +485,7 @@ final class ReaderOutlineViewController: UIViewController {
         mode.selectedSegmentIndex = 0
         mode.addTarget(self, action: #selector(modeChanged), for: .valueChanged)
         mode.translatesAutoresizingMaskIntoConstraints = false
-        mode.accessibilityLabel = "Navigation section"
+        mode.accessibilityLabel = WovenleafL10n.text("Navigation section")
 
         tableView.translatesAutoresizingMaskIntoConstraints = false
         tableView.dataSource = self
@@ -501,7 +501,7 @@ final class ReaderOutlineViewController: UIViewController {
         statusLabel.numberOfLines = 0
         statusLabel.font = .preferredFont(forTextStyle: .body)
         statusLabel.textColor = palette.secondaryInk
-        statusLabel.text = "Loading contents…"
+        statusLabel.text = WovenleafL10n.text("Loading contents…")
 
         view.backgroundColor = palette.page
         view.addSubview(mode)
@@ -563,7 +563,7 @@ final class ReaderOutlineViewController: UIViewController {
             tableView.reloadData()
             return
         }
-        statusLabel.text = "Searching…"
+        statusLabel.text = WovenleafL10n.text("Searching…")
         statusLabel.isHidden = false
         tableView.reloadData()
         searchTask = Task { [weak self] in
@@ -571,7 +571,7 @@ final class ReaderOutlineViewController: UIViewController {
             guard let self, !Task.isCancelled else { return }
             guard let iterator = try? await publication.search(query: query).get() else {
                 searchResults = []
-                statusLabel.text = "Search is unavailable for this publication."
+                statusLabel.text = WovenleafL10n.text("Search is unavailable for this publication.")
                 tableView.reloadData()
                 return
             }
@@ -589,21 +589,21 @@ final class ReaderOutlineViewController: UIViewController {
 
     private func refreshStatus() {
         if isSearching {
-            statusLabel.text = searchResults.isEmpty ? "No passages found." : nil
+            statusLabel.text = searchResults.isEmpty ? WovenleafL10n.text("No passages found.") : nil
             statusLabel.isHidden = !searchResults.isEmpty
         } else if mode.selectedSegmentIndex == 0 {
             statusLabel.text = tocEntries.isEmpty
-                ? "This book does not include a usable table of contents. You can still search or use the scrubber."
+                ? WovenleafL10n.text("This book does not include a usable table of contents. You can still search or use the scrubber.")
                 : nil
             statusLabel.isHidden = !tocEntries.isEmpty
         } else if mode.selectedSegmentIndex == 1 {
             statusLabel.text = bookmarks.isEmpty
-                ? "No bookmarks yet. Use the ribbon in the reader to keep a passage."
+                ? WovenleafL10n.text("No bookmarks yet. Use the ribbon in the reader to keep a passage.")
                 : nil
             statusLabel.isHidden = !bookmarks.isEmpty
         } else {
             statusLabel.text = annotations.isEmpty
-                ? "No highlights or passage notes yet. Select text in the reader to begin."
+                ? WovenleafL10n.text("No highlights or passage notes yet. Select text in the reader to begin.")
                 : nil
             statusLabel.isHidden = !annotations.isEmpty
         }
@@ -638,7 +638,7 @@ final class ReaderOutlineViewController: UIViewController {
             .compactMap { $0 }
             .joined(separator: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        return passage.isEmpty ? "Open this result" : passage
+        return passage.isEmpty ? WovenleafL10n.text("Open this result") : passage
     }
 
     private func bookmarkDetail(_ bookmark: ReaderBookmarkState) -> String {
@@ -650,7 +650,7 @@ final class ReaderOutlineViewController: UIViewController {
     }
 
     private func annotationDetail(_ annotation: ReaderAnnotationRecord) -> String {
-        let review = annotation.anchorStatus == .review ? "Needs review" : nil
+        let review = annotation.anchorStatus == .review ? WovenleafL10n.text("Needs review") : nil
         let chapter = annotation.chapter
         let quote = annotation.quote.replacingOccurrences(of: "\n", with: " ")
         let note = annotation.note.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -682,33 +682,33 @@ extension ReaderOutlineViewController: UITableViewDataSource, UITableViewDelegat
             let locator = searchResults[indexPath.row]
             configure(
                 cell,
-                title: locator.title ?? "Passage",
+                title: locator.title ?? WovenleafL10n.text("Passage"),
                 detail: searchContext(locator)
             )
-            cell.accessibilityLabel = "Search result, \(locator.title ?? "passage"), \(searchContext(locator))"
+            cell.accessibilityLabel = WovenleafL10n.text("Search result, {{title}}, {{context}}", ["title": locator.title ?? WovenleafL10n.text("Passage"), "context": searchContext(locator)])
         } else if mode.selectedSegmentIndex == 0 {
             let entry = tocEntries[indexPath.row]
-            configure(cell, title: entry.link.title ?? "Untitled section", detail: nil, depth: entry.depth)
+            configure(cell, title: entry.link.title ?? WovenleafL10n.text("Untitled section"), detail: nil, depth: entry.depth)
             let activeHref = selectedTocLocator?.href ?? currentLocator?.href
             cell.accessoryType = entry.link.url().string == activeHref?.string ? .checkmark : .disclosureIndicator
-            cell.accessibilityLabel = "Level \(entry.depth + 1), \(entry.link.title ?? "Untitled section")"
+            cell.accessibilityLabel = WovenleafL10n.text("Level {{level}}, {{title}}", ["level": String(entry.depth + 1), "title": entry.link.title ?? WovenleafL10n.text("Untitled section")])
         } else if mode.selectedSegmentIndex == 1 {
             let bookmark = bookmarks[indexPath.row]
             configure(
                 cell,
-                title: bookmark.locator.title ?? "Saved passage",
+                title: bookmark.locator.title ?? WovenleafL10n.text("Saved passage"),
                 detail: bookmarkDetail(bookmark)
             )
-            cell.accessibilityLabel = "Bookmark, \(bookmark.locator.title ?? "saved passage"), \(bookmarkDetail(bookmark))"
+            cell.accessibilityLabel = WovenleafL10n.text("Bookmark, {{title}}, {{detail}}", ["title": bookmark.locator.title ?? WovenleafL10n.text("Saved passage"), "detail": bookmarkDetail(bookmark)])
         } else {
             let annotation = annotations[indexPath.row]
             configure(
                 cell,
-                title: annotation.anchorStatus == .review ? "Review · \(annotation.chapter ?? "Passage")" : (annotation.chapter ?? "Highlighted passage"),
+                title: annotation.anchorStatus == .review ? WovenleafL10n.text("Review · {{chapter}}", ["chapter": annotation.chapter ?? WovenleafL10n.text("Passage")]) : (annotation.chapter ?? WovenleafL10n.text("Highlighted passage")),
                 detail: annotationDetail(annotation)
             )
             cell.accessoryType = annotation.anchorStatus == .review ? .detailButton : .disclosureIndicator
-            cell.accessibilityLabel = "Annotation, \(annotationDetail(annotation))"
+            cell.accessibilityLabel = WovenleafL10n.text("Annotation, {{detail}}", ["detail": annotationDetail(annotation)])
         }
         return cell
     }
@@ -739,7 +739,7 @@ extension ReaderOutlineViewController: UITableViewDataSource, UITableViewDelegat
         guard !isSearching, mode.selectedSegmentIndex != 0 else { return nil }
         if mode.selectedSegmentIndex == 1 {
             let bookmark = bookmarks[indexPath.row]
-            let delete = UIContextualAction(style: .destructive, title: "Delete") { [weak self] _, _, done in
+            let delete = UIContextualAction(style: .destructive, title: WovenleafL10n.text("Delete")) { [weak self] _, _, done in
                 guard let self else { return done(false) }
                 bookmarks.remove(at: indexPath.row)
                 onDeleteBookmark?(bookmark)
@@ -747,11 +747,11 @@ extension ReaderOutlineViewController: UITableViewDataSource, UITableViewDelegat
                 refreshStatus()
                 done(true)
             }
-            delete.accessibilityLabel = "Delete bookmark"
+            delete.accessibilityLabel = WovenleafL10n.text("Delete bookmark")
             return UISwipeActionsConfiguration(actions: [delete])
         }
         let annotation = annotations[indexPath.row]
-        let delete = UIContextualAction(style: .destructive, title: "Delete") { [weak self] _, _, done in
+        let delete = UIContextualAction(style: .destructive, title: WovenleafL10n.text("Delete")) { [weak self] _, _, done in
             guard let self else { return done(false) }
             annotations.remove(at: indexPath.row)
             onDeleteAnnotation?(annotation)
@@ -759,15 +759,15 @@ extension ReaderOutlineViewController: UITableViewDataSource, UITableViewDelegat
             refreshStatus()
             done(true)
         }
-        delete.accessibilityLabel = "Delete annotation"
-        let edit = UIContextualAction(style: .normal, title: "Edit") { [weak self] _, _, done in
+        delete.accessibilityLabel = WovenleafL10n.text("Delete annotation")
+        let edit = UIContextualAction(style: .normal, title: WovenleafL10n.text("Edit")) { [weak self] _, _, done in
             self?.dismiss(animated: !UIAccessibility.isReduceMotionEnabled) {
                 self?.onEditAnnotation?(annotation)
             }
             done(true)
         }
         edit.backgroundColor = palette.secondaryInk
-        edit.accessibilityLabel = "Edit annotation"
+        edit.accessibilityLabel = WovenleafL10n.text("Edit annotation")
         return UISwipeActionsConfiguration(actions: [delete, edit])
     }
 }
@@ -784,13 +784,13 @@ final class ReaderFootnoteViewController: UIViewController {
     }
 
     @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    required init?(coder: NSCoder) { fatalError(WovenleafL10n.text("init(coder:) has not been implemented")) }
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Note"
+        title = WovenleafL10n.text("Note")
         navigationItem.rightBarButtonItem = UIBarButtonItem(
-            title: "Return to passage",
+            title: WovenleafL10n.text("Return to passage"),
             style: .done,
             target: self,
             action: #selector(close)
@@ -835,11 +835,11 @@ final class ReaderImageViewController: UIViewController, UIScrollViewDelegate {
     }
 
     @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    required init?(coder: NSCoder) { fatalError(WovenleafL10n.text("init(coder:) has not been implemented")) }
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = image.caption ?? "Image detail"
+        title = image.caption ?? WovenleafL10n.text("Image detail")
         navigationItem.rightBarButtonItem = UIBarButtonItem(
             barButtonSystemItem: .done,
             target: self,
@@ -850,12 +850,12 @@ final class ReaderImageViewController: UIViewController, UIScrollViewDelegate {
         scrollView.minimumZoomScale = 1
         scrollView.maximumZoomScale = 5
         scrollView.delegate = self
-        scrollView.accessibilityLabel = "Zoomable book image"
+        scrollView.accessibilityLabel = WovenleafL10n.text("Zoomable book image")
         imageView.translatesAutoresizingMaskIntoConstraints = false
         imageView.contentMode = .scaleAspectFit
-        imageView.accessibilityLabel = image.accessibilityLabel ?? image.caption ?? "Book image"
+        imageView.accessibilityLabel = image.accessibilityLabel ?? image.caption ?? WovenleafL10n.text("Book image")
         statusLabel.translatesAutoresizingMaskIntoConstraints = false
-        statusLabel.text = "Loading image…"
+        statusLabel.text = WovenleafL10n.text("Loading image…")
         statusLabel.textColor = palette.secondaryInk
         statusLabel.font = .preferredFont(forTextStyle: .body)
         statusLabel.textAlignment = .center
@@ -892,7 +892,7 @@ final class ReaderImageViewController: UIViewController, UIScrollViewDelegate {
             let data = try? await resource.read().get(),
             let loaded = UIImage(data: data)
         else {
-            statusLabel.text = "This image cannot be magnified safely."
+            statusLabel.text = WovenleafL10n.text("This image cannot be magnified safely.")
             return
         }
         imageView.image = loaded

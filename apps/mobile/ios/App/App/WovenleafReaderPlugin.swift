@@ -8,6 +8,7 @@ import PDFKit
 
 final class WovenleafBridgeViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
+        bridge?.registerPluginInstance(WovenleafLocalizationPlugin())
         bridge?.registerPluginInstance(WovenleafFeedbackPlugin())
         bridge?.registerPluginInstance(WovenleafReviewAccessibilityPlugin())
         bridge?.registerPluginInstance(WovenleafSnapshotPlugin())
@@ -54,6 +55,7 @@ final class WovenleafReaderPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     @objc func open(_ call: CAPPluginCall) {
+        if let locale = call.getString("interfaceLocale") { WovenleafL10n.setLocale(locale) }
         guard
             let bookId = call.getString("bookId"),
             let editionId = call.getString("editionId"),
@@ -65,7 +67,7 @@ final class WovenleafReaderPlugin: CAPPlugin, CAPBridgedPlugin {
             let navigationState = ReaderNavigationState(object: call.getObject("navigationState")),
             let annotationState = ReaderAnnotationCollection(object: call.getObject("annotationState"))
         else {
-            call.reject("The reader capability is invalid.", "INVALID_CAPABILITY")
+            call.reject(WovenleafL10n.text("The reader capability is invalid."), "INVALID_CAPABILITY")
             return
         }
 
@@ -90,7 +92,7 @@ final class WovenleafReaderPlugin: CAPPlugin, CAPBridgedPlugin {
                     throw WovenleafFileReferences.unavailable("FILE_CHANGED")
                 }
                 guard let presenter = bridge?.viewController else {
-                    call.reject("The reader host is unavailable.", "OPEN_FAILED")
+                    call.reject(WovenleafL10n.text("The reader host is unavailable."), "OPEN_FAILED")
                     return
                 }
                 if call.getString("format") == "pdf" {
@@ -102,7 +104,7 @@ final class WovenleafReaderPlugin: CAPPlugin, CAPBridgedPlugin {
                     return
                 }
                 guard let readiumURL = FileURL(url: validatedURL) else {
-                    call.reject("The book URL is invalid.", "INVALID_CAPABILITY")
+                    call.reject(WovenleafL10n.text("The book URL is invalid."), "INVALID_CAPABILITY")
                     return
                 }
                 let asset = try await readium.assetRetriever.retrieve(url: readiumURL).get()
@@ -113,7 +115,7 @@ final class WovenleafReaderPlugin: CAPPlugin, CAPBridgedPlugin {
                 ).get()
                 guard !publication.isRestricted else {
                     publication.close()
-                    call.reject("Protected publications are not supported.", "CORRUPT_ASSET")
+                    call.reject(WovenleafL10n.text("Protected publications are not supported."), "CORRUPT_ASSET")
                     return
                 }
                 let reader = try WovenleafReaderViewController(
@@ -129,7 +131,7 @@ final class WovenleafReaderPlugin: CAPPlugin, CAPBridgedPlugin {
                 presenter.present(navigation, animated: true)
                 call.resolve()
             } catch {
-                call.reject("The reader could not open this book.", (error as? OriginalFileError)?.code ?? "CORRUPT_ASSET", error)
+                call.reject(WovenleafL10n.text("The reader could not open this book."), (error as? OriginalFileError)?.code ?? "CORRUPT_ASSET", error)
             }
         }
     }
@@ -147,7 +149,7 @@ final class WovenleafReaderPlugin: CAPPlugin, CAPBridgedPlugin {
                     return jpeg
                 }
                 call.resolve(["jpeg": jpeg.base64EncodedString()])
-            } catch { call.reject("This PDF could not be rendered.", (error as? OriginalFileError)?.code ?? "CORRUPT_ASSET", error) }
+            } catch { call.reject(WovenleafL10n.text("This PDF could not be rendered."), (error as? OriginalFileError)?.code ?? "CORRUPT_ASSET", error) }
         }
     }
 
@@ -384,4 +386,18 @@ private extension ISO8601DateFormatter {
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter
     }()
+}
+
+@objc(WovenleafLocalizationPlugin)
+final class WovenleafLocalizationPlugin: CAPPlugin, CAPBridgedPlugin {
+    let identifier = "WovenleafLocalizationPlugin"
+    let jsName = "WovenleafLocalization"
+    let pluginMethods: [CAPPluginMethod] = [CAPPluginMethod(name: "setLocale", returnType: CAPPluginReturnPromise)]
+    @objc func setLocale(_ call: CAPPluginCall) {
+        guard let locale = call.getString("locale"), ["en-US", "es-ES", "de-DE", "it-IT", "fr-FR"].contains(locale) else {
+            call.reject("Unsupported interface locale", "INVALID_LOCALE")
+            return
+        }
+        DispatchQueue.main.async { WovenleafL10n.setLocale(locale); call.resolve() }
+    }
 }
