@@ -57,6 +57,7 @@ import type {
 import type { RecoveryBackupPreview } from '../storage'
 import { EpubStorageCard, type EpubStorageViewState } from './EpubStorageCard'
 import { FEATURES } from '../app/feature-flags'
+import { FREE_BOOK_LIMIT } from '../purchases/model'
 import type { PurchaseView } from '../purchases/service'
 import { reviewAccess } from '../purchases/review-runtime'
 import { ReviewAccessSettings } from '../purchases/ReviewAccessSettings'
@@ -332,7 +333,7 @@ export function SettingsPage({
           <div className={tw('settings-card__icon')}><BookOpen aria-hidden="true" /></div>
           <div className={tw('settings-card__heading')}>
             <h2>{t("Wovenleaf Unlimited")}</h2>
-            <p>{books.length} {t(" of 20 free books · upgrade once for unlimited books")}</p>
+            <p>{books.length} {t(" of {{limit}} free books · upgrade once for unlimited books", { limit: FREE_BOOK_LIMIT })}</p>
           </div>
           <button className={tw('settings-action')} type="button" onClick={onUpgrade}>
             <BookOpen aria-hidden="true" />

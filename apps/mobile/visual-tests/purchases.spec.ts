@@ -6,6 +6,7 @@ test('older WebViews can open and dismiss the upgrade without showModal support'
   await page.addInitScript(() => { Object.defineProperty(HTMLDialogElement.prototype, 'showModal', { value: undefined }) })
   await page.goto('/')
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await expect(page.getByText(/of 30 free books · upgrade once for unlimited books/)).toBeVisible()
   await page.getByRole('button', { name: 'Upgrade or restore purchase', exact: true }).click()
   await expect(page.getByRole('dialog', { name: 'Let your library grow.', exact: true })).toBeVisible()
   await page.keyboard.press('Escape')
@@ -33,19 +34,20 @@ async function enterBook(page: Page, title: string) {
   await page.getByRole('button', { name: 'Add Book', exact: true }).click()
   await page.getByRole('button', { name: /No ISBN\? No problem/ }).click()
   await page.getByRole('textbox', { name: 'Book title', exact: true }).fill(title)
-  await page.getByRole('button', { name: 'Add to To Be Read', exact: true }).click()
+  await page.getByRole('button', { name: /^Add to\s*To Be Read$/ }).click()
 }
 
-test('book 20 saves; book 21 opens the upgrade, preserves the draft, and traps focus', async ({ page }, info) => {
+test('book 30 saves; book 31 opens the upgrade, preserves the draft, and traps focus', async ({ page }, info) => {
   const errors: string[] = []
   page.on('pageerror', (error) => errors.push(error.message))
-  await seedBooks(page, 19)
-  await enterBook(page, 'The twentieth book')
+  await seedBooks(page, 29)
+  await enterBook(page, 'The thirtieth book')
   await expect(page.getByRole('dialog', { name: 'Add a book manually' })).toBeHidden()
-  await expect(page.getByRole('button', { name: 'TBR 20', exact: true })).toBeVisible()
-  await enterBook(page, 'The twenty-first book')
+  await expect(page.getByRole('button', { name: 'TBR 30', exact: true })).toBeVisible()
+  await enterBook(page, 'The thirty-first book')
   const upgrade = page.getByRole('dialog', { name: 'Let your library grow.', exact: true })
   await expect(upgrade).toBeVisible()
+  await expect(upgrade.getByText(/Your first 30 books are free/)).toBeVisible()
   await expect(upgrade.getByRole('button', { name: 'Unlock unlimited', exact: true })).toBeDisabled()
   await expect(upgrade.getByRole('button', { name: 'Close upgrade' })).toBeFocused()
   await page.keyboard.press('Shift+Tab')
@@ -53,10 +55,10 @@ test('book 20 saves; book 21 opens the upgrade, preserves the draft, and traps f
   await page.screenshot({ path: info.outputPath('upgrade-mobile.png') })
   await page.keyboard.press('Escape')
   await expect(upgrade).toBeHidden()
-  await expect(page.getByRole('textbox', { name: 'Book title', exact: true })).toHaveValue('The twenty-first book')
-  await expect(page.getByRole('button', { name: 'Add to To Be Read', exact: true })).toBeFocused()
+  await expect(page.getByRole('textbox', { name: 'Book title', exact: true })).toHaveValue('The thirty-first book')
+  await expect(page.getByRole('button', { name: /^Add to\s*To Be Read$/ })).toBeFocused()
   await page.reload()
-  await expect(page.getByRole('button', { name: 'TBR 20', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'TBR 30', exact: true })).toBeVisible()
   expect(errors).toEqual([])
 })
 
@@ -75,7 +77,7 @@ test('store price, cancellation, purchase, restore, and Settings work through th
       }, 'ios');
       export const startPurchases = () => { void purchases.refresh(); };`,
   }))
-  await seedBooks(page, 20)
+  await seedBooks(page, 30)
   await enterBook(page, 'The next chapter')
   const upgrade = page.getByRole('dialog', { name: 'Let your library grow.', exact: true })
   const buy = upgrade.getByRole('button', { name: 'Unlock unlimited · €10.00', exact: true })
@@ -86,8 +88,8 @@ test('store price, cancellation, purchase, restore, and Settings work through th
   await expect(upgrade).toBeVisible()
   await buy.click()
   await page.getByRole('button', { name: 'Continue to my library' }).click()
-  await page.getByRole('button', { name: 'Add to To Be Read', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'TBR 21', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: /^Add to\s*To Be Read$/ }).click()
+  await expect(page.getByRole('button', { name: 'TBR 31', exact: true })).toBeVisible()
   await page.reload()
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
   await page.getByRole('button', { name: 'Upgrade or restore purchase', exact: true }).click()

@@ -109,7 +109,7 @@ baselines and the approval checklist are documented in `apps/mobile/src/design-s
 
 ## App identity and release setup
 
-Wovenleaf is free for 20 library entries. **Wovenleaf Unlimited** is a permanent native
+Wovenleaf is free for 30 library entries. **Wovenleaf Unlimited** is a permanent native
 in-app purchase for unlimited books, restorable within the same store account. See the
 [purchase setup and testing guide](docs/guides/in-app-purchases.md) for creating the
 products, configuring Android's public verification key, testing without real money,

@@ -35,7 +35,7 @@ async function openReviewAccess(page: Page) {
   await page.locator('summary').filter({ hasText: 'Review access' }).click()
 }
 
-test('signed access activates, survives restart, enables book 21, and ends without losing books', async ({ page }, info) => {
+test('signed access activates, survives restart, enables book 31, and ends without losing books', async ({ page }, info) => {
   const errors: string[] = []
   page.on('pageerror', (error) => errors.push(error.message))
   const token = await reviewAdapter(page)
@@ -44,7 +44,7 @@ test('signed access activates, survives restart, enables book 21, and ends witho
     const modulePath = '/src/storage/runtime.ts'
     const { getStorageRuntime } = await import(/* @vite-ignore */ modulePath)
     const runtime = await getStorageRuntime()
-    await runtime.library.replace(Array.from({ length: 20 }, (_, i) => ({
+    await runtime.library.replace(Array.from({ length: 30 }, (_, i) => ({
       id: `review-${i}`, title: `Review book ${i}`, authors: ['A Reader'], pageCount: 100,
       shelf: 'tbr', progress: 0, currentPage: 0, rating: 0, notes: '',
       addedAt: '2026-09-11T12:00:00.000Z', lastUpdatedAt: '2026-09-11T12:00:00.000Z',
@@ -71,17 +71,17 @@ test('signed access activates, survives restart, enables book 21, and ends witho
   await page.getByRole('button', { name: 'Add Book', exact: true }).click()
   await page.getByRole('button', { name: /No ISBN\? No problem/ }).click()
   await page.getByRole('textbox', { name: 'Book title', exact: true }).fill('The review addition')
-  await page.getByRole('button', { name: 'Add to To Be Read', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'TBR 21', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: /^Add to\s*To Be Read$/ }).click()
+  await expect(page.getByRole('button', { name: 'TBR 31', exact: true })).toBeVisible()
   await openReviewAccess(page)
   await page.getByRole('button', { name: 'End review access' }).click()
   await expect(page.getByRole('textbox', { name: 'Review token', exact: true })).toHaveValue('')
   await page.reload()
-  await expect(page.getByRole('button', { name: 'TBR 21', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'TBR 31', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Add Book', exact: true }).click()
   await page.getByRole('button', { name: /No ISBN\? No problem/ }).click()
   await page.getByRole('textbox', { name: 'Book title', exact: true }).fill('Requires a purchase')
-  await page.getByRole('button', { name: 'Add to To Be Read', exact: true }).click()
+  await page.getByRole('button', { name: /^Add to\s*To Be Read$/ }).click()
   await expect(page.getByRole('heading', { name: 'Let your library grow.', exact: true })).toBeVisible()
   expect(errors).toEqual([])
 })

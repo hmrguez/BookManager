@@ -1,4 +1,5 @@
 import { libraryBookSchema } from '../../src/library-model'
+import { FREE_BOOK_LIMIT } from '../../src/purchases/model'
 import { PurchaseService } from '../../src/purchases/service'
 import { setLibraryCapacityPolicy } from '../../src/purchases/capacity'
 import { LibraryRepository } from '../../src/storage/library-repository'
@@ -12,7 +13,7 @@ export function capacityBook(number: number) {
   })
 }
 
-export async function seedFreeLibrary(database: SqlDatabase, count = 20) {
+export async function seedFreeLibrary(database: SqlDatabase, count = FREE_BOOK_LIMIT) {
   const store = { owned: false }
   const purchases = new PurchaseService({
     getStatus: async () => ({ platform: 'ios', owned: store.owned, pending: false, available: true }),

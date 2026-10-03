@@ -817,7 +817,7 @@
   "Paper fiber": "Fibra di carta",
   "A subtle paper texture. Respects your accessibility preferences.": "Una texture di carta sottile. Rispetta le tue preferenze di accessibilità.",
   "Wovenleaf Unlimited": "Wovenleaf Illimitato",
-  " of 20 free books · upgrade once for unlimited books": " di 20 libri gratuiti · aggiornamento una volta per libri illimitati",
+  " of {{limit}} free books · upgrade once for unlimited books": " di {{limit}} libri gratuiti · aggiornamento una volta per libri illimitati",
   "Upgrade or restore purchase": "aggiorna o ripristina l'acquisto",
   "Read your EPUB and PDF files here. Keep the originals on your device for offline reading.": "leggi i tuoi file EPUB e PDF qui. Conserva gli originali sul tuo dispositivo per la lettura offline.",
   "Checking the book…": "Controllo del libro…",

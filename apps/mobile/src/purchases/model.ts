@@ -1,4 +1,4 @@
-export const FREE_BOOK_LIMIT = 20
+export const FREE_BOOK_LIMIT = 30
 export const UNLIMITED_PRODUCT_ID = 'com.hmrguez.wovenleaf.unlimited'
 
 export type PurchaseStatus = {
@@ -21,7 +21,7 @@ export interface PurchaseStore {
 
 export class LibraryUpgradeRequired extends Error {
   constructor() {
-    super('Your free library includes 20 books. Upgrade once to add more, or keep using your current library.')
+    super(`Your free library includes ${FREE_BOOK_LIMIT} books. Upgrade once to add more, or keep using your current library.`)
     this.name = 'LibraryUpgradeRequired'
   }
 }

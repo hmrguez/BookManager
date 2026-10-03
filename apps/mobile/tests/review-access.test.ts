@@ -108,14 +108,14 @@ describe('signed review grants', () => {
     expect(store.saved).toBe('')
   })
 
-  test('unlocks book 21 offline; ending preserves books and real ownership; backup cannot transfer review access', async () => {
+  test('unlocks book 31 offline; ending preserves books and real ownership; backup cannot transfer review access', async () => {
     const database = new BunSqliteDatabase()
     const restoredDatabase = new BunSqliteDatabase()
     try {
       await migrateStorage(database)
       await migrateStorage(restoredDatabase)
       const library = new LibraryRepository(database)
-      await library.replace(Array.from({ length: 20 }, (_, i) => capacityBook(i + 1)))
+      await library.replace(Array.from({ length: 30 }, (_, i) => capacityBook(i + 1)))
       const review = new ReviewAccessService(new ReviewStore())
       let owned = false
       const store = {
@@ -126,9 +126,9 @@ describe('signed review grants', () => {
       const purchases = new PurchaseService(store, 'android', review)
       setLibraryCapacityPolicy(database, purchases.assertCapacity)
       await review.activate('forged')
-      await expect(library.save(capacityBook(21))).rejects.toBeInstanceOf(LibraryUpgradeRequired)
+      await expect(library.save(capacityBook(31))).rejects.toBeInstanceOf(LibraryUpgradeRequired)
       await review.activate(token)
-      await library.save(capacityBook(21))
+      await library.save(capacityBook(31))
       expect(purchases.getSnapshot().owned).toBe(false)
       const archive = await new PortableArchiveService(database).create()
       expect(JSON.stringify(archive.archive)).not.toContain(token)
@@ -136,14 +136,14 @@ describe('signed review grants', () => {
       setLibraryCapacityPolicy(restoredDatabase, restoredPurchases.assertCapacity)
       await expect(new PortableArchiveService(restoredDatabase).restore(archive.archive)).rejects.toBeInstanceOf(LibraryUpgradeRequired)
       await review.end()
-      expect(await library.list()).toHaveLength(21)
-      await library.save({ ...capacityBook(21), notes: 'Still editable' })
-      await expect(library.save(capacityBook(22))).rejects.toBeInstanceOf(LibraryUpgradeRequired)
+      expect(await library.list()).toHaveLength(31)
+      await library.save({ ...capacityBook(31), notes: 'Still editable' })
+      await expect(library.save(capacityBook(32))).rejects.toBeInstanceOf(LibraryUpgradeRequired)
       owned = true
       await purchases.restore()
       await review.activate(token)
       await review.end()
-      await library.save(capacityBook(22))
+      await library.save(capacityBook(32))
       expect(purchases.getSnapshot().owned).toBe(true)
     } finally { await database.close(); await restoredDatabase.close() }
   })
