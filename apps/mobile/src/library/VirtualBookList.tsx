@@ -19,6 +19,7 @@ export function VirtualBookList<T>({ items, groups, grid, getKey, children, esti
   const root = useRef<HTMLDivElement>(null)
   const probe = useRef<HTMLSpanElement>(null)
   const [layout, setLayout] = useState({ columns: 1, width: 0, margin: 0, gap: 22 })
+  const [rowEstimate, setRowEstimate] = useState(grid ? 210 : estimateSize)
   const [focused, setFocused] = useState<string>()
   const [dragged, setDragged] = useState<string>()
   const [reveal, setReveal] = useState<string>()
@@ -57,7 +58,7 @@ export function VirtualBookList<T>({ items, groups, grid, getKey, children, esti
     enabled: virtual,
     // Responsive measurements can run during a React commit. Let React batch their updates.
     useFlushSync: false,
-    estimateSize: (index) => rows[index].header ? 28 : grid ? 210 : estimateSize,
+    estimateSize: (index) => rows[index].header ? 28 : rowEstimate,
     getItemKey: rowKey,
     scrollMargin: layout.margin,
     gap: grid ? layout.gap : 0,
@@ -101,13 +102,23 @@ export function VirtualBookList<T>({ items, groups, grid, getKey, children, esti
 
   useLayoutEffect(() => {
     if (!virtual) return
+    const elements = [...(root.current?.querySelectorAll<HTMLElement>('[data-virtual-row]') ?? [])]
+    // Learn the current shelf's responsive row height before estimating unseen books.
+    // Use the median so a few taller recommendation rows do not inflate the whole shelf.
+    const sizes = elements.filter((element) => element.hasAttribute('data-first-book'))
+      .map((element) => element.offsetHeight).filter((size) => size > 0).sort((left, right) => left - right)
+    const measuredEstimate = sizes[Math.floor(sizes.length / 2)]
+    if (measuredEstimate && measuredEstimate !== rowEstimate) {
+      setRowEstimate(measuredEstimate)
+      return
+    }
     virtualizer.measure()
     virtualizer.getTotalSize()
     // Resetting estimates does not resize an unchanged row, so measure mounted rows now.
-    root.current?.querySelectorAll<HTMLElement>('[data-virtual-row]').forEach((element) => {
+    elements.forEach((element) => {
       virtualizer.resizeItem(Number(element.dataset.index), element.offsetHeight)
     })
-  }, [virtualizer, virtual, columns, layout.width, grid])
+  }, [virtualizer, virtual, columns, layout.width, grid, rowEstimate])
 
   useEffect(() => {
     const onDrag = (event: Event) => setDragged((event as CustomEvent<string | undefined>).detail)

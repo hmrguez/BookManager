@@ -17,6 +17,10 @@ test.beforeEach(async ({ page }) => {
   await page.addInitScript((seed) => {
     if (!localStorage.getItem('large-test-seeded')) {
       localStorage.setItem('wovenleaf.library.v1', JSON.stringify(seed))
+      // Large shelves default to collapsed; these tests exercise their open contents.
+      for (const shelf of ['status:tbr', 'status:next', 'status:reading', 'status:finished', 'custom:large-custom', 'smart:large-smart']) {
+        localStorage.setItem(`wovenleaf.shelf-collapsed.v1.${shelf}`, 'false')
+      }
       localStorage.setItem('large-test-seeded', 'true')
     }
   }, books)
@@ -34,7 +38,9 @@ async function scrollToEnd(page: Page, shelf: string) {
 }
 
 async function expectBoundedRows(page: Page) {
-  await expect.poll(() => page.locator('[data-library-book]').count()).toBeLessThan(110)
+  // A wide grid overscans whole rows of covers on each open shelf.
+  const grid = await page.getByRole('button', { name: 'Grid view', exact: true }).getAttribute('aria-pressed') === 'true'
+  await expect.poll(() => page.locator('[data-library-book]').count()).toBeLessThan(grid ? 200 : 110)
 }
 
 test('1800 books stay windowed in list and responsive cover views, including the last book', async ({ page }, testInfo) => {
@@ -138,8 +144,10 @@ test('custom shelves and grouped smart lists window their complete collections',
 })
 
 test('keyboard focus crosses the render window and a drag source survives scrolling', async ({ page }) => {
+  await expect(page.locator('#shelf-tbr .recommendation-star')).toHaveCount(3)
   await page.locator('[data-library-book="large-0"]').focus()
-  for (let index = 0; index < 55; index++) await page.keyboard.press('Tab')
+  // The first three recommended books each add a "Why recommended" Tab stop.
+  for (let index = 0; index < 58; index++) await page.keyboard.press('Tab')
   await expect(page.locator('#shelf-tbr [data-library-book="large-27"]').locator('..').getByRole('button', { name: 'Next', exact: true })).toBeFocused()
   await expectBoundedRows(page)
   await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }))
