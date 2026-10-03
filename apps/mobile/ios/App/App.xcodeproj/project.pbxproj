@@ -612,7 +612,9 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
-				CODE_SIGN_STYLE = Automatic;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "Apple Distribution";
+				CODE_SIGN_STYLE = Manual;
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "Wovenleaf App Store";
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 27WX7X7D7C;
 				INFOPLIST_FILE = App/Info.plist;
@@ -660,7 +662,9 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
-				CODE_SIGN_STYLE = Automatic;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "Apple Distribution";
+				CODE_SIGN_STYLE = Manual;
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "Wovenleaf ShareExtension App Store";
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 27WX7X7D7C;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
@@ -712,7 +716,9 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				CODE_SIGN_ENTITLEMENTS = LibbyExtension/LibbyExtension.entitlements;
-				CODE_SIGN_STYLE = Automatic;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "Apple Distribution";
+				CODE_SIGN_STYLE = Manual;
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "Wovenleaf LibbyExtension App Store";
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 27WX7X7D7C;
 				INFOPLIST_FILE = LibbyExtension/Info.plist;
