@@ -73,9 +73,13 @@ web browser, parental/age controls, gambling, contests, or supplied mature conte
 The app is not marked Made for Kids. Imported books are chosen by the reader.
 Definitions: https://developer.apple.com/help/app-store-connect/reference/app-information/age-ratings-values-and-definitions/
 
-Before submission, complete these remaining release items:
+The following items were recorded during listing setup. The owner subsequently
+reported completing the non-build setup; that report is separate from the
+build verification below:
 
-- Upload and select the signed build; none was attached during listing setup.
+- Build follow-up: processed build 1.0 (1) is attached, and its compliance warning
+  has cleared. France is excluded for the initial launch by the owner’s choice.
+  See `../../docs/guides/ios-build-1-release-record.md`.
 - Verify provider data retention and complete App Privacy. The privacy-policy URL
   is saved, but no unverified “Data Not Collected” claim was made. See
   `../../docs/guides/privacy-review.md` for Open Library/cover request flows.
