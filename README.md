@@ -109,6 +109,25 @@ baselines and the approval checklist are documented in `apps/mobile/src/design-s
 
 ## App identity and release setup
 
+Native release versions are shared across Android and all three iOS targets (Debug and
+Release). Run these commands from the repository root:
+
+- `make version-patch` — increment the patch version and build number on both platforms.
+- `make version-minor` — increment the minor version, reset the patch to zero, and increment the build number.
+- `make version-build` — increment only the build number for another upload of the same version.
+- `make version-sync` — align both platforms to their highest existing version and build number without incrementing.
+- Add `DRY_RUN=1` to any of these commands to preview without changing files.
+
+The commands read Android's `versionName`/`versionCode` and Xcode's
+`MARKETING_VERSION`/`CURRENT_PROJECT_VERSION`, compare versions numerically, and
+update both files together. They use the highest values across both platforms so
+neither platform is downgraded. Commit both native project files after a bump.
+The private web package's `0.0.0` version is unrelated to store releases.
+These commands change future builds only: rebuild and upload for each store, and
+use the matching version in App Store Connect. Existing uploads and submissions
+are unaffected. The initial iOS submission remains **1.0 (1)**; the local projects
+are aligned at **1.10.1 (12)** for subsequent builds.
+
 Wovenleaf is free for 30 library entries. **Wovenleaf Unlimited** is a permanent native
 in-app purchase for unlimited books, restorable within the same store account. See the
 [purchase setup and testing guide](docs/guides/in-app-purchases.md) for creating the

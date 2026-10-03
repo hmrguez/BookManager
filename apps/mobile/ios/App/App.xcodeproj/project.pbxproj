@@ -589,7 +589,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 12;
 				DEVELOPMENT_TEAM = 27WX7X7D7C;
 				INFOPLIST_FILE = App/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
@@ -597,7 +597,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.10.1;
 				OTHER_SWIFT_FLAGS = "$(inherited) \"-D\" \"COCOAPODS\" \"-DDEBUG\"";
 				PRODUCT_BUNDLE_IDENTIFIER = com.hmrguez.wovenleaf;
 				PRODUCT_NAME = Wovenleaf;
@@ -615,7 +615,7 @@
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "Apple Distribution";
 				CODE_SIGN_STYLE = Manual;
 				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "Wovenleaf App Store";
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 12;
 				DEVELOPMENT_TEAM = 27WX7X7D7C;
 				INFOPLIST_FILE = App/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
@@ -623,7 +623,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.10.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.hmrguez.wovenleaf;
 				PRODUCT_NAME = Wovenleaf;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
@@ -638,7 +638,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 12;
 				DEVELOPMENT_TEAM = 27WX7X7D7C;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
@@ -647,7 +647,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.10.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.hmrguez.wovenleaf.share;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -665,7 +665,7 @@
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "Apple Distribution";
 				CODE_SIGN_STYLE = Manual;
 				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "Wovenleaf ShareExtension App Store";
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 12;
 				DEVELOPMENT_TEAM = 27WX7X7D7C;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
@@ -674,7 +674,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.10.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.hmrguez.wovenleaf.share;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -691,7 +691,7 @@
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				CODE_SIGN_ENTITLEMENTS = LibbyExtension/LibbyExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 12;
 				DEVELOPMENT_TEAM = 27WX7X7D7C;
 				INFOPLIST_FILE = LibbyExtension/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.4;
@@ -700,7 +700,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.10.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.hmrguez.wovenleaf.LibbyExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -719,7 +719,7 @@
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "Apple Distribution";
 				CODE_SIGN_STYLE = Manual;
 				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "Wovenleaf LibbyExtension App Store";
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 12;
 				DEVELOPMENT_TEAM = 27WX7X7D7C;
 				INFOPLIST_FILE = LibbyExtension/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.4;
@@ -728,7 +728,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.10.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.hmrguez.wovenleaf.LibbyExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;

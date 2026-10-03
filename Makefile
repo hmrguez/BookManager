@@ -7,6 +7,7 @@ IOS_SDK ?=
 ANDROID_TARGET ?=
 ANDROID_SDK ?= $(if $(ANDROID_HOME),$(ANDROID_HOME),$(if $(ANDROID_SDK_ROOT),$(ANDROID_SDK_ROOT),$(HOME)/Library/Android/sdk))
 ADB := $(if $(wildcard $(ANDROID_SDK)/platform-tools/adb),$(ANDROID_SDK)/platform-tools/adb,adb)
+VERSION_FLAGS := $(if $(filter 1,$(DRY_RUN)),--dry-run,)
 BRAND_SOURCE_PNG ?= branding/source/wovenleaf-mark-color-2048px.png
 BRAND_SOURCE_SVG ?= branding/source/wovenleaf-mark-color.svg
 BRAND_LOCAL_OUTPUT ?= branding/final/platform
@@ -14,7 +15,7 @@ BRAND_LOCAL_OUTPUT ?= branding/final/platform
 .PHONY: help install dev gallery conflicts gallery-test preview lint test build check clean doctor versions brand-assets sync cap-doctor \
 	native-add ios-add android-add ios-open android-open ios-list android-list \
 	ios-build android-build android-release ios-simulator android-run \
-	android-device android-live android-install android-devices version-patch version-minor
+	android-device android-live android-install android-devices version-patch version-minor version-build version-sync
 
 help: ## Show every available command
 	@awk 'BEGIN {FS = ":.*## "; printf "Wovenleaf commands\n\n"} /^[a-zA-Z0-9_-]+:.*## / {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -60,11 +61,17 @@ versions: ## Print the core tool versions
 	@printf 'TypeScript: '; cd $(MOBILE_DIR) && bunx tsc --version
 	@printf 'Capacitor:  '; cd $(MOBILE_DIR) && bunx cap --version
 
-version-patch: ## Bump the Android patch version and version code
-	cd $(MOBILE_DIR) && bun scripts/bump-android-version.ts patch
+version-patch: ## Bump the patch version and build number on iOS and Android (DRY_RUN=1 to preview)
+	cd $(MOBILE_DIR) && bun scripts/bump-version.ts patch $(VERSION_FLAGS)
 
-version-minor: ## Bump the Android minor version and version code
-	cd $(MOBILE_DIR) && bun scripts/bump-android-version.ts minor
+version-minor: ## Bump the minor version and build number on iOS and Android
+	cd $(MOBILE_DIR) && bun scripts/bump-version.ts minor $(VERSION_FLAGS)
+
+version-build: ## Bump only the shared build number for a replacement upload
+	cd $(MOBILE_DIR) && bun scripts/bump-version.ts build $(VERSION_FLAGS)
+
+version-sync: ## Align iOS and Android to their highest existing version and build number
+	cd $(MOBILE_DIR) && bun scripts/bump-version.ts sync $(VERSION_FLAGS)
 
 brand-assets: ## Regenerate and validate iOS, Android, web, splash, and store artwork
 	uv run --no-project --with-requirements $(MOBILE_DIR)/scripts/brand-assets-requirements.txt \
