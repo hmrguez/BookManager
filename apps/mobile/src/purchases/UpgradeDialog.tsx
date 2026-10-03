@@ -76,7 +76,7 @@ export function UpgradeDialog({ open, onClose, view, bookCount }: {
           <span><Check aria-hidden="true" /> {t(" Pay once. No subscription.")}</span>
           <span><Check aria-hidden="true" /> {t(" Restore on devices using the same store account")}</span>
         </div>
-        {!hasAccess && <p className="upgrade-count">{bookCount} {t(" of")}{FREE_BOOK_LIMIT} {t(" free books in your library")}</p>}
+        {!hasAccess && <p className="upgrade-count">{bookCount} {t(" of")} {FREE_BOOK_LIMIT} {t(" free books in your library")}</p>}
         {reviewView.active && !view.owned && <p className="upgrade-note">{t("To test checkout, end review access in Settings → Advanced.")}</p>}
         {(view.message || view.pending) && <p className="upgrade-message" role="status">{view.message || t("Your purchase is awaiting approval. We’ll unlock your library when it completes.")}</p>}
         {view.error && <p className="upgrade-message" role="alert">{view.error}</p>}
@@ -98,7 +98,7 @@ export function UpgradeDialog({ open, onClose, view, bookCount }: {
             {view.canRedeem !== false && <button type="button" disabled={view.busy} onClick={() => { void purchases.redeem() }}>{t("Redeem a code")}</button>}
             {unavailable && <button type="button" disabled={view.busy} onClick={() => { void purchases.refresh() }}>{t("Try again")}</button>}
           </div>
-          <p className="upgrade-note">{t("Linked to your")}{store}{t(". Purchases stay within")}{view.platform === 'ios' ? t("the App Store") : t("Google Play")}.</p>
+          <p className="upgrade-note">{t("Linked to your")} {store}{t(". Purchases stay within")} {view.platform === 'ios' ? t("the App Store") : t("Google Play")}.</p>
         </>}
         {!hasAccess && <button type="button" className="upgrade-later" onClick={onClose}>{t("Keep my free library")}</button>}
       </div>
