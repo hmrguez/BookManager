@@ -1,0 +1,89 @@
+# Wovenleaf — English (U.S.) App Store listing
+
+Draft metadata saved in App Store Connect on 3 October 2026 for app 6818794299,
+version 1.0. Submission and release have not been performed.
+
+## Name and subtitle
+
+Name: Wovenleaf
+
+Subtitle: Track books. Read. Listen.
+
+Primary category: Books
+
+Copyright: 2026 Hector Rodriguez
+
+## Promotional text
+
+Your books, reading notes, and audiobooks in one quiet place. Build your library, read EPUBs and PDFs, and keep your next read close.
+
+## Description
+
+Wovenleaf brings your books, reading, and listening together in a calm, personal library.
+
+KEEP YOUR READING ORGANIZED
+Collect books you want to read, choose what comes next, and track what you are reading and have finished. Add books with catalog search, an ISBN scan, or manual entry. Use personal tags, collections, and smart lists to make the library your own.
+
+READ AND REMEMBER
+Import your own EPUB and PDF files and read them inside Wovenleaf. Adjust your reading preferences, save bookmarks, and keep highlights and notes alongside your books. Record your progress for paper books, too.
+
+LISTEN YOUR WAY
+Bring your own audiobook files. Resume listening, move through chapters, adjust playback speed, and use a sleep timer. Keep your reading and listening in the same library.
+
+LOOK BACK ON YOUR READING
+Explore your reading history and reflect on completed quarters with personal review keepsakes.
+
+YOUR LIBRARY, ON YOUR DEVICE
+No Wovenleaf account is required. Your library and imported files are stored locally. Export a backup to keep a copy of your reading life. Online catalog searches and remote covers require an internet connection.
+
+START FREE
+Keep up to 30 books in your library for free. Wovenleaf Unlimited is an optional one-time in-app purchase that removes the library limit. There is no subscription. Books and audiobook recordings are not included; import files you own or are entitled to use.
+
+## Keywords
+
+books,reading,tracker,library,epub,pdf,audiobook,bookshelf,notes,highlights,reading journal
+
+## URLs
+
+- Marketing: https://wovenleaf.app/
+- Support: https://wovenleaf.app/privacy/#who-we-are
+- Privacy policy: https://wovenleaf.app/privacy/
+
+The support destination exposes the published support email. The marketing
+homepage itself has no direct email link.
+
+## App Review notes
+
+Wovenleaf is a local book library, EPUB/PDF reader, and audiobook player. No app account or sign-in is required.
+
+The free tier permits 30 current library entries. Wovenleaf Unlimited (com.hmrguez.wovenleaf.unlimited) is a non-consumable, one-time purchase that removes that limit. Open Settings → Upgrade or restore purchase to test purchase and restore; adding entry 31 also opens the upgrade screen. Existing books remain readable and editable without Unlimited.
+
+Books and audiobook recordings are not sold or supplied by Wovenleaf. Readers import their own files. The app includes a share extension and an optional Safari extension for importing Libby reading progress.
+
+The private review contact was entered directly in App Store Connect and is
+intentionally not copied into this repository. Sign-in required is unchecked.
+Manual release is selected.
+
+## Age rating and release status
+
+Apple calculated 4+ (with regional equivalents) from the saved questionnaire.
+The questionnaire describes the app's built-in functionality: no social feed,
+public user-generated content distribution, messaging, advertising, unrestricted
+web browser, parental/age controls, gambling, contests, or supplied mature content.
+The app is not marked Made for Kids. Imported books are chosen by the reader.
+Definitions: https://developer.apple.com/help/app-store-connect/reference/app-information/age-ratings-values-and-definitions/
+
+Before submission, complete these remaining release items:
+
+- Upload and select the signed build; none was attached during listing setup.
+- Verify provider data retention and complete App Privacy. The privacy-policy URL
+  is saved, but no unverified “Data Not Collected” claim was made. See
+  `../../docs/guides/privacy-review.md` for Open Library/cover request flows.
+- Have the owner confirm Apple's content-rights declaration for third-party
+  covers and catalog content.
+- Complete and test Wovenleaf Unlimited in App Store Connect, then associate it
+  with the first submission as required; pricing, contracts, tax/banking, and
+  availability must also be checked before release.
+
+See `../../docs/guides/ios-app-store-release.md` for the archive/export paths and
+full publishing sequence. App Review submission and public release remain pending.
