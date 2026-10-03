@@ -363,17 +363,17 @@ final class ReaderAnnotationEditorViewController: UIViewController {
 
     private func normalizeTags(_ raw: String) -> [String] {
         var seen = Set<String>()
-        return raw.split(separator: ",")
+        let normalized: [String] = raw.split(separator: ",")
             .map {
-                $0.components(separatedBy: .whitespacesAndNewlines)
+                String($0).components(separatedBy: .whitespacesAndNewlines)
                     .filter { !$0.isEmpty }
                     .joined(separator: " ")
             }
+        let unique = normalized
             .filter { !$0.isEmpty && $0.count <= 64 }
             .filter { seen.insert($0.lowercased()).inserted }
-            .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
-            .prefix(32)
-            .map { $0 }
+        let sorted = unique.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        return Array(sorted.prefix(32))
     }
 }
 

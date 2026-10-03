@@ -40,6 +40,9 @@
 		12E88B465BB217FE936DFAD6 /* WovenleafLibbyPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7736A0714CA318FEB4FA010; };
 		F859F07A3EF446B14DC19246 /* LibbyInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A32A7CEEBC973E60D980735; };
 		38F38762EE2DE01A169530F8 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = C01C96D14D7FAF1680CA896B /* InfoPlist.strings */; };
+		A18000013000000000000002 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A18000013000000000000001 /* PrivacyInfo.xcprivacy */; };
+		A18000023000000000000002 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A18000023000000000000001 /* PrivacyInfo.xcprivacy */; };
+		A18000033000000000000002 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A18000033000000000000001 /* PrivacyInfo.xcprivacy */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -116,6 +119,9 @@
 		FB1C548F7E75525EA89D3BFE /* de */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = de; path = de.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		8CA9560A98ABA9976FB0CA3C /* it */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = it; path = it.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		072E825667BF86CA69393ECA /* fr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = fr; path = fr.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		A18000013000000000000001 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		A18000023000000000000001 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		A18000033000000000000001 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -168,6 +174,7 @@
 		504EC3061FED79650016851F /* App */ = {
 			isa = PBXGroup;
 			children = (
+				A18000013000000000000001 /* PrivacyInfo.xcprivacy */,
 				C01C96D14D7FAF1680CA896B /* InfoPlist.strings */,
 				A14000022FF3000000000002 /* WovenleafFeedbackPlugin.swift */,
 				A11200022FF3000000000002 /* WovenleafReviewAccessibilityPlugin.swift */,
@@ -202,6 +209,7 @@
 		A12600072FEC000000000007 /* ShareExtension */ = {
 			isa = PBXGroup;
 			children = (
+				A18000023000000000000001 /* PrivacyInfo.xcprivacy */,
 				A12600022FEC000000000002 /* ShareViewController.swift */,
 				A12600032FEC000000000003 /* Info.plist */,
 				A12600042FEC000000000004 /* ShareExtension.entitlements */,
@@ -212,6 +220,7 @@
 		A16000072FEC000000000007 /* LibbyExtension */ = {
 			isa = PBXGroup;
 			children = (
+				A18000033000000000000001 /* PrivacyInfo.xcprivacy */,
 				A16000022FEC000000000002 /* SafariWebExtensionHandler.swift */,
 				A16000032FEC000000000003 /* Info.plist */,
 				A16000042FEC000000000004 /* LibbyExtension.entitlements */,
@@ -339,6 +348,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A18000013000000000000002 /* PrivacyInfo.xcprivacy in Resources */,
 				38F38762EE2DE01A169530F8 /* InfoPlist.strings in Resources */,
 				504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */,
 				50B271D11FEDC1A000F3C39B /* public in Resources */,
@@ -353,6 +363,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A18000023000000000000002 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -360,6 +371,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A18000033000000000000002 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

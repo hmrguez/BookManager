@@ -1,7 +1,7 @@
 import { PrivateErasureService } from '../src/storage/private-erasure'
 import { RecoveryService } from '../src/storage/recovery'
 import { MemoryRecoveryArtifactStore } from '../src/storage/recovery-store'
-import { expect, test } from 'bun:test'
+import { afterEach, beforeEach, expect, setSystemTime, test } from 'bun:test'
 import JSZip from 'jszip'
 import { inspectEpub } from '../src/epub/inspect'
 import { EpubImportRepository } from '../src/epub/repository'
@@ -19,6 +19,11 @@ import { BunSqliteDatabase } from './storage-test-database'
 
 const at = '2026-04-01T12:00:00.000Z'
 const request = { quarter: reviewQuarter(2026, 2, 'UTC'), knownAt: '2026-10-01T12:00:00.000Z' }
+// Native ingestion records receipt time. Keep it before this fixture's evidence
+// cutoff so the same events remain visible regardless of the day tests run.
+beforeEach(() => setSystemTime(new Date('2026-09-30T12:00:00.000Z')))
+afterEach(() => setSystemTime())
+
 async function epub() {
   const zip = new JSZip()
   zip.file('mimetype', 'application/epub+zip', { compression: 'STORE' })
