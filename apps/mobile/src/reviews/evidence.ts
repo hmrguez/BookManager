@@ -4,7 +4,7 @@ import { exactEditionMatch } from '../libby/enrichment-model'
 import { readerAnnotationStateSchema, readerNavigationStateSchema, type ReaderAnnotationState, type ReaderNavigationState } from '../reader/model'
 import { audiobookAnnotationSchema, type AudiobookAnnotation } from '../playback/controls'
 import { calculateActivity, type ActivityBoundary, type ActivityInterval } from './activity'
-import { reviewCalendar, reviewQuarter, type ReviewQuarter } from './calendar'
+import { reviewCalendar, reviewQuarter, type ReviewQuarter, type ReadingRange } from './calendar'
 import { REVIEW_BADGES, REVIEW_RULE_VERSION, REVIEW_SELECTION_VERSION, badgeDevelopment, selectBadges, type BadgeDefinition } from './catalogue'
 import { genresForBooks, suggestGenre, type SubjectClaim } from './genres'
 
@@ -40,9 +40,9 @@ export function calculateQuarterlyReview(input: ReviewEvidence, request: ReviewR
   const quarter = validateQuarter(request.quarter)
   const knownAt = Date.parse(request.knownAt)
   if (!Number.isFinite(knownAt) || knownAt < Date.parse(quarter.end)) throw new Error('A review requires a completed quarter and valid evidence cutoff')
-  const current = calculateFacts(input, quarter, request.knownAt)
+  const current = calculateReadingFacts(input, quarter, request.knownAt)
   const earned: EarnedBadge[] = []
-  const previousFacts = new Map<string, ReturnType<typeof calculateFacts>>()
+  const previousFacts = new Map<string, ReturnType<typeof calculateReadingFacts>>()
   for (const definition of REVIEW_BADGES) {
     const metric = current.metrics[definition.id]!
     const development = badgeDevelopment(metric.value, definition.thresholds)
@@ -57,7 +57,7 @@ export function calculateQuarterlyReview(input: ReviewEvidence, request: ReviewR
         const priorQuarter = validateQuarter(previous.quarter)
         const key = `${priorQuarter.year}-${priorQuarter.quarter}`
         let facts = previousFacts.get(key)
-        if (!facts) { facts = calculateFacts(input, priorQuarter, request.knownAt); previousFacts.set(key, facts) }
+        if (!facts) { facts = calculateReadingFacts(input, priorQuarter, request.knownAt); previousFacts.set(key, facts) }
         const prior = facts.metrics[definition.id]!
         if (prior.value === undefined || facts.uncertainMetrics.includes(definition.id)) continue
         comparisons.push({ quarter: priorQuarter, value: prior.value, coverage: structuredClone(previous), refs: prior.refs, workIds: prior.workIds })
@@ -96,7 +96,7 @@ const payloadFor = (event: ReadingEvent) => event.kind === 'correction'
   ? event.action.kind === 'replace' ? event.action.replacement : undefined : event
 const isSeed = (event: ReadingEvent) => event.source.kind === 'migration' && event.source.migrationKey.includes('seeded-starter')
 
-function calculateFacts(input: ReviewEvidence, quarter: ReviewQuarter, knownAt: string) {
+export function calculateReadingFacts(input: ReviewEvidence, quarter: ReadingRange, knownAt: string) {
   const { catalog } = input
   const start = Date.parse(quarter.start), end = Date.parse(quarter.end)
   const inQuarter = (at: string) => Date.parse(at) >= start && Date.parse(at) < end
@@ -266,7 +266,7 @@ function calculateFacts(input: ReviewEvidence, quarter: ReviewQuarter, knownAt: 
     capture: captureByEvent.get(e.id) ?? null,
   }))
   const excluded = sorted([...excludedEvidence, ...activity.rejected])
-  return { metrics, genre, supportingBooks, evidence, excludedEvidence: excluded,
+  return { metrics, genre, supportingBooks, evidence, excludedEvidence: excluded, activity,
     // Coverage certificates cannot rehabilitate explicitly rejected evidence.
     uncertainMetrics: excluded.length ? REVIEW_BADGES.map(b => b.id) : ['08', '25'],
   }

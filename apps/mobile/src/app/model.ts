@@ -19,7 +19,7 @@ export type SheetState =
   | { kind: 'recommendation'; bookId: string }
   | null
 
-export type AppView = 'library' | 'settings' | 'import' | 'reviews'
+export type AppView = 'library' | 'settings' | 'import' | 'reviews' | 'stats'
 
 export type ToastState = {
   message: string

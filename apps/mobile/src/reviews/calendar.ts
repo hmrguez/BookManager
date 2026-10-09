@@ -1,3 +1,5 @@
+export type ReadingRange = { timezone: string; start: string; end: string }
+
 export type ReviewQuarter = {
   year: number
   quarter: number

@@ -1,5 +1,5 @@
 import type { ActiveReadingCapture } from '../domain/catalog/active-capture'
-import { monday, nextDate, reviewCalendar, type ReviewQuarter } from './calendar'
+import { monday, nextDate, reviewCalendar, type ReadingRange } from './calendar'
 
 export type ActivityInterval = {
   id: string; workId: string; editionId: string; deviceId: string; type: 'text' | 'audio'
@@ -10,7 +10,7 @@ type Piece = { start: number; end: number; active: number; works: string[]; edit
 const add = (map: Map<string, number>, key: string, amount: number) => map.set(key, (map.get(key) ?? 0) + amount)
 const unique = (values: string[]) => [...new Set(values)].sort()
 
-export function calculateActivity(intervals: readonly ActivityInterval[], quarter: ReviewQuarter, boundaries: readonly ActivityBoundary[] = []) {
+export function calculateActivity(intervals: readonly ActivityInterval[], quarter: ReadingRange, boundaries: readonly ActivityBoundary[] = []) {
   const calendar = reviewCalendar(quarter.timezone)
   const start = Date.parse(quarter.start), end = Date.parse(quarter.end)
   const rejected: string[] = []
@@ -57,6 +57,7 @@ export function calculateActivity(intervals: readonly ActivityInterval[], quarte
     // still contribute only their union, and remain auditable in the resulting facts.
     if (new Set(cluster.map(i => `${i.workId}:${i.type}:${i.deviceId}`)).size === 1) visitIntervals.push(...cluster)
   }
+  const textDays = new Map<string, number>()
   const days = new Map<string, number>(), audioDays = new Map<string, number>(), workDays = new Map<string, number>()
   const textWeeks = new Map<string, number>(), audioWeeks = new Map<string, number>()
   const workMs = new Map<string, number>(), editionMs = new Map<string, number>()
@@ -78,7 +79,7 @@ export function calculateActivity(intervals: readonly ActivityInterval[], quarte
       if (piece.works.length === 1) add(workDays, `${piece.works[0]}|${day}`, duration)
       if (piece.types.length === 1) {
         add(piece.types[0] === 'audio' ? audioWeeks : textWeeks, monday(day), duration)
-        if (piece.types[0] === 'audio') add(audioDays, day, duration)
+        add(piece.types[0] === 'audio' ? audioDays : textDays, day, duration)
       }
       cursor = next
     }
@@ -99,6 +100,9 @@ export function calculateActivity(intervals: readonly ActivityInterval[], quarte
     mixedWeeks: [...textWeeks].filter(([week, value]) => value >= 600_000 && (audioWeeks.get(week) ?? 0) >= 600_000).length,
     engagedWorks, editionMinutes, visits, refs: [...refs].sort(), rejected: unique(rejected),
     workIds: unique(pieces.flatMap(piece => piece.works)),
+    days: [...days].sort(([a], [b]) => a.localeCompare(b)).map(([date, totalMs]) => ({ date, totalMs,
+      textMs: textDays.get(date) ?? 0, audioMs: audioDays.get(date) ?? 0,
+      unclassifiedMs: totalMs - (textDays.get(date) ?? 0) - (audioDays.get(date) ?? 0) })),
   }
 }
 

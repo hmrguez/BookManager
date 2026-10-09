@@ -1,3 +1,4 @@
+import { QuarterlyReviewRepository } from '../reviews/repository'
 import { PrivateErasureService } from './private-erasure'
 import { LibbyRepository } from '../libby/repository'
 import { Directory, Filesystem } from '@capacitor/filesystem'
@@ -43,6 +44,7 @@ export type StorageRuntime = {
   readonly duplicateReviews: DuplicateReviewRepository
   readonly libby: LibbyRepository
   readonly reviewKeepsakes: ReviewKeepsakeRepository
+  readonly readingStats: QuarterlyReviewRepository
   readonly library: LibraryRepository
   readonly metadataSearchCache: MetadataSearchCacheRepository
   readonly organization: OrganizationRepository
@@ -76,12 +78,14 @@ async function initializeStorageRuntime(): Promise<StorageRuntime> {
   const recovery = new RecoveryService(database, { epubAssetStore })
   const recoveryLaunch = await recovery.beginPendingLaunch()
   await migrateStorage(database, { backupStore: createMigrationBackupStore() })
-  const reviewKeepsakes = new ReviewKeepsakeRepository(database, {
-    voiceExists: async path => {
+  const evidenceOptions = {
+    voiceExists: async (path: string) => {
       if (!/^annotations\/audiobooks\/[\w.:-]+$/.test(path) || path.includes('..')) return false
       return Filesystem.stat({ path, directory: Directory.LibraryNoCloud }).then(file => file.type === 'file', () => false)
     },
-  })
+  }
+  const reviewKeepsakes = new ReviewKeepsakeRepository(database, evidenceOptions)
+  const readingStats = new QuarterlyReviewRepository(database, evidenceOptions)
   await reviewKeepsakes.settings()
   const library = new LibraryRepository(database)
   const legacyStorage = getLegacyLibraryStorage()
@@ -120,6 +124,7 @@ async function initializeStorageRuntime(): Promise<StorageRuntime> {
     library,
     libby: new LibbyRepository(database),
     reviewKeepsakes,
+    readingStats,
     metadataSearchCache: new MetadataSearchCacheRepository(database),
     organization: new OrganizationRepository(database),
     smartLists: new SmartListRepository(database),

@@ -1,3 +1,4 @@
+import { StatsPage } from './stats/StatsPage'
 import { LocalizedError } from './localization/LocalizedError'
 import { t, translateCopy, useLanguage } from './localization'
 import { useReviewInvitation } from './reviews/useReviewInvitation'
@@ -1538,6 +1539,8 @@ function App() {
             onRate={rateBook}
             onMoveQueueBook={moveQueueBook}
           />
+        ) : view === 'stats' ? (
+          <StatsPage books={books} refresh={sheet} onBook={bookId => openSheet({ kind: 'detail', bookId })} />
         ) : view === 'reviews' ? (
           <ReviewsPage refresh={sheet} invitation={reviewInvitation} onDismiss={() => setReviewRefresh(value => value + 1)} onOpen={period => openSheet({ kind: 'quarterly-reviews', period })} />
         ) : view === 'import' && importPreview ? (
@@ -1609,7 +1612,7 @@ function App() {
         <BottomNavigation
           view={view}
           onLibrary={showLibrary}
-          onShelf={showShelf}
+          onStats={() => { setView('stats'); window.scrollTo({ top: 0 }) }}
           onAdd={() => openSheet({ kind: 'search', shelf: 'tbr' })}
           onSettings={showSettings}
           onReviews={() => { setView('reviews'); window.scrollTo({ top: 0 }) }}

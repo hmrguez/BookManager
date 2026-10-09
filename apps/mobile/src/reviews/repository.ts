@@ -1,3 +1,4 @@
+import { calculateStats, type StatsRequest } from '../stats/model'
 import { z } from 'zod'
 import { AudiobookControlsRepository } from '../playback/controls'
 import { EpubReaderRepository } from '../reader/repository'
@@ -24,6 +25,14 @@ export class QuarterlyReviewRepository {
 
   /** The caller owns the transaction, including any keepsake write from this snapshot. */
   async calculateInTransaction(database: SqlDatabase, request: ReviewRequest) {
+    return calculateQuarterlyReview(await this.readEvidence(database), request)
+  }
+
+  async stats(request: StatsRequest) {
+    return this.#database.transaction(async database => calculateStats(await this.readEvidence(database), request))
+  }
+
+  private async readEvidence(database: SqlDatabase): Promise<ReviewEvidence> {
     const catalog = await new CatalogRepository(database).read()
     const books = await readLibraryBooks(database)
     const reader = new EpubReaderRepository(database)
@@ -59,7 +68,7 @@ export class QuarterlyReviewRepository {
       if (annotation.kind === 'voice-note' && annotation.voiceRelativePath
         && await this.#voiceExists(annotation.voiceRelativePath).catch(() => false)) survivingVoiceNoteIds.push(annotation.id)
     }
-    return calculateQuarterlyReview({ catalog, books, bookEditions, embeddedSubjects, audioAnnotations, survivingVoiceNoteIds,
-      readerAnnotations: await reader.allAnnotationStates(), readerNavigation: await reader.allNavigationStates() }, request)
+    return { catalog, books, bookEditions, embeddedSubjects, audioAnnotations, survivingVoiceNoteIds,
+      readerAnnotations: await reader.allAnnotationStates(), readerNavigation: await reader.allNavigationStates() }
   }
 }

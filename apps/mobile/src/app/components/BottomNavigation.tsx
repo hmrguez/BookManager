@@ -1,13 +1,12 @@
 import { t, useLanguage } from '../../localization'
-import { Notebook, BookOpen, Library, Plus, Settings } from 'lucide-react'
-import type { ShelfId } from '../../library'
+import { Notebook, ChartNoAxesColumn, Library, Plus, Settings } from 'lucide-react'
 import { tw } from '../../tailwind/styles'
 import type { AppView } from '../model'
 
 export function BottomNavigation({
   view,
   onLibrary,
-  onShelf,
+  onStats,
   onAdd,
   onSettings,
   onReviews,
@@ -15,7 +14,7 @@ export function BottomNavigation({
 }: {
   view: AppView
   onLibrary: () => void
-  onShelf: (shelf: ShelfId) => void
+  onStats: () => void
   onAdd: () => void
   onSettings: () => void
   onReviews: () => void
@@ -32,8 +31,8 @@ export function BottomNavigation({
       >
         <Library aria-hidden="true" /><span>{t("My Books")}</span>
       </button>
-      <button type="button" onClick={() => onShelf('reading')}>
-        <BookOpen aria-hidden="true" /><span>{t("Reading")}</span>
+      <button type="button" onClick={onStats} className={tw(view === 'stats' ? 'is-active' : '')} aria-current={view === 'stats' ? 'page' : undefined}>
+        <ChartNoAxesColumn aria-hidden="true" /><span>{t("Stats")}</span>
       </button>
       <button className={tw('bottom-nav__add')} type="button" onClick={onAdd}>
         <Plus aria-hidden="true" /><span>{t("Add Book")}</span>

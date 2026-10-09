@@ -1,3 +1,4 @@
+import { notifyStorageChanged } from './changes'
 import {
   CapacitorSQLite,
   SQLiteConnection,
@@ -47,6 +48,13 @@ class CapacitorSqlDatabase implements SqlDatabase {
   readonly #connection: SQLiteDBConnection
   readonly #isWeb: boolean
   #transactionTail: Promise<void> = Promise.resolve()
+  #inTransaction = false
+  #dirty = false
+
+  #changed() {
+    if (this.#inTransaction) this.#dirty = true
+    else notifyStorageChanged()
+  }
 
   constructor(sqlite: SQLiteConnection, connection: SQLiteDBConnection, isWeb: boolean) {
     this.#sqlite = sqlite
@@ -56,10 +64,12 @@ class CapacitorSqlDatabase implements SqlDatabase {
 
   async execute(statements: string): Promise<void> {
     await this.#connection.execute(statements, false)
+    this.#changed()
   }
 
   async run(statement: string, values: readonly SqlValue[] = []): Promise<SqlRunResult> {
     const result = await this.#connection.run(statement, [...values], false)
+    if (result.changes?.changes) this.#changed()
     return {
       changes: result.changes?.changes ?? 0,
       lastInsertId: result.changes?.lastId,
@@ -80,6 +90,7 @@ class CapacitorSqlDatabase implements SqlDatabase {
       statements.map(({ statement, values }) => ({ statement, values: [...values] })),
       false,
     )
+    this.#changed()
   }
 
   async transaction<Result>(work: (database: SqlDatabase) => Promise<Result>): Promise<Result> {
@@ -92,10 +103,13 @@ class CapacitorSqlDatabase implements SqlDatabase {
 
     try {
       await this.#connection.beginTransaction()
+      this.#inTransaction = true
+      this.#dirty = false
       try {
         const result = await work(this)
         await this.#connection.commitTransaction()
         await this.persist()
+        if (this.#dirty) notifyStorageChanged()
         return result
       } catch (error) {
         if ((await this.#connection.isTransactionActive()).result) {
@@ -104,6 +118,8 @@ class CapacitorSqlDatabase implements SqlDatabase {
         throw error
       }
     } finally {
+      this.#inTransaction = false
+      this.#dirty = false
       release()
     }
   }
