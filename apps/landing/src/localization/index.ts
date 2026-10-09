@@ -35,9 +35,9 @@ export function localizedPath(language: Language, path: string) {
 }
 export function screenshotPath(
   language: Language,
-  name: 'library' | 'reader' | 'audiobook',
+  name: 'library' | 'reader' | 'audiobook' | 'stats',
 ) {
-  return `/screenshots/${language}/${name}.jpg`;
+  return `/screenshots/${language}/${name}.${name === 'stats' ? 'png' : 'jpg'}`;
 }
 function escapeHtml(value: unknown) {
   return String(value).replace(

@@ -65,3 +65,18 @@ backgrounds; text and layout remain editable in the versioned source generator.
 `bun run campaign` regenerates the SVG and PNG artwork from the original mobile
 captures and copies the PNGs into `public/marketing`. See
 `../../branding/marketing/README.md` for capture provenance and limitations.
+
+## Reading stats capture
+
+The fourth feature shows only the mobile dashboard opening and reading rhythm graph.
+`public/screenshots/{en,es,de,it,fr}/stats.png` are original browser captures at a
+390 CSS-pixel phone width and 2× pixel density, using warm paper and reduced motion.
+They stop just below the chart axis, before chart exploration and book lists; bottom
+navigation sits outside the captured region. Each language retains its own natural
+height, which is declared alongside the story in `HomePage.astro`.
+
+The capture uses the production Stats page with the same supported sample ledger as
+`apps/mobile/visual-tests/reading-stats.spec.ts`, fixed to October 9, 2026: three
+completed books, 9h 50m of tracked activity, and eight active days. The sample history
+is illustrative. Each image was captured after applying the corresponding app language;
+chart labels and text are rendered by the app rather than composed into marketing art.

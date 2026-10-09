@@ -77,6 +77,26 @@ const stories = [
       t('Save a bookmark or a private note as you listen'),
     ],
   },
+  {
+    id: 'stats',
+    number: '04',
+    label: t('YOUR READING RHYTHM'),
+    title: t('See your reading\ntake shape.'),
+    text: t(
+      'Books finished, time spent, and days with a story. Follow your reading and listening rhythm in a quiet dashboard that grows as you read.',
+    ),
+    image: screenshotPath(locale, 'stats'),
+    width: 390,
+    height: { en: 935, es: 935, de: 954, it: 888, fr: 927 }[locale],
+    alt: t(
+      'Wovenleaf mobile reading stats showing books finished, tracked time, active days, and a reading and listening activity graph.',
+    ),
+    details: [
+      t('Month, quarter, year, or your whole reading life'),
+      t('Reading and listening, together in one rhythm'),
+      t('Celebrate what you’ve read, at your own pace'),
+    ],
+  },
 ];
 ---
 
@@ -149,7 +169,7 @@ const stories = [
           <span
             class="art-caption"
             set:html={t(
-              '<span>BOOKS, BEAUTIFULLY TOGETHER</span><span>01 — 03</span>',
+              '<span>BOOKS, BEAUTIFULLY TOGETHER</span><span>01 — 04</span>',
             )}
           />
         </div>
@@ -167,7 +187,10 @@ const stories = [
         {
           stories.map((story) => (
             <section
-              class:list={['story', { reverse: story.id === 'read' }]}
+              class:list={[
+                'story',
+                { reverse: story.id === 'read' || story.id === 'stats' },
+              ]}
               id={story.id}
             >
               <a
