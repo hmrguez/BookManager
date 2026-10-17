@@ -67,11 +67,13 @@ old indexes cannot reintroduce removed material.
 Read-only GitHub inspection found the remote private, with one branch (`main`),
 no releases/assets, no pull requests and no wiki.
 
-No remote force push, repository visibility change, store-console edit, hosted
-redeployment, product retirement or refund was performed. An existing remote may
-still contain old history until the owner publishes the rewritten refs and handles
-remote pull-request refs, forks, caches or release assets separately. Do not make
-a remote public while it still exposes the uncleaned history. Published source
+On 2026-10-17, with the owner's approval, cleaned `main` was force-pushed using
+an explicit lease against the verified original remote tip. The repository remains
+private; local experimental branches were not published. No repository visibility
+change, store-console edit, hosted redeployment, product retirement or refund was
+performed. Rewriting the branch does not guarantee deletion of GitHub's cached or
+unreachable objects; any remote caches or forks need separate handling before
+public release. Published source
 archives must include `third_party/`, notices, and the license/provenance files.
 
 ## Verification
