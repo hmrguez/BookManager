@@ -34,10 +34,10 @@ export function localizedPath(language: Language, path: string) {
   return language === 'en' ? unprefixed : `/${language}${unprefixed}`;
 }
 export function screenshotPath(
-  language: Language,
+  _language: Language,
   name: 'library' | 'reader' | 'audiobook' | 'stats',
 ) {
-  return `/screenshots/${language}/${name}.${name === 'stats' ? 'png' : 'jpg'}`;
+  return `/illustrations/${name}.svg`;
 }
 function escapeHtml(value: unknown) {
   return String(value).replace(

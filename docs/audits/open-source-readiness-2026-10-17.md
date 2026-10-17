@@ -1,5 +1,8 @@
 # Wovenleaf open-source readiness audit
 
+> Historical findings, remediated by the [public-readiness cleanup](public-readiness-remediation-2026-10-17.md).
+> Old commit hashes and paths below describe the pre-cleanup baseline.
+
 Date: 17 October 2026. Baseline: `ac6b5db`, plus the payment-removal changes
 recorded with this audit. This is a repository and distribution-readiness review,
 not a certification of every asset or dependency.

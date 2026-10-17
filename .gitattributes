@@ -1,0 +1,4 @@
+# Preserve upstream source and license text bytes, including original line endings.
+third_party/** -text -whitespace
+apps/mobile/public/licenses/** -text -whitespace
+apps/landing/public/licenses/** -text -whitespace

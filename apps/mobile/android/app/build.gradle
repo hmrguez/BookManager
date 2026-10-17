@@ -52,6 +52,8 @@ dependencies {
     implementation project(':capacitor-android')
     implementation "androidx.fragment:fragment-ktx:$androidxFragmentVersion"
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
+    implementation 'com.journeyapps:zxing-android-embedded:4.3.0'
+    implementation 'com.google.zxing:core:3.5.3'
     implementation 'org.readium.kotlin-toolkit:readium-shared:3.3.0'
     implementation 'org.readium.kotlin-toolkit:readium-streamer:3.3.0'
     implementation 'org.readium.kotlin-toolkit:readium-navigator:3.3.0'

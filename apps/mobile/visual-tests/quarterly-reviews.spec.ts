@@ -1,5 +1,8 @@
 import { expect, test, type Page } from '@playwright/test'
 
+// Keep the historical fixture's admission window stable as real dates advance.
+test.beforeEach(async ({ page }) => { await page.clock.setFixedTime(new Date('2026-09-28T12:00:00.000Z')) })
+
 async function seed(page: Page) {
   await page.goto('/')
   await page.getByRole('button', { name: 'Reviews', exact: true }).waitFor()
@@ -89,7 +92,7 @@ test('empty latest quarter, dismissal, optional identity and corrupt artwork pre
   await expect(page.locator('.review-collection article')).toHaveCount(0)
   await page.getByText('Review options', { exact: true }).click()
   await page.getByRole('button', { name: 'Choose a pathway', exact: true }).click()
-  await page.route('**/reviews/ink-v1/08-horror-artwork.png', route => route.fulfill({ contentType: 'image/png', body: 'corrupt PNG bytes' }))
+  await page.route('**/reviews/vector-v2/08-horror-artwork.svg', route => route.fulfill({ contentType: 'image/png', body: 'corrupt PNG bytes' }))
   await page.getByRole('button', { name: 'The Night Reader Horror', exact: true }).click()
   await expect(page.getByText('Illustration unavailable. Your pathway is saved.')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'The Night Reader', exact: true })).toBeVisible()
@@ -118,7 +121,7 @@ test('automatic badge pacing stops at final badge and details remain paused', as
   await page.getByRole('button', { name: 'The Worldwanderer Fantasy', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Done', exact: true })).toBeVisible()
   await expect(page.getByRole('dialog').locator('.review-artwork img')).toHaveJSProperty('complete', true)
-  await expect(page.getByRole('dialog').locator('.review-artwork img')).toHaveAttribute('src', '/reviews/ink-v1/01-fantasy-artwork.png')
+  await expect(page.getByRole('dialog').locator('.review-artwork img')).toHaveAttribute('src', '/reviews/vector-v2/01-fantasy-artwork.svg')
   await expect(page.getByRole('button', { name: 'Done', exact: true })).toBeVisible()
 })
 
@@ -137,8 +140,8 @@ test('supported suggestion goes straight to a themeable static keepsake', async 
   await expect(page.getByText('Inspired by your reading', { exact: true })).toBeVisible()
   await expect(page.locator('.review-choices')).toHaveCount(0)
   const image = page.getByRole('dialog').locator('.review-artwork img')
-  await expect(image).toHaveAttribute('src', '/reviews/ink-v1/01-fantasy-artwork.png')
-  await expect(image).toHaveJSProperty('naturalWidth', 1024)
+  await expect(image).toHaveAttribute('src', '/reviews/vector-v2/01-fantasy-artwork.svg')
+  await expect(image).toHaveJSProperty('naturalWidth', 320)
   await expect(page.getByRole('button', { name: 'Replay illustration' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Continue', exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Done', exact: true })).toBeVisible()
@@ -186,7 +189,7 @@ test('legacy interrupted pathway resumes in the static collection without changi
     const legacy = structuredClone(reviewArtwork)
     for (const art of Object.values(legacy.pathways)) {
       art.version = 'approved-concept-preview-v1'
-      art.finishedStill = art.finishedStill.replace('/reviews/ink-v1/', '/reviews/concepts/')
+      art.finishedStill = art.finishedStill.replace('/reviews/vector-v2/', '/reviews/concepts/')
       art.animation = '/reviews/fantasy-preview-v1'
     }
     const period = { year: 2026, quarter: 2 }
@@ -199,7 +202,7 @@ test('legacy interrupted pathway resumes in the static collection without changi
   await page.getByRole('button', { name: 'Reviews', exact: true }).click()
   await page.getByRole('button', { name: /April–June 2026.*Continue review/ }).click()
   await expect(page.getByRole('button', { name: 'Done', exact: true })).toBeVisible()
-  await expect(page.getByRole('dialog').locator('.review-artwork img')).toHaveAttribute('src', '/reviews/ink-v1/01-fantasy-artwork.png')
+  await expect(page.getByRole('dialog').locator('.review-artwork img')).toHaveAttribute('src', '/reviews/vector-v2/01-fantasy-artwork.svg')
   const after = await page.evaluate(async () => (await (await import('/src/storage/runtime.ts')).getStorageRuntime()).reviewKeepsakes.get({ year: 2026, quarter: 2 }))
   expect(after?.facts).toEqual(before.facts)
   expect(after?.artwork).toEqual(before.artwork)

@@ -1,4 +1,4 @@
-import { readFileSync, mkdirSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { expect, test } from '@playwright/test'
 
 const languages = ['en', 'es', 'de', 'it', 'fr'] as const
@@ -7,7 +7,7 @@ const languageNames = { en: 'English', es: 'Español', de: 'Deutsch', it: 'Itali
 const locales = { en: 'en-US', es: 'es-ES', de: 'de-DE', it: 'it-IT', fr: 'fr-FR' }
 const titles = ['Mistborn', "Assassin’s Apprentice", 'The Tainted Cup', 'Piranesi']
 const authors = ['Brandon Sanderson', 'Robin Hobb', 'Robert Jackson Bennett', 'Susanna Clarke']
-const covers = [1, 2, 4, 3].map(number => `data:image/jpeg;base64,${readFileSync(new URL(`../../../branding/marketing/covers/book-${number}.jpg`, import.meta.url)).toString('base64')}`)
+const covers = [1, 2, 4, 3].map(number => `data:image/jpeg;base64,${readFileSync(new URL(`../tests/fixtures/original-cover-${number}.jpg`, import.meta.url)).toString('base64')}`)
 const books = titles.map((title, index) => ({ id: `locale-${index}`, title, authors: [authors[index]], thumbnail: covers[index], pageCount: [541, 448, 400, 272][index], currentPage: index === 2 ? 268 : index === 3 ? 272 : 0, progress: index === 2 ? 67 : index === 3 ? 100 : 0, rating: index === 3 ? 5 : 0, notes: '', shelf: ['tbr', 'next', 'reading', 'finished'][index], addedAt: '2026-09-01T10:00:00.000Z', lastUpdatedAt: '2026-09-01T10:00:00.000Z' }))
 
 for (const language of languages) {
@@ -28,9 +28,7 @@ for (const language of languages) {
     await expect(page.locator('html')).toHaveAttribute('lang', locales[language])
     await expect(page.locator('#shelf-tbr .book-row')).toHaveCount(1)
     await page.evaluate(() => document.fonts.ready)
-    const output = new URL(`../../../apps/landing/public/screenshots/${language}/`, import.meta.url)
-    mkdirSync(output, { recursive: true })
-    await page.screenshot({ path: new URL('library.jpg', output).pathname, type: 'jpeg', quality: 90, animations: 'disabled' })
+    await page.screenshot({ path: testInfo.outputPath('library.jpg'), type: 'jpeg', quality: 90, animations: 'disabled' })
     await page.setViewportSize({ width: 320, height: 740 })
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     await page.locator('.bottom-nav button').last().click()
@@ -89,7 +87,7 @@ for (const language of languages) {
     await expect(page.locator('.audiobook-player')).toBeVisible()
     await expect(page.locator('html')).toHaveAttribute('lang', locales[language])
     await page.evaluate(() => document.fonts.ready)
-    await page.screenshot({ path: new URL('audiobook.jpg', output).pathname, type: 'jpeg', quality: 90, animations: 'disabled' })
+    await page.screenshot({ path: testInfo.outputPath('audiobook.jpg'), type: 'jpeg', quality: 90, animations: 'disabled' })
     await page.screenshot({ path: testInfo.outputPath(`player-${language}.png`) })
     expect(errors).toEqual([])
   })

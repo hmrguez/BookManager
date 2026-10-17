@@ -37,6 +37,7 @@ const currentPath = Astro.url.pathname
       aria-current={currentPath === '/terms' ? 'page' : undefined}
       set:html={t('Terms of service')}
     />
+    <a href="/licenses/NOTICES.txt">{t('Open-source licenses')}</a>
   </nav>
 </footer>
 

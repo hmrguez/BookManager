@@ -40,3 +40,44 @@ play-console-instructions.txt
 
 # Generated companion bundled with the mobile app
 /apps/mobile/public/libby/
+
+# Secrets and signing material must never enter public source/history.
+.env
+.env.*
+!.env.example
+!**/.env.example
+*.pem
+*.key
+*.p8
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.mobileprovision
+key.properties
+keystore.properties
+signing.properties
+service-account*.json
+*-service-account.json
+credentials.json
+# Personal agent installations and generated dependency inventories.
+/.agents/
+/skills-lock.json
+/.public-release/
+# Local captures and research may contain private data or third-party media.
+/docs/verification/
+/docs/design/
+/docs/research/
+/docs/spikes/
+google-services.json
+GoogleService-Info.plist
+client_secret*.json
+secrets.properties
+token.json
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+/exports/
+/backups/

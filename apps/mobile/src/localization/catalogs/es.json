@@ -1479,9 +1479,9 @@
   "That {{v0}}-digit ISBN has an invalid checksum. Check the printed number and try again.": "Ese {{v0}} de dígitos ISBN tiene una suma de comprobación no válida. Verifique el número impreso e inténtelo nuevamente.",
   "Enter an ISBN-10 or ISBN-13. Spaces and hyphens are fine.": "Ingrese un ISBN-10 o ISBN-13. Los espacios y guiones están bien.",
   "Clipboard access is unavailable. Type the ISBN below instead.": "El acceso al portapapeles no está disponible. En su lugar, escriba ISBN a continuación.",
-  "Center the ISBN barcode. Use the torch when the page is dark.": "Centre el código de barras ISBN. Utilice la linterna cuando la página esté oscura.",
+  "Center the ISBN barcode. Use the torch when the page is dark.": "Centra el código ISBN. Usa la linterna si está oscuro.",
   "Cancel ISBN scan": "Cancelar escaneo ISBN",
-  "Turn flashlight on": "Enciende la linterna",
+  "Turn flashlight on": "Encender linterna",
   "Turn flashlight off": "Apagar linterna",
   "No ISBN was found in that barcode.": "No se encontró ningún ISBN en ese código de barras.",
   "Camera access is off. Paste or type the ISBN below, or continue with title only.": "El acceso a la cámara está desactivado. Pegue o escriba ISBN a continuación, o continúe solo con el título.",
@@ -2176,5 +2176,9 @@
   "Your stats could not be refreshed. Please try again.": "No se han podido actualizar tus estadísticas. Inténtalo de nuevo.",
   "{{date}}: {{duration}} tracked": "{{date}}: {{duration}} registrados",
   "{{hours}}h {{minutes}}m": "{{hours}}h {{minutes}}min",
-  "{{minutes}}m": "{{minutes}}min"
+  "{{minutes}}m": "{{minutes}}min",
+  "Open-source licenses": "Licencias de código abierto",
+  "Wovenleaf is free and open source. Third-party components retain their own licenses.": "Wovenleaf es gratis y de código abierto. Los componentes de terceros conservan sus licencias.",
+  "Corresponding source for the MPL-licensed share extension": "Código fuente de la extensión para compartir con licencia MPL",
+  "Loading…": "Cargando…"
 }

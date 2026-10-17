@@ -10,6 +10,7 @@ final class WovenleafBridgeViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(WovenleafLocalizationPlugin())
         bridge?.registerPluginInstance(WovenleafFeedbackPlugin())
+        bridge?.registerPluginInstance(WovenleafScannerPlugin())
         bridge?.registerPluginInstance(WovenleafReviewAccessibilityPlugin())
         bridge?.registerPluginInstance(WovenleafSnapshotPlugin())
         bridge?.registerPluginInstance(WovenleafReaderPlugin())

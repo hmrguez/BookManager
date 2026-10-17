@@ -1,6 +1,9 @@
 import { expect, test } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
 
+// Keep the historical fixture's admission window stable as real dates advance.
+test.beforeEach(async ({ page }) => { await page.clock.setFixedTime(new Date('2026-09-28T12:00:00.000Z')) })
+
 test('all eight production pathways fit four themes and recover from missing artwork', async ({ page }, info) => {
   await page.setViewportSize({ width: 320, height: 740 })
   await page.goto('/')
@@ -24,7 +27,7 @@ test('all eight production pathways fit four themes and recover from missing art
       document.documentElement.dataset.typeScale = 'x-large'
     }, mode)
     for (const artwork of await page.locator('.review-choices .review-artwork').all()) {
-      await expect(artwork.locator('img')).toHaveJSProperty('naturalWidth', 1024)
+      await expect(artwork.locator('img')).toHaveJSProperty('naturalWidth', 320)
       await expect(artwork.locator('.review-ink')).toHaveCSS('background-color', await artwork.evaluate(el => getComputedStyle(el).color))
       const box = await artwork.boundingBox()
       expect(box!.x).toBeGreaterThanOrEqual(0)
@@ -33,14 +36,14 @@ test('all eight production pathways fit four themes and recover from missing art
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     await page.screenshot({ path: info.outputPath(`eight-pathways-${mode}.png`), fullPage: true })
   }
-  await page.route('**/reviews/ink-v1/08-horror-artwork.png', route => route.fulfill({ status: 404, body: 'missing' }))
+  await page.route('**/reviews/vector-v2/08-horror-artwork.svg', route => route.fulfill({ status: 404, body: 'missing' }))
   await page.getByRole('button', { name: 'The Night Reader Horror', exact: true }).click()
   await expect(page.getByText('Illustration unavailable. Your pathway is saved.')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'The Night Reader', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Done', exact: true }).click()
-  await page.unroute('**/reviews/ink-v1/08-horror-artwork.png')
+  await page.unroute('**/reviews/vector-v2/08-horror-artwork.svg')
   await page.getByRole('button', { name: /April–June 2026.*View keepsake/ }).click()
-  await expect(page.getByRole('dialog').locator('.review-artwork img')).toHaveJSProperty('naturalWidth', 1024)
+  await expect(page.getByRole('dialog').locator('.review-artwork img')).toHaveJSProperty('naturalWidth', 320)
 })
 
 test('offline backup restore retains corrected keepsake and produces the same private-safe image after restart', async ({ page }, info) => {

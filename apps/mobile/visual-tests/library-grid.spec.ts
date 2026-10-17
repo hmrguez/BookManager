@@ -7,7 +7,7 @@ const titles = [
   'Piranesi', 'The Dispossessed', 'Small Things Like These', 'A Room of One’s Own', 'The Waves',
 ]
 const authors = ['Rick Rubin', 'Brianna Wiest', 'Ottessa Moshfegh', 'Matt Haig', 'Rebecca Solnit', 'Ursula K. Le Guin']
-const covers = [1, 2, 3, 4].map((number) => `data:image/jpeg;base64,${readFileSync(new URL(`../../../branding/marketing/covers/book-${number}.jpg`, import.meta.url)).toString('base64')}`)
+const covers = [1, 2, 3, 4].map((number) => `data:image/jpeg;base64,${readFileSync(new URL(`../tests/fixtures/original-cover-${number}.jpg`, import.meta.url)).toString('base64')}`)
 const books = titles.map((title, index) => ({
   id: `grid-test-${index}`, title, authors: [authors[index % authors.length]],
   thumbnail: index === 6 ? 'data:image/png;base64,broken' : covers[index % covers.length],

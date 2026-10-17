@@ -1,0 +1,1 @@
+https://raw.githubusercontent.com/ionic-team/ion-android-filesystem/1.1.0/LICENSE

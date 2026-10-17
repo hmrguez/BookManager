@@ -14,6 +14,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(WovenleafLocalizationPlugin.class);
         registerPlugin(WovenleafFilesPlugin.class);
         registerPlugin(WovenleafFeedbackPlugin.class);
+        registerPlugin(WovenleafScannerPlugin.class);
         registerPlugin(WovenleafReviewAccessibilityPlugin.class);
         registerPlugin(WovenleafSnapshotPlugin.class);
         registerPlugin(WovenleafReaderPlugin.class);

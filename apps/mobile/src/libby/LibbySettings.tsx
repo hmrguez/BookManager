@@ -2,7 +2,7 @@ import { t, translateCopy, getLocale, useLanguage } from '../localization'
 import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Capacitor } from '@capacitor/core'
-import { ArrowUpRight, Check, ChevronRight, Upload } from 'lucide-react'
+import { ArrowUpRight, BookOpen, Check, ChevronRight, Upload } from 'lucide-react'
 import type { LibraryBook } from '../library-model'
 import { shelfCopy } from '../app/config'
 import { Sheet } from '../app/components/Sheet'
@@ -54,7 +54,7 @@ export function LibbySettings({ controller: c, books, reveal = false, onRevealed
   return <>
     <section className="libby-settings libby-settings--compact settings-service">
       <button ref={trigger} className="libby-entry settings-service__entry" onClick={() => { setOpen(true); void c.refresh() }} aria-haspopup="dialog">
-        <span className="settings-service__mark"><img src="/services/libby.png" alt="" width="40" height="40" /></span><span><strong>{t("Libby")}</strong><small>{status}</small></span><ChevronRight size={18} aria-hidden="true" />
+        <span className="settings-service__mark"><BookOpen size={28} aria-hidden="true" /></span><span><strong>{t("Libby")}</strong><small>{status}</small></span><ChevronRight size={18} aria-hidden="true" />
       </button>
     </section>
     {open && createPortal(<Sheet title={t("Libby")} onClose={close} tall>

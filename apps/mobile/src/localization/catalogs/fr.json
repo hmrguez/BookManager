@@ -1479,10 +1479,10 @@
   "That {{v0}}-digit ISBN has an invalid checksum. Check the printed number and try again.": "ce chiffre {{v0}} ISBN a une somme de contrôle non valide. Vérifiez le numéro imprimé et réessayez.",
   "Enter an ISBN-10 or ISBN-13. Spaces and hyphens are fine.": "saisissez un ISBN-10 ou un ISBN-13. Les espaces et les tirets conviennent.",
   "Clipboard access is unavailable. Type the ISBN below instead.": "L’accès au Presse-papiers n’est pas disponible. Tapez plutôt le ISBN ci-dessous.",
-  "Center the ISBN barcode. Use the torch when the page is dark.": "centrez le code-barres ISBN. Utilisez la torche lorsque la page est sombre.",
-  "Cancel ISBN scan": "Annuler l'analyse ISBN",
-  "Turn flashlight on": "Allumer la lampe de poche",
-  "Turn flashlight off": "Éteignez la lampe de poche",
+  "Center the ISBN barcode. Use the torch when the page is dark.": "Centrez le code ISBN. Utilisez la lampe si nécessaire.",
+  "Cancel ISBN scan": "Annuler la lecture ISBN",
+  "Turn flashlight on": "Allumer la lampe",
+  "Turn flashlight off": "Éteindre la lampe",
   "No ISBN was found in that barcode.": "aucun ISBN n’a été trouvé dans ce code-barres.",
   "Camera access is off. Paste or type the ISBN below, or continue with title only.": "L’accès à la caméra est désactivé. Collez ou saisissez le ISBN ci-dessous, ou continuez avec le titre uniquement.",
   "The camera scanner is unavailable. Paste or type the ISBN below instead.": "Le scanner de la caméra n'est pas disponible. Collez ou tapez plutôt le ISBN ci-dessous.",
@@ -2176,5 +2176,9 @@
   "Your stats could not be refreshed. Please try again.": "Impossible d’actualiser vos statistiques. Réessayez.",
   "{{date}}: {{duration}} tracked": "{{date}} : {{duration}} enregistrés",
   "{{hours}}h {{minutes}}m": "{{hours}}h {{minutes}}min",
-  "{{minutes}}m": "{{minutes}}min"
+  "{{minutes}}m": "{{minutes}}min",
+  "Open-source licenses": "Licences open source",
+  "Wovenleaf is free and open source. Third-party components retain their own licenses.": "Wovenleaf est gratuit et open source. Les composants tiers conservent leurs propres licences.",
+  "Corresponding source for the MPL-licensed share extension": "Code source de l’extension de partage sous licence MPL",
+  "Loading…": "Chargement…"
 }

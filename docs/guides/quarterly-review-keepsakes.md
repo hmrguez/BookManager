@@ -141,4 +141,4 @@ Previously exported backups and shared images remain outside app control; the pr
 that restoring an external backup can bring erased data back. This is application-level deletion,
 not a claim of forensic erasure from device flash or external backups.
 
-Acceptance traceability and verification limits: [QUI-114 verification](../verification/quarterly-review-updates/README.md).
+Acceptance traceability and verification limits: QUI-114 verification (internal evidence omitted from the public source).

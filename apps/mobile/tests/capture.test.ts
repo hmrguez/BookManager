@@ -40,13 +40,13 @@ describe('offline ISBN capture', () => {
 
   test('normalizes native camera results and reports permission denial as a complete fallback', async () => {
     await expect(scanIsbnBarcode({
-      scanBarcode: async () => ({ ScanResult: '0-15-645380-0', format: 9 }),
+      scan: async () => ({ content: '0-15-645380-0' }),
     })).resolves.toMatchObject({
       state: 'scanned',
       isbn: { canonical: '9780156453806' },
     })
     await expect(scanIsbnBarcode({
-      scanBarcode: async () => { throw new Error('Camera permission denied') },
+      scan: async () => { throw new Error('Camera permission denied') },
     })).resolves.toEqual({
       state: 'denied',
       message: 'Camera access is off. Paste or type the ISBN below, or continue with title only.',

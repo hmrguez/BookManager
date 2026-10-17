@@ -3,6 +3,7 @@ import { t, translateCopy, getLocale, useLanguage } from '../localization'
 import { LanguagePicker } from './LanguagePicker'
 import { PrivateErasure } from './PrivateErasure'
 import './settings.css'
+import { LicenseNotices } from './LicenseNotices'
 import { useWideLayout } from '../responsive/useWideLayout'
 import { OriginalFileInput } from '../files/OriginalFileInput'
 import { useState, type ReactNode, type DragEvent } from 'react'
@@ -398,7 +399,7 @@ export function SettingsPage({
 
         <details {...categoryProps('books')} className="settings-service goodreads-migration" open={importBusy || !!importError || undefined}>
           <summary className="settings-service__entry">
-            <span className="settings-service__mark settings-service__mark--goodreads"><img src="/services/goodreads.svg" alt="" width="24" height="24" /></span>
+            <span className="settings-service__mark settings-service__mark--goodreads"><Library size={24} aria-hidden="true" /></span>
             <span><strong>{t("Goodreads")}</strong><small>{t("Import your books, shelves, and ratings")}</small></span>
             <ChevronRight aria-hidden="true" />
           </summary>
@@ -852,6 +853,7 @@ export function SettingsPage({
             )}
           </div>
         </details>
+      <LicenseNotices />
       </div>
       </div>
     </main>

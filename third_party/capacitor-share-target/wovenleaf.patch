@@ -1,0 +1,65 @@
+diff --git a/android/src/main/java/app/capgo/sharetarget/CapacitorShareTargetPlugin.java b/android/src/main/java/app/capgo/sharetarget/CapacitorShareTargetPlugin.java
+index af78b5416d37dcf9f0b222db4f27eeb41222d095..e4e15bd4a12f5a27795009af4f8ea8d1874ad078 100644
+--- a/android/src/main/java/app/capgo/sharetarget/CapacitorShareTargetPlugin.java
++++ b/android/src/main/java/app/capgo/sharetarget/CapacitorShareTargetPlugin.java
+@@ -24,6 +24,12 @@ public class CapacitorShareTargetPlugin extends Plugin {
+     private static final String TAG = "CapacitorShareTarget";
+     private static final String pluginVersion = "7.0.0";
+ 
++    @Override
++    public void load() {
++        // Retain cold-start shares until the JavaScript intake listener is ready.
++        handleIntent(getActivity().getIntent());
++    }
++
+     @Override
+     protected void handleOnNewIntent(Intent intent) {
+         super.handleOnNewIntent(intent);
+@@ -92,9 +98,9 @@ public class CapacitorShareTargetPlugin extends Plugin {
+ 
+                 // Notify listeners and retain until JavaScript registers to handle cold starts
+                 notifyListeners("shareReceived", shareData, true);
+-                Log.d(TAG, "Share received: " + shareData.toString());
++                // Shared titles, progress and file paths are private; never log the payload.
+             } catch (Exception e) {
+-                Log.e(TAG, "Error handling shared content", e);
++                Log.e(TAG, "Error handling shared content");
+             }
+         }
+     }
+@@ -130,7 +136,7 @@ public class CapacitorShareTargetPlugin extends Plugin {
+ 
+             return fileData;
+         } catch (Exception e) {
+-            Log.e(TAG, "Error getting file data for URI: " + uri, e);
++            Log.e(TAG, "Error getting shared file data");
+             return null;
+         }
+     }
+@@ -148,7 +154,7 @@ public class CapacitorShareTargetPlugin extends Plugin {
+                     }
+                 }
+             } catch (Exception e) {
+-                Log.e(TAG, "Error getting file name from cursor", e);
++                Log.e(TAG, "Error getting file name from cursor");
+             }
+         } else if ("file".equals(scheme)) {
+             fileName = new File(uri.getPath()).getName();
+@@ -182,7 +188,7 @@ public class CapacitorShareTargetPlugin extends Plugin {
+                 fileName = "shared_file_" + System.currentTimeMillis();
+             }
+ 
+-            File outputFile = new File(cacheDir, fileName);
++            File outputFile = new File(cacheDir, java.util.UUID.randomUUID() + "-" + new File(fileName).getName());
+ 
+             try (
+                 InputStream inputStream = getActivity().getContentResolver().openInputStream(uri);
+@@ -201,7 +207,7 @@ public class CapacitorShareTargetPlugin extends Plugin {
+ 
+             return outputFile.getAbsolutePath();
+         } catch (Exception e) {
+-            Log.e(TAG, "Error copying file to cache", e);
++            Log.e(TAG, "Error copying file to cache");
+             return null;
+         }
+     }

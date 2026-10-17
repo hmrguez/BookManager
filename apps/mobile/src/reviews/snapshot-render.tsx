@@ -1,3 +1,4 @@
+import { reviewArtwork } from './presentation'
 import { translateAt } from '../localization'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { AchievementSeal } from './AchievementSeal'
@@ -56,7 +57,8 @@ export async function renderSnapshot(content: SnapshotContent): Promise<string> 
   let art: HTMLImageElement | null = null
   if (content.artwork) {
     // Saved references are private input, never permission to fetch arbitrary remote/file URLs.
-    if (!/^\/reviews\/[a-zA-Z0-9/_-]+\.png$/.test(content.artwork)) throw new SnapshotRenderError('artwork')
+    const bundledVector = Object.values(reviewArtwork.pathways).some(art => art.finishedStill === content.artwork)
+    if (!bundledVector && !/^\/reviews\/[a-zA-Z0-9/_-]+\.png$/.test(content.artwork)) throw new SnapshotRenderError('artwork')
     try { art = await loadImage(content.artwork) } catch { throw new SnapshotRenderError('artwork') }
   }
   const seals = await Promise.all(badges.map(async b => {
@@ -82,7 +84,7 @@ export async function renderSnapshot(content: SnapshotContent): Promise<string> 
     const mask = document.createElement('canvas'); mask.width = art.width; mask.height = art.height
     const m = mask.getContext('2d'); if (!m) throw new SnapshotRenderError('render')
     m.drawImage(art, 0, 0)
-    if (content.artwork?.startsWith('/reviews/ink-v1/')) {
+    if (content.artwork?.startsWith('/reviews/vector-v2/')) {
       m.globalCompositeOperation = 'source-in'; m.fillStyle = ink; m.fillRect(0, 0, mask.width, mask.height)
     }
     ctx.drawImage(mask, (1080 - w) / 2, artTop + (artHeight - h) / 2, w, h)

@@ -1,54 +1,23 @@
-# Privacy and terms implementation review
+# Privacy implementation review
 
-Reviewed 8 September 2026 for the landing page legal documents. This is a source
-and dependency review, not a packet capture or a legal compliance certification.
+Updated 17 October 2026 after the open-source cleanup.
 
-## Current data flows
+- Library data, imported content, notes and reading history stay in local storage.
+- Camera scanning uses ZXing on Android/web and AVFoundation on iOS. The old
+  Google ML Kit/OutSystems package and its diagnostic collection were removed.
+  No camera frames are saved, uploaded or added to diagnostics.
+- Open Library receives ISBNs/search queries requested by the reader; its cover
+  service receives image requests. Hosting/provider retention remains governed by
+  those services. The source license does not license remote cover artwork.
+- Libby uses the reader's own library account in its own app/site. The optional
+  companion's schema, origin checks and local pairing boundaries remain enforced.
+- The website is static and includes no visitor analytics scripts. Hosting and
+  security logs are controlled by the chosen host; do not claim that no network
+  request or host logging exists.
+- Public marketing contains fictional books and original illustrations, not
+  private reading histories or screenshots of third-party book pages.
 
-| Area | Evidence | Disclosure |
-| --- | --- | --- |
-| Local library and preferences | `apps/mobile/src/storage/`, `search/`, `reader/`, `playback/` | SQLite, local files, preferences, search caches, annotations, and recovery history stay on the device. |
-| Online catalog | `apps/mobile/src/metadata/runtime.ts`, `open-library.ts`, `transport.ts` | The active provider is Open Library. Requests include queries/ISBNs and locale; the service receives ordinary connection information. Older architecture notes about Google Books do not describe the active runtime. |
-| Goodreads imports | `apps/mobile/src/imports/`, `App.tsx` | CSV parsing, review, and commit are local. Missing-cover enrichment runs automatically after hydration/import and on foregrounding, sending ISBNs or title/author queries to Open Library. |
-| Remote covers | `apps/mobile/src/metadata/open-library.ts`, cover rendering | Viewing remote images contacts the cover host. Metadata may provide cover URLs rather than an embedded local image. |
-| EPUB and audiobook files | `apps/mobile/src/epub/`, `audiobooks/`, native reader/playback plugins | Imported files are managed locally. EPUB external links open after confirmation. Readium uses HTTP-capable clients; no blanket block of all remote publication resources was established by this review. The policy must not guarantee that arbitrary EPUB content cannot make network requests. |
-| Android ISBN scanner | `apps/mobile/src/capture/scanner.ts`, installed `@capacitor/barcode-scanner/android/build.gradle` | The selected backend is ML Kit, with bundled `com.google.mlkit:barcode-scanning:17.3.0`. Google documents diagnostics and usage collection even though recognition is local. |
-| Permissions and device surfaces | `apps/mobile/src/capture/`, `playback/AudiobookPlayer.tsx`, `SettingsPage.tsx`, native manifests | Camera scanning, deliberate clipboard reads, chosen/shared files, microphone voice notes, background audio, and optional lock-screen book details. |
-| Exports and recovery | `apps/mobile/src/storage/portable-archive.ts`, `recovery.ts`, `recovery-store.ts` | Local portable JSON/CSV/Markdown exports; optional EPUB inclusion. These are not encrypted. Not all media files are included. Recovery/history may preserve older records. |
-| Platform backup | Android backup XML and manifest; iOS `AppDelegate.swift` | App-controlled private data is configured for exclusion from automatic backup. User-created exports and selected cloud document providers remain separate. |
-| Website | `apps/landing/src/`, `package.json`, `astro.config.mjs`, `vercel.json` | Static Astro pages with locally served fonts/images, no app-added analytics scripts or tracking cookies; Vercel still processes website requests. |
-| Support | Legal contact email | User-initiated correspondence can disclose personal information independently of the local app. |
-
-## Claims corrected or avoided
-
-- Replaced the landing page's blanket “No analytics layer” claim because of the
-  Android scanner SDK. No change to mobile behavior or SDK configuration is part
-  of this task; the current exception is disclosed in the privacy policy.
-- Did not claim that only explicit searches contact Open Library: automatic
-  Goodreads enrichment and remote image loading are also disclosed.
-- Did not describe local databases or exported backups as encrypted.
-- Did not promise that deleting an individual book purges history or local
-  recovery copies; complete device-data removal and separately saved exports
-  are explained.
-- Terms assign responsibility for rights in imported content to users, without
-  requiring proof of purchase or claiming that a disclaimer eliminates the
-  operator's statutory liability. Mandatory consumer rights are preserved.
-- Keeping the app strictly offline except for book metadata would require a
-  separate change to remove scanner telemetry and verify native EPUB networking.
-
-## Authoritative references
-
-- [Google ML Kit Android data disclosure](https://developers.google.com/ml-kit/android-data-disclosure)
-- [Google privacy policy](https://policies.google.com/privacy)
-- [Internet Archive terms and privacy](https://archive.org/about/terms)
-- [Vercel privacy notice](https://vercel.com/legal/privacy-notice)
-- [EDPB guide to individual rights and transparency](https://www.edpb.europa.eu/sme/be-compliant/respect-individuals-rights_en)
-- [EU guidance on unfair contract terms](https://europa.eu/youreurope/citizens/consumers/unfair-treatment/unfair-contract-terms/index_en.htm)
-
-## Maintaining the pages
-
-The public routes are `/privacy/` and `/terms/`. They share `LegalLayout.astro`,
-`SiteFooter.astro`, and the public operator details/effective date in
-`apps/landing/src/legal.ts`. Update the privacy policy before changing data
-flows, integrations, tracking, exports, or hosting practices. Review provider
-disclosures again when upgrading the native scanner SDK.
+Re-check privacy disclosures after changing runtime dependencies, provider flows,
+permission use, hosting, or diagnostic behavior. Website policy text is in
+`apps/landing/src/components/PrivacyPage.astro`; public operator details are in
+`apps/landing/src/legal.ts`. Update those details for independently operated forks.

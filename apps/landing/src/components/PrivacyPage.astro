@@ -21,7 +21,7 @@ const sections = [
   { id: 'open-library', title: t('Open Library and covers') },
   { id: 'goodreads', title: t('Goodreads CSV imports') },
   { id: 'permissions', title: t('Device features and permissions') },
-  { id: 'scanner', title: t('Android scanner diagnostics') },
+  { id: 'scanner', title: t('ISBN scanning') },
   { id: 'exports', title: t('Exports and external services') },
   { id: 'website', title: t('This website and contact') },
   { id: 'retention', title: t('Storage, retention, and deletion') },
@@ -35,7 +35,7 @@ const sections = [
   locale={locale}
   title={t('Privacy policy')}
   description={t(
-    'How Wovenleaf handles your local library, Goodreads imports, Open Library searches, device permissions, scanner diagnostics, and website visits.',
+    'How Wovenleaf handles your local library, Goodreads imports, Open Library searches, device permissions, ISBN scanning, and website visits.',
   )}
   summary={t(
     'Your library lives on your device. Here is what stays there, when an online service is involved, and the choices you have.',
@@ -52,7 +52,7 @@ const sections = [
     />
     <p
       set:html={t(
-        'This policy covers the mobile app and its landing website. The app has no Wovenleaf account, cloud library, advertising, or social profile. We do not receive a copy of your library or sell your personal information. Online book services, Android scanner diagnostics, and website hosting are explained separately below.',
+        'This policy covers the mobile app and its landing website. The app has no Wovenleaf account, cloud library, advertising, or social profile. We do not receive a copy of your library or sell your personal information. Online book services, ISBN scanning, and website hosting are explained separately below.',
       )}
     />
   </section>
@@ -131,7 +131,7 @@ const sections = [
     <ul>
       <li
         set:html={t(
-          '<strong>Camera:</strong> used when you choose to scan an ISBN. Barcode recognition runs on the device; a resulting ISBN may be used for an online book lookup. Android scanner diagnostics are described below.',
+          '<strong>Camera:</strong> used when you choose to scan an ISBN. Barcode recognition runs on the device; a resulting ISBN may be used for an online book lookup. ISBN scanning is described below.',
         )}
       />
       <li
@@ -163,15 +163,15 @@ const sections = [
   </section>
 
   <section id="scanner">
-    <h2 set:html={t('6. Android scanner diagnostics')} />
+    <h2 set:html={t('6. ISBN scanning')} />
     <p
       set:html={t(
-        'The Android ISBN scanner uses Google ML Kit. Although image recognition happens on the device, Google’s SDK collects diagnostic and usage data, including device model and operating system, app version, installation identifiers, performance, configuration, and feature or error events. Google receives this data over HTTPS for diagnostics and usage analytics.',
+        'ISBN recognition runs on your device using ZXing on Android and the web, and the platform camera APIs on iOS. Camera frames are not stored, uploaded, or sent to an analytics service.',
       )}
     />
     <p
       set:html={t(
-        'This is a third-party exception to local processing, not a Wovenleaf reading-activity analytics service. See <a href="https://developers.google.com/ml-kit/android-data-disclosure" >Google’s ML Kit data disclosure</a> and <a href="https://policies.google.com/privacy" >Google’s privacy policy</a>. You can type or paste an ISBN instead of using the camera scanner.',
+        'After a successful scan, the ISBN may be sent to Open Library when you request an online lookup. You can always type or paste an ISBN instead. Browser scanning requires a secure context and camera permission.',
       )}
     />
   </section>
@@ -242,7 +242,7 @@ const sections = [
     <h2 set:html={t('10. Legal bases and international data')} />
     <p
       set:html={t(
-        'Where European data protection law applies, processing necessary to provide the app features you request is based on performing our agreement with you. We rely on legitimate interests to deliver and secure this website, respond to general inquiries, and maintain the reliability of optional scanner functionality. Where a legal obligation applies, that obligation is the basis for the relevant processing. If processing requires consent, we must obtain it separately; this policy is not a request for blanket consent.',
+        'Where European data protection law applies, processing necessary to provide the app features you request is based on performing our agreement with you. We rely on legitimate interests to deliver and secure this website, respond to general inquiries, and maintain this website. Where a legal obligation applies, that obligation is the basis for the relevant processing. If processing requires consent, we must obtain it separately; this policy is not a request for blanket consent.',
       )}
     />
     <p

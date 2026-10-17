@@ -8,7 +8,7 @@ export function PathwayArtwork({ artwork }: { artwork: ReviewArtwork }) {
   useLanguage()
   const source = pathwayArtworkSource(artwork)
   const [failedSource, setFailedSource] = useState('')
-  const ink = source.startsWith('/reviews/ink-v1/')
+  const ink = source.startsWith('/reviews/vector-v2/')
   return <div className="review-artwork">
     {failedSource === source ? <p>{t("Illustration unavailable. Your pathway is saved.")}</p> : <span className={ink ? 'review-ink' : undefined}
       style={ink ? { maskImage: `url("${source}")`, WebkitMaskImage: `url("${source}")` } : undefined}>

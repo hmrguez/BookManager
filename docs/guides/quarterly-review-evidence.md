@@ -1,7 +1,7 @@
 # Quarterly review evidence engine
 
 Implemented for [Calculate evidence-backed quarterly achievements and genre suggestions](https://linear.app/hrcoding/issue/QUI-110/calculate-evidence-backed-quarterly-achievements-and-genre-suggestions).
-The approved [badge catalogue](../design/quarterly-review-badges.md) and the linked Linear resolutions remain the product contract.
+The approved badge catalogue (internal evidence omitted from the public source) and the linked Linear resolutions remain the product contract.
 
 `apps/mobile/src/reviews/repository.ts` exposes `QuarterlyReviewRepository.calculate`.
 It reads a consistent SQLite transaction and returns a detached, serializable calculation.

@@ -1,0 +1,503 @@
+{
+  "scope": "Tracked first-party media only; fonts/dependency notices are in third_party/. No rights are granted for user-imported or remotely fetched content.",
+  "assets": {
+    "apps/landing/public/illustrations/audiobook.svg": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Original geometry, fictional books and original text; scripts/generate-public-art.mjs. No reference image inputs.",
+      "sha256": "3aafdd2fd70991991131bd235eb2b0fb3e76b60198569d0d0fe95bb64e9d2f21"
+    },
+    "apps/landing/public/illustrations/library.svg": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Original geometry, fictional books and original text; scripts/generate-public-art.mjs. No reference image inputs.",
+      "sha256": "2a9ef353ea858e920a198c6588864ab5e91aca38d03e48122f94be9d6b0d68c8"
+    },
+    "apps/landing/public/illustrations/reader.svg": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Original geometry, fictional books and original text; scripts/generate-public-art.mjs. No reference image inputs.",
+      "sha256": "cb875a4b275a7cf4f1bb76a85aafb9784833e347ba2dc3e9ec51d0f09ad00fbd"
+    },
+    "apps/landing/public/illustrations/stats.svg": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Original geometry, fictional books and original text; scripts/generate-public-art.mjs. No reference image inputs.",
+      "sha256": "17eb24237d3b53e160da01de72cbce47dec68a1bb4c19815009b7ba21e6a3c13"
+    },
+    "apps/landing/public/mark.svg": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "a05fa8c1e28f41f85c32aeb26482a00f17de2cf21ab34ca9e7e48f977c3a1a6c"
+    },
+    "apps/mobile/android/app/src/main/res/drawable-hdpi/splash_icon.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "95f7d4fc8872015e80bd2742f7a4152d80403db856b45cc664f8406a8c28903d"
+    },
+    "apps/mobile/android/app/src/main/res/drawable-land-hdpi/splash.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "d678e50d2a96f655dd698d8b77e2695b8051ef1b1472c21495712fadc227bedf"
+    },
+    "apps/mobile/android/app/src/main/res/drawable-land-mdpi/splash.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "a258eb8f624e1859b4ec33cdd2e145a9eb2629ef2ca656bc07116ccc600aa91e"
+    },
+    "apps/mobile/android/app/src/main/res/drawable-land-xhdpi/splash.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "79652dddc383d97d6ff3934eaca77d11dc758d37b8d6f866988c8c25ddb3ea75"
+    },
+    "apps/mobile/android/app/src/main/res/drawable-land-xxhdpi/splash.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "7b2f3e06e13fbbcb9fa8298035e63fbe149f848dc11e128ef8673e9dbf137156"
+    },
+    "apps/mobile/android/app/src/main/res/drawable-land-xxxhdpi/splash.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "30e991ca8539e65acf709a8ff507cd943c913dd072d79a4dcb2a0218d290bb0e"
+    },
+    "apps/mobile/android/app/src/main/res/drawable-mdpi/splash_icon.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "4894fbe1623cf659844d7187ff3ce6e1ee653f92a8cf2057947003b88a549028"
+    },
+    "apps/mobile/android/app/src/main/res/drawable-port-hdpi/splash.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "6aa535dcc8520169b31fc88e22a2b95e0234a8ec4071213ea02912334e7f4f4c"
+    },
+    "apps/mobile/android/app/src/main/res/drawable-port-mdpi/splash.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "add915245ced18fc5dabc973d25e75d41a97c7d9e645be0abbf830d2863b509e"
+    },
+    "apps/mobile/android/app/src/main/res/drawable-port-xhdpi/splash.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "066fe646ca86e8203f238fd5395aa69e813628861e5c1b1ca78f95e6758170b3"
+    },
+    "apps/mobile/android/app/src/main/res/drawable-port-xxhdpi/splash.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "bf4ffd4589b19cc7da38ced8ef7701e7617405fd65dc0265b28bd28958fa67b6"
+    },
+    "apps/mobile/android/app/src/main/res/drawable-port-xxxhdpi/splash.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "151b6a46b9ff995f1acb33c65d7fc43807996bf198e510fe9a478cfb61f6d83a"
+    },
+    "apps/mobile/android/app/src/main/res/drawable-xhdpi/splash_icon.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "dd3e989d602ee0a4a8bf24d969b26eb38dda5e099d01024ebd5536f45ec8480b"
+    },
+    "apps/mobile/android/app/src/main/res/drawable-xxhdpi/splash_icon.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "e240316ddb60dc4b7ec9b6e418d931373472a9e94412c755a80ad514e9e49116"
+    },
+    "apps/mobile/android/app/src/main/res/drawable-xxxhdpi/splash_icon.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "50d0afc37061b123aa129ede15fdc193575b1073766eb12e0c61e99abf83f6fd"
+    },
+    "apps/mobile/android/app/src/main/res/drawable/splash.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "a258eb8f624e1859b4ec33cdd2e145a9eb2629ef2ca656bc07116ccc600aa91e"
+    },
+    "apps/mobile/android/app/src/main/res/mipmap-hdpi/ic_launcher.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "9f5e9a8b372e0e3a7f26f2a86dda7731f1636c3fe9da7a91226642923a2f41b4"
+    },
+    "apps/mobile/android/app/src/main/res/mipmap-hdpi/ic_launcher_foreground.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "a68a6ad642faaf6231af14b1ca08ad16fe800fc9234e915784d870a468f98bca"
+    },
+    "apps/mobile/android/app/src/main/res/mipmap-hdpi/ic_launcher_monochrome.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "c4c3a3116dc4fe1aca68dab5b185e06c3277eb4d25cc09a96989c9d4d6eb84dc"
+    },
+    "apps/mobile/android/app/src/main/res/mipmap-hdpi/ic_launcher_round.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "5a9abe4284c160d82f47ad1249b1d66f397ff7776b1fbe56dac85259382099eb"
+    },
+    "apps/mobile/android/app/src/main/res/mipmap-mdpi/ic_launcher.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "48df0b73d6330eb46c7ad5e4b14c618f23405458f906139080b488f00ec6d7ec"
+    },
+    "apps/mobile/android/app/src/main/res/mipmap-mdpi/ic_launcher_foreground.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "07a014feb293a94d2f25922259fbe25a0088e9912d4c0f277f047f3e87a194a4"
+    },
+    "apps/mobile/android/app/src/main/res/mipmap-mdpi/ic_launcher_monochrome.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "3836328ee186a9945cb7a42b495656a59bef1c9264578a288b1054c3deae80d2"
+    },
+    "apps/mobile/android/app/src/main/res/mipmap-mdpi/ic_launcher_round.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "d979af671de524ee152b21e0f76a3b0540fa12dd6c3054d71c94934080ccb5ea"
+    },
+    "apps/mobile/android/app/src/main/res/mipmap-xhdpi/ic_launcher.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "f3e944955b4e2aa9deb29ecdbbff4cee5b26c7967c43a3d2818e19084e11ea41"
+    },
+    "apps/mobile/android/app/src/main/res/mipmap-xhdpi/ic_launcher_foreground.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "02e2ea482b3ac5cd19aac81ace3580c27006ad0c34b6b97e8c78b8aec85106cb"
+    },
+    "apps/mobile/android/app/src/main/res/mipmap-xhdpi/ic_launcher_monochrome.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "c9a7c3adf03058ee67eec3f1e212d865d34e2f5c2d4299ade7657c0c692a9bae"
+    },
+    "apps/mobile/android/app/src/main/res/mipmap-xhdpi/ic_launcher_round.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "d648f58c238c93456f580051eb78c865d02a33c19e24eecf32b330b5f1ff0733"
+    },
+    "apps/mobile/android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "e6dfb607bae004b8255a807cfebf32fd58e0145813273f149f6fad49dea0a09a"
+    },
+    "apps/mobile/android/app/src/main/res/mipmap-xxhdpi/ic_launcher_foreground.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "e5fe858424973cfc8afab029924420ee22b0122e608d71770eb5094255be026e"
+    },
+    "apps/mobile/android/app/src/main/res/mipmap-xxhdpi/ic_launcher_monochrome.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "488ad533143d1e886b1b71c8963323213b751a1b9085a4b11fad4fd47a824411"
+    },
+    "apps/mobile/android/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "968d1b5f305384ffef46fcefdc0039c99dcb0eabf7aae47459a6051470c250f0"
+    },
+    "apps/mobile/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "168cdb253869410ec98c1c6100197cfd64be3d40e7aaeed43db8b88b42b11d30"
+    },
+    "apps/mobile/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "6d8c9bcbdff6152fc59c8cf88c6bda1cc795c7d63dda21c31c211fbd4d9aac3f"
+    },
+    "apps/mobile/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_monochrome.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "68f83f574e32e8ca00ea6017ae16b1c7a0a40a1fe1425e959fc3c8b28b3a7e9b"
+    },
+    "apps/mobile/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "83f3ca7582b67acb88dc7eb687beecddca93fbc5bc589ebb5f97684f3e45f5bc"
+    },
+    "apps/mobile/ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x-dark.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "e3b7645d3f5e5d1948e409bbada9d7d9e239ab0cdc02c73652f3145e8b34ed45"
+    },
+    "apps/mobile/ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x-tinted.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "d1038fb367e38d5415cf4218296ee7d1fc6b682fea15cadf60331d756eeba928"
+    },
+    "apps/mobile/ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "0b3384cd47bd8d5631ef95c7856f0c797eeaf6c726100802ec1ca7a2d4be9537"
+    },
+    "apps/mobile/ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732-1.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "f02264cb345d00c7c8e57e554c848b2d6626997879262d642b185ce28d3675f4"
+    },
+    "apps/mobile/ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732-2.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "f02264cb345d00c7c8e57e554c848b2d6626997879262d642b185ce28d3675f4"
+    },
+    "apps/mobile/ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "f02264cb345d00c7c8e57e554c848b2d6626997879262d642b185ce28d3675f4"
+    },
+    "apps/mobile/public/apple-touch-icon.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "106ee44481d9d0b8edf20fad4bfa0dadb6cf363aab547d727f07ca302631f778"
+    },
+    "apps/mobile/public/favicon-16.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "6fb11d8981a9747e5aa4bdac2683b3d91639dee1670141ccd3227ad2698329f6"
+    },
+    "apps/mobile/public/favicon-32.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "09d80ee715ab82e9e0f540b0bc11e4458f2246a9a5022874b2ab0e592437b5b7"
+    },
+    "apps/mobile/public/favicon-48.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "ef9bd3c063239f026f8ae3dd0b79bce26971012f60fa07f2abf447ed7a502029"
+    },
+    "apps/mobile/public/favicon.ico": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "6624f71dcb515e2c68dbb5204be33a1bb67f8d0a9047c0f7909f0cf2fb7f61f9"
+    },
+    "apps/mobile/public/favicon.svg": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "a05fa8c1e28f41f85c32aeb26482a00f17de2cf21ab34ca9e7e48f977c3a1a6c"
+    },
+    "apps/mobile/public/feedback/graphite-tick.wav": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Original synthesized sound; apps/mobile/scripts/generate-feedback-sounds.ts.",
+      "sha256": "7eccda77c764a15f32efef893f749c067201ab87e3c5b1c07af5a04d09c4d519"
+    },
+    "apps/mobile/public/feedback/page-settle.wav": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Original synthesized sound; apps/mobile/scripts/generate-feedback-sounds.ts.",
+      "sha256": "85729d45ef1e9e77ccad61112d719a4372d31c29cf9d54a45099f85ce687fe2b"
+    },
+    "apps/mobile/public/feedback/paper-edge.wav": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Original synthesized sound; apps/mobile/scripts/generate-feedback-sounds.ts.",
+      "sha256": "1323c69a3b428557a962092b43a72a2e12b85f728925b08f69a6347123f4dd39"
+    },
+    "apps/mobile/public/feedback/paper-slide.wav": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Original synthesized sound; apps/mobile/scripts/generate-feedback-sounds.ts.",
+      "sha256": "4c3610d67c3b0ef3900463721b428e3f9b54ed25e5d69886b1f2acea88a48451"
+    },
+    "apps/mobile/public/feedback/shelf-transfer.wav": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Original synthesized sound; apps/mobile/scripts/generate-feedback-sounds.ts.",
+      "sha256": "f4c58e83004306957484ff658be4ec63936cc579e46dff0db1ab802a5200b491"
+    },
+    "apps/mobile/public/feedback/soft-error.wav": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Original synthesized sound; apps/mobile/scripts/generate-feedback-sounds.ts.",
+      "sha256": "8378f56e316289f5d8464525e8d3a746c08b3deeaaaf5f6e9d62d6bf3befc6ff"
+    },
+    "apps/mobile/public/pwa-icon-192.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "9d4a35ff19489031df6d9c4bc5ad84895c098a5d228c140a1154970bac62c72b"
+    },
+    "apps/mobile/public/pwa-icon-512.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "357ddc0afbc41cde875c5c1983efd915a269a0eebcebab2911224eabcb545da7"
+    },
+    "apps/mobile/public/pwa-maskable-192.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "6b308c1e2b30a639f910cbf42e377b8bbd97ebc795fe6df8b8b020e84e0bf488"
+    },
+    "apps/mobile/public/pwa-maskable-512.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "402d834fd07142d2a787e73f1a20a47c72be367245106b0f5611c8e981f09cbe"
+    },
+    "apps/mobile/public/reviews/vector-v2/01-fantasy-artwork.svg": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Original geometry, fictional books and original text; scripts/generate-public-art.mjs. No reference image inputs.",
+      "sha256": "4f8bec11b5f6f9c0d56cbd623c2fda736ae7fed2ba0dd0cc704a9d4a53967467"
+    },
+    "apps/mobile/public/reviews/vector-v2/02-mystery-artwork.svg": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Original geometry, fictional books and original text; scripts/generate-public-art.mjs. No reference image inputs.",
+      "sha256": "089f3cb69b56aaea54f1a0404b18b668665ecd7a2e027288fd534fce0e0d902e"
+    },
+    "apps/mobile/public/reviews/vector-v2/03-romance-artwork.svg": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Original geometry, fictional books and original text; scripts/generate-public-art.mjs. No reference image inputs.",
+      "sha256": "a0e91bc9f6ef9a4a395db1bc652537e7165baef84f0dc4940ebf5425d36101fb"
+    },
+    "apps/mobile/public/reviews/vector-v2/04-science-fiction-artwork.svg": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Original geometry, fictional books and original text; scripts/generate-public-art.mjs. No reference image inputs.",
+      "sha256": "0bc928cbfec6f6343c466b2a496eb5b92d60aceba1abd5c4e5a404613d2830c3"
+    },
+    "apps/mobile/public/reviews/vector-v2/05-history-artwork.svg": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Original geometry, fictional books and original text; scripts/generate-public-art.mjs. No reference image inputs.",
+      "sha256": "8229283c5dc48ba4606a1c1b48b37a171452e0fd56b5068662308eb5328edc86"
+    },
+    "apps/mobile/public/reviews/vector-v2/06-literary-fiction-artwork.svg": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Original geometry, fictional books and original text; scripts/generate-public-art.mjs. No reference image inputs.",
+      "sha256": "e56b81a578be213a6c433360462392d45f4f60cf5d7214b63e1cef9be48e70ca"
+    },
+    "apps/mobile/public/reviews/vector-v2/07-nonfiction-artwork.svg": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Original geometry, fictional books and original text; scripts/generate-public-art.mjs. No reference image inputs.",
+      "sha256": "9710c1fdb7d5cb313cde1e896ee450334e55ae94c083dbead09e1ea0bf5c240b"
+    },
+    "apps/mobile/public/reviews/vector-v2/08-horror-artwork.svg": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Original geometry, fictional books and original text; scripts/generate-public-art.mjs. No reference image inputs.",
+      "sha256": "a1129fb157ddf0c04ba193d3c7c3058bed880c147b1e5f9d1e93fa33a94e21fe"
+    },
+    "apps/mobile/src/marketing/pride-and-prejudice.svg": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Original project-authored geometric cover. Book title/author metadata refer to the public-domain 1813 work; no third-party illustration or book text.",
+      "sha256": "093444ba254697547bde13a2c75840a9949f20474990e55a010a26166d851ec0"
+    },
+    "apps/mobile/tests/fixtures/original-cover-1.jpg": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Original fictional cover geometry and text; scripts/generate-cover-fixture.mjs. No external media inputs.",
+      "sha256": "66b26a9f95f0cc0125c1f15f960dab9791fb418e869c3203705d821096e28c90"
+    },
+    "apps/mobile/tests/fixtures/original-cover-2.jpg": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Original fictional cover geometry and text; scripts/generate-cover-fixture.mjs. No external media inputs.",
+      "sha256": "d3b82878ec4eb6f3681acb393331e6cc6eb4c266cfea1f3ec4c60185411e48fa"
+    },
+    "apps/mobile/tests/fixtures/original-cover-3.jpg": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Original fictional cover geometry and text; scripts/generate-cover-fixture.mjs. No external media inputs.",
+      "sha256": "628fedcf35997f58058b3e21ba88fa98b357ff173d0ae67551c7bee7da814c95"
+    },
+    "apps/mobile/tests/fixtures/original-cover-4.jpg": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Original fictional cover geometry and text; scripts/generate-cover-fixture.mjs. No external media inputs.",
+      "sha256": "1eccea93e642dc85fb043e29c538d5113e65d1f74cabc628f85b554aa6a4391e"
+    },
+    "apps/mobile/tests/fixtures/original-cover.jpg": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Original fictional cover geometry and text; scripts/generate-cover-fixture.mjs. No external media inputs.",
+      "sha256": "66b26a9f95f0cc0125c1f15f960dab9791fb418e869c3203705d821096e28c90"
+    },
+    "apps/mobile/visual-tests/__screenshots__/large-feedback.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Synthetic UI regression capture from apps/mobile/src/gallery. No external book cover or private library input.",
+      "sha256": "cdd3a8d920c7078a5911530473dd7452d97709a06561605d933ce47ea3fb832d"
+    },
+    "apps/mobile/visual-tests/__screenshots__/night-high-composites.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Synthetic UI regression capture from apps/mobile/src/gallery. No external book cover or private library input.",
+      "sha256": "b993daccb12441576380957df5e0d801a8cb6f1044a95c51e5b04256c6348ec7"
+    },
+    "apps/mobile/visual-tests/__screenshots__/warm-interactions.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Synthetic UI regression capture from apps/mobile/src/gallery. No external book cover or private library input.",
+      "sha256": "f2773b0a7bda92e8342fd988b1e0b9881de691fbbc187686aef8f2e2454cb200"
+    },
+    "branding/source/wovenleaf-identity-vector-master.pdf": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "ec3ec21c4a8aa6c58b1de0c966bb26f853a174e1159221787524fd249aaf6e96"
+    },
+    "branding/source/wovenleaf-mark-color-2048px.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "a8cab93a132437c710e6c24757247f2e71e7a2ee448440fca03410b32441e260"
+    },
+    "branding/source/wovenleaf-mark-color.svg": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
+      "sha256": "a05fa8c1e28f41f85c32aeb26482a00f17de2cf21ab34ca9e7e48f977c3a1a6c"
+    }
+  }
+}

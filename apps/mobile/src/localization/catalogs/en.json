@@ -2176,5 +2176,9 @@
   "Your stats could not be refreshed. Please try again.": "Your stats could not be refreshed. Please try again.",
   "{{date}}: {{duration}} tracked": "{{date}}: {{duration}} tracked",
   "{{hours}}h {{minutes}}m": "{{hours}}h {{minutes}}m",
-  "{{minutes}}m": "{{minutes}}m"
+  "{{minutes}}m": "{{minutes}}m",
+  "Open-source licenses": "Open-source licenses",
+  "Wovenleaf is free and open source. Third-party components retain their own licenses.": "Wovenleaf is free and open source. Third-party components retain their own licenses.",
+  "Corresponding source for the MPL-licensed share extension": "Corresponding source for the MPL-licensed share extension",
+  "Loading…": "Loading…"
 }

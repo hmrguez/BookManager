@@ -1,6 +1,9 @@
 import { expect, test, type Page } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
 
+// Keep the historical fixture's admission window stable as real dates advance.
+test.beforeEach(async ({ page }) => { await page.clock.setFixedTime(new Date('2026-09-28T12:00:00.000Z')) })
+
 async function setup(page: Page) {
   await page.goto('/')
   await page.getByRole('button', { name: 'Reviews', exact: true }).waitFor()
@@ -74,7 +77,7 @@ test('exact exported PNG bytes match preview, both pixel sizes and large-text co
 
 test('complete English fallback preserves saved quarter and qualifiers', async ({ page }) => {
   await setup(page)
-  await page.evaluate(() => { document.documentElement.lang = 'es' })
+  await page.evaluate(() => { document.documentElement.lang = 'ja' })
   await page.getByLabel('Image format').selectOption('story')
   await expect(page.getByText(/This image is in English/)).toBeVisible()
   await page.getByText('Read image text', { exact: true }).click()
@@ -83,7 +86,7 @@ test('complete English fallback preserves saved quarter and qualifiers', async (
     const { snapshotContent, snapshotDefaults } = await import('/src/reviews/snapshot.ts')
     const runtime = await (await import('/src/storage/runtime.ts')).getStorageRuntime()
     const review = (await runtime.reviewKeepsakes.get({ year: 2026, quarter: 2 }))!
-    return snapshotContent(review, { ...snapshotDefaults(review), badgeIds: ['02'] }, 'es-ES')
+    return snapshotContent(review, { ...snapshotDefaults(review), badgeIds: ['02'] }, 'ja-JP')
   })
   expect(text.badges[0].caption).toBe('2,280 pages across the books you finished')
   expect(JSON.stringify(text)).not.toContain('PRIVATE')
@@ -94,7 +97,7 @@ test('complete English fallback preserves saved quarter and qualifiers', async (
     review.artwork.pathways.fantasy.finishedStill = '/reviews/concepts/01-fantasy-artwork.png'
     return snapshotContent(review, snapshotDefaults(review)).artwork
   })
-  expect(legacy).toBe('/reviews/ink-v1/01-fantasy-artwork.png')
+  expect(legacy).toBe('/reviews/vector-v2/01-fantasy-artwork.svg')
   await page.getByLabel('Image language').selectOption('en')
   await expect(page.getByText(/This image is in English/)).toHaveCount(0)
 })
@@ -120,7 +123,7 @@ test('stale identity requires refresh and deletion closes preview', async ({ pag
 
 test('corrupt artwork requires explicit badge-only fallback and can be retried', async ({ page }) => {
   await setup(page)
-  await page.route('**/reviews/ink-v1/01-fantasy-artwork.png', route => route.fulfill({ contentType: 'image/png', body: 'corrupt' }))
+  await page.route('**/reviews/vector-v2/01-fantasy-artwork.svg', route => route.fulfill({ contentType: 'image/png', body: 'corrupt' }))
   await page.getByLabel('Image format').selectOption('story')
   await expect(page.getByRole('button', { name: 'Use badge-only image' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Save image', exact: true })).toBeDisabled()

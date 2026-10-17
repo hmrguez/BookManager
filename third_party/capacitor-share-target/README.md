@@ -1,0 +1,320 @@
+# @capgo/capacitor-share-target
+
+<a href="https://capgo.app/"><img src="https://capgo.app/readme-banner.svg?repo=Cap-go/capacitor-share-target" alt="Capgo - Instant updates for Capacitor" /></a>
+
+Capacitor plugin to receive shared content from other apps.
+
+## Compatibility
+
+| Plugin version | Capacitor compatibility | Maintained |
+| -------------- | ----------------------- | ---------- |
+| v8.\*.\*       | v8.\*.\*                | ✅          |
+| v7.\*.\*       | v7.\*.\*                | On demand   |
+| v6.\*.\*       | v6.\*.\*                | ❌          |
+| v5.\*.\*       | v5.\*.\*                | ❌          |
+
+> **Note:** The major version of this plugin follows the major version of Capacitor. Use the version that matches your Capacitor installation (e.g., plugin v8 for Capacitor 8). Only the latest major version is actively maintained.
+
+## Install
+
+You can use our AI-Assisted Setup to install the plugin. Add the Capgo skills to your AI tool using the following command:
+
+```bash
+npx skills add https://github.com/cap-go/capacitor-skills --skill capacitor-plugins
+```
+
+Then use the following prompt:
+
+```text
+Use the `capacitor-plugins` skill from `cap-go/capacitor-skills` to install the `@capgo/capacitor-share-target` plugin in my project.
+```
+
+If you prefer Manual Setup, install the plugin by running the following commands and follow the platform-specific instructions below:
+
+```bash
+npm install @capgo/capacitor-share-target
+npx cap sync
+```
+
+## Configuration
+
+### Android
+
+Add the following to your `AndroidManifest.xml` inside the `<activity>` tag to allow your app to receive shared content:
+
+```xml
+<intent-filter>
+    <action android:name="android.intent.action.SEND" />
+    <category android:name="android.intent.category.DEFAULT" />
+    <data android:mimeType="text/*" />
+</intent-filter>
+<intent-filter>
+    <action android:name="android.intent.action.SEND" />
+    <category android:name="android.intent.category.DEFAULT" />
+    <data android:mimeType="image/*" />
+</intent-filter>
+<intent-filter>
+    <action android:name="android.intent.action.SEND_MULTIPLE" />
+    <category android:name="android.intent.category.DEFAULT" />
+    <data android:mimeType="image/*" />
+</intent-filter>
+```
+
+You can customize the `mimeType` to match the types of content you want to receive (e.g., `text/*`, `image/*`, `video/*`, `*/*`).
+
+### iOS
+
+For iOS, you need to create a Share Extension to receive shared content. This requires additional setup:
+
+1. In Xcode, go to File > New > Target
+2. Select "Share Extension" and click Next
+3. Name it (e.g., "ShareExtension") and click Finish
+4. Configure the Share Extension to save data to a shared App Group (e.g., `group.com.yourcompany.app`)
+5. Configure the plugin in your `capacitor.config.ts` or `capacitor.config.json`:
+
+```typescript
+{
+  plugins: {
+    CapacitorShareTarget: {
+      appGroupId: "group.com.yourcompany.app"
+    }
+  }
+}
+```
+
+6. In your ShareViewController.swift, save the shared data using the key `"share-target-data"` or `"SharedData"` to UserDefaults with your app group ID
+
+Example ShareViewController.swift:
+
+```swift
+import UIKit
+import UniformTypeIdentifiers
+
+class ShareViewController: UIViewController {
+    let APP_GROUP_ID = "group.com.yourcompany.app"  // Same as in capacitor.config
+    let APP_URL_SCHEME = "yourapp"  // Your app's URL scheme
+    
+    private var texts: [[String: Any]] = []
+    private var files: [[String: Any]] = []
+
+    override public func viewDidLoad() {
+        super.viewDidLoad()
+        
+        guard let extensionItem = extensionContext?.inputItems.first as? NSExtensionItem,
+              let attachments = extensionItem.attachments else {
+            self.exit()
+            return
+        }
+
+        Task {
+            // Process attachments...
+            // (See full implementation in issue examples)
+            
+            // Save to UserDefaults
+            let shareData: [String: Any] = [
+                "title": extensionItem.attributedTitle?.string ?? "",
+                "texts": texts,
+                "files": files
+            ]
+            
+            let userDefaults = UserDefaults(suiteName: APP_GROUP_ID)
+            userDefaults?.set(shareData, forKey: "share-target-data")
+            userDefaults?.synchronize()
+            
+            // Open main app with your URL scheme
+            let url = URL(string: "\(APP_URL_SCHEME)://share")!
+            self.openURL(url)
+        }
+    }
+    
+    // ... rest of implementation
+}
+```
+
+For detailed instructions, see the [iOS Share Extension documentation](https://developer.apple.com/documentation/uikit/uiactivityviewcontroller).
+
+## Usage
+
+```typescript
+import { CapacitorShareTarget } from '@capgo/capacitor-share-target';
+
+// Listen for shared content
+CapacitorShareTarget.addListener('shareReceived', (event) => {
+  console.log('Title:', event.title);
+  console.log('Texts:', event.texts);
+
+  event.files?.forEach(file => {
+    console.log(`File: ${file.name}`);
+    console.log(`Type: ${file.mimeType}`);
+    console.log(`URI: ${file.uri}`);
+  });
+});
+```
+
+## API
+
+<docgen-index>
+
+* [`addListener('shareReceived', ...)`](#addlistenersharereceived-)
+* [`removeAllListeners()`](#removealllisteners)
+* [`getPluginVersion()`](#getpluginversion)
+* [Interfaces](#interfaces)
+
+</docgen-index>
+
+<docgen-api>
+<!--Update the source file JSDoc comments and rerun docgen to update the docs below-->
+
+Capacitor Share Target Plugin interface.
+
+This plugin allows your application to receive content shared from other apps.
+Users can share text, URLs, and files to your app from other applications.
+
+### addListener('shareReceived', ...)
+
+```typescript
+addListener(eventName: 'shareReceived', listenerFunc: (event: ShareReceivedEvent) => void) => Promise<PluginListenerHandle>
+```
+
+Listen for shareReceived event.
+
+Registers a listener that will be called when content is shared to the application
+from another app. The callback receives event data containing title, texts, and files.
+
+| Param              | Type                                                                                  | Description                                                  |
+| ------------------ | ------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| **`eventName`**    | <code>'shareReceived'</code>                                                          | The event name. Must be 'shareReceived'.                     |
+| **`listenerFunc`** | <code>(event: <a href="#sharereceivedevent">ShareReceivedEvent</a>) =&gt; void</code> | Callback function invoked when content is shared to the app. |
+
+**Returns:** <code>Promise&lt;<a href="#pluginlistenerhandle">PluginListenerHandle</a>&gt;</code>
+
+**Since:** 0.1.0
+
+--------------------
+
+
+### removeAllListeners()
+
+```typescript
+removeAllListeners() => Promise<void>
+```
+
+Remove all listeners for this plugin.
+
+**Since:** 0.1.0
+
+--------------------
+
+
+### getPluginVersion()
+
+```typescript
+getPluginVersion() => Promise<{ version: string; }>
+```
+
+Get the native Capacitor plugin version.
+
+Returns the current version of the native plugin implementation.
+
+**Returns:** <code>Promise&lt;{ version: string; }&gt;</code>
+
+**Since:** 0.1.0
+
+--------------------
+
+
+### Interfaces
+
+
+#### PluginListenerHandle
+
+| Prop         | Type                                      |
+| ------------ | ----------------------------------------- |
+| **`remove`** | <code>() =&gt; Promise&lt;void&gt;</code> |
+
+
+#### ShareReceivedEvent
+
+Event data received when content is shared to the application.
+
+| Prop        | Type                      | Description                                      | Since |
+| ----------- | ------------------------- | ------------------------------------------------ | ----- |
+| **`title`** | <code>string</code>       | The title of the shared content.                 | 0.1.0 |
+| **`texts`** | <code>string[]</code>     | Array of text content shared to the application. | 0.1.0 |
+| **`files`** | <code>SharedFile[]</code> | Array of files shared to the application.        | 0.2.0 |
+
+
+#### SharedFile
+
+Represents a file shared to the application.
+
+| Prop           | Type                | Description                                                                                                                             | Since |
+| -------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| **`uri`**      | <code>string</code> | The URI of the shared file. On Android/iOS this will be a file path or data URL. On web this will be a cached URL accessible via fetch. | 0.1.0 |
+| **`name`**     | <code>string</code> | The name of the shared file, with or without extension.                                                                                 | 0.1.0 |
+| **`mimeType`** | <code>string</code> | The MIME type of the shared file.                                                                                                       | 0.1.0 |
+
+</docgen-api>
+
+## Example
+
+Here's a complete example of handling shared content in your app:
+
+```typescript
+import { CapacitorShareTarget } from '@capgo/capacitor-share-target';
+import { Capacitor } from '@capacitor/core';
+
+export class ShareService {
+  async initialize() {
+    // Only add listener on native platforms
+    if (Capacitor.isNativePlatform()) {
+      await CapacitorShareTarget.addListener('shareReceived', this.handleSharedContent);
+    }
+  }
+
+  private handleSharedContent(event: ShareReceivedEvent) {
+    console.log('Received shared content!');
+
+    // Handle shared text
+    if (event.texts.length > 0) {
+      console.log('Shared text:', event.texts[0]);
+      // Process the shared text (e.g., URL, note, etc.)
+    }
+
+    // Handle shared files
+    if (event.files.length > 0) {
+      event.files.forEach(async (file) => {
+        console.log(`Processing file: ${file.name}`);
+
+        if (file.mimeType.startsWith('image/')) {
+          // Handle image files
+          await this.processImage(file.uri);
+        } else if (file.mimeType.startsWith('video/')) {
+          // Handle video files
+          await this.processVideo(file.uri);
+        }
+      });
+    }
+  }
+
+  private async processImage(uri: string) {
+    // Your image processing logic here
+  }
+
+  private async processVideo(uri: string) {
+    // Your video processing logic here
+  }
+
+  async cleanup() {
+    await CapacitorShareTarget.removeAllListeners();
+  }
+}
+```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+MIT

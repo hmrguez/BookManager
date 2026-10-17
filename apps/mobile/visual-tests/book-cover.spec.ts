@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 const title = 'Cover interaction test'
-const coverFile = '../../branding/marketing/covers/book-1.jpg'
+const coverFile = 'tests/fixtures/original-cover.jpg'
 
 test.use({ viewport: { width: 390, height: 844 }, hasTouch: true })
 
@@ -10,7 +10,7 @@ test.beforeEach(async ({ page }) => {
   await page.getByRole('button', { name: 'Add Book', exact: true }).click()
   await page.getByRole('button', { name: /No ISBN\? No problem/ }).click()
   await page.getByRole('textbox', { name: 'Book title', exact: true }).fill(title)
-  await page.getByRole('button', { name: 'Add to To Be Read', exact: true }).click()
+  await page.getByRole('button', { name: /^Add to\s*To Be Read$/ }).click()
   await page.locator('.book-identity').filter({ hasText: title }).click()
   await expect(page.getByRole('dialog', { name: 'Book details', exact: true })).toBeVisible()
 })

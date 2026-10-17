@@ -17,8 +17,8 @@ export const pathways: Record<ReviewGenre, { title: string; label: string; file:
 export const reviewArtwork: ReviewArtworkManifest = {
   achievementVersion: ACHIEVEMENT_ART_VERSION,
   pathways: Object.fromEntries(REVIEW_GENRES.map(genre => [genre, {
-    version: 'original-ink-v1',
-    finishedStill: `/reviews/ink-v1/${pathways[genre].file}-artwork.png`,
+    version: 'original-vector-v2',
+    finishedStill: `/reviews/vector-v2/${pathways[genre].file}-artwork.svg`,
     animation: null,
   }])) as ReviewArtworkManifest['pathways'],
 }
@@ -51,11 +51,13 @@ export function metricFact(id: string, value: number, unit = '', locale = getLoc
   return translateCopy(captions[id] ?? '{n} ' + unit, locale, { count: value }).replace('{n}', new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(value))
 }
 
-/** Presentation-only migration of the accepted illustration; never rewrite saved references. */
+/** Replace retired bundled artwork at presentation time, preserving saved facts. */
 export function pathwayArtworkSource(artwork: ReviewArtwork) {
-  return artwork.version === 'approved-concept-preview-v1'
-    ? artwork.finishedStill.replace('/reviews/concepts/', '/reviews/ink-v1/')
-    : artwork.finishedStill
+  const retired = ['/reviews/concepts/', '/reviews/ink-v1/', '/reviews/fantasy-preview-v1/']
+  if (!retired.some(prefix => artwork.finishedStill.startsWith(prefix))) return artwork.finishedStill
+  const entry = Object.values(pathways).find(({ file }) => artwork.finishedStill.includes(file))
+  const file = entry?.file ?? (artwork.finishedStill.startsWith('/reviews/fantasy-preview-v1/') ? pathways.fantasy.file : undefined)
+  return file ? `/reviews/vector-v2/${file}-artwork.svg` : artwork.finishedStill
 }
 
 /** Resolve titles by stable identity, without changing historical facts or backups. */

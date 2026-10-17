@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A18000012FF3000000000001 /* WovenleafScannerPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A18000022FF3000000000002 /* WovenleafScannerPlugin.swift */; };
 		A10900012FEA000000000001 /* ReaderActiveClock.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10900022FEA000000000002 /* ReaderActiveClock.swift */; };
 		A14300012FF3000000000001 /* WovenleafPDFViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A14300022FF3000000000002 /* WovenleafPDFViewController.swift */; };
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
@@ -76,6 +77,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A18000022FF3000000000002 /* WovenleafScannerPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WovenleafScannerPlugin.swift; sourceTree = "<group>"; };
 		A10900022FEA000000000002 /* ReaderActiveClock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderActiveClock.swift; sourceTree = "<group>"; };
 		A14300022FF3000000000002 /* WovenleafPDFViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WovenleafPDFViewController.swift; sourceTree = "<group>"; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
@@ -174,6 +176,7 @@
 				C01C96D14D7FAF1680CA896B /* InfoPlist.strings */,
 				A14000022FF3000000000002 /* WovenleafFeedbackPlugin.swift */,
 				A11200022FF3000000000002 /* WovenleafReviewAccessibilityPlugin.swift */,
+				A18000022FF3000000000002 /* WovenleafScannerPlugin.swift */,
 				A11500022FF3000000000002 /* WovenleafSnapshotPlugin.swift */,
 				A13700022FF0000000000002 /* WovenleafPlaybackPlugin.swift */,
 				A15000012FF5000000000001 /* WovenleafFileAccess.swift */,
@@ -392,6 +395,7 @@
 			files = (
 				A14000012FF3000000000001 /* WovenleafFeedbackPlugin.swift in Sources */,
 				A11200012FF3000000000001 /* WovenleafReviewAccessibilityPlugin.swift in Sources */,
+				A18000012FF3000000000001 /* WovenleafScannerPlugin.swift in Sources */,
 				A11500012FF3000000000001 /* WovenleafSnapshotPlugin.swift in Sources */,
 				A13700012FF0000000000001 /* WovenleafPlaybackPlugin.swift in Sources */,
 				A15000012FF5000000000002 /* WovenleafFileAccess.swift in Sources */,

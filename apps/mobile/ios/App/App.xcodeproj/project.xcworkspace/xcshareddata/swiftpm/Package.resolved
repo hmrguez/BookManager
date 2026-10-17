@@ -1,132 +1,123 @@
 {
-  "originHash" : "f9c6a068105a7663fc2eb23161bad8e819bee3f60ffb30153ddb1e6f4cdf5973",
-  "pins" : [
+  "originHash": "f9c6a068105a7663fc2eb23161bad8e819bee3f60ffb30153ddb1e6f4cdf5973",
+  "pins": [
     {
-      "identity" : "capacitor-swift-pm",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/ionic-team/capacitor-swift-pm.git",
-      "state" : {
-        "revision" : "4f71d0b979f2f957326f04353eca7604ee937e1e",
-        "version" : "8.5.0"
+      "identity": "capacitor-swift-pm",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/ionic-team/capacitor-swift-pm.git",
+      "state": {
+        "revision": "4f71d0b979f2f957326f04353eca7604ee937e1e",
+        "version": "8.5.0"
       }
     },
     {
-      "identity" : "cryptoswift",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/krzyzanowskim/CryptoSwift.git",
-      "state" : {
-        "revision" : "f2a627b84c1ff96f21ac2fcb623ab36142dd5512",
-        "version" : "1.10.0"
+      "identity": "cryptoswift",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/krzyzanowskim/CryptoSwift.git",
+      "state": {
+        "revision": "f2a627b84c1ff96f21ac2fcb623ab36142dd5512",
+        "version": "1.10.0"
       }
     },
     {
-      "identity" : "differencekit",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/ra1028/DifferenceKit.git",
-      "state" : {
-        "revision" : "073b9671ce2b9b5b96398611427a1f929927e428",
-        "version" : "1.3.0"
+      "identity": "differencekit",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/ra1028/DifferenceKit.git",
+      "state": {
+        "revision": "073b9671ce2b9b5b96398611427a1f929927e428",
+        "version": "1.3.0"
       }
     },
     {
-      "identity" : "fuzi",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/readium/Fuzi.git",
-      "state" : {
-        "revision" : "173ec944ca6f2e8024ceb7324bcb8a3cc95a0661",
-        "version" : "4.0.1"
+      "identity": "fuzi",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/readium/Fuzi.git",
+      "state": {
+        "revision": "173ec944ca6f2e8024ceb7324bcb8a3cc95a0661",
+        "version": "4.0.1"
       }
     },
     {
-      "identity" : "gcdwebserver",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/readium/GCDWebServer.git",
-      "state" : {
-        "revision" : "584db89a4c3c3be27206cce6afde037b2b6e38d8",
-        "version" : "4.0.1"
+      "identity": "gcdwebserver",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/readium/GCDWebServer.git",
+      "state": {
+        "revision": "584db89a4c3c3be27206cce6afde037b2b6e38d8",
+        "version": "4.0.1"
       }
     },
     {
-      "identity" : "ion-ios-filesystem",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/ionic-team/ion-ios-filesystem.git",
-      "state" : {
-        "revision" : "0d81e26e828ff9582807e2339112cedf2e0fab85",
-        "version" : "1.1.2"
+      "identity": "ion-ios-filesystem",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/ionic-team/ion-ios-filesystem.git",
+      "state": {
+        "revision": "0d81e26e828ff9582807e2339112cedf2e0fab85",
+        "version": "1.1.2"
       }
     },
     {
-      "identity" : "keychain-swift",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/evgenyneu/keychain-swift.git",
-      "state" : {
-        "revision" : "265806607b45687a3d646e4c9837c31c90f202e8",
-        "version" : "21.0.0"
+      "identity": "keychain-swift",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/evgenyneu/keychain-swift.git",
+      "state": {
+        "revision": "265806607b45687a3d646e4c9837c31c90f202e8",
+        "version": "21.0.0"
       }
     },
     {
-      "identity" : "osbarcodelib-ios",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/OutSystems/OSBarcodeLib-iOS.git",
-      "state" : {
-        "revision" : "392ab180af4f546001dc628a86bb6de4a5b9a2a0",
-        "version" : "2.2.0"
+      "identity": "sqlcipher.swift",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/sqlcipher/SQLCipher.swift.git",
+      "state": {
+        "revision": "f879fffaaa3ad3541a77830daad4a28726dfa927",
+        "version": "4.18.0"
       }
     },
     {
-      "identity" : "sqlcipher.swift",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/sqlcipher/SQLCipher.swift.git",
-      "state" : {
-        "revision" : "f879fffaaa3ad3541a77830daad4a28726dfa927",
-        "version" : "4.18.0"
+      "identity": "sqlite.swift",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/stephencelis/SQLite.swift.git",
+      "state": {
+        "revision": "964c300fb0736699ce945c9edb56ecd62eba27a3",
+        "version": "0.16.0"
       }
     },
     {
-      "identity" : "sqlite.swift",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/stephencelis/SQLite.swift.git",
-      "state" : {
-        "revision" : "964c300fb0736699ce945c9edb56ecd62eba27a3",
-        "version" : "0.16.0"
+      "identity": "swift-toolkit",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/readium/swift-toolkit.git",
+      "state": {
+        "revision": "d82f44f4f05d87add9e22a8b75abbd61dce745dd",
+        "version": "3.11.0"
       }
     },
     {
-      "identity" : "swift-toolkit",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/readium/swift-toolkit.git",
-      "state" : {
-        "revision" : "d82f44f4f05d87add9e22a8b75abbd61dce745dd",
-        "version" : "3.11.0"
+      "identity": "swiftsoup",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/scinfu/SwiftSoup.git",
+      "state": {
+        "revision": "18b80329749eca5ea29fc50211dca5c7eff5bfec",
+        "version": "2.13.9"
       }
     },
     {
-      "identity" : "swiftsoup",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/scinfu/SwiftSoup.git",
-      "state" : {
-        "revision" : "18b80329749eca5ea29fc50211dca5c7eff5bfec",
-        "version" : "2.13.9"
+      "identity": "zip",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/marmelroy/Zip.git",
+      "state": {
+        "revision": "67fa55813b9e7b3b9acee9c0ae501def28746d76",
+        "version": "2.1.2"
       }
     },
     {
-      "identity" : "zip",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/marmelroy/Zip.git",
-      "state" : {
-        "revision" : "67fa55813b9e7b3b9acee9c0ae501def28746d76",
-        "version" : "2.1.2"
-      }
-    },
-    {
-      "identity" : "zipfoundation",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/readium/ZIPFoundation.git",
-      "state" : {
-        "revision" : "adb49c8bfe060cc187370b12fa081012a6440b86",
-        "version" : "3.0.1"
+      "identity": "zipfoundation",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/readium/ZIPFoundation.git",
+      "state": {
+        "revision": "adb49c8bfe060cc187370b12fa081012a6440b86",
+        "version": "3.0.1"
       }
     }
   ],
-  "version" : 3
+  "version": 3
 }

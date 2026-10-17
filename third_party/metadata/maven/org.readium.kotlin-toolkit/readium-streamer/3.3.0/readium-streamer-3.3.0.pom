@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <!-- This module was also published with a richer model, Gradle metadata,  -->
+  <!-- which should be used instead. Do not delete the following line which  -->
+  <!-- is to indicate to Gradle or any Gradle module metadata file consumer  -->
+  <!-- that they should prefer consuming it instead. -->
+  <!-- do_not_remove: published-with-gradle-metadata -->
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>org.readium.kotlin-toolkit</groupId>
+  <artifactId>readium-streamer</artifactId>
+  <version>3.3.0</version>
+  <packaging>aar</packaging>
+  <name>readium-streamer</name>
+  <description>A toolkit for ebooks, audiobooks and comics written in Kotlin</description>
+  <url>https://github.com/readium/kotlin-toolkit</url>
+  <licenses>
+    <license>
+      <name>BSD-3-Clause license</name>
+      <url>https://github.com/readium/kotlin-toolkit/blob/main/LICENSE</url>
+    </license>
+  </licenses>
+  <developers>
+    <developer>
+      <id>aferditamuriqi</id>
+      <name>Aferdita Muriqi</name>
+      <email>aferdita.muriqi@gmail.com</email>
+    </developer>
+    <developer>
+      <id>mickael-menu</id>
+      <name>Mickaël Menu</name>
+      <email>mickael.menu@gmail.com</email>
+    </developer>
+    <developer>
+      <id>qnga</id>
+      <name>Quentin Gliosca</name>
+      <email>quentin.gliosca@gmail.com</email>
+    </developer>
+  </developers>
+  <scm>
+    <connection>scm:git:github.com/readium/kotlin-toolkit.git</connection>
+    <developerConnection>scm:git:ssh://github.com/readium/kotlin-toolkit.git</developerConnection>
+    <url>https://github.com/readium/kotlin-toolkit</url>
+  </scm>
+  <dependencies>
+    <dependency>
+      <groupId>org.readium.kotlin-toolkit</groupId>
+      <artifactId>readium-shared</artifactId>
+      <version>3.3.0</version>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.jetbrains.kotlin</groupId>
+      <artifactId>kotlin-stdlib</artifactId>
+      <version>2.3.20</version>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.jetbrains.kotlin</groupId>
+      <artifactId>kotlin-parcelize-runtime</artifactId>
+      <version>2.3.20</version>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.jakewharton.timber</groupId>
+      <artifactId>timber</artifactId>
+      <version>5.0.1</version>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.mcxiaoke.koi</groupId>
+      <artifactId>core</artifactId>
+      <version>0.5.5</version>
+      <scope>runtime</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>*</groupId>
+          <artifactId>support-v4</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.jetbrains.kotlinx</groupId>
+      <artifactId>kotlinx-coroutines-android</artifactId>
+      <version>1.10.2</version>
+      <scope>runtime</scope>
+    </dependency>
+  </dependencies>
+</project>

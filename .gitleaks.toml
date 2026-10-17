@@ -1,0 +1,10 @@
+title = "Wovenleaf public source"
+[extend]
+useDefault = true
+
+# This is an IndexedDB/local-storage namespace, not a credential.
+[[rules]]
+id = "generic-api-key"
+[[rules.allowlists]]
+regexTarget = "secret"
+regexes = ['''^wovenleaf\.tbr\-recommendations\.v1$''']

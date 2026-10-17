@@ -17,4 +17,4 @@ if (
   );
 }
 
-export const legalUpdated = { iso: '2026-09-08', label: '8 September 2026' };
+export const legalUpdated = { iso: '2026-10-17', label: '17 October 2026' };

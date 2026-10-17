@@ -1,0 +1,23 @@
+import groovy.json.JsonOutput
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier
+allprojects {
+    afterEvaluate { p ->
+        if (p.path == ':app') {
+            p.tasks.register('publicDependencyInventory') {
+                doLast {
+                    def config = p.configurations.releaseRuntimeClasspath
+                    def modules = config.incoming.resolutionResult.allComponents
+                        .findAll { it.id instanceof ModuleComponentIdentifier }
+                        .collect { it.id }
+                    // Resolve only external modules. Android project variants carry many
+                    // secondary artifacts and their licenses are already in the npm inventory.
+                    def rows = modules.collect { id ->
+                        def group = id.group, name = id.module, version = id.version
+                        [group: group, name: name, version: version]
+                    }.sort { a, b -> "${a.group}:${a.name}" <=> "${b.group}:${b.name}" }
+                    new File(System.getenv('WOVENLEAF_ANDROID_INVENTORY')).text = JsonOutput.prettyPrint(JsonOutput.toJson(rows))
+                }
+            }
+        }
+    }
+}

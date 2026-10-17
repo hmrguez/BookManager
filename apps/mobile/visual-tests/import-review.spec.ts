@@ -109,7 +109,7 @@ test('background covers appear after import, survive reload, and tolerate an una
         editions: { docs: [{ key: '/books/OL1M', title: 'Covered import', publisher: [''] }] } },
     ] : [] } })
   })
-  await page.route('https://covers.openlibrary.org/**', (route) => route.fulfill({ path: '../../branding/marketing/covers/book-1.jpg', contentType: 'image/jpeg' }))
+  await page.route('https://covers.openlibrary.org/**', (route) => route.fulfill({ path: 'tests/fixtures/original-cover.jpg', contentType: 'image/jpeg' }))
   const buffer = Buffer.from('Book Id,Title,Author,ISBN13,Exclusive Shelf\n201,Covered import,An Author,9780140328721,to-read\n202,Uncovered import,Other Author,9780439554930,to-read')
   await page.locator('.goodreads-migration__picker input').setInputFiles({ name: 'covers.csv', mimeType: 'text/csv', buffer })
   await page.getByRole('button', { name: 'Import 2 books', exact: true }).click()
