@@ -516,6 +516,36 @@
       "copyright": "2026 Hector Rodriguez",
       "provenance": "Screenshot of the Wovenleaf development-only MarketingPlayer preview; Jane Austen bibliographic metadata and original project-owned pride-and-prejudice.svg cover. No book text or audio included.",
       "sha256": "62549c8d359b70e4874e17843e665c2bdb55079614dbd7aca73790b601943356"
+    },
+    "docs/screenshots/reader.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "02-reader.png retrieved from the owner's preliminary App Store Connect listing on 2026-10-17 at the owner's request. Native iOS app screenshot with original A Quiet Reading Room demo text from apps/mobile/scripts/preview-responsive-reader.ts; no imported third-party book text or cover art.",
+      "sha256": "fb81d6c437ca05f5d720096ef6b0c39c5a57d53f50ba5e870d83118ad77ce96d"
+    },
+    "docs/screenshots/reading-appearance.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "03-reading-appearance.png retrieved from the owner's preliminary App Store Connect listing on 2026-10-17 at the owner's request. Native iOS app screenshot with original A Quiet Reading Room demo text from apps/mobile/scripts/preview-responsive-reader.ts; no imported third-party book text or cover art.",
+      "sha256": "3337ff3cbccb17cb3b43bcbac79fa15953d2a26097b08451cb2c124b2449a89f"
+    },
+    "docs/screenshots/library-grid.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Screenshot of the current Wovenleaf browser development build in an isolated browser using fictional demo data and original project-owned cover fixtures. Libby setup captures show the real setup UI; no account, credentials, connection codes, or real loans.",
+      "sha256": "e44880eb7bddd9a2c8752d347ae07206521d83d2beeddb94a188ca30f3f514c9"
+    },
+    "docs/screenshots/libby-setup.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Screenshot of the current Wovenleaf browser development build in an isolated browser using fictional demo data and original project-owned cover fixtures. Libby setup captures show the real setup UI; no account, credentials, connection codes, or real loans.",
+      "sha256": "b170315bb9b3c573c720e2e901c4b897fe1c2c5af57166e930cb89a55428b4f7"
+    },
+    "docs/screenshots/libby-companion.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Screenshot of the current Wovenleaf browser development build in an isolated browser using fictional demo data and original project-owned cover fixtures. Libby setup captures show the real setup UI; no account, credentials, connection codes, or real loans.",
+      "sha256": "940712bead7a87aa7f4a1a14b5aa291d67dba99e07c879372fd8a8454d572617"
     }
   }
 }

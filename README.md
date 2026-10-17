@@ -7,11 +7,19 @@ Free and open source. No account, subscriptions, or library limits.
 
 <p align="center">
   <img src="docs/screenshots/library.png" width="30%" alt="Library with reading shelves and book covers" />
-  <img src="docs/screenshots/book-details.png" width="30%" alt="Book details and reading progress" />
+  <img src="docs/screenshots/library-grid.png" width="30%" alt="Library grid view with book covers" />
   <img src="docs/screenshots/audiobook.png" width="30%" alt="Audiobook player with chapters and playback controls" />
 </p>
 
-<p align="center"><sub>App screenshots with demo data; audiobook screen uses the marketing preview.</sub></p>
+<p align="center"><sub>Library · Cover grid · Audiobook player</sub></p>
+
+<p align="center">
+  <img src="docs/screenshots/reader.png" width="30%" alt="Native iOS ebook reader showing the original A Quiet Reading Room demo" />
+  <img src="docs/screenshots/reading-appearance.png" width="30%" alt="Native iOS reading appearance settings for paper and typeface" />
+  <img src="docs/screenshots/book-details.png" width="30%" alt="Book details and reading progress" />
+</p>
+
+<p align="center"><sub>Reading · Reading appearance · Book details</sub></p>
 
 ## Features
 
@@ -53,6 +61,11 @@ See [Build and install](docs/guides/community-builds.md) for APK installation,
 iOS signing, and browser limitations.
 
 ## Libby setup
+
+<p align="center">
+  <img src="docs/screenshots/libby-setup.png" width="30%" alt="Libby setup with Quetta and Firefox browser choices" />
+  <img src="docs/screenshots/libby-companion.png" width="30%" alt="Libby setup instructions for adding the Firefox companion" />
+</p>
 
 The optional companion receives loan details and progress from **Libby on the web**.
 It does not monitor the native Libby app. Wovenleaf never asks for your library card or Libby password.
