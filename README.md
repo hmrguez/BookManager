@@ -21,6 +21,8 @@ Free and open source. No account, subscriptions, or library limits.
 
 <p align="center"><sub>Reading · Reading appearance · Book details</sub></p>
 
+Demo library covers are original [CC0 artwork](docs/screenshots/covers/README.md).
+
 ## Features
 
 - **Your library:** reading shelves, custom collections, personal tags, ratings, notes, and local search.
@@ -134,5 +136,5 @@ especially when using browser storage.
 
 ## License
 
-[MIT](LICENSE) for original code and project-owned artwork. Third-party components
+[MIT](LICENSE) for original code and project-owned artwork, except the [CC0 demo covers](docs/screenshots/covers/README.md). Third-party components
 retain their [own licenses and notices](third_party/README.md).

@@ -1,0 +1,32 @@
+[
+  {
+    "id": "quiet-orchard",
+    "title": "The Quiet Orchard",
+    "author": "Mira Vale"
+  },
+  {
+    "id": "estuary",
+    "title": "Notes from the Estuary",
+    "author": "Jonah Reed"
+  },
+  {
+    "id": "morning-map",
+    "title": "A Map of Morning",
+    "author": "Ada North"
+  },
+  {
+    "id": "paper-garden",
+    "title": "The Paper Garden",
+    "author": "Lena Moss"
+  },
+  {
+    "id": "between-stars",
+    "title": "Between the Stars",
+    "author": "Eli Rowan"
+  },
+  {
+    "id": "atlas-rain",
+    "title": "An Atlas of Rain",
+    "author": "Nora Finch"
+  }
+]

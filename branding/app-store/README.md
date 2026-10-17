@@ -18,6 +18,8 @@ original demo passage is in `apps/mobile/scripts/preview-responsive-reader.ts`;
 these captures include no third-party book covers or text. Provenance and hashes
 are recorded in `ASSET_LICENSES.json`.
 
-The README's library, grid, details, and Libby screenshots use isolated browser
-demo data; its audiobook screen uses the development marketing preview. The draft
+The README's library, grid, and details screenshots use original CC0 artwork in
+`docs/screenshots/covers/`; `scripts/capture-readme.mjs` reproduces them. Libby
+screenshots use isolated browser demo data; the audiobook screen uses the
+development marketing preview. The draft
 store library screenshot was not added because it contains provider cover art.
