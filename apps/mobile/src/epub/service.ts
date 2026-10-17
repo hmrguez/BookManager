@@ -4,7 +4,6 @@ import type { EpubCover } from './model'
 import { pdfCover } from '../pdf/cover'
 import { sha256 } from '../audiobooks/binary'
 import type { SqlDatabase } from '../storage/database'
-import { LibraryUpgradeRequired } from '../purchases/model'
 import { applyEmbeddedCover } from '../covers/embedded-cover'
 import type { EpubImportSource } from './incoming'
 import {
@@ -134,7 +133,7 @@ export class EpubImportService {
       await Promise.all(writes.filter(({ created }) => created).map(({ relativePath }) =>
         this.#managedStore.remove(relativePath),
       ))
-      if (error instanceof EpubImportError || error instanceof LibraryUpgradeRequired || (error instanceof Error && error.name === 'FileAccessError')) throw error
+      if (error instanceof EpubImportError || (error instanceof Error && error.name === 'FileAccessError')) throw error
       throw new EpubImportError(
         'storage-failed',
         'The book could not be committed. Its catalog records and newly managed files were rolled back.',

@@ -1,6 +1,5 @@
 import { MemoryOriginalFiles } from './fixtures/original-files'
-import { seedFreeLibrary } from './fixtures/purchases'
-import { LibraryUpgradeRequired } from '../src/purchases/model'
+import { seedLibrary } from './fixtures/library'
 import { describe, expect, test } from 'bun:test'
 import {
   AudiobookImportError,
@@ -622,20 +621,20 @@ function sequentialCapabilities(): () => string {
   return () => `capability:test:${++next}`
 }
 
-test('free limit rolls back audiobook bytes and catalog, while attachments remain free', async () => {
+test('audiobook imports and attachments work beyond 30 library entries', async () => {
   const database = new BunSqliteDatabase()
   await migrateStorage(database)
-  const { library } = await seedFreeLibrary(database)
+  const { library } = await seedLibrary(database)
   const managedStore = new MemoryManagedAudiobookStore()
   const service = new AudiobookImportService(database, { managedStore })
   const sources = [m4bSource('capacity.m4b', { durationMs: 7200000, cover: true })]
   const review = defaultAudiobookReview(await service.prepare(sources))
-  await expect(service.import(sources, review)).rejects.toBeInstanceOf(LibraryUpgradeRequired)
-  expect(await library.list()).toHaveLength(30)
-  expect(managedStore.files.size).toBe(0)
-  expect((await new CatalogRepository(database).read()).works).toHaveLength(0)
+  await service.import(sources, review)
+  expect(await library.list()).toHaveLength(31)
+  expect(managedStore.files.size).toBeGreaterThan(0)
+  expect((await new CatalogRepository(database).read()).works.length).toBeGreaterThan(0)
   await service.import(sources, review, { targetBookId: 'capacity-1' })
-  expect(await library.list()).toHaveLength(30)
+  expect(await library.list()).toHaveLength(31)
   expect(managedStore.files.size).toBeGreaterThan(0)
   await database.close()
 })

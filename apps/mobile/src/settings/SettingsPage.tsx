@@ -5,7 +5,7 @@ import { PrivateErasure } from './PrivateErasure'
 import './settings.css'
 import { useWideLayout } from '../responsive/useWideLayout'
 import { OriginalFileInput } from '../files/OriginalFileInput'
-import { useState, useSyncExternalStore, type ReactNode, type DragEvent } from 'react'
+import { useState, type ReactNode, type DragEvent } from 'react'
 import {
   Archive,
   AudioLines,
@@ -57,10 +57,6 @@ import type {
 import type { RecoveryBackupPreview } from '../storage'
 import { EpubStorageCard, type EpubStorageViewState } from './EpubStorageCard'
 import { FEATURES } from '../app/feature-flags'
-import { FREE_BOOK_LIMIT } from '../purchases/model'
-import type { PurchaseView } from '../purchases/service'
-import { reviewAccess } from '../purchases/review-runtime'
-import { ReviewAccessSettings } from '../purchases/ReviewAccessSettings'
 
 export type EpubImportViewState = {
   readonly progress?: EpubImportProgress
@@ -85,8 +81,6 @@ export type RecoveryViewState = {
 export function SettingsPage({
   initialCategory = 'appearance',
   libby,
-  purchaseView,
-  onUpgrade,
   books,
   appearance,
   searchPreferences,
@@ -129,8 +123,6 @@ export function SettingsPage({
 }: {
   initialCategory?: 'appearance' | 'books'
   libby?: ReactNode
-  purchaseView?: PurchaseView
-  onUpgrade?: () => void
   books: LibraryBook[]
   appearance: AppearancePreferences
   searchPreferences: SearchPreferences
@@ -181,7 +173,6 @@ export function SettingsPage({
   const [epubDropActive, setEpubDropActive] = useState(false)
   const [audiobookDropActive, setAudiobookDropActive] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
-  const reviewView = useSyncExternalStore(reviewAccess.subscribe, reviewAccess.getSnapshot)
   const ratedBooks = books.filter((book) => book.rating > 0).length
   const notedBooks = books.filter((book) => book.notes.trim()).length
 
@@ -328,19 +319,6 @@ export function SettingsPage({
             </div>
           </details>
         </section>
-
-        {purchaseView && !purchaseView.owned && !reviewView.active && onUpgrade && <section {...categoryProps('appearance')} className={tw('settings-card')}>
-          <div className={tw('settings-card__icon')}><BookOpen aria-hidden="true" /></div>
-          <div className={tw('settings-card__heading')}>
-            <h2>{t("Wovenleaf Unlimited")}</h2>
-            <p>{books.length} {t(" of {{limit}} free books · upgrade once for unlimited books", { limit: FREE_BOOK_LIMIT })}</p>
-          </div>
-          <button className={tw('settings-action')} type="button" onClick={onUpgrade}>
-            <BookOpen aria-hidden="true" />
-            <span><strong>{t("Upgrade or restore purchase")}</strong></span>
-            <ChevronRight aria-hidden="true" />
-          </button>
-        </section>}
 
         <section {...categoryProps('books')}
           className={tw(`settings-card epub-intake${epubDropActive ? ' is-dragging' : ''}`)}
@@ -872,7 +850,6 @@ export function SettingsPage({
                 </button>
               </section>
             )}
-            {purchaseView && onUpgrade && <ReviewAccessSettings view={reviewView} />}
           </div>
         </details>
       </div>

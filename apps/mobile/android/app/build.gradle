@@ -52,7 +52,6 @@ dependencies {
     implementation project(':capacitor-android')
     implementation "androidx.fragment:fragment-ktx:$androidxFragmentVersion"
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
-    implementation 'com.android.billingclient:billing:9.1.0'
     implementation 'org.readium.kotlin-toolkit:readium-shared:3.3.0'
     implementation 'org.readium.kotlin-toolkit:readium-streamer:3.3.0'
     implementation 'org.readium.kotlin-toolkit:readium-navigator:3.3.0'

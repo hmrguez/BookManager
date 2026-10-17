@@ -128,12 +128,14 @@ use the matching version in App Store Connect. Existing uploads and submissions
 are unaffected. The initial iOS submission remains **1.0 (1)**; the local projects
 are aligned at **1.10.1 (12)** for subsequent builds.
 
-Wovenleaf is free for 30 library entries. **Wovenleaf Unlimited** is a permanent native
-in-app purchase for unlimited books, restorable within the same store account. See the
-[purchase setup and testing guide](docs/guides/in-app-purchases.md) for creating the
-products, configuring Android's public verification key, testing without real money,
-and gifting upgrades with store-issued codes. Store configuration and sandbox tests
-must be completed before releasing the paid upgrade.
+Wovenleaf is free to use with unlimited library entries. There are no paid tiers,
+license keys, in-app purchases, or subscriptions. Book files are supplied by the reader.
+
+The project's original code is licensed under the [MIT License](LICENSE),
+Copyright (c) 2026 Hector Rodriguez. Reuse must retain the copyright and license
+notice. Third-party code and media retain their own rights; see the
+[open-source readiness audit](docs/audits/open-source-readiness-2026-10-17.md)
+for remaining publication work and asset restrictions.
 
 Wovenleaf uses the same production identifier on iOS and Android:
 `com.hmrguez.wovenleaf`. Its custom deep-link scheme is `wovenleaf://`. Keep these identifiers
@@ -149,7 +151,7 @@ installs no longer replace the store app or interfere with its updates.
 
 Signed release APKs and AABs still use **Wovenleaf** (`com.hmrguez.wovenleaf`)
 and the existing release/upload signing workflow. Use the `release` variant when
-generating a signed bundle for Google Play; test Play purchases with that store build.
+generating a signed bundle for Google Play.
 Both apps handle `wovenleaf://` links and supported file imports, so Android may ask
 which app to open when both are installed.
 

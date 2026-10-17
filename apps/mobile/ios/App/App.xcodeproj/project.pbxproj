@@ -27,8 +27,6 @@
 		A14000012FF3000000000001 /* WovenleafFeedbackPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A14000022FF3000000000002 /* WovenleafFeedbackPlugin.swift */; };
 		A11200012FF3000000000001 /* WovenleafReviewAccessibilityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11200022FF3000000000002 /* WovenleafReviewAccessibilityPlugin.swift */; };
 		A11500012FF3000000000001 /* WovenleafSnapshotPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11500022FF3000000000002 /* WovenleafSnapshotPlugin.swift */; };
-		A14100012FF3000000000001 /* WovenleafPurchasesPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A14100022FF3000000000002 /* WovenleafPurchasesPlugin.swift */; };
-		A14200012FF3000000000001 /* ReviewAccessVerifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = A14200022FF3000000000002 /* ReviewAccessVerifier.swift */; };
 		A12600012FEC000000000001 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12600022FEC000000000002 /* ShareViewController.swift */; };
 		A12600062FEC000000000006 /* ShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A12600052FEC000000000005 /* ShareExtension.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		A15000012FF5000000000002 /* WovenleafFileAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = A15000012FF5000000000001; };
@@ -99,8 +97,6 @@
 		A14000022FF3000000000002 /* WovenleafFeedbackPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WovenleafFeedbackPlugin.swift; sourceTree = "<group>"; };
 		A11200022FF3000000000002 /* WovenleafReviewAccessibilityPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WovenleafReviewAccessibilityPlugin.swift; sourceTree = "<group>"; };
 		A11500022FF3000000000002 /* WovenleafSnapshotPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WovenleafSnapshotPlugin.swift; sourceTree = "<group>"; };
-		A14100022FF3000000000002 /* WovenleafPurchasesPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WovenleafPurchasesPlugin.swift; sourceTree = "<group>"; };
-		A14200022FF3000000000002 /* ReviewAccessVerifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewAccessVerifier.swift; sourceTree = "<group>"; };
 		A12600022FEC000000000002 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		A12600032FEC000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A12600042FEC000000000004 /* ShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShareExtension.entitlements; sourceTree = "<group>"; };
@@ -179,8 +175,6 @@
 				A14000022FF3000000000002 /* WovenleafFeedbackPlugin.swift */,
 				A11200022FF3000000000002 /* WovenleafReviewAccessibilityPlugin.swift */,
 				A11500022FF3000000000002 /* WovenleafSnapshotPlugin.swift */,
-				A14100022FF3000000000002 /* WovenleafPurchasesPlugin.swift */,
-				A14200022FF3000000000002 /* ReviewAccessVerifier.swift */,
 				A13700022FF0000000000002 /* WovenleafPlaybackPlugin.swift */,
 				A15000012FF5000000000001 /* WovenleafFileAccess.swift */,
 				5A32A7CEEBC973E60D980735 /* LibbyInbox.swift */,
@@ -311,7 +305,6 @@
 						LastSwiftMigration = 1100;
 						ProvisioningStyle = Automatic;
 						SystemCapabilities = {
-							com.apple.InAppPurchase = { enabled = 1; };
 						};
 					};
 				};
@@ -400,8 +393,6 @@
 				A14000012FF3000000000001 /* WovenleafFeedbackPlugin.swift in Sources */,
 				A11200012FF3000000000001 /* WovenleafReviewAccessibilityPlugin.swift in Sources */,
 				A11500012FF3000000000001 /* WovenleafSnapshotPlugin.swift in Sources */,
-				A14100012FF3000000000001 /* WovenleafPurchasesPlugin.swift in Sources */,
-				A14200012FF3000000000001 /* ReviewAccessVerifier.swift in Sources */,
 				A13700012FF0000000000001 /* WovenleafPlaybackPlugin.swift in Sources */,
 				A15000012FF5000000000002 /* WovenleafFileAccess.swift in Sources */,
 				32612ED2BF08AED9F8AD304F /* LibbyInbox.swift in Sources */,

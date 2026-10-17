@@ -146,7 +146,7 @@ export function useLibrary() {
           finishedAt: shelf === 'finished' ? timestamp : undefined,
           lastUpdatedAt: timestamp,
         }
-        // Persist first: a denied purchase gate must never leave a phantom book in the UI.
+        // Persist first: a failed write must never leave a phantom book in the UI.
         await (await getStorageRuntime()).library.saveManual(undefined, added, { id: crypto.randomUUID() })
         hasMutatedRef.current = true
         showBooks([...booksRef.current, added])

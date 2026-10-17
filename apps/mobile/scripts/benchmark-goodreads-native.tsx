@@ -12,7 +12,6 @@ import type { ImportPreview } from '../src/imports/model'
 import type { LibraryBook } from '../src/library-model'
 import { tw } from '../src/tailwind/styles'
 import type { SqlRow, SqlValue } from '../src/storage/database'
-import { setLibraryCapacityPolicy } from '../src/purchases/capacity'
 
 const paint = () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
 const report = (data: object) => Filesystem.writeFile({
@@ -31,8 +30,6 @@ export function Benchmark() {
       await report({ stage: 'starting' })
       const database = await openCapacitorDatabase()
       await migrateStorage(database)
-      // Model an entitled test library while exercising the same transactional capacity read.
-      setLibraryCapacityPolicy(database, async () => {})
       const imports = new ImportRepository(database)
       const initial = await new LibraryRepository(database).list()
       if (initial.length) throw new Error('Use a fresh disposable simulator app installation for a full-import benchmark')

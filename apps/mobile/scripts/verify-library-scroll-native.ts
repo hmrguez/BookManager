@@ -1,7 +1,6 @@
 /** Simulator-only bootstrap; the runner then loads the unchanged production app entry. */
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem'
 import { getStorageRuntime } from '../src/storage/runtime'
-import { setLibraryCapacityPolicy } from '../src/purchases/capacity'
 
 type Fixture = { view: 'list' | 'grid'; entry: string }
 const report = (value: object) => Filesystem.writeFile({
@@ -21,8 +20,6 @@ void (async () => {
     throw new Error('Use an isolated simulator containing only this verification fixture')
   }
   if (!initial.length) {
-    // Entitled synthetic fixture; the real parser, transaction and native SQLite are used.
-    setLibraryCapacityPolicy(runtime.database, async () => {})
     const csv = ['external_id,title,authors,shelf,rating', ...Array.from({ length: 89 }, (_, index) =>
       `native-scroll-${index},Scroll volume ${String(index).padStart(3, '0')},Library Author,${index < 45 ? 'tbr' : 'finished'},3`,
     )].join('\n')

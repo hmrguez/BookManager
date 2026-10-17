@@ -1,7 +1,6 @@
 import { libraryBookSchema, type LibraryBook } from '../library-model'
 import { planLibraryBookCommit } from '../imports/commit-rules'
 import { CanonicalImportSession, canonicalImportAdapterFor } from '../imports/canonical-adapters'
-import { checkLibraryCapacity } from '../purchases/capacity'
 import { SqlWriteBuffer } from './write-buffer'
 import { selectCsvParser } from '../imports/csv-parser'
 import {
@@ -169,15 +168,6 @@ export class ImportRepository {
       const canonicalSession = canonicalAdapter
         ? new CanonicalImportSession(canonicalAdapter, await new CatalogRepository(database).read())
         : undefined
-      await checkLibraryCapacity(database, preview.proposals.flatMap((proposal) => {
-        const decision = decisionByRow.get(proposal.id)
-        const targetId = decision?.targetId ?? proposal.targetId
-        const alreadyImported = proposal.record && receiptKeys.has(JSON.stringify([
-          preview.source.key, proposal.record.externalKey, proposal.rowHash,
-        ]))
-        return !proposal.duplicateOfBatchId && !alreadyImported && (decision?.included ?? proposal.defaultIncluded) && targetId
-          ? [targetId] : []
-      }))
       const writes = new SqlWriteBuffer(database)
       let appliedRows = 0
       let appliedChanges = 0
@@ -249,7 +239,7 @@ export class ImportRepository {
           ],
         )
         if (plan.changes.length) {
-          await writeLibraryBook(writes, plan.after, true)
+          await writeLibraryBook(writes, plan.after)
           booksById.set(plan.targetId, plan.after)
 
           for (const change of plan.changes) {

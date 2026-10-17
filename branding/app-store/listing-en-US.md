@@ -1,7 +1,8 @@
 # Wovenleaf — English (U.S.) App Store listing
 
-Draft metadata saved in App Store Connect on 3 October 2026 for app 6818794299,
-version 1.0. Submission and release have not been performed.
+Draft updated locally on 17 October 2026 for the free, unlimited app. Earlier
+metadata was saved in App Store Connect on 3 October 2026 for app 6818794299,
+version 1.0. The changes below have not been applied to the store.
 
 ## Name and subtitle
 
@@ -36,8 +37,8 @@ Explore your reading history and reflect on completed quarters with personal rev
 YOUR LIBRARY, ON YOUR DEVICE
 No Wovenleaf account is required. Your library and imported files are stored locally. Export a backup to keep a copy of your reading life. Online catalog searches and remote covers require an internet connection.
 
-START FREE
-Keep up to 30 books in your library for free. Wovenleaf Unlimited is an optional one-time in-app purchase that removes the library limit. There is no subscription. Books and audiobook recordings are not included; import files you own or are entitled to use.
+FREE, UNLIMITED LIBRARY
+Add as many books as you like. There are no in-app purchases, paid tiers, or subscriptions. Books and audiobook recordings are not included; import files you own or are entitled to use.
 
 ## Keywords
 
@@ -56,7 +57,7 @@ homepage itself has no direct email link.
 
 Wovenleaf is a local book library, EPUB/PDF reader, and audiobook player. No app account or sign-in is required.
 
-The free tier permits 30 current library entries. Wovenleaf Unlimited (com.hmrguez.wovenleaf.unlimited) is a non-consumable, one-time purchase that removes that limit. Open Settings → Upgrade or restore purchase to test purchase and restore; adding entry 31 also opens the upgrade screen. Existing books remain readable and editable without Unlimited.
+All library features are free, with no book-count limit, purchase, restore step, or reviewer token.
 
 Books and audiobook recordings are not sold or supplied by Wovenleaf. Readers import their own files. The app includes a share extension and an optional Safari extension for importing Libby reading progress.
 
@@ -85,9 +86,8 @@ build verification below:
   `../../docs/guides/privacy-review.md` for Open Library/cover request flows.
 - Have the owner confirm Apple's content-rights declaration for third-party
   covers and catalog content.
-- Complete and test Wovenleaf Unlimited in App Store Connect, then associate it
-  with the first submission as required; pricing, contracts, tax/banking, and
-  availability must also be checked before release.
+- Update the remote listing to describe the free, unlimited app and retire any
+  previously configured Unlimited product. Repository edits do not update store accounts.
 
 See `../../docs/guides/ios-app-store-release.md` for the archive/export paths and
 full publishing sequence. App Review submission and public release remain pending.

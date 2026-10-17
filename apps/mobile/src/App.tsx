@@ -10,10 +10,7 @@ import { LibbyBookLink } from './libby/LibbyBookLink'
 import { Capacitor } from '@capacitor/core'
 import { nativeOriginalFiles, originalFiles, originalSelectionFromUri, pickOriginalFiles, type IncomingOriginalFile } from './files/original-files'
 import { isPdfBytes } from './epub/inspect-book'
-import { purchases, startPurchases } from './purchases/runtime'
-import { LibraryUpgradeRequired } from './purchases/model'
-import { UpgradeDialog } from './purchases/UpgradeDialog'
-import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react'
 import { AlertTriangle, Check, Download } from 'lucide-react'
 import { App as CapacitorApp } from '@capacitor/app'
 import type { SharedFile } from '@capgo/capacitor-share-target'
@@ -174,13 +171,6 @@ function App() {
     reloadUpNext,
   } = useUpNext(books)
 
-  const purchaseView = useSyncExternalStore(purchases.subscribe, purchases.getSnapshot)
-  const [upgradeOpen, setUpgradeOpen] = useState(false)
-  useEffect(() => {
-    const unsubscribe = purchases.onUpgradeRequired(() => setUpgradeOpen(true))
-    startPurchases()
-    return unsubscribe
-  }, [])
   const [sheet, setSheet] = useState<SheetState>(null)
   const [view, setView] = useState<AppView>('library')
   const [reviewRefresh, setReviewRefresh] = useState(0)
@@ -487,10 +477,6 @@ function App() {
         setSheet({ kind: 'audiobook-player', bookId: result.bookId })
       }
     } catch (error) {
-      if (error instanceof LibraryUpgradeRequired) {
-        setAudiobookImport((current) => ({ ...current, progress: undefined, error: error.message }))
-        return
-      }
       audiobookSourcesRef.current = []
       openAudiobookAfterImportRef.current = false
       const message = audiobookImportErrorMessage(error)
@@ -1300,9 +1286,7 @@ function App() {
       await performAdd(result, shelf)
       return true
     } catch (error) {
-      if (!(error instanceof LibraryUpgradeRequired)) {
-        setToast({ message: error instanceof Error ? error.message : t("The book could not be saved.") })
-      }
+      setToast({ message: error instanceof Error ? error.message : t("The book could not be saved.") })
       return false
     }
   }
@@ -1490,7 +1474,6 @@ function App() {
   return (
     <div className={tw('library-app')} data-wide={wideLayout || undefined} data-detail-open={wideLayout && sheet?.kind === 'detail' || undefined}>
       {incomingFileOpening && <IncomingFileOpening state={incomingFileOpening} />}
-      <UpgradeDialog open={upgradeOpen} onClose={() => setUpgradeOpen(false)} view={purchaseView} bookCount={books.length} />
       <div
         className={tw('app-content')}
         inert={(sheet && !(wideLayout && sheet.kind === 'detail')) || commandMenuOpen ? true : undefined}
@@ -1558,8 +1541,6 @@ function App() {
           <SettingsPage
             initialCategory={revealLibby ? 'books' : 'appearance'}
             libby={<LibbySettings controller={libby} books={books} reveal={revealLibby} onRevealed={() => setRevealLibby(false)} />}
-            purchaseView={purchaseView}
-            onUpgrade={() => { setUpgradeOpen(true); void purchases.refresh() }}
             books={books}
             appearance={appearance}
             searchPreferences={searchPreferences}

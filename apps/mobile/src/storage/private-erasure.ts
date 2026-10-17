@@ -6,7 +6,7 @@ import { CatalogRepository } from './catalog-repository'
 import type { RecoveryService } from './recovery'
 
 // These tables contain canonical membership/activity or dependent per-book state.
-// Immutable schema/purchase/credential state is deliberately outside this boundary.
+// Immutable schema/credential state is deliberately outside this boundary.
 const scopedTables = ['works', 'editions', 'assets', 'identifiers', 'identifier_source_records', 'source_records',
   'metadata_overrides', 'ownerships', 'loans', 'access_grants', 'contributors', 'work_parts', 'list_entries',
   'reading_events', 'reading_event_references', 'progress_snapshots', 'library_books', 'custom_shelf_entries',

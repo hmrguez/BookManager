@@ -252,7 +252,7 @@ export function throwIfAudiobookImportCanceled(signal?: AbortSignal): void {
 }
 
 export function audiobookImportErrorMessage(error: unknown): string {
-  if (error instanceof Error && ['LibraryUpgradeRequired', 'FileAccessError'].includes(error.name)) return error.message
+  if (error instanceof Error && error.name === 'FileAccessError') return error.message
   if (error instanceof AudiobookImportError) return error.message
   return 'This audiobook could not be imported. The library and managed files were left unchanged.'
 }

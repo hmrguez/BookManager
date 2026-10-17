@@ -33,8 +33,6 @@ import { SmartListRepository } from './smart-list-repository'
 import { UpNextRepository } from './up-next-repository'
 import { EpubReaderService } from '../reader'
 import { AudiobookPlaybackService } from '../playback'
-import { setLibraryCapacityPolicy } from '../purchases/capacity'
-import { purchases, startPurchases } from '../purchases/runtime'
 
 export type StorageRuntime = {
   readonly privateErasure: PrivateErasureService
@@ -113,8 +111,6 @@ async function initializeStorageRuntime(): Promise<StorageRuntime> {
   }
 
   const readingLedger = new ReadingLedgerRepository(database)
-  startPurchases()
-  setLibraryCapacityPolicy(database, purchases.assertCapacity)
   return {
     database,
     privateErasure: new PrivateErasureService(database, recovery),

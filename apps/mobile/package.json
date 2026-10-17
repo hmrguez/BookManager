@@ -1,6 +1,7 @@
 {
   "name": "wovenleaf",
   "private": true,
+  "license": "MIT",
   "version": "0.0.0",
   "packageManager": "bun@1.3.13",
   "type": "module",
@@ -19,8 +20,6 @@
     "check": "bun run lint && bun run typecheck",
     "test": "bun test ./tests/*.test.ts",
     "storage:inspect": "bun scripts/inspect-storage.ts",
-    "review-access": "bun scripts/review-access.ts",
-    "review-access:test-native": "bun scripts/test-review-access-native.ts",
     "feedback:generate": "bun scripts/generate-feedback-sounds.ts",
     "preview": "vite preview",
     "assets:generate": "uv run --no-project --with-requirements scripts/brand-assets-requirements.txt scripts/generate-brand-assets.py --source-png ../../branding/source/wovenleaf-mark-color-2048px.png --source-svg ../../branding/source/wovenleaf-mark-color.svg --local-output ../../branding/final/platform",
