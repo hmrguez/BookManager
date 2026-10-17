@@ -3,8 +3,10 @@
 All library features are free and unlimited. No billing service, Wovenleaf
 account, developer API key or store product is needed to build the application.
 Users supply their own book files and library-service access. The public code
-repository is https://github.com/hmrguez/wovenleaf . There is no promise of a
-prebuilt release until a release asset is actually published.
+repository is https://github.com/hmrguez/wovenleaf . Signed artifacts are available
+in the [latest release](https://github.com/hmrguez/wovenleaf/releases/latest);
+see the [download and installation instructions](../../README.md#downloads) for
+Android APK installation and the published iOS IPA's distribution limitations.
 
 For detailed workflows, see [Build and run](../development/building.md),
 [Debugging](../development/debugging.md), and

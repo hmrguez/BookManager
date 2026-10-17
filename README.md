@@ -5,6 +5,8 @@ Built with React, TypeScript, Capacitor, and SQLite, with a quiet, paper-inspire
 
 Free and open source. No account, subscriptions, or library limits.
 
+[Download the latest release](https://github.com/hmrguez/wovenleaf/releases/latest) · [Installation instructions](#downloads)
+
 <p align="center">
   <img src="docs/screenshots/library.png" width="30%" alt="Library with reading shelves and book covers" />
   <img src="docs/screenshots/library-grid.png" width="30%" alt="Library grid view with book covers" />
@@ -45,6 +47,42 @@ These screenshots use fictional reading history and the same original demo cover
 
 You supply your own book and audio files. Online metadata and integrations are optional.
 Native reading, playback, and integration capabilities differ from the browser preview.
+
+## Downloads
+
+Get the signed builds from the [latest GitHub release](https://github.com/hmrguez/wovenleaf/releases/latest).
+Open **Assets** and choose the file for your platform:
+
+| File | Purpose |
+| --- | --- |
+| `*-android.apk` | Install directly on Android 8.0 or later. |
+| `*-android.aab` | Google Play upload bundle; use the APK for direct installation. |
+| `*-ios.ipa` | App Store Connect distribution package; see the iOS instructions below. |
+| `SHA256SUMS` | SHA-256 checksums for verifying the downloaded files. |
+
+### Android
+
+1. On your Android device, download the `*-android.apk` asset from the latest release.
+2. Open the download. If prompted, allow your browser or file manager to **Install unknown apps** / **Allow from this source**, then return to the installer. Labels vary by device; see [Google's installation guidance](https://support.google.com/pixelphone/answer/7391672).
+3. Tap **Install**, then open Wovenleaf. You can turn off the install permission afterward.
+
+For updates, install the new APK over the existing app signed with the same key to
+retain your library. The GitHub APK uses the maintainer's upload key, which may
+differ from Google Play's signing key. If Android reports a signature conflict,
+export a backup before changing installations; uninstalling removes local app data.
+
+### iOS
+
+The published IPA is signed for **App Store Connect**, so it cannot be installed
+directly from GitHub onto an iPhone or iPad. It is intended for the maintainer's
+App Store/TestFlight distribution pipeline, not a general sideload download.
+
+To install your own build now, you need a Mac, Xcode, and Bun:
+
+1. Follow [Getting started](#getting-started) to clone the repository and install dependencies.
+2. From `apps/mobile`, run `bun run ios:open` to build the web assets, sync Capacitor, and open Xcode.
+3. Configure your Apple team, bundle IDs, and shared App Group for **App**, **ShareExtension**, and **LibbyExtension** using the [iOS signing guide](docs/development/releasing.md#ios-signing-and-personal-installs). The complete extension setup depends on your Apple account's capabilities.
+4. Connect and trust your iPhone/iPad, enable Developer Mode if required, select the **App** scheme and your device, then click **Run** in Xcode. See [Apple's device-running guide](https://developer.apple.com/documentation/xcode/running-your-app-on-simulated-or-physical-devices).
 
 ## Getting started
 
