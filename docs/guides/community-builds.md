@@ -3,7 +3,7 @@
 All library features are free and unlimited. No billing service, Wovenleaf
 account, developer API key or store product is needed to build the application.
 Users supply their own book files and library-service access. The public code
-repository is https://github.com/hmrguez/BookManager . There is no promise of a
+repository is https://github.com/hmrguez/wovenleaf . There is no promise of a
 prebuilt release until a release asset is actually published.
 
 For detailed workflows, see [Build and run](../development/building.md),

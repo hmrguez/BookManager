@@ -1,6 +1,6 @@
 {
   "inputs": {
-    "scripts/licenses/generate.py": "2f67440b9cc2b41f60b7d31b05ad7aa5b001dbc731bad8b046a54886496a39af",
+    "scripts/licenses/generate.py": "3db18ed6e1569e8547ccf39e922318d423b9b9fb32210d0249978dc55388c246",
     "scripts/licenses/inputs.py": "463e9bac716b2584e2dbfeffe5d1d6663d698935e4e34146f4b158727b4a7eed",
     "LICENSE": "09cc18ec38a71f66c3156c285b7f69372668f23c931e1c9d72110f361a393401",
     "apps/mobile/package.json": "72fdd40ffdac40a8833a3e6aabd3520602218f9afa7ddae589abf557ea146946",

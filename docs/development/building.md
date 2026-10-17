@@ -16,8 +16,8 @@ extension targets 15.4. Install the toolchains required by the checked-in projec
 ## First run
 
 ```sh
-git clone https://github.com/hmrguez/BookManager.git
-cd BookManager/apps/mobile
+git clone https://github.com/hmrguez/wovenleaf.git
+cd wovenleaf/apps/mobile
 bun install --frozen-lockfile
 bun run dev
 ```

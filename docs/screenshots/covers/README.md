@@ -25,3 +25,8 @@ node scripts/capture-readme.mjs
 The capture script uses an isolated Playwright browser with fictional data and
 never opens an existing browser profile or personal library. Refresh the asset
 hashes in `ASSET_LICENSES.json` after regenerating tracked assets.
+
+For the quarterly-review and reading-stats screenshots, run the mobile development
+server on port 4183 and use `node scripts/capture-reading-story.mjs` from the
+repository root. This capture fixes the clock to 17 October 2026 and records only
+fictional reading/listening activity in a fresh, isolated browser.

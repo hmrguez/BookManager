@@ -20,7 +20,7 @@ export function LicenseNotices() {
   return <details onToggle={event => { if (event.currentTarget.open) void load() }}>
     <summary>{t('Open-source licenses')}</summary>
     <p>{t('Wovenleaf is free and open source. Third-party components retain their own licenses.')}</p>
-    <p><a href="https://github.com/hmrguez/BookManager/tree/main/third_party/capacitor-share-target" target="_blank" rel="noreferrer">{t('Corresponding source for the MPL-licensed share extension')}</a></p>
+    <p><a href="https://github.com/hmrguez/wovenleaf/tree/main/third_party/capacitor-share-target" target="_blank" rel="noreferrer">{t('Corresponding source for the MPL-licensed share extension')}</a></p>
     {loading && <p role="status">{t('Loading…')}</p>}
     {error && <p role="alert"><button type="button" onClick={() => void load()}>{t('Try again')}</button></p>}
     {text && <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', maxHeight: '24rem', overflow: 'auto', fontSize: '12px' }}>{text}</pre>}

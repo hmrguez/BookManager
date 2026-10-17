@@ -131,7 +131,7 @@ if errors:
 # Include exact SPDX license texts for those declarations as well as upstream notices.
 standard=root/'third_party/licenses'
 license_texts='\n\n'.join(p.read_text() for p in sorted(standard.glob('*.txt')))
-notice='WOVENLEAF THIRD-PARTY NOTICES\n\n'+(root/'LICENSE').read_text()+'\nThird-party components retain their own licenses; see each entry and license text below.\nJSZip: MIT option selected. Modified Capgo share-target files remain MPL-2.0.\nCorresponding source: https://github.com/hmrguez/BookManager/tree/main/third_party/capacitor-share-target\n\n'
+notice='WOVENLEAF THIRD-PARTY NOTICES\n\n'+(root/'LICENSE').read_text()+'\nThird-party components retain their own licenses; see each entry and license text below.\nJSZip: MIT option selected. Modified Capgo share-target files remain MPL-2.0.\nCorresponding source: https://github.com/hmrguez/wovenleaf/tree/main/third_party/capacitor-share-target\n\n'
 for entry in entries:
  notice+=f"{entry['ecosystem']}: {entry['name']} {entry['version']}\nLicense: {entry.get('license','see upstream license text')}\nSource: {entry['source'] or 'See upstream package metadata'}\n"
  if entry.get('organization'):notice+='Organization: '+entry['organization']+'\n'

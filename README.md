@@ -23,6 +23,16 @@ Free and open source. No account, subscriptions, or library limits.
 
 Demo library covers are original [CC0 artwork](docs/screenshots/covers/README.md).
 
+<p align="center">
+  <img src="docs/screenshots/quarterly-review.png" width="30%" alt="Quarterly review keepsake with the Worldwanderer pathway and earned reading badges" />
+  <img src="docs/screenshots/reading-stats.png" width="30%" alt="Reading statistics with books finished, tracked time, and active days" />
+  <img src="docs/screenshots/reading-rhythm.png" width="30%" alt="Daily reading and listening activity plotted in the reading rhythm chart" />
+</p>
+
+<p align="center"><sub>Quarterly review · Reading stats · Reading rhythm</sub></p>
+
+These screenshots use fictional reading history and the same original demo covers.
+
 ## Features
 
 - **Your library:** reading shelves, custom collections, personal tags, ratings, notes, and local search.
@@ -41,8 +51,8 @@ Native reading, playback, and integration capabilities differ from the browser p
 Requires [Bun](https://bun.sh) **1.3.13**. From a fresh clone:
 
 ```sh
-git clone https://github.com/hmrguez/BookManager.git
-cd BookManager/apps/mobile
+git clone https://github.com/hmrguez/wovenleaf.git
+cd wovenleaf/apps/mobile
 bun install --frozen-lockfile
 bun run dev
 ```
