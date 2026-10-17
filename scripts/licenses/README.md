@@ -19,7 +19,8 @@ python3 scripts/licenses/generate.py \
 resolved modules. Obtain new POMs from Google Maven for AndroidX and Maven Central
 for other modules, or your resolved Gradle cache; never guess their license.
 The generator fails on unknown/missing licenses or mismatched Swift revisions.
-It includes installed JavaScript runtime dependencies, Android runtime modules,
+It includes installed JavaScript runtime dependencies and their runtime peers,
+the native Capacitor Android/iOS hosts, Android runtime modules,
 Swift package licenses, font licenses and available native artifact NOTICE files.
 Static-site compiler/dev tools are not shipped with the static site and are not
 part of its redistributed runtime. The checked-in Gradle wrapper's license/notice

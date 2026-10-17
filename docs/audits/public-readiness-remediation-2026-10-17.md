@@ -25,7 +25,7 @@
   derivatives remain; original synthetic sounds and test-gallery captures remain.
   Runtime fonts retain their upstream OFL notices. User-imported books and remote
   covers are not licensed or distributed by the source repository.
-- Inventoried **188 distinct resolved runtime dependency/version entries** across
+- Inventoried **192 distinct resolved runtime dependency/version entries** across
   JavaScript, Android release, and Swift. Retained upstream notices and common
   license texts, including SQLCipher Community and its attribution. JSZip uses
   the MIT option. Development/static-site compiler executables are not included
@@ -47,13 +47,22 @@
 
 The owner explicitly authorized rewriting this repository's history. Restricted
 historical blobs are removed from local branches/tags/history after a recovery
-copy is saved outside the checkout. Exact removed-object and rewritten-commit
-counts are recorded below after the rewrite. Old hashes in the initial audit or
+copy is saved outside the checkout. The rewrite removed 373 historical blobs from reachable refs and reduced 241
+commits to 202 by dropping empty commits. The latest committed source tree was
+verified byte-for-byte unchanged by the rewrite. Three private editor checkpoint
+refs retaining old images were backed up and removed separately. Old hashes in the initial audit or
 retained architecture records may no longer identify reachable commits.
 
 The private recovery copy deliberately retains the original history. It must not
 be uploaded or included in a public source archive. It is for local recovery only.
 The existing Android version edit and local agent installations are preserved.
+Five other registered worktree indexes still retain 262 unreachable private
+objects in the shared local object store; their unrelated state was preserved.
+They are not reachable through any current branch, tag or ref. A fresh clone over
+Git's transfer protocol was verified to contain none of the 373 removed blobs.
+Publish cleaned branch refs, not a copy of `.git` or a private checkout mirror.
+Other worktrees should be resynchronized before making future commits, so their
+old indexes cannot reintroduce removed material.
 
 Read-only GitHub inspection found the remote private, with one branch (`main`),
 no releases/assets, no pull requests and no wiki.
@@ -91,8 +100,15 @@ archives must include `third_party/`, notices, and the license/provenance files.
   tests remain enabled. They are not introduced by this cleanup or counted as
   passing checks. A touch-drag case failed once but passed the baseline and final
   smoke reruns. No unrelated drag/storage behavior was changed.
-- Clean-clone validation and final history scan results are recorded below after
-  the repository rewrite.
+- A fresh publication clone was checked with pinned Bun 1.3.13 and frozen
+  lockfiles. Mobile and website lint/typecheck and production builds pass; the
+  source/provenance/notices check passes. A timing-sensitive smart-list budget
+  failed once under parallel build load and passed in isolation with its original
+  threshold unchanged. The final serial full suite passes all 535 tests under
+  pinned Bun 1.3.13.
+- Gitleaks rescanned all rewritten refs with no credentials found. Its sole
+  exception is the exact local-storage namespace `wovenleaf.tbr-recommendations.v1`,
+  not a token or a broad file/directory exclusion.
 
 ## Platform and licensing limits
 

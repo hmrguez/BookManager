@@ -42,7 +42,7 @@ def npm(path):
   if file.exists(): refs.append(add_text(file.name,file.read_text()))
  if not license or not refs:errors.append(f'npm {name}@{version}: missing license declaration/text')
  entries.append({'ecosystem':'npm','name':name,'version':version,'license':license,'source':repo,'texts':refs})
- for dep in {**data.get('dependencies',{}),**data.get('optionalDependencies',{})}:
+ for dep in {**data.get('dependencies',{}),**data.get('optionalDependencies',{}),**data.get('peerDependencies',{})}:
   target=resolve(path,dep)
   if target:npm(target)
 for app in ['apps/mobile','apps/landing']:
@@ -52,6 +52,12 @@ for app in ['apps/mobile','apps/landing']:
   target=resolve(path,name)
   if not target:errors.append('Missing install: '+name)
   else:npm(target)
+# Native Capacitor hosts are declared as development dependencies for the CLI,
+# but their Android/iOS implementations are redistributed with the native app.
+for name in ['@capacitor/android','@capacitor/ios']:
+ target=resolve(root/'apps/mobile',name)
+ if not target:errors.append('Missing native host install: '+name)
+ else:npm(target)
 # Native dependency POM license metadata plus all license/NOTICE payloads carried by artifacts.
 cache=Path.home()/'.gradle/caches/modules-2/files-2.1'
 for row in json.loads(args.android.read_text()):
