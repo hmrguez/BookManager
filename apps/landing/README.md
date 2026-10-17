@@ -1,8 +1,8 @@
 # Wovenleaf website
 
-Static Astro site for the free, open-source application. Download/source links
-point to the public repository and community-build instructions. The site does
-not promise an existing store listing, hosted app or prebuilt release.
+Static Astro site for the free, open-source application. The homepage has no
+store badges or download placeholders. Community build and release instructions
+are available in the repository.
 
 ```sh
 bun install --frozen-lockfile

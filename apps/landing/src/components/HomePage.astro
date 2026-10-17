@@ -14,7 +14,6 @@ const t = createTranslator(locale);
 import '@fontsource-variable/literata';
 import '@fontsource-variable/ibm-plex-sans';
 import '../styles.css';
-import StoreLinks from './StoreLinks.astro';
 import SiteFooter from './SiteFooter.astro';
 const stories = [
   {
@@ -143,7 +142,6 @@ const stories = [
               'A fast, simple book tracker, EPUB reader, and audiobook player. Together, at last.',
             )}
           />
-          <StoreLinks locale={locale} />
           <p
             class="small-note"
             set:html={t('Made for iOS and Android. No account needed.')}
@@ -275,7 +273,7 @@ const stories = [
           set:html={t(
             'A book tracker.<br />A reader. A player.<br /><em>A simpler reading life.</em>',
           )}
-        /><StoreLinks locale={locale} />
+        />
       </section>
     </main>
     <SiteFooter locale={locale} />
