@@ -10,6 +10,9 @@ to a pull request; discuss large changes in an issue first. Never include real
 library exports, private reading histories, account credentials, or unlicensed
 book content in reports, tests or screenshots.
 
+See the [developer guides](docs/development/README.md) for build, debugging, signing,
+and personal release workflows.
+
 ## Build and test
 
 Install Bun 1.3.13 (see `.bun-version`), then from `apps/mobile` run:

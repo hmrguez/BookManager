@@ -6,6 +6,10 @@ Users supply their own book files and library-service access. The public code
 repository is https://github.com/hmrguez/BookManager . There is no promise of a
 prebuilt release until a release asset is actually published.
 
+For detailed workflows, see [Build and run](../development/building.md),
+[Debugging](../development/debugging.md), and
+[Signing and releases](../development/releasing.md).
+
 ## Android without Google Play
 
 Use Bun 1.3.13, Android Studio/SDK 36, a JDK 21 installation, and the committed

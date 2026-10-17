@@ -108,7 +108,8 @@ bun run build
 | `docs/` | Build guides, integrations, and architecture decisions |
 | `third_party/` | Dependency licenses and notices |
 
-Contributions welcome: see [CONTRIBUTING.md](CONTRIBUTING.md).
+See the [developer guides](docs/development/README.md) for building, debugging, signing,
+and packaging your own releases. Contributions welcome: see [CONTRIBUTING.md](CONTRIBUTING.md).
 Report vulnerabilities as described in [SECURITY.md](SECURITY.md).
 
 ## Privacy
