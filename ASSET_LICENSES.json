@@ -498,6 +498,24 @@
       "copyright": "2026 Hector Rodriguez",
       "provenance": "Owner-provided original Wovenleaf project identity, licensed for this open-source release; branding/source/wovenleaf-mark-color.svg and deterministic platform derivatives.",
       "sha256": "a05fa8c1e28f41f85c32aeb26482a00f17de2cf21ab34ca9e7e48f977c3a1a6c"
+    },
+    "docs/screenshots/library.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Screenshot of Wovenleaf in an isolated browser with fictional demo library data and original project-owned covers from apps/mobile/tests/fixtures/original-cover-{1,2,3,4}.jpg. No user data or remote media.",
+      "sha256": "06046f617be3a5543d2c0b9a2a2b192998bb0d600e99d48a6c4f750b496d7c7f"
+    },
+    "docs/screenshots/book-details.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Screenshot of Wovenleaf in an isolated browser with fictional demo library data and original project-owned covers from apps/mobile/tests/fixtures/original-cover-{1,2,3,4}.jpg. No user data or remote media.",
+      "sha256": "c0bcc51431c915563bfca3af35a0575283e0f1bb81c1cfd6a2c108d83de28ad4"
+    },
+    "docs/screenshots/audiobook.png": {
+      "license": "MIT",
+      "copyright": "2026 Hector Rodriguez",
+      "provenance": "Screenshot of the Wovenleaf development-only MarketingPlayer preview; Jane Austen bibliographic metadata and original project-owned pride-and-prejudice.svg cover. No book text or audio included.",
+      "sha256": "62549c8d359b70e4874e17843e665c2bdb55079614dbd7aca73790b601943356"
     }
   }
 }

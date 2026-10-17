@@ -1,39 +1,97 @@
 # Wovenleaf
 
-A quiet place for your books, reading, and listening. Wovenleaf is a local-first
-React/Capacitor app for iOS, Android, and browser development, with a separate
-Astro landing page and an optional Libby progress companion.
+A local-first book tracker, ebook reader, and audiobook player for iOS and Android.
+Built with React, TypeScript, Capacitor, and SQLite, with a quiet, paper-inspired interface.
 
-**Free, unlimited libraries.** There are no paid tiers, license keys, subscriptions,
-or in-app purchases. Readers supply their own files. Online metadata lookup is
-optional; no Wovenleaf account or service API key is needed.
+Free and open source. No account, subscriptions, or library limits.
 
-## What it does
+<p align="center">
+  <img src="docs/screenshots/library.png" width="30%" alt="Library with reading shelves and book covers" />
+  <img src="docs/screenshots/book-details.png" width="30%" alt="Book details and reading progress" />
+  <img src="docs/screenshots/audiobook.png" width="30%" alt="Audiobook player with chapters and playback controls" />
+</p>
 
-- Organize books into reading shelves, collections and personal tags.
-- Add books manually, by ISBN scan, or through optional Open Library lookup.
-- Preview and review CSV/Goodreads imports before committing changes.
-- Read supported DRM-free EPUB/PDF files using native reader integrations.
-- Listen to local audiobook files, save bookmarks and track progress.
-- Explore reading statistics and saved quarterly review keepsakes.
-- Export and restore portable backups; keep your own copies of important data.
+<p align="center"><sub>App screenshots with demo data; audiobook screen uses the marketing preview.</sub></p>
 
-Native and browser capabilities differ. See [community builds and installation](docs/guides/community-builds.md)
-for Android APK installation without Google Play, iOS signing requirements, and
-browser limitations. No prebuilt binary or hosted public web app is promised
-until a release or deployment actually exists.
+## Features
 
-## Run locally
+- **Your library:** reading shelves, custom collections, personal tags, ratings, notes, and local search.
+- **Add books:** manual entry, ISBN scanning, optional Open Library lookup, and previewable Goodreads/CSV imports.
+- **Read and listen:** DRM-free EPUB/PDF reading and local audiobook playback with chapters, bookmarks, playback speed, and a sleep timer.
+- **Track progress:** reading history, statistics, and saved quarterly reviews.
+- **Libby companion:** import loans and receive reading/listening progress from Libby on the web.
+- **Keep your data:** local storage, portable exports, and backup/restore.
+- **Make it yours:** paper and night themes, adjustable text size, and English, Spanish, French, German, and Italian.
 
-Install Bun 1.3.13, then:
+You supply your own book and audio files. Online metadata and integrations are optional.
+Native reading, playback, and integration capabilities differ from the browser preview.
+
+## Getting started
+
+Requires [Bun](https://bun.sh) **1.3.13**. From a fresh clone:
 
 ```sh
-cd apps/mobile
+git clone https://github.com/hmrguez/BookManager.git
+cd BookManager/apps/mobile
 bun install --frozen-lockfile
 bun run dev
 ```
 
-For validation:
+Open the local URL printed by Vite. No API keys or environment variables are required
+for the core app.
+
+For native builds, install Android Studio/SDK 36 and JDK 21, or macOS and Xcode for iOS:
+
+```sh
+# From apps/mobile
+bun run android:open
+# or
+bun run ios:open
+```
+
+See [Build and install](docs/guides/community-builds.md) for APK installation,
+iOS signing, and browser limitations.
+
+## Libby setup
+
+The optional companion receives loan details and progress from **Libby on the web**.
+It does not monitor the native Libby app. Wovenleaf never asks for your library card or Libby password.
+
+1. Open **Settings → Libby** in Wovenleaf and enable the integration.
+2. Choose **Quetta or Firefox on Android**, or enable the bundled **Wovenleaf Libby** extension in **Settings → Apps → Safari → Extensions** on iOS.
+3. Install/enable the companion and allow access to Libby and its reader. For Android development builds, use **More options → Use a connection code instead**, then enter it in the companion’s **Connection help** and select **Connect & enable capture**.
+4. Open or refresh your Libby web **Shelf**, then return to Wovenleaf to verify the connection. Read or listen in that browser to receive subsequent progress.
+
+Visit the Shelf again after a browser restart or if captures stop. Existing-book matches
+and conflicting progress appear for review; updates can be undone and links disconnected.
+Android code-free pairing and physical Safari verification remain release gates.
+
+### Companion build and configuration
+
+```sh
+# From the repository root, after installing mobile dependencies
+node apps/libby-extension/build.mjs
+```
+
+Outputs Chromium, Firefox, and Safari packages under `apps/libby-extension/dist/`.
+The mobile `dev` and `build` scripts also build the companion automatically.
+For Chromium development, load `dist/chromium` unpacked; Quetta supports the generated
+ZIP through its developer extension installer. Firefox Android distribution requires a signed add-on.
+
+Optional build variables in `apps/mobile/.env.local`:
+
+| Variable | Purpose |
+| --- | --- |
+| `VITE_LIBBY_EXTENSION_STORE_URL` | Published Chrome Web Store or Edge Add-ons listing for Quetta. Unset by default; setup shows the listing as unavailable. |
+| `VITE_LIBBY_FIREFOX_STORE_URL` | Override the default Wovenleaf Libby Progress listing on Mozilla Add-ons. |
+
+Use genuine HTTPS listing URLs. Safari needs matching app/extension signing and App Group
+entitlements. See the [companion guide](apps/libby-extension/README.md) for packaging,
+installation, and verification details. Wovenleaf is independent of Libby and OverDrive.
+
+## Development
+
+From `apps/mobile`:
 
 ```sh
 bun run lint
@@ -42,49 +100,25 @@ bun run test
 bun run build
 ```
 
-The landing website has its own package and lockfile under `apps/landing`:
-install with `bun install --frozen-lockfile`, then `bun run dev` or `bun run build`.
-Build scripts apply the committed native dependency patches and bundle the Libby
-companion. Native toolchains are described in the community-build guide.
-
-## Project layout
-
-| Path | Purpose |
+| Directory | Contents |
 | --- | --- |
-| `apps/mobile/` | React application, SQLite repositories, native iOS/Android hosts |
-| `apps/landing/` | Static Astro website and privacy/terms pages |
-| `apps/libby-extension/` | Optional browser/Safari companion; users supply their own library access |
-| `CONTEXT.md` | Shared domain vocabulary |
-| `docs/architecture/decisions/` | Architecture and data/privacy contracts |
-| `scripts/` | Public asset generation, license inventory and publication checks |
-| `third_party/` | Dependency notices, exact versions and modified MPL source |
+| `apps/mobile/` | React app, SQLite storage, and native iOS/Android projects |
+| `apps/landing/` | Astro marketing website; install dependencies and run `bun run dev` separately |
+| `apps/libby-extension/` | Libby browser companion |
+| `docs/` | Build guides, integrations, and architecture decisions |
+| `third_party/` | Dependency licenses and notices |
 
-## Privacy and safety
+Contributions welcome: see [CONTRIBUTING.md](CONTRIBUTING.md).
+Report vulnerabilities as described in [SECURITY.md](SECURITY.md).
 
-Your library and imported book files live on your device. Camera recognition uses
-ZXing on Android/web and system camera APIs on iOS. Camera frames are not uploaded
-or retained. An ISBN or search query is sent to Open Library only when using online
-lookup; remote covers and optional integrations contact their respective providers.
-User books and provider cover images are not distributed with the source release.
-The browser uses browser storage and its quotas; it is not a substitute for backups.
+## Privacy
 
-Do not commit private libraries, signing material, credentials or real-user
-screenshots. See [SECURITY.md](SECURITY.md) for vulnerability reporting and
-[CONTRIBUTING.md](CONTRIBUTING.md) for public issues, builds and contributions.
-CI checks code, asset provenance and secrets in reachable history.
+Your library and imported files stay on your device. ISBN scanning processes camera
+frames locally. Optional online lookup sends search terms or ISBNs to Open Library;
+remote covers and integrations contact their providers. Export backups regularly,
+especially when using browser storage.
 
-## License and attribution
+## License
 
-Original code and project-owned artwork: [MIT](LICENSE), Copyright (c) 2026
-Hector Rodriguez. Copies or substantial portions must retain the copyright and
-permission notices. MIT does not require visible credit in your app interface.
-Clearly identify independent forks; the name Wovenleaf does not imply endorsement.
-
-Third-party software keeps its own licenses. Read [third_party/README.md](third_party/README.md)
-and the bundled [notices](third_party/NOTICES.txt). Modified Capgo share-target
-source is provided under MPL-2.0, fonts retain OFL terms, and JSZip uses its MIT
-option. [ASSET_LICENSES.json](ASSET_LICENSES.json) records media provenance and hashes.
-No license here grants rights to other people's books, cover artwork or trademarks.
-
-The [public-readiness remediation record](docs/audits/public-readiness-remediation-2026-10-17.md)
-documents replacements, checks, history cleanup and remaining platform limitations.
+[MIT](LICENSE) for original code and project-owned artwork. Third-party components
+retain their [own licenses and notices](third_party/README.md).
